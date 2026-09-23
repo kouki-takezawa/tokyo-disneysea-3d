@@ -93,6 +93,17 @@ def glb_to_json(path):
         elif typ == 0x004E4942:
             blob = chunk
         off += 8 + ln
+    # images go out as sibling .jpg/.png files: GLTFLoader turns embedded images into blob: URLs,
+    # which the artifact page's CSP blocks (the whole model then fails to load)
+    for k, img in enumerate(doc.get("images", [])):
+        if "bufferView" not in img:
+            continue
+        bv = doc["bufferViews"][img.pop("bufferView")]
+        ext = ".png" if img.get("mimeType") == "image/png" else ".jpg"
+        name = f"{path.stem}_img{k}{ext}"
+        (path.parent / name).write_bytes(blob[bv.get("byteOffset", 0): bv.get("byteOffset", 0) + bv["byteLength"]])
+        img.pop("mimeType", None)
+        img["uri"] = name
     if doc.get("buffers"):
         doc["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(blob).decode()
     out = path.with_suffix(".json")
