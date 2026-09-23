@@ -49,7 +49,7 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .seg button:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
 
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 272px;gap:16px;align-items:start}
-.viewport{position:relative;height:clamp(420px,calc(100vh - 150px),940px);background:var(--sheet);
+.viewport{position:relative;height:max(420px,calc(100vh - 120px));background:var(--sheet);
   border:1px solid var(--rule);border-radius:4px;overflow:hidden;touch-action:none}
 #plan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #plan{cursor:grab}
@@ -834,7 +834,6 @@ function onHover(px, py) {
 // Parts already built in Blender are shown as solid models instead of their draft wireframe.
 // D.models = [{id, layer, src, hides: [wire group keys], ...}] (export_mock.py, files in output/disneysea/models/)
 const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; procedural Blender shaders do not export)
-  WS_water: { color: 0x2f6f68, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.86 },
   WS_bed: { color: 0x2a2a22, roughness: 1 },
   WS_quay: { color: 0x9a8c78, roughness: 0.9 }, WS_coping: { color: 0xc7bfb0, roughness: 0.8 },
   WS_wet: { color: 0x4a463d, roughness: 0.5 }, WS_rock: { color: 0x8a6a52, roughness: 1, flatShading: true },
@@ -850,8 +849,57 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   PZ_Lines: { color: 0xecebe6, roughness: 0.7 },
   VO_Rock: { vertexColors: true, roughness: 0.95 },
 };
+/* Water: the Blender shader (refraction + volume absorption + ripple bump + sky reflection) rebuilt as a
+   physical material. Transmission/attenuation need three r133+; the ripple normal comes from world position
+   (the water meshes carry no UVs). The sky environment map is set on this material only, so other materials keep their look. */
+function makeSkyEnv(T, renderer) {
+  const sc = new T.Scene();
+  sc.add(new T.Mesh(new T.SphereGeometry(500, 32, 16), new T.ShaderMaterial({
+    side: T.BackSide, depthWrite: false,
+    vertexShader: "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }",
+    fragmentShader: "varying vec3 vP; void main(){ float h = normalize(vP).y; vec3 hor = vec3(0.86,0.90,0.94), top = vec3(0.30,0.52,0.82), gnd = vec3(0.30,0.32,0.30); vec3 c = h > 0. ? mix(hor, top, pow(h,0.5)) : mix(hor, gnd, min(1.,-h*3.)); gl_FragColor = vec4(c,1.); }",
+  })));
+  const sun = new T.Mesh(new T.SphereGeometry(30, 16, 8), new T.MeshBasicMaterial({ color: new T.Color(14, 13, 11) }));
+  sun.position.set(-300, 400, 300); sc.add(sun);
+  const pm = new T.PMREMGenerator(renderer);
+  const tex = pm.fromScene(sc, 0.02).texture;
+  pm.dispose();
+  return tex;
+}
+function makeWater(T) {
+  const u = { uTime: { value: 0 } };
+  three.waterU = u;
+  const m = new T.MeshPhysicalMaterial({
+    color: 0xffffff, roughness: 0.04, metalness: 0, ior: 1.333, transmission: 1, thickness: 3.0,
+    attenuationColor: new T.Color(0x2c8f7a), attenuationDistance: 2.2, side: T.DoubleSide,
+    envMap: three.skyEnv, envMapIntensity: 1.0,
+  });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uTime = u.uTime;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.)).xyz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", `#include <common>
+varying vec3 vWP; uniform float uTime;
+vec2 waveGrad(vec2 p, float t, float d) {
+  vec2 a = normalize(vec2(1., .35)), b = normalize(vec2(-.4, 1.)), c = normalize(vec2(.8, -.9)), e = normalize(vec2(-.9, -.3));
+  vec2 g = a * cos(dot(p, a) * .35 + t * .8) * .1225 * clamp(1. - d / 900., 0., 1.);
+  g += b * cos(dot(p, b) * .9 + t * 1.3) * .198 * clamp(1. - d / 500., 0., 1.);
+  g += c * cos(dot(p, c) * 2.1 + t * 1.9) * .252 * clamp(1. - d / 250., 0., 1.);
+  g += e * cos(dot(p, e) * 4.7 + t * 2.6) * .282 * clamp(1. - d / 120., 0., 1.);
+  return g;
+}`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+{ vec2 g = waveGrad(vWP.xz, uTime, length(vViewPosition)) * .10;
+  vec3 wn = normalize(vec3(-g.x, 1., -g.y));
+  normal = normalize((viewMatrix * vec4(wn, 0.)).xyz) * (gl_FrontFacing ? 1. : -1.); }`);
+  };
+  return m;
+}
 async function loadModels(T, scene, root) {
-  try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+  try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+  if (!three.skyEnv) three.skyEnv = makeSkyEnv(T, three.renderer);
   if (!three.lit) {
     scene.add(new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85));
     const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun);
@@ -863,7 +911,8 @@ async function loadModels(T, scene, root) {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
         const key = Object.keys(MODEL_MAT).filter(k => o.name.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match (AQ_WaterFilm vs AQ_Water)
-        if (key) o.material = new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] });
+        if (o.name.startsWith("WS_water")) o.material = makeWater(T);
+        else if (key) o.material = new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] });
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
           const a = vc.array, n = vc.itemSize;
@@ -891,14 +940,14 @@ function loadScript(src) { return new Promise((ok, bad) => { const s = document.
 async function init3D() {
   const host = $("three");
   try {
-    await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
-    await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js");
   } catch (e) {
     host.innerHTML = `<p style="padding:24px;color:var(--muted)">3D表示用のライブラリを読み込めませんでした。通信状況を確認して、もう一度「3D ワイヤー」を押してください。</p>`;
     return false;
   }
   const T = window.THREE;
-  const renderer = new T.WebGLRenderer({ antialias: true });
+  const renderer = new T.WebGLRenderer({ antialias: true }); three.renderer = renderer;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   host.appendChild(renderer.domElement);
   const scene = new T.Scene();
@@ -1053,7 +1102,7 @@ async function init3D() {
   };
   three.models = {};   // Blender-built 3D models (GLB) that replace the draft wireframe of their layer
   three.visibility = () => {
-    const shown = m => on[m.layer] && mdl[m.id] !== false;
+    const shown = m => mdl[m.id] !== false;
     const replaced = mdl.overlay ? new Set() : new Set(Object.values(three.models).filter(shown).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
       const layer = /^p\d$/.test(k) ? "buildings" : LAYER_OF[k];
@@ -1080,7 +1129,7 @@ async function init3D() {
   three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
   three.visibility(); three.resize();
   if (D.models && D.models.length) loadModels(T, scene, root);
-  (function loop() { requestAnimationFrame(loop); if (!three.active) return; ctl.update(); renderer.render(scene, cam); })();
+  (function loop() { requestAnimationFrame(loop); if (!three.active) return; ctl.update(); if (three.waterU) three.waterU.uTime.value = performance.now() / 1000; renderer.render(scene, cam); })();
   three.ready = true;
   return true;
 }
