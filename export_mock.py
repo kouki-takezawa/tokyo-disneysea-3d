@@ -184,7 +184,7 @@ def main():
 
     # Blender-built parts (export_models.py): shown as solid models in 3D, replacing their draft wireframe
     MODELS = [("water", "water", ["water"]), ("aquasphere", "landmarks", ["aqwire", "aqglobe", "aqcoast"]),
-              ("plaza", "paths", [])]   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
+              ("plaza", "paths", []), ("volcano", "landmarks", ["volc"])]   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
     mdir = ROOT / "output" / "disneysea" / "models"
     out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]

@@ -17,7 +17,9 @@ mock's V(x, y, z) = [x, z, -y].
               applied, globe texture exported as JPEG.
   plaza       ds_plaza.build(): DisneySea Plaza paving, planters and trees around
               the AquaSphere, merged per kind into PZ_* meshes.
-  --render    Cycles check renders of the AquaSphere with the plaza instead of exporting.
+  volcano     ds_volcano_model.build(): the sculpted rock massif with vertex colours.
+  --render    Cycles check renders instead of exporting (aquasphere: with the plaza;
+              volcano: with the water model).
 """
 import sys, math, json, argparse, pathlib, importlib
 
@@ -70,6 +72,8 @@ def export(objs, path, materials=False):
     kw["export_materials"] = "EXPORT" if materials else "NONE"
     if materials:
         kw["export_image_format"] = "JPEG"
+    if any(o.data.color_attributes for o in objs if o.type == "MESH"):
+        kw["export_vertex_color"] = "ACTIVE"      # volcano: colours live in the vertex colours
     bpy.ops.export_scene.gltf(**kw)
     js = glb_to_json(path)
     print(f"[models] {path.name} {path.stat().st_size / 1e6:.2f} MB -> {js.name} {js.stat().st_size / 1e6:.2f} MB")
@@ -170,6 +174,12 @@ def part_plaza():
     return [merged(k, parts, out) for k, parts in groups.items()]
 
 
+def part_volcano():
+    import ds_volcano_model as VM
+    col = bpy.data.collections.new("Volcano"); bpy.context.scene.collection.children.link(col)
+    return [VM.build(col=col)]
+
+
 def render_checks(part, samples):
     """Cycles check renders of a part (before its materials are flattened for glTF)."""
     import ds_aquasphere as AQ
@@ -189,24 +199,30 @@ def render_checks(part, samples):
     sc.cycles.transmission_bounces = 12; sc.cycles.max_bounces = 12
     sc.render.resolution_x, sc.render.resolution_y = 1600, 900
     sc.view_settings.view_transform = "AgX"
-    S = AQ.SPEC; cx, cy, g = S["cx"], S["cy"], S["ground_rel"]
-    mat = bpy.data.materials.new("check_ground"); mat.diffuse_color = (0.5, 0.5, 0.48, 1)
-    me = bpy.data.meshes.new("check_ground")   # ground ring around the pool (the pool must stay open)
-    AQ.disc(150, 0.0, 96, r_in=S["pool_r"] + 0.05).to_mesh(me)
-    gobj = bpy.data.objects.new("check_ground", me); gobj.location = (cx, cy, g - 0.02); me.materials.append(mat)
-    sc.collection.objects.link(gobj)
-    ent = math.atan2(2.0 - cy, 390.0 - cx)
     from mathutils import Vector
-    shots = {"globe": (ent, 17.0, g + 3.2, g + 5.8, 32), "wide": (ent + 0.5, 34.0, g + 9.0, g + 3.0, 28),
-             "base": (ent - 0.3, 9.0, g + 1.0, g + 2.2, 24),
-             "plaza": (ent + 2.6, 30.0, g + 1.7, g + 2.0, 24)}
+    S = AQ.SPEC
+    if part == "volcano":   # (azimuth, distance, cam z, target z, lens) around the summit / lagoon
+        cx, cy, g = -50.0, -80.0, 0.0
+        shots = {"harbor": (0.35, 150.0, 14.0, 22.0, 30), "aerial": (-0.9, 230.0, 120.0, 10.0, 30),
+                 "lagoon": (1.9, 40.0, 9.0, 8.0, 20), "cliff": (-0.3, 75.0, 3.0, 18.0, 24)}
+    else:
+        cx, cy, g = S["cx"], S["cy"], S["ground_rel"]
+        mat = bpy.data.materials.new("check_ground"); mat.diffuse_color = (0.5, 0.5, 0.48, 1)
+        me = bpy.data.meshes.new("check_ground")   # ground ring around the pool (the pool must stay open)
+        AQ.disc(150, 0.0, 96, r_in=S["pool_r"] + 0.05).to_mesh(me)
+        gobj = bpy.data.objects.new("check_ground", me); gobj.location = (cx, cy, g - 0.02); me.materials.append(mat)
+        sc.collection.objects.link(gobj)
+        ent = math.atan2(2.0 - cy, 390.0 - cx)
+        shots = {"globe": (ent, 17.0, g + 3.2, g + 5.8, 32), "wide": (ent + 0.5, 34.0, g + 9.0, g + 3.0, 28),
+                 "base": (ent - 0.3, 9.0, g + 1.0, g + 2.2, 24),
+                 "plaza": (ent + 2.6, 30.0, g + 1.7, g + 2.0, 24)}
     for name, (a, dist, zc, zt, lens) in shots.items():
         cam = bpy.data.cameras.new(name); cam.lens = lens
         co = bpy.data.objects.new(name, cam); sc.collection.objects.link(co)
         co.location = (cx + math.cos(a) * dist, cy + math.sin(a) * dist, zc)
         co.rotation_euler = (Vector((cx, cy, zt)) - co.location).to_track_quat("-Z", "Y").to_euler()
         sc.camera = co
-        sc.render.filepath = str(ROOT / "output" / "disneysea" / "aquasphere" / f"{part}_{name}.png")
+        sc.render.filepath = str(ROOT / "output" / "disneysea" / part / f"{part}_{name}.png")
         bpy.ops.render.render(write_still=True)
         print(f"[models] rendered {part}_{name}")
 
@@ -221,16 +237,23 @@ def main():
     for part in args.parts.split(","):
         reset()
         if args.render:
-            import ds_aquasphere as AQ
-            col = bpy.data.collections.new("Landmarks"); bpy.context.scene.collection.children.link(col)
-            AQ.build(ground_z=AQ.SPEC["ground_rel"], col=col)
-            if (ROOT / "plateau_data" / "disneysea_plaza.json").exists():
-                import ds_plaza
-                ds_plaza.build(col=col)
+            if part == "volcano":   # with the water model for context (harbour, lagoon)
+                import ds_core as C, disneysea_water_blender as WB
+                W = json.loads(WB.WATER_JSON.read_text(encoding="utf-8"))
+                WB.build_water(W, WB.materials(), C)
+                part_volcano()
+            else:
+                import ds_aquasphere as AQ
+                col = bpy.data.collections.new("Landmarks"); bpy.context.scene.collection.children.link(col)
+                AQ.build(ground_z=AQ.SPEC["ground_rel"], col=col)
+                if (ROOT / "plateau_data" / "disneysea_plaza.json").exists():
+                    import ds_plaza
+                    ds_plaza.build(col=col)
+            (ROOT / "output" / "disneysea" / part).mkdir(parents=True, exist_ok=True)
             render_checks(part, args.samples)
             continue
-        objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza}[part]()
-        export(objs, OUT / f"{part}.glb", materials=(part != "water"))
+        objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano}[part]()
+        export(objs, OUT / f"{part}.glb", materials=(part not in ("water",)))
 
 
 if __name__ == "__main__":

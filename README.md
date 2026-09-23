@@ -17,10 +17,10 @@ Blender で作る前に、ブラウザで見られる**枠線モック**で配�
 | 地形・緑地・岩場・園路・高架鉄道 | 済 | `ds_terrain.py` |
 | 階段・橋・トンネル・地面の高低差 | 済(一部は向きの確認が必要) | `ds_levels.py` |
 | 水面(水位・水深・護岸・カルデラ湖) | 済 | `ds_water.py`, `disneysea_water_blender.py` |
-| プロメテウス火山の岩山 | 済(概形) | `ds_volcano.py` |
+| プロメテウス火山の岩山 | 済(Blender で岩肌まで作成) | `ds_volcano.py`, `ds_volcano_model.py` |
 | アクアスフィア(地球儀の噴水) | 済(詳細モデル、地球儀は作り直し済み) | `ds_aquasphere.py` |
 | アクアスフィア周りの地面(ディズニーシー・プラザ) | 済 | `ds_plaza.py` |
-| Blender で作ったものをモックに 3D モデルとして表示 | 済(水面・アクアスフィア・プラザ) | `export_models.py` |
+| Blender で作ったものをモックに 3D モデルとして表示 | 済(水面・アクアスフィア・プラザ・火山) | `export_models.py` |
 | 枠線モック(平面図 + 3D ワイヤー) | 済 | `export_mock.py`, `output/disneysea/mock_template.html` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号など) | これから | — |
 
@@ -37,7 +37,7 @@ python export_mock.py              # 枠線モック   → output/disneysea/tds_
 
 blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16      # 下書き全体
 blender -b --python disneysea_water_blender.py -- --cams harbor,caldera       # 水面
-blender -b --python export_models.py -- --parts water,aquasphere,plaza        # モック用の 3D モデル
+blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
 blender -b --python export_models.py -- --parts aquasphere --render           # アクアスフィアの確認レンダー
 ```
 
@@ -71,10 +71,11 @@ Blender は 5.2。複数の作業を同時に進めるときも、Blender を起
 | 水面(水面・水底・護岸・笠石・岩場・砂浜・土手・桟橋) | 水面 | `output/disneysea/models/water.json` |
 | アクアスフィア | ランドマーク | `output/disneysea/models/aquasphere.json` |
 | ディズニーシー・プラザ(舗装・植え込み・木) | 園路(と一緒に表示) | `output/disneysea/models/plaza.json` |
+| プロメテウス火山(岩山・台地・カルデラの崖) | ランドマーク(等高線を置き換え) | `output/disneysea/models/volcano.json` |
 
 - `export_models.py` が Blender から glTF に書き出し、それぞれの地面の高さ(DEM 基準)まで持ち上げる。
 - Artifact のホストは `.glb` を配信しないので、バッファを埋め込んだ glTF の JSON にしている(GLTFLoader はどちらも読める)。
-- Blender の手続き型マテリアルは glTF に残らない。そのため、モック側でメッシュ名(`WS_*`, `AQ_*`, `PZ_*`)ごとに色を付けている。
+- Blender の手続き型マテリアルは glTF に残らない。そのため、モック側でメッシュ名(`WS_*`, `AQ_*`, `PZ_*`)ごとに色を付けている。火山は頂点カラーをそのまま使う(glTF はリニアで保存するので、モックで sRGB に戻す)。
 
 | 水面のモデル | アクアスフィアとプラザ |
 |---|---|
@@ -112,6 +113,22 @@ DEM を見ると、ミステリアスアイランドは園路より約 5.3 m 高
 - 山頂: 51 m。OSM の山頂の位置(南側の縁)
 - 縁: 高さ約 20 m、湖岸から約 22 m 外側
 - 湖岸から 6 m 以内と、園路・建物の周りは岩を置かない
+
+`ds_volcano_model.py`(Blender)が、この高さのグリッドを岩山として作り込む。
+
+- 0.6 m 間隔に細かくし、ゆがませた稜線状のノイズで尾根・谷・副峰を付ける(高い岩ほど強く)
+- 地層: 約 1.8 m ごとに、間隔が揺らぐ段(棚)を付ける
+- 台地の縁は園路へ、カルデラの縁は湖へ、崖として落とす
+- 山頂に火口のくぼみを付ける
+- 色は頂点カラーで付ける: 赤茶・黒い玄武岩・黄土の地層の縞、急な崖は暗く、棚はほこりっぽく、火口の周りは焦げた色、台地の床(通路)は砂色
+
+| 港から | 上空から |
+|---|---|
+| ![港から](docs/volcano/volcano_harbor.jpg) | ![上空から](docs/volcano/volcano_aerial.jpg) |
+
+モックでの表示:
+
+![モックの火山](docs/volcano/mock_volcano.jpg)
 
 ### アクアスフィア(`ds_aquasphere.py`)
 
