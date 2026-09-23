@@ -78,6 +78,16 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 
 .panel{display:flex;flex-direction:column;gap:18px;font-size:13px}
 .panel h2{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--muted)}
+.fold>summary{list-style:none;cursor:pointer;display:block}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary h2::before{content:"▾";display:inline-block;width:1.1em;letter-spacing:0}
+.fold:not([open])>summary h2::before{content:"▸"}
+.fold:not([open])>summary h2{margin-bottom:0}
+.fold>summary:focus-visible{outline:2px solid var(--water);outline-offset:2px}
+.bulk{display:flex;gap:6px;margin:0 0 8px}
+.bulk button{font:inherit;font-size:11.5px;height:24px;padding:0 9px;border-radius:4px;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);cursor:pointer}
+.bulk button:hover:not(:disabled){background:var(--grid)}
+.bulk button:disabled{opacity:.45;cursor:default}
 .layers{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
 .layers label{display:flex;align-items:center;gap:7px;cursor:pointer;padding:2px 0}
 .layers input{accent-color:var(--ink);margin:0}
@@ -155,15 +165,17 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
       <div><span class="v" id="st-w">0</span><span class="k">水面</span></div>
       <div><span class="v" id="st-p">0</span><span class="k">園路</span></div>
     </div>
-    <section>
-      <h2>レイヤー</h2>
+    <details class="fold" data-fold="layers" open>
+      <summary><h2>レイヤー</h2></summary>
+      <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
       <div class="layers" id="layers"></div>
-    </section>
-    <section>
-      <h2>3Dモデル(3Dタブのみ)</h2>
+    </details>
+    <details class="fold" data-fold="models" open>
+      <summary><h2>3Dモデル(3Dタブのみ)</h2></summary>
+      <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
       <div class="layers" id="models"></div>
       <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
-    </section>
+    </details>
     <section>
       <h2>エリア</h2>
       <ul class="areas" id="areas"></ul>
@@ -358,6 +370,26 @@ LAYERS.forEach(([k, label, color, dash]) => {
   layersEl.appendChild(l);
 });
 
+function setAllLayers(v) {
+  LAYERS.forEach(([k]) => { on[k] = v; $("ly-" + k).checked = v; });
+  try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
+  redraw(); if (three.ready) three.visibility();
+}
+$("ly-all-on").addEventListener("click", () => setAllLayers(true));
+$("ly-all-off").addEventListener("click", () => setAllLayers(false));
+
+/* ---------- fold state of the panel sections ---------- */
+let foldState = {};
+try { foldState = JSON.parse(localStorage.getItem("tds-fold") || "null") || {}; } catch (e) {}
+document.querySelectorAll("details.fold").forEach(d => {
+  const k = d.dataset.fold;
+  if (foldState[k] === false) d.open = false;
+  d.addEventListener("toggle", () => {
+    foldState[k] = d.open;
+    try { localStorage.setItem("tds-fold", JSON.stringify(foldState)); } catch (err) {}
+  });
+});
+
 /* ---------- 3D models (separate from the wire layers) ---------- */
 const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
@@ -369,6 +401,12 @@ MODELS.forEach(([k, label]) => {
   l.querySelector("input").addEventListener("change", e => { mdl[k] = e.target.checked; saveMdl(); });
   $("models").appendChild(l);
 });
+function setAllModels(v) {
+  MODELS.forEach(([k]) => { mdl[k] = v; $("md-" + k).checked = v; });
+  saveMdl();
+}
+$("mdl-all-on").addEventListener("click", () => setAllModels(true));
+$("mdl-all-off").addEventListener("click", () => setAllModels(false));
 $("mdl-overlay").checked = mdl.overlay;
 $("mdl-overlay").addEventListener("change", e => { mdl.overlay = e.target.checked; saveMdl(); });
 
@@ -1024,6 +1062,7 @@ async function init3D() {
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
+      $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     }
     three.colors();
   };
