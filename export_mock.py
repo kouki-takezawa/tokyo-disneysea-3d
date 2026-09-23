@@ -14,6 +14,7 @@ import ds_core as C
 import ds_terrain as T
 import ds_levels as LV
 import ds_volcano as VO
+import ds_aquasphere as AQ
 import math
 
 PORTS = list(C.PORT_COLOR)
@@ -145,6 +146,7 @@ def main():
     out["hgrid"] = {"x0": g0x, "y0": g0y, "step": step, "nx": nx, "ny": ny,
                     "v": [round(LV.dem(g0x + i * step, g0y + j * step), 1) for j in range(ny) for i in range(nx)]}
 
+    out["aquasphere"] = AQ.mock_geometry()     # same layout as the Blender build (ds_aquasphere.SPEC)
     vres = VO.build()
     out["volcano"] = {"contours": VO.contours(vres, 2.0), "summit": vres["summit"]}
 
@@ -152,7 +154,7 @@ def main():
     out["landmarks"] = [
         {"t": "massif", "n": "プロメテウス火山", "x": -50, "y": -111, "z": 51},   # rock ring = out["volcano"] contours
         # AquaSphere: globe 8 m on a 2 m pedestal (user spec), pool r 11.16 (OSM 72388087), rim 0.40 m; ground -0.39 (water tab)
-        {"t": "sphere", "n": "アクアスフィア", "x": 360.85, "y": 36.37, "r": 4.0, "z": -0.39 + 2.0 + 4.0,
+        {"t": "sphere", "n": "アクアスフィア(直径8 m・台座2 m)", "x": 360.85, "y": 36.37, "r": 4.0, "z": -0.39 + 2.0 + 4.0,
          "basin": 11.16, "rim_h": 0.40, "g": -0.39, "ped": 2.0},
         {"t": "dome", "n": "マーメイドラグーン(トリトン・ドーム)", "x": -190, "y": 32, "r": 50, "h": 27.5},
     ]

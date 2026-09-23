@@ -129,7 +129,7 @@ def main():
     setup_render(args)
     cams = {n: add_camera(n, *v) for n, v in CAMERAS.items()}
 
-    out = pathlib.Path(args.out)
+    out = pathlib.Path(args.out).resolve()  # Blender resolves relative render paths against the drive root
     out.mkdir(parents=True, exist_ok=True)
     if not args.no_blend:
         bpy.ops.wm.save_as_mainfile(filepath=str(out / "disneysea_draft.blend"))

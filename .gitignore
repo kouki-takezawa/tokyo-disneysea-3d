@@ -18,6 +18,8 @@
 !/plateau_data/disneysea_water.json
 !/plateau_data/disneysea_volcano.json
 !/plateau_data/gsi_dem5a/
+# AquaSphere globe textures (from NOAA ETOPO by a one-off script, not regenerable yet)
+!/plateau_data/globe/
 
 !/output/
 /output/*

@@ -22,8 +22,11 @@ the 0.40 m applies to the pool rim and to the loose stone blocks, blocks are
 tangential, 16 of them at r 17 m; 12 radial white lines; 8 lamps at r 19 m.
 """
 import math, pathlib, json
-import bpy, bmesh
-from mathutils import Vector, Matrix
+try:  # SPEC and mock_geometry() also work in plain Python (export_mock.py)
+    import bpy, bmesh
+    from mathutils import Vector, Matrix
+except ImportError:
+    bpy = bmesh = Vector = Matrix = None
 
 ROOT = pathlib.Path(__file__).resolve().parent
 GLOBE_DIR = ROOT / "plateau_data" / "globe"
@@ -51,6 +54,73 @@ def _water_levels():
     except Exception:
         pass
     return None
+
+
+def coastlines(step=5):
+    """Coastline segments (lon, lat degrees) from the ETOPO grid at step*0.2 deg (0 m contour), cached."""
+    cache = GLOBE_DIR / f"coast_{step}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    lines = (GLOBE_DIR / "etopo_12.asc").read_text().splitlines()
+    rows = [[float(v) for v in l.split()] for l in lines[6:] if l.strip()]
+    z = [r[:-1:step] for r in rows[::step]]                       # north row first, lon -180..180
+    ny, nx = len(z), len(z[0]); dlon, dlat = 360.0 / nx, 180.0 / (ny - 1)
+    P = lambda i, j: (-180 + j * dlon, 90 - i * dlat)
+    segs = []
+    for i in range(ny - 1):
+        for j in range(nx):
+            jj = (j + 1) % nx
+            c = [((i, j), z[i][j]), ((i, jj), z[i][jj]), ((i + 1, jj), z[i + 1][jj]), ((i + 1, j), z[i + 1][j])]
+            pts = []
+            for q in range(4):
+                (a, va), (b, vb) = c[q], c[(q + 1) % 4]
+                if (va > 0) != (vb > 0):
+                    t = va / (va - vb)
+                    (lo1, la1), (lo2, la2) = P(*a), P(*b)
+                    if b[1] == 0 and a[1] == nx - 1: lo2 += 360
+                    if a[1] == 0 and b[1] == nx - 1: lo1 += 360
+                    pts.append((lo1 + (lo2 - lo1) * t, la1 + (la2 - la1) * t))
+            for q in range(0, len(pts) - 1, 2):
+                segs += [round(pts[q][0], 2), round(pts[q][1], 2), round(pts[q + 1][0], 2), round(pts[q + 1][1], 2)]
+    cache.write_text(json.dumps(segs))
+    return segs
+
+
+def mock_geometry(ground_rel=None):
+    """Same layout as build(), as plain numbers for the outline mock (heights relative to the DEM datum)."""
+    S = SPEC
+    lv = _water_levels()
+    g = S["ground_rel"] if ground_rel is None else ground_rel
+    wz = g - S["water_below_ground"] if lv is None else g + (lv[0] - lv[1])
+    r_out = S["pool_r"]; r_ring = r_out + S["ring_w"]
+    ring_mid = r_out + S["ring_w"] / 2
+    pol = lambda r, a: [round(S["cx"] + r * math.cos(a), 2), round(S["cy"] + r * math.sin(a), 2)]
+    lines, patches = [], []
+    for k in range(S["plaza_lines"]):
+        a = 2 * math.pi * k / S["plaza_lines"]
+        lines.append(pol(r_ring, a) + pol(S["plaza_r"], a))
+        patches += [pol(r_ring + 3.0, a), pol(r_ring + 9.0, a)]
+    blocks = []
+    bx, by, bz = S["block_size"]
+    for k in range(S["blocks"]):
+        a = 2 * math.pi * (k + 0.5) / S["blocks"]
+        c = (S["cx"] + S["block_r"] * math.cos(a), S["cy"] + S["block_r"] * math.sin(a))
+        t = (-math.sin(a), math.cos(a)); n = (math.cos(a), math.sin(a))   # long side tangential
+        blocks.append([[round(c[0] + sx * bx / 2 * t[0] + sy * by / 2 * n[0], 2), round(c[1] + sx * bx / 2 * t[1] + sy * by / 2 * n[1], 2)]
+                       for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+    ent = math.atan2(2.0 - S["cy"], 390.0 - S["cx"])
+    return {"cx": S["cx"], "cy": S["cy"], "g": g, "water": round(wz, 2), "depth": S["pool_depth"],
+            "pool_r": r_out, "rim_w": S["rim_w"], "rim_h": S["rim_h"], "ring_r": r_ring, "plaza_r": S["plaza_r"],
+            "inlays": [pol(ring_mid, 2 * math.pi * (k + 0.5) / S["inlays"]) for k in range(S["inlays"])], "inlay_r": S["inlay_r"],
+            "lines": lines, "line_w": S["plaza_line_w"], "patches": patches, "patch_r": 0.9,
+            "blocks": blocks, "block_h": bz,
+            "lamps": [pol(S["lamp_r"], 2 * math.pi * k / S["lamps"]) for k in range(S["lamps"])], "lamp_h": S["lamp_h"],
+            "ped_h": S["pedestal_h"], "foam_r": [2.4, 1.2],
+            # globe orientation = build(): world = Rz(axis) . Ry(tilt) . Rz(spin) . p_local, p_local angle = longitude
+            "globe": {"r": S["globe_d"] / 2, "cz": round(g + S["pedestal_h"] + S["globe_d"] / 2, 2),
+                      "axis": round(ent, 4), "tilt": round(math.radians(S["tilt_deg"]), 4),
+                      "spin": round(math.radians(-S["face_lon_deg"] + S["face_offset_deg"]), 4)},
+            "coast": coastlines()}
 
 
 # ---------------------------------------------------------------- materials

@@ -600,6 +600,33 @@ function drawStairs(C, lw) {
   }
   ctx.globalAlpha = 1;
 }
+function aquaPt(lon, lat) {  // world = Rz(axis) . Ry(tilt) . Rz(spin) . p_local  (same as ds_aquasphere.build)
+  const G = D.aquasphere.globe, A = D.aquasphere, l = lon * Math.PI / 180 + G.spin, f = lat * Math.PI / 180;
+  const x1 = Math.cos(f) * Math.cos(l) * G.r, y1 = Math.cos(f) * Math.sin(l) * G.r, z1 = Math.sin(f) * G.r;
+  const x2 = x1 * Math.cos(G.tilt) + z1 * Math.sin(G.tilt), z2 = -x1 * Math.sin(G.tilt) + z1 * Math.cos(G.tilt);
+  const x3 = x2 * Math.cos(G.axis) - y1 * Math.sin(G.axis), y3 = x2 * Math.sin(G.axis) + y1 * Math.cos(G.axis);
+  return [A.cx + x3, A.cy + y3, G.cz + z2, z2];
+}
+function drawAqua2D(C, lw) {
+  const A = D.aquasphere, c = (r) => { ctx.moveTo(X(A.cx) + r * sc, Y(A.cy)); ctx.arc(X(A.cx), Y(A.cy), r * sc, 0, 6.2832); };
+  ctx.setLineDash([]); ctx.strokeStyle = C.land; ctx.lineWidth = lw;
+  ctx.beginPath(); c(A.pool_r); c(A.pool_r - A.rim_w); c(A.ring_r); ctx.stroke();                   // rim + paved ring
+  ctx.beginPath(); c(A.plaza_r); ctx.setLineDash([4, 4]); ctx.lineWidth = lw * 0.6; ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); A.lines.forEach(l => { ctx.moveTo(X(l[0]), Y(l[1])); ctx.lineTo(X(l[2]), Y(l[3])); });
+  ctx.lineWidth = Math.max(lw * 0.7, A.line_w * sc); ctx.strokeStyle = C.muted; ctx.stroke();       // white radial lines
+  ctx.lineWidth = lw * 0.7; ctx.strokeStyle = C.land;
+  ctx.beginPath(); A.patches.forEach(([x, y]) => { ctx.moveTo(X(x) + A.patch_r * sc, Y(y)); ctx.arc(X(x), Y(y), A.patch_r * sc, 0, 6.2832); }); ctx.stroke();
+  if (sc > 2) { ctx.beginPath(); A.inlays.forEach(([x, y]) => { ctx.moveTo(X(x) + A.inlay_r * sc, Y(y)); ctx.arc(X(x), Y(y), A.inlay_r * sc, 0, 6.2832); }); ctx.stroke(); }
+  ctx.beginPath(); A.blocks.forEach(b => ring(b)); ctx.lineWidth = lw; ctx.stroke();                 // 0.40 m stone blocks
+  ctx.fillStyle = C.ink; A.lamps.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(X(x), Y(y), Math.max(1.8, 0.2 * sc), 0, 6.2832); ctx.fill(); });
+  ctx.beginPath(); c(A.foam_r[0]); c(A.globe.r); ctx.strokeStyle = C.water; ctx.lineWidth = lw * 1.1; ctx.stroke();
+  if (sc > 3) {  // coastlines seen from above (upper half of the tilted globe)
+    ctx.beginPath(); const s = A.coast;
+    for (let k = 0; k < s.length; k += 4) { const p = aquaPt(s[k], s[k + 1]), q = aquaPt(s[k + 2], s[k + 3]);
+      if (p[3] > 0 && q[3] > 0) { ctx.moveTo(X(p[0]), Y(p[1])); ctx.lineTo(X(q[0]), Y(q[1])); } }
+    ctx.strokeStyle = C.land; ctx.lineWidth = Math.max(0.6, lw * 0.7); ctx.stroke();
+  }
+}
 function circle(x, y, r) { ctx.moveTo(X(x) + r * sc, Y(y)); ctx.arc(X(x), Y(y), r * sc, 0, Math.PI * 2); }
 function drawLandmarks(C, lw) {
   if (D.volcano) {  // Mount Prometheus rock ring: 2 m contours, every 10 m thicker
@@ -620,7 +647,9 @@ function drawLandmarks(C, lw) {
       for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2;
         ctx.moveTo(X(m.x + Math.cos(a) * m.r2), Y(m.y + Math.sin(a) * m.r2));
         ctx.lineTo(X(m.x + Math.cos(a) * m.r1), Y(m.y + Math.sin(a) * m.r1)); }
-    } else if (m.t === "sphere") { circle(m.x, m.y, m.basin); circle(m.x, m.y, m.basin - 0.6); circle(m.x, m.y, m.r); circle(m.x, m.y, 1.3); }
+    } else if (m.t === "sphere") {
+      if (D.aquasphere) { ctx.stroke(); drawAqua2D(C, lw); ctx.beginPath(); continue; }
+      circle(m.x, m.y, m.basin); circle(m.x, m.y, m.basin - 0.6); circle(m.x, m.y, m.r); circle(m.x, m.y, 1.3); }
     else if (m.t === "dome") { circle(m.x, m.y, m.r); circle(m.x, m.y, m.r * 0.6); circle(m.x, m.y, m.r * 0.25); }
     else if (m.t === "ship") { ring(m.r); }
     ctx.stroke();
@@ -825,7 +854,7 @@ async function init3D() {
       for (let k = 0; k < 24; k++) { const a = k / 24 * 6.2832, c = Math.cos(a), s = Math.sin(a);
         seg("land", [...V(m.x + c * m.r1, m.y + s * m.r1, bz), ...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h)]);
         seg("land", [...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h), ...V(m.x + c * m.r2 * .45, m.y + s * m.r2 * .45, bz + m.h - m.crater)]); }
-    } else if (m.t === "sphere" || m.t === "dome") {
+    } else if ((m.t === "sphere" && !D.aquasphere) || m.t === "dome") {
       const R = m.r, zc = m.t === "sphere" ? m.z : 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
       for (let k = lo; k <= 6; k++) { const ph = k / 6 * Math.PI / 2; circ("land", m.x, m.y, R * Math.cos(ph), zc + R * Math.sin(ph) * sz, 40); }
       for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832;
@@ -844,15 +873,39 @@ async function init3D() {
       [0.35, 0.62].forEach(t => { const fx = bb[0] + (bb[2] - bb[0]) * t; circ("pri", fx, cy, 2.2, 20, 16); circ("pri", fx, cy, 2.2, 29, 16); });
     }
   }
+  if (D.aquasphere) {  // AquaSphere as built in Blender (ds_aquasphere): pool, rim, paving, blocks, lamps, foam, oriented globe
+    const A = D.aquasphere, g = A.g, P = (r, a, z) => V(A.cx + Math.cos(a) * r, A.cy + Math.sin(a) * r, z);
+    const cc = (key, r, z, n = 72) => { for (let k = 0; k < n; k++) seg(key, [...P(r, k / n * 6.2832, z), ...P(r, (k + 1) / n * 6.2832, z)]); };
+    cc("land", A.pool_r, g); cc("land", A.pool_r, g + A.rim_h); cc("land", A.pool_r - A.rim_w, g + A.rim_h);
+    cc("water", A.pool_r - A.rim_w, A.water); cc("land", A.ring_r, g + 0.05); cc("land", A.plaza_r, g + 0.05, 96);
+    for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; seg("land", [...P(A.pool_r, a, g), ...P(A.pool_r, a, g + A.rim_h)]); }
+    A.lines.forEach(l => seg("land", [...V(l[0], l[1], g + 0.05), ...V(l[2], l[3], g + 0.05)]));
+    A.patches.forEach(([x, y]) => circ("land", x, y, A.patch_r, g + 0.05, 16));
+    A.inlays.forEach(([x, y]) => circ("land", x, y, A.inlay_r, g + 0.05, 10));
+    A.blocks.forEach(b => prism("land", b, g, g + A.block_h));
+    A.lamps.forEach(([x, y]) => { seg("land", [...V(x, y, g), ...V(x, y, g + A.lamp_h)]); circ("land", x, y, 0.22, g + A.lamp_h - 0.45, 8); });
+    const top = g + A.ped_h;
+    for (let j = 0; j <= 4; j++) { const t = j / 4; cc("land", A.foam_r[0] + (A.foam_r[1] - A.foam_r[0]) * t, A.water + (top - A.water) * t, 36); }
+    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("land", [...P(A.foam_r[0], a, A.water), ...P(A.foam_r[1], a, top)]); }
+    const gp = (lo, la) => { const p = aquaPt(lo, la); return V(p[0], p[1], p[2]); };
+    for (let la = -60; la <= 60; la += 30) for (let lo = -180; lo < 180; lo += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo + 6, la)]);
+    for (let lo = -180; lo < 180; lo += 30) for (let la = -90; la < 90; la += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo, la + 6)]);
+    const n1 = aquaPt(0, 90), s1 = aquaPt(0, -90), G = A.globe, ext = 1.2;   // axis through the poles
+    seg("aqglobe", [...V(A.cx + (n1[0] - A.cx) * ext, A.cy + (n1[1] - A.cy) * ext, G.cz + (n1[2] - G.cz) * ext),
+                    ...V(A.cx + (s1[0] - A.cx) * ext, A.cy + (s1[1] - A.cy) * ext, G.cz + (s1[2] - G.cz) * ext)]);
+    const s = A.coast;
+    for (let k = 0; k < s.length; k += 4) seg("aqcoast", [...gp(s[k], s[k + 1]), ...gp(s[k + 2], s[k + 3])]);
+  }
   // 100 m grid under the park
   for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
   for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
 
   const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
-    land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours" };
+    land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours",
+    aqglobe: "landmarks", aqcoast: "landmarks" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
-    walls: "--wall", contours: "--contour-idx" };
+    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
