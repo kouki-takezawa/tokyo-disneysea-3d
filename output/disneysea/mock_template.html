@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>東京ディズニーシー枠線図</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,6 +94,11 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .notes li{padding-left:12px;position:relative}
 .notes li::before{content:"";position:absolute;left:0;top:.72em;width:5px;border-top:1px solid var(--muted)}
 .notes strong{color:var(--ink);font-weight:500}
+.credit{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;color:var(--muted);font-size:11px;line-height:1.5}
+.credit a{color:inherit;text-decoration:underline}
+.credit-hud{font-size:10.5px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:1px 6px;border-radius:3px}
+.credit-hud a{color:inherit}
+.models-h{margin:8px 0 0;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:inherit}
 .basis{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:3px}
 .basis li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center}
 .basis .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
@@ -137,9 +143,9 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
         <text x="17" y="30" text-anchor="middle" font-size="8" font-family="IBM Plex Mono, monospace" fill="var(--muted)">N</text>
       </svg>
     </div>
-    <div class="hud bl" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i></div>
+    <div class="hud bl" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i><span class="credit-hud">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
     <div class="hud br"><span class="coord mono" id="coord">— </span></div>
-    <div class="hud br" id="hint3d" hidden><span class="hint3d">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span></div>
+    <div class="hud br" id="hint3d" hidden><span class="hint3d">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span><span class="credit-hud">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
     <div class="tip" id="tip" hidden></div>
   </div>
 
@@ -152,6 +158,11 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
     <section>
       <h2>レイヤー</h2>
       <div class="layers" id="layers"></div>
+    </section>
+    <section>
+      <h2>3Dモデル(3Dタブのみ)</h2>
+      <div class="layers" id="models"></div>
+      <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
     </section>
     <section>
       <h2>エリア</h2>
@@ -174,6 +185,15 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
         <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
         <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
         <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>出典</h2>
+      <ul class="credit">
+        <li>地図: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>(ODbL)</li>
+        <li>標高: 国土地理院 基盤地図情報 数値標高モデル(5 mメッシュ, DEM5A)</li>
+        <li>航空写真: 国土地理院 シームレス空中写真</li>
+        <li>地球儀: NOAA ETOPO(パブリックドメイン)</li>
       </ul>
     </section>
   </aside>
@@ -337,6 +357,20 @@ LAYERS.forEach(([k, label, color, dash]) => {
   });
   layersEl.appendChild(l);
 });
+
+/* ---------- 3D models (separate from the wire layers) ---------- */
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"]];
+const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
+try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
+const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); };
+MODELS.forEach(([k, label]) => {
+  const l = document.createElement("label");
+  l.innerHTML = `<input type="checkbox" id="md-${k}" ${mdl[k] ? "checked" : ""} disabled>${label}`;
+  l.querySelector("input").addEventListener("change", e => { mdl[k] = e.target.checked; saveMdl(); });
+  $("models").appendChild(l);
+});
+$("mdl-overlay").checked = mdl.overlay;
+$("mdl-overlay").addEventListener("change", e => { mdl.overlay = e.target.checked; saveMdl(); });
 
 /* ---------- areas ---------- */
 let focus = -1;
@@ -807,7 +841,7 @@ async function loadModels(T, scene, root) {
         }
       });
       root.add(gltf.scene);
-      three.models[m.id] = { obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
+      three.models[m.id] = { id: m.id, obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
       three.visibility();
     }, undefined, () => {});   // model missing: keep the wireframe
   }
@@ -981,12 +1015,16 @@ async function init3D() {
   };
   three.models = {};   // Blender-built 3D models (GLB) that replace the draft wireframe of their layer
   three.visibility = () => {
-    const replaced = new Set(Object.values(three.models).flatMap(m => m.hides));
+    const shown = m => on[m.layer] && mdl[m.id] !== false;
+    const replaced = mdl.overlay ? new Set() : new Set(Object.values(three.models).filter(shown).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
       const layer = /^p\d$/.test(k) ? "buildings" : LAYER_OF[k];
       o.visible = (!layer || on[layer]) && !replaced.has(k);
     }
-    for (const m of Object.values(three.models)) m.obj.visible = on[m.layer];
+    for (const [id, m] of Object.entries(three.models)) {
+      m.obj.visible = shown(m);
+      const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
+    }
     three.colors();
   };
   three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };

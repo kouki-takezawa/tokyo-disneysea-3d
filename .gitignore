@@ -3,6 +3,7 @@
 /*
 !/.gitignore
 !/README.md
+!/vercel.json
 !/docs/
 
 !/fetch_disneysea.py

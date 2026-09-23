@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "buildCommand": "",
+  "outputDirectory": "output/disneysea",
+  "rewrites": [{ "source": "/", "destination": "/tds_outline.html" }]
+}
