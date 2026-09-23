@@ -1,0 +1,31 @@
+# This folder holds several unrelated practice projects. The repository tracks
+# only the Tokyo DisneySea 3D project (allow-list below); everything else is ignored.
+/*
+!/.gitignore
+!/README.md
+!/docs/
+
+!/fetch_disneysea.py
+!/disneysea_draft.py
+!/disneysea_water_blender.py
+!/ds_*.py
+!/export_mock.py
+
+!/plateau_data/
+/plateau_data/*
+!/plateau_data/disneysea_osm.json
+!/plateau_data/disneysea_levels.json
+!/plateau_data/disneysea_water.json
+!/plateau_data/disneysea_volcano.json
+!/plateau_data/gsi_dem5a/
+
+!/output/
+/output/*
+!/output/disneysea/
+/output/disneysea/*
+!/output/disneysea/mock_template.html
+!/output/disneysea/tds_outline.html
+
+__pycache__/
+*.blend
+*.blend1

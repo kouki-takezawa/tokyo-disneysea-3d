@@ -1,0 +1,916 @@
+<title>東京ディズニーシー枠線図</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+:root{
+  --paper:#F1F4F1; --sheet:#F8FAF8; --ink:#1E2A30; --muted:#66747C; --rule:#D3DBD6; --grid:#E2E8E4;
+  --water:#2C76A6; --water-tint:rgba(44,118,166,.09); --green:#4E8A45; --tree:#2F6B34; --rock:#8C6547;
+  --path:#9AA59F; --rail:#445058; --priority:#C8432B; --land:#6A5A48;
+  --p0:#B8731F; --p1:#9A553A; --p2:#56646D; --p3:#2F8585; --p4:#8458AB; --p5:#B99212; --p6:#5F8531; --p7:#BC4E86;
+  --focus:#1E2A30;
+  --st-dem:#1F7A60; --st-link:#2C5FA8; --st-len:#B7791F; --st-unk:#D2362B; --contour:#CDBB98; --contour-idx:#A8926A; --wall:#7C7168; --bridge:#1E2A30;
+  --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#0D1A24; --sheet:#112230; --ink:#D6E3EA; --muted:#8599A6; --rule:#22384A; --grid:#172C3B;
+    --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
+    --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
+    --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
+    --focus:#D6E3EA;
+    --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#0D1A24; --sheet:#112230; --ink:#D6E3EA; --muted:#8599A6; --rule:#22384A; --grid:#172C3B;
+  --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
+  --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
+  --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
+  --focus:#D6E3EA;
+  --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.6;
+  padding:0 16px;padding-block:14px 20px;box-sizing:border-box}
+*,*::before,*::after{box-sizing:border-box}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;
+  padding-bottom:12px;border-bottom:1px solid var(--rule);margin-bottom:14px}
+.top h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em;text-wrap:balance}
+.top .sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+.top .sub .mono{font-family:var(--font-mono);font-size:11.5px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--sheet)}
+.seg button{font:inherit;font-size:13px;font-weight:500;color:var(--muted);background:none;border:0;padding:7px 16px;cursor:pointer}
+.seg button[aria-selected="true"]{color:var(--paper);background:var(--ink)}
+.seg button:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 272px;gap:16px;align-items:start}
+.viewport{position:relative;height:clamp(420px,calc(100vh - 150px),940px);background:var(--sheet);
+  border:1px solid var(--rule);border-radius:4px;overflow:hidden;touch-action:none}
+#plan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#plan{cursor:grab}
+#plan.dragging{cursor:grabbing}
+.hud{position:absolute;display:flex;gap:6px;pointer-events:none}
+.hud>*{pointer-events:auto}
+.hud.tl{top:10px;left:10px}
+.hud.bl{bottom:10px;left:12px;flex-direction:column;gap:2px}
+.hud.br{bottom:10px;right:12px}
+.hud.tr{top:10px;right:12px}
+.btn{font:inherit;font-size:12.5px;min-width:32px;height:30px;padding:0 10px;border-radius:4px;border:1px solid var(--rule);
+  background:var(--sheet);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible{outline:2px solid var(--water);outline-offset:1px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.coord{font-size:11px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:2px 6px;border-radius:3px}
+.scale{font-size:10.5px;color:var(--muted)}
+#scaleBar{display:block;height:6px;border:1.5px solid var(--ink);border-top:0}
+[hidden]{display:none!important}
+.north{width:34px;height:34px}
+.tip{position:absolute;pointer-events:none;max-width:260px;background:var(--sheet);border:1px solid var(--ink);
+  border-radius:3px;padding:6px 9px;font-size:12px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.tip b{display:block;font-weight:700;font-size:12.5px}
+.tip .mono{font-size:11px;color:var(--muted)}
+.hint3d{font-size:11.5px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:3px 8px;border-radius:3px}
+
+.panel{display:flex;flex-direction:column;gap:18px;font-size:13px}
+.panel h2{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--muted)}
+.layers{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
+.layers label{display:flex;align-items:center;gap:7px;cursor:pointer;padding:2px 0}
+.layers input{accent-color:var(--ink);margin:0}
+.sw{display:inline-block;width:16px;height:0;border-top:2px solid currentColor;flex:none}
+.sw.dash{border-top-style:dashed}
+.areas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.areas button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;
+  width:100%;padding:5px 6px;border-radius:3px;cursor:pointer}
+.areas button:hover{background:var(--grid)}
+.areas button:focus-visible{outline:2px solid var(--water)}
+.areas button[aria-pressed="true"]{background:var(--grid);font-weight:700}
+.areas .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.notes{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:12.5px;line-height:1.55}
+.notes li{padding-left:12px;position:relative}
+.notes li::before{content:"";position:absolute;left:0;top:.72em;width:5px;border-top:1px solid var(--muted)}
+.notes strong{color:var(--ink);font-weight:500}
+.basis{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:3px}
+.basis li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center}
+.basis .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.review{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.review .mono{font-size:11px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:10px 0}
+.stats div{display:flex;flex-direction:column}
+.stats .v{font-family:var(--font-mono);font-size:17px;font-weight:500}
+.stats .k{font-size:11px;color:var(--muted)}
+@media (max-width:860px){
+  .stage{grid-template-columns:1fr}
+  .viewport{height:clamp(380px,70vh,640px)}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<header class="top">
+  <div>
+    <h1>東京ディズニーシー 枠線図</h1>
+    <p class="sub">下書き v0 ・ OSM外形から作成、高さの大半は推定 ・ <span class="mono">原点 35.6267N 139.8851E / グリッド 100 m</span></p>
+  </div>
+  <div class="seg" role="tablist" aria-label="表示">
+    <button id="tab-plan" role="tab" aria-selected="true">平面図</button>
+    <button id="tab-3d" role="tab" aria-selected="false">3D ワイヤー</button>
+  </div>
+</header>
+
+<main class="stage">
+  <div class="viewport" id="viewport">
+    <canvas id="plan" aria-label="東京ディズニーシーの平面枠線図"></canvas>
+    <div id="three" hidden></div>
+    <div class="hud tl">
+      <button class="btn" id="zin" aria-label="拡大">＋</button>
+      <button class="btn" id="zout" aria-label="縮小">－</button>
+      <button class="btn" id="fit">全体</button>
+      <button class="btn" id="exag" hidden>高さ ×1</button>
+    </div>
+    <div class="hud tr" id="northWrap">
+      <svg class="north" viewBox="0 0 34 34" aria-label="北">
+        <circle cx="17" cy="17" r="15" fill="none" stroke="var(--rule)" stroke-width="1"/>
+        <path d="M17 5 L21 19 L17 16.5 L13 19 Z" fill="var(--ink)"/>
+        <text x="17" y="30" text-anchor="middle" font-size="8" font-family="IBM Plex Mono, monospace" fill="var(--muted)">N</text>
+      </svg>
+    </div>
+    <div class="hud bl" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i></div>
+    <div class="hud br"><span class="coord mono" id="coord">— </span></div>
+    <div class="hud br" id="hint3d" hidden><span class="hint3d">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span></div>
+    <div class="tip" id="tip" hidden></div>
+  </div>
+
+  <aside class="panel">
+    <div class="stats">
+      <div><span class="v" id="st-b">0</span><span class="k">建物</span></div>
+      <div><span class="v" id="st-w">0</span><span class="k">水面</span></div>
+      <div><span class="v" id="st-p">0</span><span class="k">園路</span></div>
+    </div>
+    <section>
+      <h2>レイヤー</h2>
+      <div class="layers" id="layers"></div>
+    </section>
+    <section>
+      <h2>エリア</h2>
+      <ul class="areas" id="areas"></ul>
+    </section>
+    <section>
+      <h2>階段・高低差</h2>
+      <ul class="basis" id="basis"></ul>
+      <div class="review">
+        <button class="btn" id="nextStair">要確認の階段を順に見る →</button>
+        <span class="mono" id="reviewPos"></span>
+      </div>
+    </section>
+    <section>
+      <h2>この下書きについて</h2>
+      <ul class="notes">
+        <li><strong>赤線</strong>は参考モデルがある優先パーツ。次の段階で作り込む箇所です。</li>
+        <li>高さは実測タグ約15棟とプロメテウス火山(51 m)以外、エリアごとの推定値です。</li>
+        <li>地面の高さは国土地理院の5 mメッシュ標高(航空レーザー)。園路の中央値 <span class="mono" id="datum"></span> を 0 m としています。</li>
+        <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
+        <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
+        <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
+      </ul>
+    </section>
+  </aside>
+</main>
+
+<script id="data" type="application/json">__DATA__</script>
+<script id="ext-water">
+/* Extension hook for the water tab (ds_water.py). Define window.TDS_EXT = { water2d(api){...}, water3d(api){...} } here.
+   2D api: {ctx, X, Y, sc, D, css, on, lw} - called inside the 水面 layer of the plan view.
+   3D api: {D, css, on, seg(key, flatArray), V(x,y,z), prism(key, ring, z0, z1), heightAt, T, root} - called while building the scene;
+   seg("water", ...) / prism("water", ...) lines are coloured and toggled with the 水面 layer. */
+(() => {
+const W3 = JSON.parse(document.getElementById("data").textContent).water3;
+if (!W3) return;
+const SH = {  // shore type -> [label, css var, dash]
+  quay: ["石積みの護岸", "--sh-quay", []], building: ["建物が水際に立つ", "--sh-bldg", []],
+  rock: ["岩場の岸", "--sh-rock", []], beach: ["砂浜", "--sh-beach", []],
+  bank: ["植栽の土手", "--sh-bank", []], portal: ["トンネルの口", "--sh-portal", [2, 2]],
+};
+const KIND = { harbor: "港・水路", lagoon: "カルデラ湖", channel: "水路・池(掘り込み)", pond: "池・水盤", fountain: "噴水の水盤" };
+const BASIS = { dem_shore: "岸の標高 − 余裕高", linked: "港と同じ水位(トンネルでつながる)", estimated: "推定(標高データが開業前のもの)" };
+const st = document.createElement("style");
+st.textContent = `
+:root{--sh-quay:#3E4A52;--sh-bldg:#7A3E8E;--sh-rock:#A0612C;--sh-beach:#B58E12;--sh-bank:#3F8A3A;--sh-portal:#B03A7A}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh-quay:#D5DEE4;--sh-bldg:#C39BD3;--sh-rock:#E0A26A;--sh-beach:#E8CD6A;--sh-bank:#86CC7C;--sh-portal:#F08CC0}}
+:root[data-theme="dark"]{--sh-quay:#D5DEE4;--sh-bldg:#C39BD3;--sh-rock:#E0A26A;--sh-beach:#E8CD6A;--sh-bank:#86CC7C;--sh-portal:#F08CC0}
+.wx ul{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.wx li{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:8px;font-size:13px}
+.wx li i{display:block;height:0;border-top:3px solid currentColor}
+.wx li i.d{border-top-style:dotted}
+.wx .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
+.wx .card{margin-top:10px;padding:8px 10px;border:1px solid var(--rule);border-radius:6px;font-size:12.5px;min-height:64px}
+.wx .card b{display:block;font-size:13px}
+.wx .card .mono{font-size:11.5px;color:var(--muted)}`;
+document.head.appendChild(st);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// panel section
+const sec = document.createElement("section");
+sec.className = "wx";
+sec.innerHTML = `<h2>水面・護岸</h2><ul>${Object.entries(SH).filter(([k]) => W3.len[k]).map(([k, [lab, v, d]]) =>
+  `<li style="color:var(${v})"><i class="${d.length ? "d" : ""}"></i><span style="color:var(--ink)">${lab}</span><span class="n">${(W3.len[k] / 1000).toFixed(2)} km</span></li>`).join("")}</ul>
+  <div class="card" id="wxCard"><span class="mono">水面にマウスを乗せると、水位・水深・岸の内訳が出ます。</span></div>`;
+const areas = document.getElementById("areas");
+const anchor = areas ? areas.closest("section") : null;
+if (anchor) anchor.parentNode.insertBefore(sec, anchor); else document.querySelector(".panel")?.appendChild(sec);
+
+// geometry helpers
+const pip = (x, y, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+  const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; };
+const inBody = (b, x, y) => pip(x, y, b.r) && !b.i.some(h => pip(x, y, h));
+const segD = (px, py, r) => { let m = 1e9; for (let i = 0; i < r.length; i++) { const [ax, ay] = r[i], [bx, by] = r[(i + 1) % r.length];
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L));
+  m = Math.min(m, Math.hypot(px - ax - t * dx, py - ay - t * dy)); } return m; };
+W3.bodies.forEach((b, i) => {  // label point: the interior point farthest from the shore (coarse grid)
+  const xs = b.r.map(p => p[0]), ys = b.r.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const st_ = Math.max(1, Math.max(x1 - x0, y1 - y0) / 40); let best = null, bd = -1;
+  for (let x = x0; x <= x1; x += st_) for (let y = y0; y <= y1; y += st_) if (inBody(b, x, y)) {
+    const d = Math.min(segD(x, y, b.r), ...b.i.map(h => segD(x, y, h))); if (d > bd) { bd = d; best = [x, y]; } }
+  b.lp = best || [(x0 + x1) / 2, (y0 + y1) / 2]; b.lr = bd;
+  b.mix = {};
+});
+W3.shores.forEach(s => { let L = 0; for (let i = 1; i < s.l.length; i++) L += Math.hypot(s.l[i][0] - s.l[i - 1][0], s.l[i][1] - s.l[i - 1][1]);
+  const m = W3.bodies[s.b].mix; m[s.t] = (m[s.t] || 0) + L; });
+const fz = z => (z >= 0 ? "+" : "−") + Math.abs(z).toFixed(2) + " m";
+
+let T2 = null, hot = null;
+function card(b) {
+  const el = document.getElementById("wxCard"); if (!el) return;
+  if (!b) { el.innerHTML = `<span class="mono">水面にマウスを乗せると、水位・水深・岸の内訳が出ます。</span>`; return; }
+  const tot = Object.values(b.mix).reduce((a, v) => a + v, 0) || 1;
+  const mix = Object.entries(b.mix).sort((a, c) => c[1] - a[1]).map(([k, v]) =>
+    `<span style="color:var(${SH[k][1]})">■</span> ${SH[k][0]} ${Math.round(v / tot * 100)}%`).join("<br>");
+  el.innerHTML = `<b>${b.n || KIND[b.k]}</b>${KIND[b.k]}${b.cut ? "" : "(地面の上に置く)"}<br>
+    <span class="mono">水位 ${fz(b.z)} ・ 岸から ${b.f.toFixed(2)} m 下 ・ 水深 ${b.d} m ・ ${b.a.toLocaleString()} m²</span><br>
+    <span class="mono">水位の根拠: ${BASIS[b.g] || b.g}</span><br>${mix}`;
+}
+const cv = document.getElementById("plan");
+cv?.addEventListener("pointermove", e => {
+  if (!T2) return;
+  const x = (e.offsetX - T2.ox) / T2.sc, y = (T2.oy - e.offsetY) / T2.sc;
+  let hit = null; for (const b of W3.bodies) if (inBody(b, x, y) && (!hit || b.a < hit.a)) hit = b;
+  if (hit !== hot) { hot = hit; card(hit); }
+});
+cv?.addEventListener("pointerleave", () => { hot = null; card(null); });
+
+window.TDS_EXT = {
+  water2d({ ctx, X, Y, sc, lw }) {
+    T2 = { ox: X(0), oy: Y(0), sc };
+    ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const [k, [, v, dash]] of Object.entries(SH)) {
+      ctx.beginPath();
+      for (const s of W3.shores) if (s.t === k) { s.l.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))); }
+      ctx.strokeStyle = css(v); ctx.lineWidth = Math.max(1.4, lw * 2.1); ctx.setLineDash(dash); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.beginPath(); W3.piers.forEach(r => r.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+    ctx.closePath(); ctx.strokeStyle = css("--sh-rock"); ctx.lineWidth = lw; ctx.stroke();
+    // water level labels once there is room for them
+    ctx.font = `500 11px ${css("--font-mono")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const b of W3.bodies) {
+      if (b.lr * sc < 22) continue;
+      const t = `水位 ${fz(b.z)}`, [x, y] = b.lp;
+      ctx.lineWidth = 3.5; ctx.strokeStyle = css("--sheet"); ctx.strokeText(t, X(x), Y(y));
+      ctx.fillStyle = css("--water"); ctx.fillText(t, X(x), Y(y));
+    }
+    ctx.restore();
+  },
+  water3d({ seg, V, prism, heightAt }) {
+    const gz = (x, y) => heightAt(x, y) ?? 0;
+    for (const b of W3.bodies) {   // bed outline
+      if (!b.cut) continue;
+      prism("water", b.r, b.z - b.d, b.z - b.d); b.i.forEach(h => prism("water", h, b.z - b.d, b.z - b.d));
+    }
+    for (const s of W3.shores) {   // shore profile ticks every ~6 m: quay = vertical wall, natural = slope
+      const b = W3.bodies[s.b], zw = b.z;
+      let acc = 0;
+      for (let i = 1; i < s.l.length; i++) {
+        const [ax, ay] = s.l[i - 1], [bx, by] = s.l[i], L = Math.hypot(bx - ax, by - ay); if (!L) continue;
+        const nx = -(by - ay) / L, ny = (bx - ax) / L;   // left of travel = water side
+        for (let t = (6 - acc) % 6; t <= L; t += 6) {
+          const x = ax + (bx - ax) * t / L, y = ay + (by - ay) * t / L, g = gz(x, y);
+          if (s.t === "quay" || s.t === "building" || s.t === "portal") seg("water", [...V(x, y, zw - b.d), ...V(x, y, Math.max(g, zw))]);
+          else { const w = s.t === "beach" ? 5 : 2.5;
+            seg("water", [...V(x + nx * w, y + ny * w, zw - Math.min(b.d, 0.8)), ...V(x - nx * 1.5, y - ny * 1.5, Math.max(gz(x - nx * 1.5, y - ny * 1.5), zw))]); }
+        }
+        acc = (acc + L) % 6;
+      }
+    }
+    W3.piers.forEach(r => prism("water", r, (W3.bodies[0]?.z ?? -1) + 0.6, (W3.bodies[0]?.z ?? -1) + 0.9));
+  },
+};
+})();
+</script>
+<script>
+(() => {
+const D = JSON.parse(document.getElementById("data").textContent);
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const LAT0 = D.origin[0], LON0 = D.origin[1];
+
+/* ---------- layers ---------- */
+const LAYERS = [
+  ["buildings","建物","--p0",0], ["priority","優先パーツ","--priority",0], ["water","水面","--water",0],
+  ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
+  ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
+  ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["labels","ラベル","--muted",0],
+];
+const on = {}; LAYERS.forEach(([k]) => on[k] = true);
+try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
+const layersEl = $("layers");
+LAYERS.forEach(([k, label, color, dash]) => {
+  const l = document.createElement("label");
+  l.innerHTML = `<input type="checkbox" id="ly-${k}" ${on[k] ? "checked" : ""}><span class="sw${dash ? " dash" : ""}" style="color:var(${color})"></span>${label}`;
+  l.querySelector("input").addEventListener("change", e => {
+    on[k] = e.target.checked;
+    try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
+    redraw(); if (three.ready) three.visibility();
+  });
+  layersEl.appendChild(l);
+});
+
+/* ---------- areas ---------- */
+let focus = -1;
+const counts = D.ports.map(() => 0);
+D.buildings.forEach(b => counts[b.p]++);
+const areasEl = $("areas");
+D.ports.forEach((p, i) => {
+  const li = document.createElement("li");
+  li.innerHTML = `<button aria-pressed="false" id="area-${i}"><span class="sw" style="color:var(--p${i});border-top-width:3px"></span><span>${p.ja}</span><span class="n">${counts[i]}</span></button>`;
+  li.firstChild.addEventListener("click", () => {
+    focus = focus === i ? -1 : i;
+    areasEl.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === focus)));
+    if (focus >= 0) zoomToArea(focus);
+    redraw(); if (three.ready) three.colors();
+  });
+  areasEl.appendChild(li);
+});
+$("st-b").textContent = D.buildings.length;
+$("st-w").textContent = D.water.length + D.ponds.length;
+$("st-p").textContent = D.paths.length;
+
+/* ---------- stairs / levels ---------- */
+const BASIS = { dem: ["DEMで確定", "--st-dem"], link: ["つながりから推定", "--st-link"], length: ["長さから推定", "--st-len"],
+  unknown: ["要確認(向き不明)", "--st-unk"], user: ["修正済み", "--st-dem"] };
+const STAIRS = D.paths.filter(p => p.s);
+const bcount = {}; STAIRS.forEach(p => bcount[p.s.basis] = (bcount[p.s.basis] || 0) + 1);
+$("basis").innerHTML = ["dem", "link", "length", "unknown"].map(k =>
+  `<li><span class="sw" style="color:var(${BASIS[k][1]});border-top-width:3px"></span><span>${BASIS[k][0]}</span><span class="n">${bcount[k] || 0}</span></li>`).join("");
+$("datum").textContent = `(海抜 ${D.levels.datum} m)`;
+const REVIEW = STAIRS.filter(p => p.s.basis === "unknown").concat(STAIRS.filter(p => p.s.basis === "length"));
+let reviewIdx = -1;
+const polyLen = l => { let s = 0; for (let i = 1; i < l.length; i++) s += Math.hypot(l[i][0] - l[i - 1][0], l[i][1] - l[i - 1][1]); return s; };
+function alongAt(l, d) { // point + unit direction at distance d along polyline
+  for (let i = 1; i < l.length; i++) {
+    const dx = l[i][0] - l[i - 1][0], dy = l[i][1] - l[i - 1][1], s = Math.hypot(dx, dy) || 1e-6;
+    if (d <= s || i === l.length - 1) { const t = Math.min(1, d / s); return [l[i - 1][0] + dx * t, l[i - 1][1] + dy * t, dx / s, dy / s]; }
+    d -= s;
+  }
+  return [l[0][0], l[0][1], 1, 0];
+}
+function segDist(px, py, l) {
+  let best = Infinity;
+  for (let i = 1; i < l.length; i++) {
+    const [ax, ay] = l[i - 1], [bx, by] = l[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L2));
+    best = Math.min(best, Math.hypot(px - ax - dx * t, py - ay - dy * t));
+  }
+  return best;
+}
+const HG = D.hgrid;
+function heightAt(x, y) {
+  const fi = (x - HG.x0) / HG.step, fj = (y - HG.y0) / HG.step, i = Math.floor(fi), j = Math.floor(fj);
+  if (i < 0 || j < 0 || i >= HG.nx - 1 || j >= HG.ny - 1) return null;
+  const v = (a, b) => HG.v[b * HG.nx + a], u = fi - i, w = fj - j;
+  return v(i, j) * (1 - u) * (1 - w) + v(i + 1, j) * u * (1 - w) + v(i, j + 1) * (1 - u) * w + v(i + 1, j + 1) * u * w;
+}
+
+/* ---------- geometry helpers ---------- */
+const bboxOf = rings => {
+  let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  for (const r of rings) for (const [x, y] of r) { if (x < a) a = x; if (y < b) b = y; if (x > c) c = x; if (y > d) d = y; }
+  return [a, b, c, d];
+};
+const PB = bboxOf([D.park]);
+D.buildings.forEach(b => b.bb = bboxOf(b.r));
+const pip = (x, y, poly) => {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [x1, y1] = poly[i], [x2, y2] = poly[j];
+    if ((y1 > y) !== (y2 > y) && x < (x2 - x1) * (y - y1) / (y2 - y1) + x1) c = !c;
+  }
+  return c;
+};
+const area = r => { let s = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) s += r[j][0] * r[i][1] - r[i][0] * r[j][1]; return Math.abs(s) / 2; };
+
+/* ---------- plan view ---------- */
+const cv = $("plan"), ctx = cv.getContext("2d"), vp = $("viewport");
+let W = 0, H = 0, dpr = 1, sc = 1, ox = 0, oy = 0, hover = null;
+const X = x => ox + x * sc, Y = y => oy - y * sc;
+
+function resize() {
+  const r = vp.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const first = W === 0;
+  const cx = (W / 2 - ox) / sc, cy = (oy - H / 2) / sc;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  if (first) fit(); else { ox = W / 2 - cx * sc; oy = H / 2 + cy * sc; }
+  redraw();
+  if (three.ready) three.resize();
+}
+function fit() {
+  const bw = PB[2] - PB[0], bh = PB[3] - PB[1];
+  sc = Math.min(W / (bw * 1.08), H / (bh * 1.1));
+  ox = W / 2 - (PB[0] + bw / 2) * sc; oy = H / 2 + (PB[1] + bh / 2) * sc;
+}
+function zoomAt(f, px, py) {
+  const n = Math.max(0.15, Math.min(40, sc * f)); f = n / sc;
+  ox = px - (px - ox) * f; oy = py - (py - oy) * f; sc = n; redraw();
+}
+function zoomToArea(i) {
+  const rings = D.buildings.filter(b => b.p === i).flatMap(b => b.r);
+  if (!rings.length) return;
+  const [a, b, c, d] = bboxOf(rings);
+  sc = Math.min(W / ((c - a) * 1.3 + 40), H / ((d - b) * 1.3 + 40), 6);
+  ox = W / 2 - (a + c) / 2 * sc; oy = H / 2 + (b + d) / 2 * sc;
+}
+
+function ring(r, close = true) {
+  ctx.moveTo(X(r[0][0]), Y(r[0][1]));
+  for (let i = 1; i < r.length; i++) ctx.lineTo(X(r[i][0]), Y(r[i][1]));
+  if (close) ctx.closePath();
+}
+function strokeRings(rings, color, w, dash) {
+  ctx.beginPath(); rings.forEach(r => ring(r));
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.stroke();
+}
+
+function redraw() {
+  if (!W) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = css("--sheet"); ctx.fillRect(0, 0, W, H);
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  const C = { ink: css("--ink"), muted: css("--muted"), grid: css("--grid"), rule: css("--rule"), water: css("--water"),
+    tint: css("--water-tint"), green: css("--green"), tree: css("--tree"), rock: css("--rock"), path: css("--path"),
+    rail: css("--rail"), pri: css("--priority"), land: css("--land"), sheet: css("--sheet"),
+    p: D.ports.map((_, i) => css(`--p${i}`)) };
+  const lw = Math.max(0.6, Math.min(1.6, sc * 0.9));
+
+  // 100 m survey grid
+  ctx.beginPath();
+  const g0x = Math.floor(((0 - ox) / sc) / 100) * 100, g1x = Math.ceil(((W - ox) / sc) / 100) * 100;
+  const g0y = Math.floor(((oy - H) / sc) / 100) * 100, g1y = Math.ceil((oy / sc) / 100) * 100;
+  const step = sc < 0.35 ? 200 : 100;
+  for (let x = g0x; x <= g1x; x += 100) if (x % step === 0) { ctx.moveTo(X(x), 0); ctx.lineTo(X(x), H); }
+  for (let y = g0y; y <= g1y; y += 100) if (y % step === 0) { ctx.moveTo(0, Y(y)); ctx.lineTo(W, Y(y)); }
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.setLineDash([]); ctx.stroke();
+
+  if (on.contours) {
+    for (const [lv, segs] of Object.entries(D.contours)) {
+      const idx = Math.round(+lv) % 5 === 0;
+      ctx.beginPath();
+      for (let k = 0; k < segs.length; k += 4) { ctx.moveTo(X(segs[k]), Y(segs[k + 1])); ctx.lineTo(X(segs[k + 2]), Y(segs[k + 3])); }
+      ctx.strokeStyle = idx ? css("--contour-idx") : css("--contour"); ctx.lineWidth = idx ? 1.2 : 0.7; ctx.setLineDash([]); ctx.stroke();
+    }
+  }
+  const dim = focus >= 0 ? 0.28 : 1;
+  ctx.globalAlpha = dim;
+  // water (faint tint so the harbour reads, edges carry the drawing)
+  if (on.water) {
+    ctx.beginPath(); D.water.forEach(r => ring(r)); D.islands.forEach(r => ring(r));
+    ctx.fillStyle = C.tint; ctx.fill("evenodd");
+    strokeRings(D.water, C.water, lw * 1.1);
+    strokeRings(D.islands, C.water, lw * 0.7);
+    strokeRings(D.ponds, C.water, lw * 0.8);
+    if (D.water_tunnels) strokeRings(D.water_tunnels, C.water, lw * 0.9, [3, 3]);   // harbour water under the rock (no ground hole)
+    window.TDS_EXT?.water2d?.({ ctx, X, Y, sc, D, css, on, lw });
+  }
+  if (on.green) strokeRings(D.green, C.green, lw * 0.6);
+  if (on.trees) strokeRings(D.trees, C.tree, lw * 0.7, [2, 3]);
+  if (on.rock) strokeRings(D.rock.map(r => r.r), C.rock, lw * 0.7);
+  if (on.walls) {
+    const WD = { wall: [], hedge: [4, 3], fence: [1.5, 2.5], retaining_wall: [], embankment: [6, 2, 1, 2] };
+    for (const t of Object.keys(WD)) {
+      ctx.beginPath(); D.walls.forEach(w => { if (w.t === t) ring(w.l, false); });
+      ctx.strokeStyle = t === "hedge" ? C.green : css("--wall");
+      ctx.lineWidth = t === "retaining_wall" ? Math.max(1.4, lw * 1.8) : Math.max(0.6, lw * 0.8);
+      ctx.setLineDash(WD[t]); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  if (on.paths) {
+    ctx.beginPath(); D.paths.forEach(p => { if (!p.b && !p.a && !p.u && !p.s) ring(p.l, false); });
+    ctx.strokeStyle = C.path; ctx.lineWidth = Math.max(0.5, lw * 0.6); ctx.setLineDash([]); ctx.stroke();
+    strokeRings(D.paths.filter(p => p.a && !p.u).map(p => p.l), C.path, lw * 0.6);
+  }
+  if (on.tunnels) {
+    ctx.beginPath(); D.paths.forEach(p => { if (p.u && !p.s) ring(p.l, !!p.a); });
+    ctx.strokeStyle = C.muted; ctx.lineWidth = Math.max(0.8, lw); ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (on.bridges) {  // double line = deck edges
+    const br = D.paths.filter(p => p.b && !p.s);
+    for (const pass of [0, 1]) {
+      ctx.beginPath(); br.forEach(p => ring(p.l, false));
+      ctx.strokeStyle = pass ? C.sheet : css("--bridge");
+      ctx.lineWidth = pass ? Math.max(0.6, p_w(br) * sc - 2) : Math.max(2.2, p_w(br) * sc);
+      ctx.setLineDash([]); ctx.stroke();
+    }
+  }
+  if (on.stairs) drawStairs(C, lw);
+  if (on.rail) {
+    ctx.beginPath(); D.rail.forEach(l => ring(l, false));
+    ctx.strokeStyle = C.rail; ctx.lineWidth = Math.max(1.2, 4 * sc); ctx.setLineDash([]); ctx.stroke();
+    ctx.strokeStyle = C.sheet; ctx.lineWidth = Math.max(0.4, 4 * sc - 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // buildings by area
+  if (on.buildings) {
+    for (let i = 0; i < D.ports.length; i++) {
+      ctx.globalAlpha = focus < 0 || focus === i ? 1 : 0.22;
+      strokeRings(D.buildings.filter(b => b.p === i && !(on.priority && b.x)).flatMap(b => b.r), C.p[i], lw);
+    }
+    if (on.priority) {
+      ctx.globalAlpha = 1;
+      const pri = D.buildings.filter(b => b.x && (focus < 0 || b.p === focus));
+      strokeRings(pri.flatMap(b => b.r), C.pri, lw * 1.9);
+    }
+    ctx.globalAlpha = 1;
+  }
+  // park boundary
+  ctx.globalAlpha = 1;
+  strokeRings([D.park], C.ink, Math.max(1.2, lw * 1.6));
+
+  if (on.landmarks) drawLandmarks(C, lw);
+  if (hover && hover.r) strokeRings(hover.r, C.ink, lw * 2.6);  // stairs highlight themselves in drawStairs
+  if (on.labels) drawLabels(C);
+  updateScale();
+}
+
+function p_w(list) { return 3.0; }
+function stairColor(p) { return css(BASIS[p.s.basis] ? BASIS[p.s.basis][1] : "--st-dem"); }
+function drawStairs(C, lw) {
+  for (const p of STAIRS) {
+    const col = stairColor(p), l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
+    const dim = focus >= 0 ? 0.3 : 1;
+    ctx.globalAlpha = hover === p ? 1 : dim;
+    ctx.strokeStyle = col; ctx.setLineDash([]);
+    // side edges
+    ctx.beginPath();
+    for (const side of [1, -1]) {
+      for (let k = 0; k <= 12; k++) {
+        const [x, y, ux, uy] = alongAt(l, L * k / 12), qx = x - uy * hw * side, qy = y + ux * hw * side;
+        k ? ctx.lineTo(X(qx), Y(qy)) : ctx.moveTo(X(qx), Y(qy));
+      }
+    }
+    ctx.lineWidth = Math.max(0.8, lw); ctx.stroke();
+    // treads (nosings), only when they are far enough apart to read
+    if ((L / n) * sc > 1.6) {
+      ctx.beginPath();
+      for (let k = 0; k <= n; k++) {
+        const [x, y, ux, uy] = alongAt(l, L * k / n);
+        ctx.moveTo(X(x - uy * hw), Y(y + ux * hw)); ctx.lineTo(X(x + uy * hw), Y(y - ux * hw));
+      }
+      ctx.lineWidth = Math.max(0.5, lw * 0.6); ctx.stroke();
+    }
+    // UP arrow: centre line from the low end to the high end, head at the top
+    const upEnd = p.s.up === "start" ? 0 : L, dnEnd = L - upEnd;
+    const [ax, ay] = alongAt(l, dnEnd), [bx, by, ux0, uy0] = alongAt(l, upEnd);
+    const s = p.s.up === "start" ? -1 : 1, ux = ux0 * s, uy = uy0 * s, ah = Math.min(hw * 1.1, Math.max(1.5, L * 0.3));
+    ctx.beginPath(); ctx.moveTo(X(ax), Y(ay));
+    for (let k = 1; k <= 12; k++) { const d = p.s.up === "start" ? L - L * k / 12 : L * k / 12; const [x, y] = alongAt(l, d); ctx.lineTo(X(x), Y(y)); }
+    ctx.moveTo(X(bx - ux * ah - uy * ah * 0.6), Y(by - uy * ah + ux * ah * 0.6)); ctx.lineTo(X(bx), Y(by));
+    ctx.lineTo(X(bx - ux * ah + uy * ah * 0.6), Y(by - uy * ah - ux * ah * 0.6));
+    ctx.lineWidth = Math.max(1, lw * 1.2); ctx.stroke();
+    if (p.s.basis === "unknown" && sc > 0.8) {  // question mark so unresolved flights stand out
+      const [cx, cy] = alongAt(l, L / 2);
+      ctx.font = `700 ${Math.max(10, Math.min(15, sc * 3))}px ${css("--font-mono")}`; ctx.fillStyle = col;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("?", X(cx) + hw * sc + 8, Y(cy));
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function circle(x, y, r) { ctx.moveTo(X(x) + r * sc, Y(y)); ctx.arc(X(x), Y(y), r * sc, 0, Math.PI * 2); }
+function drawLandmarks(C, lw) {
+  if (D.volcano) {  // Mount Prometheus rock ring: 2 m contours, every 10 m thicker
+    for (const [lv, segs] of Object.entries(D.volcano.contours)) {
+      const idx = Math.round(+lv) % 10 === 0;
+      ctx.beginPath();
+      for (let k = 0; k < segs.length; k += 4) { ctx.moveTo(X(segs[k]), Y(segs[k + 1])); ctx.lineTo(X(segs[k + 2]), Y(segs[k + 3])); }
+      ctx.strokeStyle = C.land; ctx.lineWidth = idx ? lw * 1.3 : lw * 0.6; ctx.setLineDash([]); ctx.stroke();
+    }
+    const s = D.volcano.summit; ctx.beginPath(); ctx.moveTo(X(s.x) - 4, Y(s.y) + 3); ctx.lineTo(X(s.x), Y(s.y) - 4); ctx.lineTo(X(s.x) + 4, Y(s.y) + 3); ctx.closePath();
+    ctx.fillStyle = C.land; ctx.fill();
+  }
+  ctx.setLineDash([]); ctx.strokeStyle = C.land; ctx.lineWidth = lw * 1.2;
+  for (const m of D.landmarks) {
+    ctx.beginPath();
+    if (m.t === "cone") {
+      circle(m.x, m.y, m.r1); circle(m.x, m.y, m.r2); circle(m.x, m.y, m.r2 * 0.45);
+      for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2;
+        ctx.moveTo(X(m.x + Math.cos(a) * m.r2), Y(m.y + Math.sin(a) * m.r2));
+        ctx.lineTo(X(m.x + Math.cos(a) * m.r1), Y(m.y + Math.sin(a) * m.r1)); }
+    } else if (m.t === "sphere") { circle(m.x, m.y, m.basin); circle(m.x, m.y, m.basin - 0.6); circle(m.x, m.y, m.r); circle(m.x, m.y, 1.3); }
+    else if (m.t === "dome") { circle(m.x, m.y, m.r); circle(m.x, m.y, m.r * 0.6); circle(m.x, m.y, m.r * 0.25); }
+    else if (m.t === "ship") { ring(m.r); }
+    ctx.stroke();
+  }
+}
+
+function label(text, x, y, color, size, weight) {
+  ctx.font = `${weight} ${size}px ${css("--font-ui")}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.lineWidth = 3.5; ctx.strokeStyle = css("--sheet"); ctx.setLineDash([]); ctx.strokeText(text, x, y);
+  ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function drawLabels(C) {
+  const big = Math.max(11, Math.min(16, 10 + sc * 3));
+  D.labels.forEach(l => { if (focus < 0 || focus === l.p) label(l.n, X(l.x), Y(l.y), C.p[l.p], big, 700); });
+  if (sc > 1.1) {
+    const seen = new Set();
+    D.buildings.forEach(b => {
+      if (!b.x || !b.n || seen.has(b.n)) return; seen.add(b.n);
+      const cx = (b.bb[0] + b.bb[2]) / 2, cy = (b.bb[1] + b.bb[3]) / 2;
+      label(b.n.replace(/ Tokyo DisneySea.*$/, ""), X(cx), Y(cy), C.pri, 11, 500);
+    });
+    D.landmarks.forEach(m => {
+      const [x, y] = m.t === "ship" ? [(bboxOf([m.r])[0] + bboxOf([m.r])[2]) / 2, (bboxOf([m.r])[1] + bboxOf([m.r])[3]) / 2] : [m.x, m.y];
+      label(m.n, X(x), Y(y), C.ink, 11.5, 700);
+    });
+  } else {
+    D.landmarks.filter(m => m.t === "massif").forEach(m => label(`${m.n} ${m.z} m`, X(m.x), Y(m.y) - 12, C.ink, 11, 700));
+  }
+}
+function updateScale() {
+  const opts = [10, 20, 50, 100, 200, 500];
+  const m = opts.find(v => v * sc >= 60) || 500;
+  $("scaleBar").style.width = `${Math.round(m * sc)}px`;
+  $("scaleLabel").textContent = `${m} m`;
+}
+
+/* ---------- plan interaction ---------- */
+const ptrs = new Map(); let pinch0 = null, moved = false;
+cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]); moved = false;
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), sc }; } cv.classList.add("dragging"); });
+cv.addEventListener("pointermove", e => {
+  const p = ptrs.get(e.pointerId);
+  if (p) {
+    if (ptrs.size === 2 && pinch0) {
+      ptrs.set(e.pointerId, [e.offsetX, e.offsetY]);
+      const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      zoomAt(pinch0.sc * d / pinch0.d / sc, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    } else {
+      const dx = e.offsetX - p[0], dy = e.offsetY - p[1];
+      if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+      ox += dx; oy += dy; ptrs.set(e.pointerId, [e.offsetX, e.offsetY]); redraw();
+    }
+    $("tip").hidden = true; return;
+  }
+  onHover(e.offsetX, e.offsetY);
+});
+const endPtr = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null; if (!ptrs.size) cv.classList.remove("dragging"); };
+cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
+cv.addEventListener("pointerleave", () => { hover = null; $("tip").hidden = true; redraw(); });
+cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.offsetX, e.offsetY); }, { passive: false });
+$("zin").onclick = () => { if (three.active) return three.dolly(0.8); zoomAt(1.4, W / 2, H / 2); };
+$("zout").onclick = () => { if (three.active) return three.dolly(1.25); zoomAt(1 / 1.4, W / 2, H / 2); };
+$("fit").onclick = () => { if (three.active) return three.home(); fit(); redraw(); };
+
+function showStairTip(p, px, py) {
+  const s = p.s, tip = $("tip");
+  const dir = s.basis === "unknown" ? "向き不明(仮に矢印方向を上り)" : "矢印の方向が上り";
+  tip.innerHTML = `<b>${s.n ? s.n + " ・ " : ""}階段</b><span style="color:var(${BASIS[s.basis][1]})">${BASIS[s.basis][0]}</span><br>` +
+    `<span class="mono">上がり ${s.rise.toFixed(2)} m ・ 約${s.steps}段 ・ 長さ ${s.len} m</span><br>${dir}<br><span class="mono">OSM way ${s.id}</span>`;
+  tip.hidden = false;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
+}
+$("nextStair").onclick = () => {
+  if (!REVIEW.length) return;
+  if (three.active) show("plan");
+  reviewIdx = (reviewIdx + 1) % REVIEW.length;
+  const p = REVIEW[reviewIdx], [cx, cy] = alongAt(p.l, polyLen(p.l) / 2);
+  sc = 6; ox = W / 2 - cx * sc; oy = H / 2 + cy * sc; hover = p;
+  if (!on.stairs) { on.stairs = true; const cb = $("ly-stairs"); if (cb) cb.checked = true; }
+  redraw(); showStairTip(p, W / 2, H / 2);
+  $("reviewPos").textContent = `${reviewIdx + 1} / ${REVIEW.length}  (${BASIS[p.s.basis][0]})`;
+};
+function onHover(px, py) {
+  const x = (px - ox) / sc, y = (oy - py) / sc;
+  const lat = LAT0 + y / 110574, lon = LON0 + x / (111320 * Math.cos(LAT0 * Math.PI / 180));
+  const hz = heightAt(x, y);
+  $("coord").textContent = `x ${x.toFixed(0)} m  y ${y.toFixed(0)} m ・ 地盤 ${hz == null ? "—" : (hz >= 0 ? "+" : "") + hz.toFixed(1) + " m"} ・ ${lat.toFixed(5)}N ${lon.toFixed(5)}E`;
+  let hit = null;
+  if (on.stairs) {
+    let best = null, bd = Math.max(2.5, 8 / sc);
+    for (const p of STAIRS) { const d = segDist(x, y, p.l); if (d < bd) { bd = d; best = p; } }
+    if (best) { if (best !== hover) { hover = best; redraw(); } showStairTip(best, px, py); return; }
+  }
+  if (on.buildings) for (const b of D.buildings) {
+    if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
+    if (pip(x, y, b.r[0])) { hit = b; break; }
+  }
+  if (hit !== hover) { hover = hit; redraw(); }
+  const tip = $("tip");
+  if (!hit) { tip.hidden = true; return; }
+  tip.innerHTML = `<b>${hit.n ? hit.n.replace(/ Tokyo DisneySea.*$/, "") : "名称なし"}</b>${D.ports[hit.p].ja}${hit.x ? " ・ 優先パーツ" : ""}<br><span class="mono">高さ ${hit.h} m${hit.h === 0 ? "" : " (推定含む)"} ・ 面積 ${Math.round(area(hit.r[0])).toLocaleString()} m²</span>`;
+  tip.hidden = false;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
+}
+
+/* ---------- 3D wireframe (three.js loaded on first use) ---------- */
+const three = { ready: false, active: false };
+function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
+async function init3D() {
+  const host = $("three");
+  try {
+    await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+  } catch (e) {
+    host.innerHTML = `<p style="padding:24px;color:var(--muted)">3D表示用のライブラリを読み込めませんでした。通信状況を確認して、もう一度「3D ワイヤー」を押してください。</p>`;
+    return false;
+  }
+  const T = window.THREE;
+  const renderer = new T.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  host.appendChild(renderer.domElement);
+  const scene = new T.Scene();
+  const cam = new T.PerspectiveCamera(38, 1, 1, 9000);
+  const ctl = new T.OrbitControls(cam, renderer.domElement);
+  ctl.enableDamping = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  ctl.maxPolarAngle = Math.PI * 0.49;
+  const cxp = (PB[0] + PB[2]) / 2, cyp = (PB[1] + PB[3]) / 2;
+  const home = () => { cam.position.set(cxp + 150, 820, -cyp + 1050); ctl.target.set(cxp, 0, -cyp); ctl.update(); };
+  home();
+
+  const V = (x, y, z) => [x, z, -y];   // east, up, south
+  const root = new T.Group(); scene.add(root);
+  const groups = {};
+  function seg(key, arr) { (groups[key] = groups[key] || []).push(...arr); }
+  function prism(key, r, z0, z1) {
+    for (let i = 0; i < r.length; i++) {
+      const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+      seg(key, [...V(x1, y1, z1), ...V(x2, y2, z1)]);
+      if (z0 !== z1) { seg(key, [...V(x1, y1, z0), ...V(x2, y2, z0)]); seg(key, [...V(x1, y1, z0), ...V(x1, y1, z1)]); }
+    }
+  }
+  function line(key, l, z) { for (let i = 1; i < l.length; i++) seg(key, [...V(l[i - 1][0], l[i - 1][1], z), ...V(l[i][0], l[i][1], z)]); }
+  function circ(key, x, y, r, z, n = 40) { for (let k = 0; k < n; k++) { const a = k / n * 6.2832, b = (k + 1) / n * 6.2832;
+    seg(key, [...V(x + Math.cos(a) * r, y + Math.sin(a) * r, z), ...V(x + Math.cos(b) * r, y + Math.sin(b) * r, z)]); } }
+
+  const gz = (x, y) => heightAt(x, y) ?? 0;
+  const ringH = (key, r, dz) => { for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+    seg(key, [...V(x1, y1, gz(x1, y1) + dz), ...V(x2, y2, gz(x2, y2) + dz)]); } };
+  const lineZ = (key, l, z) => { for (let i = 1; i < l.length; i++) seg(key, [...V(l[i - 1][0], l[i - 1][1], z[i - 1] + 0.05), ...V(l[i][0], l[i][1], z[i] + 0.05)]); };
+  ringH("park", D.park, 0);
+  D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
+  D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
+  D.green.forEach(r => ringH("green", r, 0.05));
+  D.trees.forEach(r => { ringH("trees", r, 2); ringH("trees", r, 7); });
+  D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
+  for (const p of D.paths) {
+    const z = p.z || p.l.map(([x, y]) => gz(x, y));
+    if (p.s) continue;
+    const key = p.u ? "tunnel" : p.b ? "bridge" : "paths";
+    if (p.a) { for (let i = 0; i < p.l.length; i++) { const j = (i + 1) % p.l.length;
+      seg(key, [...V(p.l[i][0], p.l[i][1], z[i] + 0.05), ...V(p.l[j][0], p.l[j][1], z[j] + 0.05)]); } }
+    else lineZ(key, p.l, z);
+  }
+  for (const p of STAIRS) {  // stepped profile on both edges + nosing lines
+    const l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
+    const z0 = p.z ? p.z[0] : 0, z1 = p.z ? p.z[p.z.length - 1] : 0;
+    for (let k = 0; k < n; k++) {
+      const [xa, ya, ux, uy] = alongAt(l, L * k / n), [xb, yb] = alongAt(l, L * (k + 1) / n);
+      const hk = z0 + (z1 - z0) * k / n, hk1 = z0 + (z1 - z0) * (k + 1) / n, asc = z1 > z0;
+      const za = asc ? hk1 : hk;                        // tread height
+      const [rx, ry] = asc ? [xa, ya] : [xb, yb];        // riser sits on the uphill side of the tread
+      for (const sd of [1, -1]) {
+        const ox_ = -uy * hw * sd, oy_ = ux * hw * sd;
+        seg("stairs", [...V(xa + ox_, ya + oy_, za), ...V(xb + ox_, yb + oy_, za)]);            // tread
+        seg("stairs", [...V(rx + ox_, ry + oy_, hk), ...V(rx + ox_, ry + oy_, hk1)]);           // riser
+      }
+      seg("stairs", [...V(xa - uy * hw, ya + ux * hw, za), ...V(xa + uy * hw, ya - ux * hw, za)]);
+    }
+  }
+  D.walls.forEach(w => { for (let i = 0; i < w.l.length; i++) {
+    const [x, y] = w.l[i], z = w.z[i];
+    if (i) { const [xp, yp] = w.l[i - 1], zp = w.z[i - 1];
+      seg("walls", [...V(xp, yp, zp + w.h), ...V(x, y, z + w.h)]); seg("walls", [...V(xp, yp, zp), ...V(x, y, z)]); }
+    if (i === 0 || i === w.l.length - 1 || i % 4 === 0) seg("walls", [...V(x, y, z), ...V(x, y, z + w.h)]); } });
+  for (const [lv, segs] of Object.entries(D.contours)) {
+    for (let k = 0; k < segs.length; k += 4) seg("contours", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+  }
+  D.rail.forEach(l => { const zs = l.map(([x, y]) => gz(x, y)); lineZ("rail", l, zs.map(z => z + 7)); lineZ("rail", l, zs.map(z => z + 7.8)); });
+  D.buildings.forEach(b => b.r.forEach(r => prism(b.x ? "pri" : `p${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
+  if (D.volcano) for (const [lv, segs] of Object.entries(D.volcano.contours))
+    for (let k = 0; k < segs.length; k += 4) seg("land", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+  if (D.water_tunnels) D.water_tunnels.forEach(r => prism("tunnel", r, D.water_tunnels_z, D.water_tunnels_z));
+  window.TDS_EXT?.water3d?.({ D, css, on, seg, V, prism, heightAt, T, root });
+  for (const m of D.landmarks) {
+    if (m.t === "cone") {
+      const bz = m.z || 0;
+      for (let k = 0; k <= 6; k++) { const t = k / 6; circ("land", m.x, m.y, m.r1 + (m.r2 - m.r1) * t, bz + m.h * t, 48); }
+      circ("land", m.x, m.y, m.r2 * 0.45, bz + m.h - m.crater, 24);
+      for (let k = 0; k < 24; k++) { const a = k / 24 * 6.2832, c = Math.cos(a), s = Math.sin(a);
+        seg("land", [...V(m.x + c * m.r1, m.y + s * m.r1, bz), ...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h)]);
+        seg("land", [...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h), ...V(m.x + c * m.r2 * .45, m.y + s * m.r2 * .45, bz + m.h - m.crater)]); }
+    } else if (m.t === "sphere" || m.t === "dome") {
+      const R = m.r, zc = m.t === "sphere" ? m.z : 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
+      for (let k = lo; k <= 6; k++) { const ph = k / 6 * Math.PI / 2; circ("land", m.x, m.y, R * Math.cos(ph), zc + R * Math.sin(ph) * sz, 40); }
+      for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832;
+        for (let j = lo; j < 6; j++) { const p1 = j / 6 * Math.PI / 2, p2 = (j + 1) / 6 * Math.PI / 2;
+          seg("land", [...V(m.x + Math.cos(a) * R * Math.cos(p1), m.y + Math.sin(a) * R * Math.cos(p1), zc + R * Math.sin(p1) * sz),
+                       ...V(m.x + Math.cos(a) * R * Math.cos(p2), m.y + Math.sin(a) * R * Math.cos(p2), zc + R * Math.sin(p2) * sz)]); } }
+      if (m.basin) {  // pool rim (0.40 m) + pedestal column up to the globe's underside
+        const g0 = m.g || 0, rh = m.rim_h || 0.4;
+        circ("land", m.x, m.y, m.basin, g0, 64); circ("land", m.x, m.y, m.basin, g0 + rh, 64); circ("land", m.x, m.y, m.basin - 0.6, g0 + rh, 64);
+        for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("land", [...V(m.x + Math.cos(a) * 1.3, m.y + Math.sin(a) * 1.3, g0 - 0.25), ...V(m.x + Math.cos(a) * 1.2, m.y + Math.sin(a) * 1.2, g0 + (m.ped || 2))]); }
+      }
+    } else if (m.t === "ship") {
+      const bb = bboxOf([m.r]), cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+      prism("pri", m.r, 0, 9);
+      prism("pri", m.r.map(([x, y]) => [cx + (x - cx) * 0.55, cy + (y - cy) * 0.55]), 9, 20);
+      [0.35, 0.62].forEach(t => { const fx = bb[0] + (bb[2] - bb[0]) * t; circ("pri", fx, cy, 2.2, 20, 16); circ("pri", fx, cy, 2.2, 29, 16); });
+    }
+  }
+  // 100 m grid under the park
+  for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
+  for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
+
+  const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
+    land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours" };
+  const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
+    rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
+    walls: "--wall", contours: "--contour-idx" };
+  const objs = {};
+  for (const [k, arr] of Object.entries(groups)) {
+    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
+    const mat = k === "tunnel" ? new T.LineDashedMaterial({ transparent: true, dashSize: 2, gapSize: 2 }) : new T.LineBasicMaterial({ transparent: true });
+    objs[k] = new T.LineSegments(geo, mat);
+    if (k === "tunnel") objs[k].computeLineDistances();
+    root.add(objs[k]);
+  }
+  three.colors = () => {
+    renderer.setClearColor(new T.Color(css("--sheet")));
+    for (const [k, o] of Object.entries(objs)) {
+      const pi = k.startsWith("p") && k.length <= 2 ? +k.slice(1) : -1;
+      let c = pi >= 0 ? css(`--p${pi}`) : css(COLOR_OF[k]);
+      if (k === "pri" && !on.priority) c = css("--muted");
+      o.material.color.set(c);
+      o.material.opacity = focus >= 0 && ((pi >= 0 && pi !== focus) || ["water", "green", "trees", "rock", "paths"].includes(k)) ? 0.25 : 1;
+    }
+  };
+  three.visibility = () => {
+    for (const [k, o] of Object.entries(objs)) {
+      const layer = /^p\d$/.test(k) ? "buildings" : LAYER_OF[k];
+      o.visible = !layer || on[layer];
+    }
+    three.colors();
+  };
+  three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
+  three.home = home;
+  let ex = 1;
+  $("exag").onclick = () => { ex = ex === 1 ? 3 : 1; root.scale.set(1, ex, 1); $("exag").textContent = `高さ ×${ex}`; };
+  three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
+  three.visibility(); three.resize();
+  (function loop() { requestAnimationFrame(loop); if (!three.active) return; ctl.update(); renderer.render(scene, cam); })();
+  three.ready = true;
+  return true;
+}
+
+/* ---------- tabs ---------- */
+async function show(mode) {
+  const is3d = mode === "3d";
+  $("tab-plan").setAttribute("aria-selected", String(!is3d));
+  $("tab-3d").setAttribute("aria-selected", String(is3d));
+  cv.hidden = is3d; $("three").hidden = !is3d;
+  $("scaleWrap").hidden = is3d; $("exag").hidden = !is3d; $("coord").parentElement.hidden = is3d; $("hint3d").hidden = !is3d; $("northWrap").hidden = is3d;
+  $("tip").hidden = true;
+  three.active = is3d;
+  if (is3d && !three.ready) { await init3D(); }
+  if (is3d && three.ready) three.resize(); else resize();
+}
+$("tab-plan").onclick = () => show("plan");
+$("tab-3d").onclick = () => show("3d");
+
+/* ---------- theme / resize ---------- */
+new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
+const retheme = () => { redraw(); if (three.ready) three.colors(); };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
+new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+resize();
+if (location.hash === "#3d") show("3d");
+})();
+</script>
