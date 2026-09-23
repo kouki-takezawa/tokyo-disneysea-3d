@@ -772,6 +772,10 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   AQ_WaterFilm: { color: 0xffffff, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.07, depthWrite: false },
   AQ_Curtain: { color: 0xe6f3f5, roughness: 0.3, transparent: true, opacity: 0.8 },
   AQ_Cradle: { color: 0x5c4b33, roughness: 0.4, metalness: 0.8 },
+  PZ_Blue: { color: 0x6b8099, roughness: 0.85 }, PZ_Brick: { color: 0x96604a, roughness: 0.9 },
+  PZ_Curb: { color: 0xc9bb9f, roughness: 0.8 }, PZ_Soil: { color: 0x44552d, roughness: 1 },
+  PZ_Trunk: { color: 0x4a3828, roughness: 1 }, PZ_Canopy: { color: 0x3c6a2e, roughness: 1, flatShading: true },
+  PZ_Lines: { color: 0xecebe6, roughness: 0.7 },
 };
 async function loadModels(T, scene, root) {
   try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }

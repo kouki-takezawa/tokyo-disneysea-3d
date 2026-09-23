@@ -18,7 +18,9 @@ Blender で作る前に、ブラウザで見られる**枠線モック**で配�
 | 階段・橋・トンネル・地面の高低差 | 済(一部は向きの確認が必要) | `ds_levels.py` |
 | 水面(水位・水深・護岸・カルデラ湖) | 済 | `ds_water.py`, `disneysea_water_blender.py` |
 | プロメテウス火山の岩山 | 済(概形) | `ds_volcano.py` |
-| アクアスフィア(地球儀の噴水) | 済(詳細モデル) | `ds_aquasphere.py` |
+| アクアスフィア(地球儀の噴水) | 済(詳細モデル、地球儀は作り直し済み) | `ds_aquasphere.py` |
+| アクアスフィア周りの地面(ディズニーシー・プラザ) | 済 | `ds_plaza.py` |
+| Blender で作ったものをモックに 3D モデルとして表示 | 済(水面・アクアスフィア・プラザ) | `export_models.py` |
 | 枠線モック(平面図 + 3D ワイヤー) | 済 | `export_mock.py`, `output/disneysea/mock_template.html` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号など) | これから | — |
 
@@ -29,10 +31,14 @@ python fetch_disneysea.py          # OSM を取得(plateau_data/disneysea_osm.js
 python ds_levels.py                # 階段・高低差 → plateau_data/disneysea_levels.json
 python ds_water.py                 # 水面モデル   → plateau_data/disneysea_water.json
 python ds_volcano.py               # 火山の岩山   → plateau_data/disneysea_volcano.json
+python ds_plaza.py                 # プラザの地面 → plateau_data/disneysea_plaza.json
+python ds_aquasphere.py --textures # 地球儀のテクスチャ → plateau_data/globe/
 python export_mock.py              # 枠線モック   → output/disneysea/tds_outline.html
 
 blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16      # 下書き全体
 blender -b --python disneysea_water_blender.py -- --cams harbor,caldera       # 水面
+blender -b --python export_models.py -- --parts water,aquasphere,plaza        # モック用の 3D モデル
+blender -b --python export_models.py -- --parts aquasphere --render           # アクアスフィアの確認レンダー
 ```
 
 Blender は 5.2。複数の作業を同時に進めるときも、Blender を起動するのは一度に 1 つだけにする(同時に動かすと落ちたり止まったりした)。
@@ -55,12 +61,31 @@ Blender は 5.2。複数の作業を同時に進めるときも、Blender を起
 `export_mock.py` は `mock_template.html` にデータを入れて `tds_outline.html` を作る。
 水面の描画は、テンプレートの `<script id="ext-water">` の中にある。
 
+### Blender で作ったものは 3D モデルに置き換わる
+
+レイヤーの枠線は下書きなので、Blender で作り終えた部分は、3D 表示ではその 3D モデルに置き換える。
+レイヤーの一覧(表示の切り替え)と平面図はそのまま残る。
+
+| モデル | 置き換えるレイヤー | ファイル |
+|---|---|---|
+| 水面(水面・水底・護岸・笠石・岩場・砂浜・土手・桟橋) | 水面 | `output/disneysea/models/water.json` |
+| アクアスフィア | ランドマーク | `output/disneysea/models/aquasphere.json` |
+| ディズニーシー・プラザ(舗装・植え込み・木) | 園路(と一緒に表示) | `output/disneysea/models/plaza.json` |
+
+- `export_models.py` が Blender から glTF に書き出し、それぞれの地面の高さ(DEM 基準)まで持ち上げる。
+- Artifact のホストは `.glb` を配信しないので、バッファを埋め込んだ glTF の JSON にしている(GLTFLoader はどちらも読める)。
+- Blender の手続き型マテリアルは glTF に残らない。そのため、モック側でメッシュ名(`WS_*`, `AQ_*`, `PZ_*`)ごとに色を付けている。
+
+| 水面のモデル | アクアスフィアとプラザ |
+|---|---|
+| ![水面](docs/water/mock_water_model.jpg) | ![プラザ](docs/aquasphere/mock_plaza.jpg) |
+
 ## 下書き(Blender)
 
 | | |
 |---|---|
 | ![俯瞰](docs/draft/draft_aerial.jpg) | ![真上](docs/draft/draft_top.jpg) |
-| ![ミステリアスアイランド](docs/draft/draft_mysterious.jpg) | ![アクアスフィア](docs/draft/draft_aquasphere_close.jpg) |
+| ![ミステリアスアイランド](docs/draft/draft_mysterious.jpg) | ![アメリカンウォーターフロント](docs/draft/draft_american.jpg) |
 
 - 建物は OSM の外形を押し出した箱。高さの実測タグがあるのは約 15 棟だけで、残りはエリアごとの推定値。
 - 参考モデルがある優先パーツ(ミラコスタ、トイ・ストーリー・マニア、シンドバッド、ニモ、コロンビア号など)は赤。
@@ -90,9 +115,33 @@ DEM を見ると、ミステリアスアイランドは園路より約 5.3 m 高
 
 ### アクアスフィア(`ds_aquasphere.py`)
 
+![アクアスフィア](docs/aquasphere/aquasphere_globe.jpg)
+
 直径 8 m の地球儀を高さ 2 m の台座に載せ、周りを水盤(半径 11.16 m、縁の高さ 0.40 m)が囲む。
-地球儀の模様は NOAA ETOPO(パブリックドメイン)の地形データから作っている。
 石のブロックや街灯の数・配置は推定なので、確認が必要。
+
+地球儀は 2 回目に作り直して、次のようにした。
+
+- **テクスチャ**: NOAA ETOPO(パブリックドメイン)の地形から `python ds_aquasphere.py --textures` で作る。海は深さに応じて紺から青緑、大陸棚は明るい青緑、陸は風化した石の色で、強めの陰影を付けて彫り込んだように見せる。氷床は白。
+- **浮き彫り**: 海岸で約 4 cm の段差を付け、山は最大約 12 cm まで盛り上げる。
+- **水の膜**: 地球儀の表面を流れ落ちる水を、少し大きい透明な球で表す。縦の筋が入り、地球儀と一緒には回らない。
+- **根元**: ブロンズの受け皿で地球儀を受け、そのふちからあふれた水が白いカーテンになって池へ落ち、泡の輪になる。
+
+| 根元 | 全体 |
+|---|---|
+| ![根元](docs/aquasphere/aquasphere_base.jpg) | ![全体](docs/aquasphere/aquasphere_wide.jpg) |
+
+### ディズニーシー・プラザ(`ds_plaza.py`)
+
+アクアスフィアの周り半径 85 m の地面。
+
+- **舗装**: 地球儀から 42 m 以内は青灰色の石、その外側は赤茶のレンガ(航空写真の見た目に合わせた)。OSM のプラザ(relation 3297581)は中央の円と西のアーケードだけなので、ホテルミラコスタの中庭(植え込みの周り)も舗装する。地上の建物は除く。
+- **白線**: アクアスフィアの 12 本の放射状の線を、42 m まで延長する。
+- **植え込み**: プラザの内側の楕円形の穴と、OSM の庭・樹林・花壇。0.45 m の石の縁、芝の土、丸い樹冠の木(約 5 m 間隔、41 本)。同じ植え込みが二重に登録されている分は除く。
+
+| 計画(航空写真に重ねたもの) | 植え込みと木 |
+|---|---|
+| ![計画](docs/aquasphere/plaza_plan.jpg) | ![植え込み](docs/aquasphere/aquasphere_plaza.jpg) |
 
 ## 水面(`ds_water.py` → `disneysea_water_blender.py`)
 

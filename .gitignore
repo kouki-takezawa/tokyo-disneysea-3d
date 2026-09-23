@@ -10,6 +10,7 @@
 !/disneysea_water_blender.py
 !/ds_*.py
 !/export_mock.py
+!/export_models.py
 
 !/plateau_data/
 /plateau_data/*
