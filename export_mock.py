@@ -182,6 +182,12 @@ def main():
             "piers": [R(p["ring"]) for p in W["piers"]],
             "len": W["shore_length"]}
 
+    # Blender-built parts (export_models.py): shown as solid models in 3D, replacing their draft wireframe
+    MODELS = [("water", "water", ["water"]), ("aquasphere", "landmarks", ["aqwire", "aqglobe", "aqcoast"])]
+    mdir = ROOT / "output" / "disneysea" / "models"
+    out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
+                     for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
+
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[mock] {path} {path.stat().st_size / 1024:.0f} KB  "

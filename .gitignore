@@ -27,6 +27,8 @@
 /output/disneysea/*
 !/output/disneysea/mock_template.html
 !/output/disneysea/tds_outline.html
+!/output/disneysea/models/
+/output/disneysea/models/*.glb
 
 __pycache__/
 *.blend

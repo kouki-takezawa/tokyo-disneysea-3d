@@ -758,6 +758,48 @@ function onHover(px, py) {
   tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
 }
 
+/* ---------- Blender models (GLB) ---------- */
+// Parts already built in Blender are shown as solid models instead of their draft wireframe.
+// D.models = [{id, layer, src, hides: [wire group keys], ...}] (export_mock.py, files in output/disneysea/models/)
+const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; procedural Blender shaders do not export)
+  WS_water: { color: 0x2f6f68, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.86 },
+  WS_bed: { color: 0x2a2a22, roughness: 1 },
+  WS_quay: { color: 0x9a8c78, roughness: 0.9 }, WS_coping: { color: 0xc7bfb0, roughness: 0.8 },
+  WS_wet: { color: 0x4a463d, roughness: 0.5 }, WS_rock: { color: 0x8a6a52, roughness: 1, flatShading: true },
+  WS_sand: { color: 0xc9b184, roughness: 1 }, WS_grass: { color: 0x4f6e33, roughness: 1 },
+  WS_mud: { color: 0x4d4130, roughness: 0.9 }, WS_deck: { color: 0x6b4c33, roughness: 0.8 },
+  AQ_Water: { color: 0x2a8c8e, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.88 },
+  AQ_WaterFilm: { color: 0xffffff, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.07, depthWrite: false },
+  AQ_Curtain: { color: 0xe6f3f5, roughness: 0.3, transparent: true, opacity: 0.8 },
+  AQ_Cradle: { color: 0x5c4b33, roughness: 0.4, metalness: 0.8 },
+};
+async function loadModels(T, scene, root) {
+  try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+  if (!three.lit) {
+    scene.add(new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85));
+    const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun);
+    three.lit = true;
+  }
+  const loader = new T.GLTFLoader();
+  for (const m of D.models) {
+    loader.load(m.src, gltf => {
+      gltf.scene.traverse(o => {
+        if (!o.isMesh) return;
+        const key = Object.keys(MODEL_MAT).filter(k => o.name.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match (AQ_WaterFilm vs AQ_Water)
+        if (key) o.material = new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] });
+        else if (o.material) {
+          o.material.side = T.DoubleSide;
+          // the page renders in linear output (line colours come straight from CSS): show textures as stored
+          if (o.material.map) { o.material.map.encoding = T.LinearEncoding; o.material.needsUpdate = true; }
+        }
+      });
+      root.add(gltf.scene);
+      three.models[m.id] = { obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
+      three.visibility();
+    }, undefined, () => {});   // model missing: keep the wireframe
+  }
+}
+
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
 const three = { ready: false, active: false };
 function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
@@ -876,17 +918,17 @@ async function init3D() {
   if (D.aquasphere) {  // AquaSphere as built in Blender (ds_aquasphere): pool, rim, paving, blocks, lamps, foam, oriented globe
     const A = D.aquasphere, g = A.g, P = (r, a, z) => V(A.cx + Math.cos(a) * r, A.cy + Math.sin(a) * r, z);
     const cc = (key, r, z, n = 72) => { for (let k = 0; k < n; k++) seg(key, [...P(r, k / n * 6.2832, z), ...P(r, (k + 1) / n * 6.2832, z)]); };
-    cc("land", A.pool_r, g); cc("land", A.pool_r, g + A.rim_h); cc("land", A.pool_r - A.rim_w, g + A.rim_h);
-    cc("water", A.pool_r - A.rim_w, A.water); cc("land", A.ring_r, g + 0.05); cc("land", A.plaza_r, g + 0.05, 96);
-    for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; seg("land", [...P(A.pool_r, a, g), ...P(A.pool_r, a, g + A.rim_h)]); }
-    A.lines.forEach(l => seg("land", [...V(l[0], l[1], g + 0.05), ...V(l[2], l[3], g + 0.05)]));
-    A.patches.forEach(([x, y]) => circ("land", x, y, A.patch_r, g + 0.05, 16));
-    A.inlays.forEach(([x, y]) => circ("land", x, y, A.inlay_r, g + 0.05, 10));
-    A.blocks.forEach(b => prism("land", b, g, g + A.block_h));
-    A.lamps.forEach(([x, y]) => { seg("land", [...V(x, y, g), ...V(x, y, g + A.lamp_h)]); circ("land", x, y, 0.22, g + A.lamp_h - 0.45, 8); });
+    cc("aqwire", A.pool_r, g); cc("aqwire", A.pool_r, g + A.rim_h); cc("aqwire", A.pool_r - A.rim_w, g + A.rim_h);
+    cc("aqwire", A.pool_r - A.rim_w, A.water); cc("aqwire", A.ring_r, g + 0.05); cc("aqwire", A.plaza_r, g + 0.05, 96);
+    for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; seg("aqwire", [...P(A.pool_r, a, g), ...P(A.pool_r, a, g + A.rim_h)]); }
+    A.lines.forEach(l => seg("aqwire", [...V(l[0], l[1], g + 0.05), ...V(l[2], l[3], g + 0.05)]));
+    A.patches.forEach(([x, y]) => circ("aqwire", x, y, A.patch_r, g + 0.05, 16));
+    A.inlays.forEach(([x, y]) => circ("aqwire", x, y, A.inlay_r, g + 0.05, 10));
+    A.blocks.forEach(b => prism("aqwire", b, g, g + A.block_h));
+    A.lamps.forEach(([x, y]) => { seg("aqwire", [...V(x, y, g), ...V(x, y, g + A.lamp_h)]); circ("aqwire", x, y, 0.22, g + A.lamp_h - 0.45, 8); });
     const top = g + A.ped_h;
-    for (let j = 0; j <= 4; j++) { const t = j / 4; cc("land", A.foam_r[0] + (A.foam_r[1] - A.foam_r[0]) * t, A.water + (top - A.water) * t, 36); }
-    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("land", [...P(A.foam_r[0], a, A.water), ...P(A.foam_r[1], a, top)]); }
+    for (let j = 0; j <= 4; j++) { const t = j / 4; cc("aqwire", A.foam_r[0] + (A.foam_r[1] - A.foam_r[0]) * t, A.water + (top - A.water) * t, 36); }
+    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("aqwire", [...P(A.foam_r[0], a, A.water), ...P(A.foam_r[1], a, top)]); }
     const gp = (lo, la) => { const p = aquaPt(lo, la); return V(p[0], p[1], p[2]); };
     for (let la = -60; la <= 60; la += 30) for (let lo = -180; lo < 180; lo += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo + 6, la)]);
     for (let lo = -180; lo < 180; lo += 30) for (let la = -90; la < 90; la += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo, la + 6)]);
@@ -902,10 +944,10 @@ async function init3D() {
 
   const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
     land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours",
-    aqglobe: "landmarks", aqcoast: "landmarks" };
+    aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
-    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0" };
+    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
@@ -924,19 +966,30 @@ async function init3D() {
       o.material.opacity = focus >= 0 && ((pi >= 0 && pi !== focus) || ["water", "green", "trees", "rock", "paths"].includes(k)) ? 0.25 : 1;
     }
   };
+  three.models = {};   // Blender-built 3D models (GLB) that replace the draft wireframe of their layer
   three.visibility = () => {
+    const replaced = new Set(Object.values(three.models).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
       const layer = /^p\d$/.test(k) ? "buildings" : LAYER_OF[k];
-      o.visible = !layer || on[layer];
+      o.visible = (!layer || on[layer]) && !replaced.has(k);
     }
+    for (const m of Object.values(three.models)) m.obj.visible = on[m.layer];
     three.colors();
   };
   three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
   three.home = home;
+  // look at local point (x, y, z) from dist m away (used for checking models; window.TDS_FOCUS)
+  three.focus = (x, y, z, dist = 60, az = 0.8, el = 0.45) => {
+    ctl.target.set(x, z, -y);
+    cam.position.set(x + Math.cos(az) * Math.cos(el) * dist, z + Math.sin(el) * dist, -y + Math.sin(az) * Math.cos(el) * dist);
+    ctl.update();
+  };
+  window.TDS_FOCUS = three.focus;
   let ex = 1;
   $("exag").onclick = () => { ex = ex === 1 ? 3 : 1; root.scale.set(1, ex, 1); $("exag").textContent = `高さ ×${ex}`; };
   three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
   three.visibility(); three.resize();
+  if (D.models && D.models.length) loadModels(T, scene, root);
   (function loop() { requestAnimationFrame(loop); if (!three.active) return; ctl.update(); renderer.render(scene, cam); })();
   three.ready = true;
   return true;

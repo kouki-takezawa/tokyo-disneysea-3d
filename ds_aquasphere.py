@@ -123,6 +123,55 @@ def mock_geometry(ground_rel=None):
             "coast": coastlines()}
 
 
+# ---------------------------------------------------------------- globe textures (plain Python)
+def generate_textures(w=4096):
+    """ETOPO 0.2 deg -> globe_color.png / globe_height.png (16 bit) / globe_landmask.png, equirectangular w x w/2.
+
+    Look of the rebuilt globe (v2): deep navy-teal oceans with the sea-floor relief faintly shaded,
+    continents in a warm weathered stone that reads as carved relief (strong hillshade), ice caps pale.
+    Height: the coast is a clean step (continents stand proud like the carved original), mountains
+    rise further, the sea floor dips slightly:
+      land 0.5 + 0.5 * (0.35 + 0.65 * sqrt(z / 5000)),  ocean 0.5 - 0.1 * (-z / 7000)
+      python ds_aquasphere.py --textures
+    """
+    import numpy as np, cv2
+
+    def _png(path, arr):   # cv2.imwrite cannot open non-ASCII Windows paths (this folder has one)
+        path.write_bytes(cv2.imencode(".png", arr)[1].tobytes())
+    rows = [l.split() for l in (GLOBE_DIR / "etopo_12.asc").read_text().splitlines()[6:] if l.strip()]
+    z = np.array(rows, dtype=np.float32)[:, :-1]                      # north row first, drop the wrapped column
+    h = w // 2
+    Z = cv2.resize(z, (w, h), interpolation=cv2.INTER_CUBIC)
+    lat = np.linspace(90, -90, h)[:, None] * np.ones((1, w))
+    land = Z > 0
+    gy, gx = np.gradient(cv2.GaussianBlur(Z, (0, 0), 1.2))           # hillshade from the NW
+    shade_l = np.clip(1.0 + (-gx - gy) / 700.0, 0.62, 1.30)[..., None]
+    shade_o = np.clip(1.0 + (-gx - gy) / 2600.0, 0.85, 1.12)[..., None]
+
+    def lerp(a, b, t):
+        return np.asarray(a, np.float32) * (1 - t[..., None]) + np.asarray(b, np.float32) * t[..., None]
+    d = np.clip(-Z / 6500.0, 0, 1) ** 0.55
+    ocean = lerp((0.13, 0.40, 0.50), (0.025, 0.10, 0.22), d)
+    shelf = np.clip((Z + 250) / 250.0, 0, 1) * (~land)
+    ocean = ocean * (1 - shelf[..., None]) + np.array((0.20, 0.50, 0.56), np.float32) * shelf[..., None]
+    ocean = ocean * shade_o
+    t = np.clip(Z / 4200.0, 0, 1) ** 0.7
+    ground = lerp((0.66, 0.58, 0.43), (0.47, 0.39, 0.28), t)
+    hi = np.clip((Z - 2600) / 2000.0, 0, 1)
+    ground = ground * (1 - hi[..., None]) + np.array((0.74, 0.71, 0.64), np.float32) * hi[..., None]
+    ice = np.clip((np.abs(lat) - 64) / 14.0, 0, 1) ** 1.4
+    ground = (ground * (1 - ice[..., None]) + np.array((0.88, 0.89, 0.88), np.float32) * ice[..., None]) * shade_l
+    col = np.where(land[..., None], ground, ocean)
+    col = cv2.GaussianBlur(np.clip(col, 0, 1).astype(np.float32), (0, 0), 0.6)
+    _png(GLOBE_DIR / "globe_color.png", (col[..., ::-1] * 255).astype(np.uint8))
+    hl = 0.5 + 0.5 * (0.35 + 0.65 * np.sqrt(np.clip(Z / 5000.0, 0, 1)))
+    ho = 0.5 - 0.1 * np.clip(-Z / 7000.0, 0, 1)
+    hgt = np.where(land, hl, ho)
+    _png(GLOBE_DIR / "globe_height.png", (np.clip(hgt, 0, 1) * 65535).astype(np.uint16))
+    _png(GLOBE_DIR / "globe_landmask.png", land.astype(np.uint8) * 255)
+    print(f"[aquasphere] textures {w}x{h} written to {GLOBE_DIR}")
+
+
 # ---------------------------------------------------------------- materials
 def _set(node, name, value):
     if name in node.inputs:
@@ -175,6 +224,26 @@ def mat_foam():
     return mat
 
 
+def mat_running_water(name="mat_aq_film", streak=(7.0, 7.0, 0.7), strength=0.35, aerated=0.0):
+    """Thin sheet of water running down (vertical streaks: noise squashed along Z).
+    aerated 0..1: white, air-filled falling water (curtain) instead of a clear film."""
+    mat, nt, b = _principled(name, (0.78 + 0.12 * aerated, 0.90 + 0.06 * aerated, 0.93 + 0.05 * aerated),
+                             0.02 + 0.18 * aerated, Transmission_Weight=1.0 - 0.5 * aerated, IOR=1.33)
+    tc = nt.nodes.new("ShaderNodeTexCoord"); mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = streak
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 3.0; nz.inputs["Detail"].default_value = 6
+    bp = nt.nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = strength; bp.inputs["Distance"].default_value = 0.01
+    nt.links.new(tc.outputs["Object"], mp.inputs["Vector"]); nt.links.new(mp.outputs["Vector"], nz.inputs["Vector"])
+    nt.links.new(nz.outputs["Fac"], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    return mat
+
+
+def mat_bronze():
+    mat, nt, b = _principled("mat_aq_bronze", (0.36, 0.30, 0.20), 0.38, Metallic=0.85)
+    _noise_bump(nt, b, 18, 0.2)
+    return mat
+
+
 def mat_globe():
     mat, nt, b = _principled("mat_aq_globe", (0.3, 0.5, 0.8), 0.3, Coat_Weight=1.0, Coat_Roughness=0.03)
     nodes, links = nt.nodes, nt.links
@@ -191,13 +260,13 @@ def mat_globe():
     links.new(col.outputs["Color"], b.inputs["Base Color"])
     # oceans: glassy water film; land: matte sculpted stone
     rough = nodes.new("ShaderNodeMapRange")
-    rough.inputs["To Min"].default_value, rough.inputs["To Max"].default_value = 0.04, 0.5
+    rough.inputs["To Min"].default_value, rough.inputs["To Max"].default_value = 0.06, 0.42
     links.new(mask.outputs["Color"], rough.inputs["Value"]); links.new(rough.outputs["Result"], b.inputs["Roughness"])
     coat = nodes.new("ShaderNodeMath"); coat.operation = "SUBTRACT"; coat.inputs[0].default_value = 1.0
     links.new(mask.outputs["Color"], coat.inputs[1])
     if "Coat Weight" in b.inputs:
         links.new(coat.outputs["Value"], b.inputs["Coat Weight"])
-    bp = nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = 0.6; bp.inputs["Distance"].default_value = 0.04
+    bp = nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = 0.35; bp.inputs["Distance"].default_value = 0.03
     links.new(hgt.outputs["Color"], bp.inputs["Height"]); links.new(bp.outputs["Normal"], b.inputs["Normal"])
     return mat
 
@@ -314,11 +383,18 @@ def build(ground_z=None, col=None, animate=False, fps=24):
     top = g + S["pedestal_h"]
     objs["core"] = _obj(lathe([(0, wz - S["pool_depth"]), (1.1, wz - S["pool_depth"]), (1.1, top), (0, top)], 48),
                         "AQ_PedestalCore", stone, C, col)
-    skirt = [(2.4, wz + 0.02), (2.2, wz + 0.25), (1.9, wz + 0.8), (1.6, g + 1.4), (1.35, top - 0.1), (1.2, top + 0.15)]
-    objs["foam"] = _obj(lathe(skirt, 96), "AQ_Foam", mat_foam(), C, col)
-    disp_tex = bpy.data.textures.new("AQ_FoamNoise", "CLOUDS"); disp_tex.noise_scale = 0.18; disp_tex.noise_depth = 3
+    # v2: a bronze cradle cups the globe; the water running off the globe spills over its lip as a
+    # clear curtain down to the pool and churns into a ring of white water where it lands
+    cradle = [(1.0, top - 0.7), (1.6, top - 0.45), (2.05, top - 0.05), (2.36, top + 0.42), (2.48, top + 0.50),
+              (2.44, top + 0.56), (2.30, top + 0.50)]
+    objs["cradle"] = _obj(lathe(cradle, 128), "AQ_Cradle", mat_bronze(), C, col)
+    curtain = [(2.50, top + 0.50), (2.62, top + 0.20), (2.78, top - 0.45), (2.92, g + 0.55), (3.02, wz + 0.10), (3.05, wz - 0.02)]
+    objs["curtain"] = _obj(lathe(curtain, 128), "AQ_Curtain", mat_running_water("mat_aq_curtain", (16.0, 16.0, 0.3), 0.9, aerated=0.8), C, col)
+    foam = [(2.75, wz - 0.02), (2.9, wz + 0.16), (3.2, wz + 0.22), (3.55, wz + 0.10), (3.8, wz - 0.02)]
+    objs["foam"] = _obj(lathe(foam, 96), "AQ_Foam", mat_foam(), C, col)
+    disp_tex = bpy.data.textures.new("AQ_FoamNoise", "CLOUDS"); disp_tex.noise_scale = 0.12; disp_tex.noise_depth = 3
     objs["foam"].modifiers.new("sub", "SUBSURF").levels = 2          # subdivide first so the churn shows
-    m = objs["foam"].modifiers.new("foam", "DISPLACE"); m.texture = disp_tex; m.strength = 0.22
+    m = objs["foam"].modifiers.new("foam", "DISPLACE"); m.texture = disp_tex; m.strength = 0.12
 
     # globe: tilted axis empty (north tipped toward the entrance side), globe spins about its local Z
     R = S["globe_d"] / 2
@@ -329,14 +405,14 @@ def build(ground_z=None, col=None, animate=False, fps=24):
     tilt.rotation_euler = (0.0, math.radians(S["tilt_deg"]), 0.0)    # +Y rotation tips +Z toward +X (the entrance)
     bm = bmesh.new()
     bm.loops.layers.uv.new("UVMap")   # calc_uvs only fills an existing UV layer
-    bmesh.ops.create_uvsphere(bm, u_segments=256, v_segments=128, radius=R, calc_uvs=True)
+    bmesh.ops.create_uvsphere(bm, u_segments=384, v_segments=192, radius=R, calc_uvs=True)
     globe = _obj(bm, "AQ_Globe", mat_globe(), (0, 0, 0), col)
     globe.parent = tilt
     globe.rotation_euler.z = math.radians(-S["face_lon_deg"] + S["face_offset_deg"])
     gd = globe.modifiers.new("relief", "DISPLACE")          # continents stand ~4 cm proud, like the carved original
     gt = bpy.data.textures.new("AQ_GlobeHeight", "IMAGE"); gt.image = bpy.data.images.load(str(GLOBE_DIR / "globe_height.png"), check_existing=True)
     gt.image.colorspace_settings.name = "Non-Color"
-    gd.texture = gt; gd.texture_coords = "UV"; gd.strength = 0.08; gd.mid_level = 0.5
+    gd.texture = gt; gd.texture_coords = "UV"; gd.strength = 0.24; gd.mid_level = 0.5   # v2 heights: coast step ~4 cm, peaks ~12 cm
     if animate:  # counter-clockwise seen from above, one turn per rev_seconds
         sc = bpy.context.scene; sc.frame_start, sc.frame_end = 1, int(S["rev_seconds"] * fps)
         prefs = bpy.context.preferences.edit
@@ -347,6 +423,16 @@ def build(ground_z=None, col=None, animate=False, fps=24):
         globe.keyframe_insert("rotation_euler", index=2, frame=sc.frame_end)
         prefs.keyframe_new_interpolation_type = old
     objs["globe"] = globe
+    # water film running over the whole globe (it does not spin: the water falls, the globe turns under it)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=192, v_segments=96, radius=R + 0.035)
+    objs["film"] = _obj(bm, "AQ_WaterFilm", mat_running_water(), (C[0], C[1], top + R), col)
     print(f"[aquasphere] ground {g:+.2f} water {wz:+.2f} globe centre {top + R:+.2f} top {top + 2 * R:+.2f} "
           f"(levels from {'water tab' if lv else 'SPEC'})")
     return objs
+
+
+if __name__ == "__main__" and bpy is None:
+    import sys
+    if "--textures" in sys.argv:
+        generate_textures()
