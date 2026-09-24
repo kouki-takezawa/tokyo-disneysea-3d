@@ -42,7 +42,7 @@ def build_buildings():
             if name and any(k in name for k in LANDMARK_SKIP):
                 continue
             cx, cy = poly_centroid(w["pts"])
-            port = nearest_port(cx, cy)
+            port = nearest_port(cx, cy, w["pts"])
             height = height_for_way(w)
             is_pri = bool(name) and _is_priority(name)
             obj = extrude_loops(f"Bldg_{w['id']}", loops, 0.0, height,

@@ -78,7 +78,7 @@ def main():
         if (name and any(k in name for k in C.LANDMARK_SKIP)) or w["id"] in C.LANDMARK_SKIP_IDS:
             continue
         cx, cy = C.poly_centroid(w["pts"])
-        port = C.nearest_port(cx, cy)
+        port = C.nearest_port(cx, cy, w["pts"])
         port_pts[port].append((cx, cy, C.poly_area(w["pts"])))
         pri = bool(name) and any(k in name for k in C.DETAIL_PRIORITY)
         b = {"r": [R(l) for l in loops], "h": round(C.height_for_way(w), 1), "p": PORTS.index(port),

@@ -248,7 +248,7 @@ def build():
         inners = [i[::-1] if _signed_area(i) > 0 else i for i in inners]   # islands clockwise
         t = names.get(b["id"], {})
         cx, cy = C.poly_centroid(ring)
-        port = C.nearest_port(cx, cy)
+        port = C.nearest_port(cx, cy, ring)
         area = C.poly_area(ring) - sum(C.poly_area(i) for i in inners)
         if b["id"] == MAIN_HARBOR + "_lagoon":
             kind = "lagoon"

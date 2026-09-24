@@ -22,19 +22,72 @@ DATA = json.loads((ROOT / "plateau_data" / "disneysea_osm.json").read_text(encod
 # ---------------------------------------------------------------- shared state (mutate in place)
 D = {"scene": None, "collections": {}}
 
-# ---------------------------------------------------------------- port (themed land) anchors
-# Nearest-anchor classification is enough for a blocking pass; exact
-# boundaries are refined later per area.
+# ---------------------------------------------------------------- port (themed land) classification
+# A building belongs to the land of an OSM POI inside its footprint; else to the land of
+# the nearest such POI within POI_REACH m; else to the nearest anchor. POIs count only when
+# their name identifies the land (PORT_POI_NAMES, matched as substrings of `name`); names
+# found in several lands (popcorn wagons, hand-washing areas, statues) are left out.
 PORT_ANCHORS = {
     "mediterranean_harbor": (200, 20),
     "american_waterfront":  (150, -280),
     "mysterious_island":    (-60, -20),
     "port_discovery":       (-190, -210),
     "mermaid_lagoon":       (-200, 40),
-    "arabian_coast":        (-330, 190),
-    "lost_river_delta":     (-400, 60),
+    "arabian_coast":        (-230, 170),
+    "lost_river_delta":     (-330, 20),
     "fantasy_springs":      (-680, 260),
 }
+POI_REACH = 90.0
+PORT_POI_NAMES = {
+    "mediterranean_harbor": (
+        "メディテレーニアンハーバー", "ザンビーニ", "ポスティーノ", "ベッラ・ミンニ", "ミラマーレ", "ポルトフィーノ",
+        "ゴンドリエ", "ヴィラ・ドナルド", "Biglietteria", "ピアッツァ・トポリーノ", "オチェアーノ", "ミラコスタ",
+        "ヴェネツィアン", "ピッコロメルカート", "マンマ・ビスコッティ", "カナレット", "Palazzo Canals",
+        "マーチャント・オブ・ヴェニス", "スプレンディード", "ベッラヴィスタ", "エンポーリオ", "フィガロズ",
+        "ヴァレンティーナ", "パークウェイギフト", "ガッレリーア", "フォトグラフィカ", "ファンタスティック・フライト",
+        "ビリーヴ", "ハーバーサイドテラス", "Porto Paradiso", "パークエントランス", "ゲストリレーション",
+        "Silk Road Garden", "テルメ・ヴェネツィア", "Hippocampi", "Prima Donna", "Bridal Salone", "アモーレ",
+        # Fortress Explorations and its restaurants stand by the volcano but belong to the harbour
+        "フォートレス", "マゼランズ", "リフレスコス", "Explorers' Landing", "エクスプローラーズ・ホール",
+        "カメラ・オブスキュラ", "ナビゲーションセンター", "チェインバー・オブ・プラネット", "アルケミーラボラトリー",
+        "イリュージョンルーム", "フライングマシーン", "ペンデュラムタワー", "カーゴ・プレイグラウンド",
+    ),
+    "american_waterfront": (
+        "アメリカンウォーターフロント", "アメリカンウォーター フロント", "ケープコッド", "コロンビア", "ドックサイド",
+        "ドッグサイド", "レストラン櫻", "テディ・ルーズヴェルト", "パパダキス", "ビッグシティ", "リバティ・ランディング",
+        "スチームボート", "ホレイショー", "New York", "ニューヨーク", "Columbus", "コロンブス", "スクルージ",
+        "ハドソンリバー", "マクダック", "タートル・トーク", "デランシー", "Steamship", "タワー・オブ・テラー",
+        "タワーオブテラー", "ブロードウェイ", "トイビル", "トイボックス", "スリンキー", "Blazin", "Algonquin",
+        "Hester", "Lovecraft", "Cobb", "Atlantic Warehouse", "D.S.E.R", "Starland", "ヴィレッジ・グリーティング",
+        "バーナクル", "アーント・ペグ", "ドックオフィス",
+    ),
+    "mysterious_island": (
+        "ミステリアスアイランド", "センター・オブ・ジ・アース", "ノーチラス", "ヴォルケイニア", "ヴァルカンズ",
+        "海底2万マイル", "プロメテウス火山", "リフレッシュメント・ステーション",
+    ),
+    "port_discovery": (
+        "ポートディスカバリー", "スカイウォッチャー", "Horizon Bay", "ホライズンベイ", "Bayside Takeout",
+        "ディスカバリーギフト", "ブリーズウェイ", "ニモ", "アクアトピア",
+    ),
+    "mermaid_lagoon": (
+        "マーメイド", "トリトン", "フランダーのフライング", "ワールプール", "ブローフィッシュ", "アリエルのプレイグラウンド",
+        "セバスチャン", "スカットル", "ジャンピン", "キス・デ・ガール", "スリーピーホエール", "シータートル",
+        "Above the Sea", "Under the Sea",
+    ),
+    "arabian_coast": (
+        "オープンセサミ", "サルタンズ", "アブーズ", "アグラバー", "カスバ", "マジックランプ", "キャラバン", "ラジャー",
+        "シンドバッド", "ジャスミン",
+    ),
+    "lost_river_delta": (
+        "ロストリバー", "インディ・ジョーンズ", "ｲﾝﾃﾞｨｰ", "エクスペディション", "ユカタン", "ペドラーズ",
+        "ルックアウト・トレーダー", "ミゲルズ", "トロピック・アルズ", "レイジングスピリッツ",
+    ),
+    "fantasy_springs": (
+        "ファンタジースプリングス", "グランパラディ", "ラ・リベリュール", "グランドシャトー", "Arendelle", "アレンデール",
+        "フローズンキングダム", "Stauben", "Pixie Hollow", "ピーターパンのネバーランド", "スナグリーダックリング",
+        "ラプンツェルの森", "Rapunzel Tower", "Boathouse", "Summer Glade", "Autumn Harvest", "Winter Woods", "Spring Valley",
+    ),
+}   # the bare land sign "アラビアンコースト" (far west of the land) and "…前" wagons are deliberately not listed
 PORT_DEFAULT_HEIGHT = {
     "mediterranean_harbor": 14.0,
     "american_waterfront":  16.0,
@@ -90,7 +143,36 @@ LANDMARK_SKIP_IDS = {217618801}  # unnamed building=yes on the AquaSphere pool c
 REMOVED_LANDMARKS_NOTE = "Hotel Hightower / Tower of Terror: demolished 2022, not modelled unless requested."
 
 
-def nearest_port(x, y):
+_PORT_POIS = []   # [(x, y, land)], filled on first use (mutated in place, see the module docstring)
+
+
+def port_pois():
+    if not _PORT_POIS:
+        for p in DATA["pois"]:
+            name = p["tags"].get("name", "")
+            x, y = p["xy"]
+            if not name or not point_in_poly(x, y, PARK):
+                continue
+            land = next((l for l, keys in PORT_POI_NAMES.items() if any(k in name for k in keys)), None)
+            if land:
+                _PORT_POIS.append((x, y, land))
+    return _PORT_POIS
+
+
+def nearest_port(x, y, ring=None):
+    """Land of point (x, y); with the footprint `ring`, a land POI inside it decides first."""
+    pois = port_pois()
+    if ring:
+        inside = [l for px, py, l in pois if point_in_poly(px, py, ring)]
+        if inside:
+            return max(sorted(set(inside)), key=inside.count)
+    best, bd = None, POI_REACH ** 2
+    for px, py, l in pois:
+        d = (px - x) ** 2 + (py - y) ** 2
+        if d < bd:
+            best, bd = l, d
+    if best:
+        return best
     best, bd = None, 1e18
     for name, (ax, ay) in PORT_ANCHORS.items():
         dd = (x - ax) ** 2 + (y - ay) ** 2
@@ -309,4 +391,4 @@ def height_for_way(w):
         except ValueError:
             pass
     cx, cy = poly_centroid(w["pts"])
-    return PORT_DEFAULT_HEIGHT[nearest_port(cx, cy)]
+    return PORT_DEFAULT_HEIGHT[nearest_port(cx, cy, w["pts"])]
