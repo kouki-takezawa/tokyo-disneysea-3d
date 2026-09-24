@@ -43,6 +43,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 京葉線の電車(E233 系 10 両、上下線、舞浜駅に停車) | 済(モック。舞浜駅の前後 約 790 m だけ) | `mock_template.html` の `MOV` |
 | 夜のモード・施設の検索 | 済(モック) | `mock_template.html` |
 | 屋根だけの構造物を屋根の板に・樹林を木の記号に | 済(モック。屋根は Blender の下書きも) | `ds_core.py`, `ds_buildings.py`, `mock_template.html` |
+| 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・入口の広場。参考動画・写真・航空写真・OSM から) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_entrance.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -100,6 +101,7 @@ blender -b --python export_models.py -- --parts aquasphere --render             
 - [ ] `docs/draft/` の画像を撮り直す。エリアの色分けを 2026-09-24 に直したので、今の画像は古い色分けのまま。
 - [ ] ランド・舞浜駅: `blender -b --python disneyland_blender.py -- --cams aerial,castle,maihama` を動かす(`ds_disneyland.py` のデータから、建物・水面・緑地・木・線路・京葉線の高架・リゾートラインの桁・舞浜駅周辺の建物を組む)。`python disneyland_blender.py --summary` で、Blender なしに中身の数を見られる。
 - [x] 東京ディズニーランド・ステーション: `ds_tdl_station.py` で作り、ユーザーが Blender で確認して OK(2026-09-24)。モックに反映済み。
+- [ ] エントランス: `blender -b --python ds_tdl_entrance.py -- --samples 32` で作った `output/disneyland/entrance/tdl_entrance.blend` をユーザーが確認する。OK が出たら、駅と同じ手順(`export_objects()`、`export_models.py` に部品を足す、`export_mock.py` の `MODELS`)でモックに反映する。
 - [x] 電車: `train_blender.py` を v2 に作り込み(外装・台車・車内・ガラス)、モックの電車をこのモデルに差し替えた(2026-09-24)。汚れのベイクは TODO。
 
 座標: 原点 35.6267N 139.8851E(メディテレーニアンハーバー付近)、+X が東、+Y が北、単位はメートル。

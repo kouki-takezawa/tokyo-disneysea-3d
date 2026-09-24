@@ -1187,7 +1187,7 @@ def build(train=True, context=True, reach=170.0):
     return cams
 
 
-def render(cams, which, samples, percent, engine="CYCLES"):
+def render(cams, which, samples, percent, engine="CYCLES", prefix="station"):
     sc = bpy.context.scene
     if engine == "WORKBENCH":        # quick shape check: flat material colours, cavity, shadows
         sc.render.engine = "BLENDER_WORKBENCH"; sh = sc.display.shading
@@ -1201,7 +1201,7 @@ def render(cams, which, samples, percent, engine="CYCLES"):
     sc.view_settings.view_transform = "AgX"
     for name in which:
         sc.camera = cams[name]
-        sc.render.filepath = str((OUT / f"station_{name}{'_wb' if engine == 'WORKBENCH' else ''}.png").resolve())
+        sc.render.filepath = str((OUT / f"{prefix}_{name}{'_wb' if engine == 'WORKBENCH' else ''}.png").resolve())
         t = time.time()
         bpy.ops.render.render(write_still=True)
         print(f"[station] rendered {name} in {time.time() - t:.0f}s")
