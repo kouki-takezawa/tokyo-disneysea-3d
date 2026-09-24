@@ -452,11 +452,13 @@ def build_gates():
 # shrubs, a red brick edging band, then a lawn tilted towards the gates (high at the World Bazaar side) so that the
 # whole Mickey face reads from the entrance: white flowers for the face, purple for the head, ears, eyes, nose and
 # smile; red and white flowers beside it. The OSM polygon (1291649402, about 6 m) is only the face's position; the
-# size is scaled from the photo against the World Bazaar facade (ESTIMATE): fence 41 x 27 m, lawn 29 x 15 m, lawn
-# 0.6 m high at the front edge rising to 3.8 m at the back (12 deg), so the whole face shows from the gates.
+# The bed is round (the user's correction; the photos are wide-angle). Size (ESTIMATE): fence 34 m across, lawn 23 m;
+# the lawn rises 7 deg towards World Bazaar (0.5 m at the front edge, 3.7 m at the back) so the whole face shows from the gates. The face reads as Mickey from
+# straight above: round head, two round ears, the skin mask (lower oval + two tall lobes round the eyes with the
+# widow's peak between), tall eyes, an oval nose, a smile turned up at the cheeks.
 BED = dict(x=-538.0 - P0[0], y=927.3 - P0[1] - 1.0, ang=205.0,     # local +X: left to right for a guest at the gates,
-           tilt=12.0, zc=2.2,                                         # local +Y: away from the gates (towards World Bazaar)
-           fence=(20.5, 13.5), bank=(16.2, 9.2), brick=(15.8, 8.8), lawn=(14.6, 7.6))
+           tilt=7.0, zc=2.1,                                         # local +Y: away from the gates (towards World Bazaar)
+           fence=(17.0, 17.0), bank=(12.9, 12.9), brick=(12.5, 12.5), lawn=(11.5, 11.5))   # round (user, 2026-09-24)
 
 
 def bed_cam(dist, h, lens):
@@ -498,29 +500,33 @@ def build_flowerbed():
     for q in band(ellipse(bx, by), ellipse(lx, ly)):
         bm_prism(bm, q, -0.3, 0.04, "xy")
     obj_bm("ST_Bed_brick_edging", bm, "brick")
-    # the Mickey face, in flowers: purple head and ears, white face mask (lower oval + two lobes round the eyes),
-    # purple eyes, nose and smile; red and white clumps on the right as in the photo
+    # the Mickey face, in flowers (units of the head radius R, x to the right, y up for a guest at the gates)
+    R_ = 5.6; oy = -1.3                                    # head radius; the head sits a little low so the ears fit
+    P_ = lambda x, y: (x * R_, y * R_ + oy)
+    E_ = lambda rx, ry, cx, cy, n=48: ellipse(rx * R_, ry * R_, n, cx * R_, cy * R_ + oy)
     fz = 0.02
     bm = bmesh.new()                                   # purple head and ears (each a little higher: no coincident faces)
-    for k, e in enumerate((ellipse(9.2, 5.9, 72, 0.0, -0.3), ellipse(3.3, 2.7, 48, -7.6, 4.3), ellipse(3.3, 2.7, 48, 7.6, 4.3))):
+    for k, e in enumerate((E_(1.0, 1.0, 0.0, 0.0, 96), E_(0.62, 0.62, -0.95, 0.95, 64), E_(0.62, 0.62, 0.95, 0.95, 64))):
         bm_prism(bm, e, fz, fz + 0.14 + 0.01 * k, "xy")
     obj_bm("ST_Bed_mickey_head", bm, "flower_purple")
-    bm = bmesh.new()                                   # white face mask: lower oval + two lobes round the eyes
-    for k, e in enumerate((ellipse(7.9, 3.9, 72, 0.0, -1.3), ellipse(2.6, 3.0, 40, -2.25, 1.1), ellipse(2.6, 3.0, 40, 2.25, 1.1))):
+    bm = bmesh.new()                                   # the skin mask: a wide lower oval + two tall lobes (widow's peak between)
+    for k, e in enumerate((E_(0.86, 0.6, 0.0, -0.3, 72), E_(0.3, 0.5, -0.27, 0.3, 48), E_(0.3, 0.5, 0.27, 0.3, 48))):
         bm_prism(bm, e, fz + 0.12, fz + 0.2 + 0.012 * k, "xy")
     obj_bm("ST_Bed_mickey_face", bm, "flower_white")
-    feats = [ellipse(1.0, 1.9, 28, -1.4, 1.5), ellipse(1.0, 1.9, 28, 1.4, 1.5), ellipse(2.3, 1.35, 32, 0.0, -0.6)]
-    smile = []
-    for k in range(25):                                # the smile: a thick arc under the nose
-        a = math.radians(200 + 140 * k / 24)
-        smile.append((5.2 * math.cos(a), -0.4 + 3.6 * math.sin(a)))
-    for k in range(24, -1, -1):
-        a = math.radians(200 + 140 * k / 24)
-        smile.append((4.2 * math.cos(a), -0.4 + 2.7 * math.sin(a)))
+    feats = [E_(0.12, 0.25, -0.2, 0.36, 32), E_(0.12, 0.25, 0.2, 0.36, 32),          # eyes
+             E_(0.22, 0.14, 0.0, -0.02, 36)]                                         # nose
+    smile = []                                          # the smile: a crescent, turned up at the cheeks
+    for k in range(33):
+        u = -1 + 2 * k / 32
+        smile.append(P_(0.62 * u, -0.26 - 0.32 * (1 - u * u) + 0.08 * u ** 4))
+    for k in range(32, -1, -1):
+        u = -1 + 2 * k / 32
+        smile.append(P_(0.56 * u, -0.22 - 0.2 * (1 - u * u) + 0.1 * u ** 4))
     feats.append(smile)
     prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "flower_purple")
-    prism("ST_Bed_red_flowers", [ellipse(1.9, 1.2, 32, 10.9, 0.9)], fz, fz + 0.3, "flowers_red")
-    prism("ST_Bed_white_flowers", [ellipse(2.1, 1.25, 32, 12.4, -0.6)], fz, fz + 0.3, "flower_white")
+    prism("ST_Bed_tongue", [E_(0.16, 0.07, 0.0, -0.55, 28)], fz + 0.2, fz + 0.27, "flowers_red")
+    prism("ST_Bed_red_flowers", [ellipse(1.2, 1.2, 32, 8.3, -7.2)], fz, fz + 0.3, "flowers_red")
+    prism("ST_Bed_white_flowers", [ellipse(1.1, 1.1, 32, 6.3, -9.0)], fz, fz + 0.3, "flower_white")
     B.root = prev
     # (b) the shrub bank: from the ground at the fence up to the brick edging on the tilted plane (a loft)
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
@@ -584,7 +590,7 @@ def build_plaza(context=True):
     fx, fy = BED["x"], BED["y"]
     # lamp posts with four globes: round the plaza and either side of the central pavilion
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
-    posts = [(fx + 23.5 * math.cos(t) * ca - 16.0 * math.sin(t) * sa, fy + 23.5 * math.cos(t) * sa + 16.0 * math.sin(t) * ca)
+    posts = [(fx + 20.5 * math.cos(t) * ca - 20.5 * math.sin(t) * sa, fy + 20.5 * math.cos(t) * sa + 20.5 * math.sin(t) * ca)
              for t in (0.35, 2.79, 3.49, 5.93)]   # round the bed, outside its fence
     for d in (-12.0, 12.0):
         a = math.radians(ARC["a_mid"]); t = (-math.sin(a), math.cos(a))
@@ -612,8 +618,9 @@ def cams():
         "gates_arc": ((ARC["cx"] + 5, ARC["cy"] + 10, 2.0), (arc_point(160)[0], arc_point(160)[1], 4.0), 20),
         "wb_porch": ((wb[0] + wd[0] * 24, wb[1] + wd[1] * 24, 1.7), (wb[0] + wd[0] * 4, wb[1] + wd[1] * 4, 5.0), 26),
         "wb_sign": ((wb[0] + wd[0] * 10.5, wb[1] + wd[1] * 10.5, 1.5), (wb[0] + wd[0] * 5.3, wb[1] + wd[1] * 5.3, 5.6), 18),
-        "flowerbed": bed_cam(17.0, 1.7, 16),              # from the gates' side, as the photos (the face reads upright)
+        "flowerbed": bed_cam(20.5, 1.7, 16),              # from the gates' side, as the photos (the face reads upright)
         "flowerbed_top": bed_cam(26.0, 14.0, 26),
+        "flowerbed_plan": ((BED["x"], BED["y"] - 0.01, 70.0), (BED["x"], BED["y"], 0.0), 35),   # straight down
         "aerial": ((70.0, -70.0, 85.0), (-10.0, 10.0, 0.0), 30),
     }
 
@@ -635,6 +642,8 @@ def build(context=True):
         cam = bpy.data.cameras.new("CAM_" + name); cam.lens = lens; cam.clip_start = 0.05; cam.clip_end = 3000
         co = bpy.data.objects.new("CAM_" + name, cam); B.col.objects.link(co); co.parent = B.root
         co.location = loc; co.rotation_euler = (Vector(tgt) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        if name == "flowerbed_plan":                      # straight down, turned so that Mickey stands upright
+            co.rotation_euler = (0, 0, math.radians(BED["ang"]))
         out[name] = co
     print(f"[entrance] built {len(B.col.objects)} objects in {time.time() - t0:.1f}s")
     return out
