@@ -147,11 +147,6 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .walkhud{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink);padding:5px 9px;max-width:min(560px,calc(100vw - 260px))}
 .walkhud .k{color:var(--muted)}
 .compass{font-size:12px;padding:2px 12px;border-radius:12px}
-#followBar{top:50px}
-.followbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;padding:5px 8px;max-width:calc(100vw - 24px)}
-.followbar .seg button{padding:3px 10px;font-size:12px}
-.followbar .btn{height:26px}
-.followbar .fstat{flex-basis:100%;text-align:center;font-size:11.5px;color:var(--muted)}
 #minimap{display:block;width:210px;height:150px;border-radius:6px;cursor:crosshair;box-shadow:0 2px 10px rgba(0,0,0,.14)}
 .cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;z-index:4}
 .cross::before,.cross::after{content:"";position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
@@ -341,14 +336,6 @@ body.coarse .hud.tc{top:auto;bottom:176px}
       <button class="btn only-3d" id="btnPhoto" title="操作部品を隠す(H)">写真</button>
     </div>
     <div class="hud tc only-walk"><span class="compass glass mono" id="compass">北 0°</span></div>
-    <div class="hud tc only-orbit" id="followBar" hidden>
-      <div class="followbar glass">
-        <span class="seg" id="folTrain" role="group" aria-label="追う編成"></span>
-        <span class="seg" id="folView" role="group" aria-label="視点"></span>
-        <button class="btn" id="folStop" aria-label="追うのをやめる" title="追うのをやめる(Esc)">×</button>
-        <span class="fstat mono" id="folStat"></span>
-      </div>
-    </div>
     <div class="hud tr only-plan" id="northWrap">
       <svg class="north" viewBox="0 0 34 34" aria-label="北">
         <circle cx="17" cy="17" r="15" fill="none" stroke="var(--rule)" stroke-width="1"/>
@@ -2155,72 +2142,44 @@ async function init3D() {
   const beamTop = MH ? MH.loop_z + 0.9 : 0;   // the beam drawn by the 舞浜駅・周辺 layer (estimated 8 m viaduct + 0.9 m beam)
 
   /* ---------- camera that follows a train (俯瞰) ---------- */
-  // chase / side / top: the camera keeps its offset from the train's middle and turns with the train, so
-  // dragging and zooming still work while it moves. cab: the driver's eye in the front car, looking up the line.
-  const fol = { tr: null, view: "chase", h: 0, blend: null };
-  const UP = new T.Vector3(0, 1, 0), fTgt = new T.Vector3(), fPos = new T.Vector3(), fOff = new T.Vector3(), ghost = new T.PerspectiveCamera();
+  // The camera starts behind the train, a little to the right and above, then keeps its offset from the
+  // train's middle and turns with the train, so dragging and zooming still work while it moves.
+  const fol = { tr: null, h: 0, blend: null };
+  const UP = new T.Vector3(0, 1, 0), fTgt = new T.Vector3(), fPos = new T.Vector3(), fOff = new T.Vector3(), fLook = new T.Vector3();
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function trainPose(tr) {
     const c = RL.state(tr, RL.now()).s, a = RL.at(c - 20), b = RL.at(c + 20), m = RL.at(c);
-    return { c, x: m[0], y: m[1], h: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+    return { x: m[0], y: m[1], h: Math.atan2(b[1] - a[1], b[0] - a[0]) };
   }
-  function cabPose(p) {   // eye 2.2 m behind the nose, 0.3 m right of the middle, above the console; looking 60 m up the line
-    const se = p.c + RL.TL / 2 - 2.2, [x, y, ux, uy] = RL.at(se), [ax, ay] = RL.at(se + 60), z = beamTop * ex;
-    fPos.set(x + uy * 0.3, z + 2.5, -(y - ux * 0.3)); fTgt.set(ax, z + 2.1, -ay);
-  }
-  function startOffset(p) {   // where the camera sits relative to the train's middle when a view starts
-    const cx = Math.cos(p.h), cy = Math.sin(p.h);
-    if (fol.view === "side") return new T.Vector3(cy * 60, 9, cx * 60);        // plan (sin h, -cos h): the right-hand side
-    if (fol.view === "top") return new T.Vector3(0, 150, 25);
-    return new T.Vector3(-cx * 70 + cy * 24, 32, cy * 70 + cx * 24);              // chase: behind, a little to the right, above
-  }
-  function stopFollow(silent) {
+  const startOffset = h => new T.Vector3(-Math.cos(h) * 70 + Math.sin(h) * 24, 32, Math.sin(h) * 70 + Math.cos(h) * 24);
+  function stopFollow() {
     if (!fol.tr) return;
-    const wasCab = fol.view === "cab", p = trainPose(fol.tr);
-    fol.tr = null; fol.blend = null;
-    cam.fov = 38; cam.near = 1; cam.far = 9000; cam.updateProjectionMatrix(); ctl.enabled = true;
-    if (wasCab) { fol.view = "chase"; ctl.target.set(p.x, beamTop * ex + 2.5, -p.y); cam.position.copy(ctl.target).add(startOffset(p)); fol.view = "cab"; }
-    ctl.update();
-    if (!silent) syncFollowUI();
+    fol.tr = null; fol.blend = null; ctl.enabled = true; ctl.update();
+    syncFollowUI();
   }
-  // follow train `id` (null = keep the train) with view (null = keep the view)
-  three.follow = (id, view) => {
+  three.follow = id => {   // follow train `id` (default: the first)
     if (!RL) return;
     three.anim = null;
-    const tr = id == null ? fol.tr || RL.trains[0] : RL.trains.find(t => t.id === id) || RL.trains[0];
-    fol.tr = tr; if (view) fol.view = view;
-    const p = trainPose(tr); fol.h = p.h;
-    const cab = fol.view === "cab";
-    fol.blend = { t0: performance.now(), p0: cam.position.clone(), q0: cam.quaternion.clone(), g0: ctl.target.clone(), f0: cam.fov, off: startOffset(p) };
-    cam.fov = cab ? 60 : 38; cam.near = cab ? 0.1 : 1; cam.far = cab ? 6000 : 9000; cam.updateProjectionMatrix();
+    fol.tr = RL.trains.find(t => t.id === id) || RL.trains[0];
+    fol.h = trainPose(fol.tr).h;
+    fol.blend = { t0: performance.now(), p0: cam.position.clone(), g0: ctl.target.clone(), off: startOffset(fol.h) };
     ctl.enabled = false;
     syncFollowUI();
   };
   three.unfollow = () => stopFollow();
-  three.following = () => fol.tr ? { tr: fol.tr, view: fol.view } : null;
+  three.following = () => fol.tr;
   function followTick(now) {
     const p = trainPose(fol.tr), dh = wrapA(p.h - fol.h); fol.h = p.h;
-    const B = fol.blend, k = B ? (reduceMotion ? 1 : ease(Math.min(1, (now - B.t0) / 1200))) : 1;
-    if (B) { cam.fov = B.f0 + ((fol.view === "cab" ? 60 : 38) - B.f0) * k; cam.updateProjectionMatrix(); }
-    if (fol.view === "cab") {
-      cabPose(p);
-      if (B) {
-        ghost.position.copy(fPos); ghost.lookAt(fTgt);
-        cam.position.lerpVectors(B.p0, fPos, k); cam.quaternion.slerpQuaternions(B.q0, ghost.quaternion, k);
-        if (k >= 1) fol.blend = null;
-      } else { cam.position.copy(fPos); cam.lookAt(fTgt); }
-      return;
-    }
     fTgt.set(p.x, beamTop * ex + 2.5, -p.y);
-    if (B) {
-      if (fol.view !== "top") B.off.applyAxisAngle(UP, dh);
-      fPos.copy(fTgt).add(B.off);
-      cam.position.lerpVectors(B.p0, fPos, k); ghost.position.lerpVectors(B.g0, fTgt, k); cam.lookAt(ghost.position);
+    const B = fol.blend;
+    if (B) {   // glide in over 1.2 s
+      const k = reduceMotion ? 1 : ease(Math.min(1, (now - B.t0) / 1200));
+      B.off.applyAxisAngle(UP, dh); fPos.copy(fTgt).add(B.off);
+      cam.position.lerpVectors(B.p0, fPos, k); fLook.lerpVectors(B.g0, fTgt, k); cam.lookAt(fLook);
       if (k >= 1) { fol.blend = null; ctl.target.copy(fTgt); ctl.enabled = true; ctl.update(); }
       return;
     }
-    fOff.subVectors(cam.position, ctl.target);
-    if (fol.view !== "top") fOff.applyAxisAngle(UP, dh);
+    fOff.subVectors(cam.position, ctl.target).applyAxisAngle(UP, dh);
     ctl.target.copy(fTgt); cam.position.copy(fTgt).add(fOff); ctl.update();
   }
 
@@ -2249,8 +2208,7 @@ async function init3D() {
         let anyNear = false;
         o.near = o.simple.cars.map(k => {
           const [x, y] = RL.at(c + k.start + k.L / 2), dz = beamTop * ex - cam.position.y;
-          // lite mode keeps the simple shell, except in the cab view of the followed train (its windows are painted over)
-          const n = (!lite || (fol.tr === o.tr && fol.view === "cab")) && Math.hypot(x - cam.position.x, -y - cam.position.z, dz) < TRAIN_NEAR;
+          const n = !lite && Math.hypot(x - cam.position.x, -y - cam.position.z, dz) < TRAIN_NEAR;
           anyNear ||= n; return n;
         });
         if (anyNear && !o.detail) { o.detail = TM.buildTrain(o.U, { merge: true }); o.grp.add(o.detail.group); }
@@ -2350,31 +2308,17 @@ if (RL) {
   setInterval(upd, 1000); upd();
 }
 
-/* ---------- follow a Resort Line train (俯瞰): buttons, bar, status ---------- */
-const FOL_VIEWS = [["chase", "追いかけ"], ["side", "横"], ["cab", "前面展望"], ["top", "上空"]];
-async function startFollow(id, view) {
+/* ---------- follow a Resort Line train (俯瞰) ---------- */
+async function startFollow(id) {
   if (!RL) return;
   for (const k of ["rail", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (e) {} }
   if (mode !== "orbit") await show("orbit");
   if (!three.ready) return;
   three.visibility(); redraw();
-  three.follow(id, view);
+  three.follow(id);
   if (narrow()) setPanel(false);
 }
-function syncFollowUI() {
-  const f = three.ready ? three.following() : null;
-  $("followBar").hidden = !f;
-  $("btnFollow").setAttribute("aria-pressed", String(!!f));
-  if (!f) return;
-  [...$("folTrain").children].forEach(b => b.setAttribute("aria-selected", String(+b.dataset.id === f.tr.id)));
-  [...$("folView").children].forEach(b => b.setAttribute("aria-selected", String(b.dataset.v === f.view)));
-  folStatus();
-}
-function folStatus() {
-  const f = three.ready && three.following();
-  if (!f || mode !== "orbit" || document.hidden) return;
-  $("folStat").textContent = `${f.tr.ja}の編成 ・ ${RL.describe(f.tr, RL.state(f.tr, RL.now()))}`;
-}
+function syncFollowUI() { $("btnFollow").setAttribute("aria-pressed", String(!!(three.ready && three.following()))); }
 if (RL) {
   $("folSec").hidden = false;
   RL.trains.forEach(tr => {
@@ -2382,13 +2326,8 @@ if (RL) {
     li.innerHTML = `<button><span class="sw" style="color:${tr.col};border-top-width:3px"></span><span>${tr.ja}の編成を追う</span><span class="n"></span></button>`;
     li.firstChild.onclick = () => startFollow(tr.id);
     $("folAreas").appendChild(li);
-    const b = document.createElement("button"); b.textContent = tr.ja; b.dataset.id = tr.id; b.onclick = () => three.follow(tr.id);
-    $("folTrain").appendChild(b);
   });
-  FOL_VIEWS.forEach(([v, ja]) => { const b = document.createElement("button"); b.textContent = ja; b.dataset.v = v; b.onclick = () => three.follow(null, v); $("folView").appendChild(b); });
-  $("folStop").onclick = () => three.unfollow();
   $("btnFollow").onclick = () => three.following() ? three.unfollow() : startFollow(0);
-  setInterval(folStatus, 500);
 } else $("btnFollow").hidden = true;
 
 /* ---------- toast, photo mode, lite mode, share ---------- */
