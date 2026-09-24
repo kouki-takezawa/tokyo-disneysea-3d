@@ -279,6 +279,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
             <dt>H</dt><dd>写真モード(操作部品を隠す)</dd>
             <dt>Esc</dt><dd>散歩から俯瞰へ戻る ・ 電車を追うのをやめる</dd>
             <dt>F</dt><dd>俯瞰で電車を追う / やめる</dd>
+            <dt>T</dt><dd>追う電車を 1 本目 / 2 本目で切り替える</dd>
             <dt>ミニマップ</dt><dd>クリックした場所へ移動</dd>
           </dl>
         </section>
@@ -332,6 +333,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
       <button class="btn no-walk" id="fit">全体</button>
       <button class="btn only-orbit" id="exag">高さ ×1</button>
       <button class="btn only-orbit" id="btnFollow" aria-pressed="false" title="リゾートラインの電車をカメラで追う(F)">電車を追う</button>
+      <button class="btn only-orbit" id="btnSwap" hidden title="もう一方の電車を追う(T)">2本目へ</button>
       <button class="btn only-walk" id="walkView">三人称</button>
       <button class="btn only-3d" id="btnPhoto" title="操作部品を隠す(H)">写真</button>
     </div>
@@ -512,7 +514,7 @@ const LAYERS = [
   ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
   ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
-  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["labels","ラベル","--muted",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["trains","電車(リゾートライン)","--mh",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
 try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
@@ -537,7 +539,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["trains", "電車(リゾートライン)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -822,7 +824,7 @@ const RL = (() => {
     : `時速 ${Math.round(st.v * 3.6)} km ${st.phase === "brake" ? "・ 減速中 " : st.phase === "accel" ? "・ 加速中 " : ""}・ 次は ${st.next}`;
   window.TDS_TRAINS = { now, setClock, period: P, length: LEN, stations, trains,
     state: (t = now()) => trains.map(tr => { const st = state(tr, t), [x, y] = at(st.s); return { ...st, x, y, id: tr.id }; }) };
-  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.rail && on.maihama };
+  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots; the 3D trains follow the 3Dモデル toggle
 })();
 
 /* ---------- plan view ---------- */
@@ -1745,7 +1747,7 @@ async function init3D() {
       const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? ["disneyland", "buildings"] : LAYER_OF[k];
       o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
-    for (const t of three.trains || []) t.grp.visible = RL.shown();
+    for (const t of three.trains || []) t.grp.visible = mdl.trains !== false;
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
@@ -2162,7 +2164,9 @@ async function init3D() {
     three.anim = null;
     fol.tr = RL.trains.find(t => t.id === id) || RL.trains[0];
     fol.h = trainPose(fol.tr).h;
-    fol.blend = { t0: performance.now(), p0: cam.position.clone(), g0: ctl.target.clone(), off: startOffset(fol.h) };
+    // glide over: 1.2 s, longer when the other train is far away (up to 3 s)
+    const p = trainPose(fol.tr), far = Math.hypot(p.x - ctl.target.x, -p.y - ctl.target.z);
+    fol.blend = { t0: performance.now(), dur: 1200 + Math.min(1800, far * 0.8), p0: cam.position.clone(), g0: ctl.target.clone(), off: startOffset(fol.h) };
     ctl.enabled = false;
     syncFollowUI();
   };
@@ -2172,8 +2176,8 @@ async function init3D() {
     const p = trainPose(fol.tr), dh = wrapA(p.h - fol.h); fol.h = p.h;
     fTgt.set(p.x, beamTop * ex + 2.5, -p.y);
     const B = fol.blend;
-    if (B) {   // glide in over 1.2 s
-      const k = reduceMotion ? 1 : ease(Math.min(1, (now - B.t0) / 1200));
+    if (B) {   // glide in
+      const k = reduceMotion ? 1 : ease(Math.min(1, (now - B.t0) / B.dur));
       B.off.applyAxisAngle(UP, dh); fPos.copy(fTgt).add(B.off);
       cam.position.lerpVectors(B.p0, fPos, k); fLook.lerpVectors(B.g0, fTgt, k); cam.lookAt(fLook);
       if (k >= 1) { fol.blend = null; ctl.target.copy(fTgt); ctl.enabled = true; ctl.update(); }
@@ -2192,6 +2196,7 @@ async function init3D() {
       const simple = TM.buildTrain(U, { simple: true }); grp.add(simple.group);
       return { tr, U, grp, simple, detail: null, near: [] };
     });
+    $("md-trains").disabled = false; $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
       const a = RL.at(s), b = RL.at(s + len), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6, ux = dx / L, uy = dy / L;
       o.position.set(a[0] - ux * off, beamTop * ex, -(a[1] - uy * off)); o.rotation.set(0, Math.atan2(uy, ux), 0);
@@ -2201,7 +2206,7 @@ async function init3D() {
       b.gangways.forEach((g, i) => { const k = b.cars[i]; place(g, c + k.start + k.L - 0.02, 0.59, 0); });
     };
     three.trainTick = () => {
-      if (!RL.shown()) return;
+      if (mdl.trains === false) return;
       const t = RL.now();
       for (const o of three.trains) {
         const c = RL.state(o.tr, t).s;
@@ -2299,7 +2304,7 @@ setPanel(!narrow() && ui.panel !== false);
 /* ---------- Resort Line status (情報 tab) ---------- */
 if (RL) {
   $("rlSec").hidden = false;
-  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km ・ 各駅で 20 秒停車 ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。「高架鉄道」と「舞浜駅・周辺」の両方がオンのときに表示します。`;
+  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km ・ 各駅で 20 秒停車 ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。地図の印は「レイヤー」の「電車(リゾートライン)」、俯瞰・散歩の電車は「3Dモデル」の「電車(リゾートライン)」で切り替えます。`;
   const upd = () => {
     if (document.hidden || $("rlSec").offsetParent === null) return;
     const t = RL.now();
@@ -2311,23 +2316,30 @@ if (RL) {
 /* ---------- follow a Resort Line train (俯瞰) ---------- */
 async function startFollow(id) {
   if (!RL) return;
-  for (const k of ["rail", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (e) {} }
+  if (mdl.trains === false) { mdl.trains = true; $("md-trains").checked = true; saveMdl(); }
   if (mode !== "orbit") await show("orbit");
   if (!three.ready) return;
-  three.visibility(); redraw();
+  three.visibility();
   three.follow(id);
   if (narrow()) setPanel(false);
 }
-function syncFollowUI() { $("btnFollow").setAttribute("aria-pressed", String(!!(three.ready && three.following()))); }
+function syncFollowUI() {
+  const f = three.ready && three.following();
+  $("btnFollow").setAttribute("aria-pressed", String(!!f));
+  $("btnSwap").hidden = !f;
+  if (f) $("btnSwap").textContent = f.id === 0 ? "2本目へ" : "1本目へ";
+}
+function swapFollow() { const f = three.ready && three.following(); if (f) three.follow(RL.trains[(RL.trains.indexOf(f) + 1) % RL.trains.length].id); }
 if (RL) {
   $("folSec").hidden = false;
   RL.trains.forEach(tr => {
     const li = document.createElement("li");
-    li.innerHTML = `<button><span class="sw" style="color:${tr.col};border-top-width:3px"></span><span>${tr.ja}の編成を追う</span><span class="n"></span></button>`;
+    li.innerHTML = `<button><span class="sw" style="color:${tr.col};border-top-width:3px"></span><span>${tr.id + 1}本目(${tr.ja})を追う</span><span class="n"></span></button>`;
     li.firstChild.onclick = () => startFollow(tr.id);
     $("folAreas").appendChild(li);
   });
   $("btnFollow").onclick = () => three.following() ? three.unfollow() : startFollow(0);
+  $("btnSwap").onclick = swapFollow;
 } else $("btnFollow").hidden = true;
 
 /* ---------- toast, photo mode, lite mode, share ---------- */
@@ -2388,6 +2400,7 @@ addEventListener("keydown", e => {
   else if (e.code === "Digit3") applyPreset("wire");
   else if (e.code === "KeyH" && mode !== "plan") setPhoto(!photo);
   else if (e.code === "KeyF" && mode === "orbit" && RL && three.ready) three.following() ? three.unfollow() : startFollow(0);
+  else if (e.code === "KeyT" && mode === "orbit" && RL && three.ready) swapFollow();
   else if (e.code === "Escape" && mode === "orbit" && three.ready && three.following()) three.unfollow();
 });
 
