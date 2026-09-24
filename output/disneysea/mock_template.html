@@ -73,6 +73,13 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .pbody{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 14px 20px;font-size:13px}
 .pane{display:flex;flex-direction:column;gap:18px}
 .panel h2{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--muted)}
+.fold>summary{list-style:none;cursor:pointer;display:block;border-radius:3px}
+.fold>summary::-webkit-details-marker{display:none}
+.fold>summary h2::before{content:"▾";display:inline-block;width:1.1em;letter-spacing:0}
+.fold:not([open])>summary h2::before{content:"▸"}
+.fold:not([open])>summary h2{margin-bottom:0}
+.fold>summary:hover h2{color:var(--ink)}
+.fold>summary:focus-visible{outline:2px solid var(--water);outline-offset:2px}
 .hintp{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
 .presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pbtn{font:inherit;display:flex;flex-direction:column;align-items:center;gap:0;padding:7px 4px;border-radius:6px;border:1px solid var(--rule);
@@ -233,15 +240,19 @@ body.coarse .hud.tc{top:auto;bottom:176px}
           </div>
         </section>
         <section>
-          <h2>レイヤー(枠線)</h2>
-          <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
-          <div class="layers" id="layers"></div>
+          <details class="fold" data-fold="layers" open>
+            <summary title="押すと折りたたむ / 開く"><h2>レイヤー(枠線)</h2></summary>
+            <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
+            <div class="layers" id="layers"></div>
+          </details>
         </section>
         <section>
-          <h2>3Dモデル(俯瞰・散歩)</h2>
-          <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
-          <div class="layers" id="models"></div>
-          <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
+          <details class="fold" data-fold="models" open>
+            <summary title="押すと折りたたむ / 開く"><h2>3Dモデル(俯瞰・散歩)</h2></summary>
+            <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
+            <div class="layers" id="models"></div>
+            <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
+          </details>
         </section>
       </div>
       <div class="pane" data-pane="areas" hidden>
@@ -366,6 +377,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
   </div>
 </main>
 
+<script id="train-model">__TRAIN_MODEL__</script>
 <script id="data" type="application/json">__DATA__</script>
 <script id="ext-water">
 /* Extension hook for the water tab (ds_water.py). Define window.TDS_EXT = { water2d(api){...}, water3d(api){...} } here.
@@ -557,6 +569,16 @@ $("mdl-all-on").addEventListener("click", () => setAllModels(true));
 $("mdl-all-off").addEventListener("click", () => setAllModels(false));
 $("mdl-overlay").checked = mdl.overlay;
 $("mdl-overlay").addEventListener("change", e => { mdl.overlay = e.target.checked; saveMdl(); });
+
+/* ---------- fold state of the panel sections (レイヤー / 3Dモデル), kept in tds-fold ---------- */
+{
+  let fold = {};
+  try { fold = JSON.parse(localStorage.getItem("tds-fold") || "null") || {}; } catch (e) {}
+  document.querySelectorAll("details.fold").forEach(d => {
+    if (fold[d.dataset.fold] === false) d.open = false;
+    d.addEventListener("toggle", () => { fold[d.dataset.fold] = d.open; try { localStorage.setItem("tds-fold", JSON.stringify(fold)); } catch (e) {} });
+  });
+}
 
 /* ---------- display presets (keys 1 / 2 / 3) ---------- */
 const PRESETS = { model: [false, true, false, "3Dモデルのみ"], mix: [true, true, false, "枠線+モデル"], wire: [true, false, false, "枠線のみ"] };
@@ -2187,7 +2209,10 @@ async function init3D() {
     ctl.target.copy(fTgt); cam.position.copy(fTgt).add(fOff); ctl.update();
   }
 
-  if (RL) loadScript("train_model.js").then(() => {
+  // train_model.js is inlined in the page by export_mock.py (window.TrainModel); if building the trains fails,
+  // say why instead of silently showing no trains (the plan markers and the follow camera still work)
+  if (RL) Promise.resolve().then(() => {
+    if (!window.TrainModel) throw new Error("TrainModel がありません");
     addLights(T, scene);
     const TM = window.TrainModel.create(T, { linear: true, envMap: three.skyEnv });
     three.trains = RL.trains.map(tr => {
@@ -2228,7 +2253,7 @@ async function init3D() {
       }
     };
     three.visibility();
-  }).catch(() => {});   // no trains in 3D (the plan still shows them)
+  }).catch(e => { console.error("Resort Line trains:", e); toast(`電車の3Dモデルを作れませんでした(${e && e.message || e})`, 8000); });
 
   three.visibility(); three.resize();
   if (D.models && D.models.length) loadModels(T, scene, root);
@@ -2239,7 +2264,8 @@ async function init3D() {
     if (!three.active) return;
     if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
     FX_TIME.value = now / 1000;
-    three.trainTick?.();
+    try { three.trainTick?.(); }
+    catch (e) { three.trainTick = null; console.error("Resort Line trains:", e); toast(`電車の3Dモデルを動かせませんでした(${e && e.message || e})`, 8000); }
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
     if (three.walking && !three.anim && now - aimLast > 160) { aimLast = now; updateAim(); }
