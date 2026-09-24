@@ -70,9 +70,9 @@ def extra_materials(M):
     M["booth"] = P("st_booth", (0.88, 0.83, 0.68), 0.5)
     M["green_sign"] = P("st_green_sign", (0.04, 0.36, 0.30), 0.4)
     M["bulb"] = P("st_bulb", (1.0, 0.92, 0.75), 0.3, Emission_Color=(1.0, 0.85, 0.55, 1), Emission_Strength=4.0)
-    M["flower_purple"] = P("st_flower_purple", (0.30, 0.12, 0.45), 0.9)
-    M["flower_white"] = P("st_flower_white", (0.92, 0.92, 0.88), 0.9)
-    M["hedge"] = P("st_hedge", (0.06, 0.18, 0.05), 0.9)
+    for key, name, col in (("flower_purple", "st_flower_purple", (0.26, 0.10, 0.50)), ("flower_white", "st_flower_white", (0.92, 0.92, 0.86)),
+                           ("hedge", "st_hedge", (0.07, 0.20, 0.05))):   # flowers / clipped shrubs: speckled and bumpy
+        mat, nt, b = _principled(name, col, 0.9); _mottle(nt, b, col, 40.0, 0.7, 0.5); M[key] = mat
     M["win_dark"] = P("st_win_dark", (0.05, 0.07, 0.09), 0.1, Coat_Weight=1.0)
     M["rail_blue"] = P("st_rail_blue", (0.08, 0.22, 0.24), 0.4, Metallic=0.6)
     M["flowers_red"] = P("st_flowers_red", (0.75, 0.10, 0.20), 0.8)
@@ -446,7 +446,124 @@ def build_gates():
         bay_module(name, w, N, curve)
 
 
-# ================================================================ 3. the plaza: paving lines, Mickey flowerbed, lamps
+# ================================================================ 3. the Mickey flowerbed (checked against the photos)
+# Photos (Commons "Tokyo Disneyland Main Entrance" 2023-11, night view towards World Bazaar): an oval bed between the
+# gates and World Bazaar. From outside in: a low dark-green iron fence with arched panels, a sloping bank of clipped
+# shrubs, a red brick edging band, then a lawn tilted towards the gates (high at the World Bazaar side) so that the
+# whole Mickey face reads from the entrance: white flowers for the face, purple for the head, ears, eyes, nose and
+# smile; red and white flowers beside it. The OSM polygon (1291649402, about 6 m) is only the face's position; the
+# size is scaled from the photo against the World Bazaar facade (ESTIMATE): fence 41 x 27 m, lawn 29 x 15 m, lawn
+# 0.6 m high at the front edge rising to 3.8 m at the back (12 deg), so the whole face shows from the gates.
+BED = dict(x=-538.0 - P0[0], y=927.3 - P0[1] - 1.0, ang=205.0,     # local +X: left to right for a guest at the gates,
+           tilt=12.0, zc=2.2,                                         # local +Y: away from the gates (towards World Bazaar)
+           fence=(20.5, 13.5), bank=(16.2, 9.2), brick=(15.8, 8.8), lawn=(14.6, 7.6))
+
+
+def bed_cam(dist, h, lens):
+    a = math.radians(BED["ang"]); back = (-math.sin(a), math.cos(a))      # local +Y in the plan
+    return ((BED["x"] - back[0] * dist, BED["y"] - back[1] * dist, h), (BED["x"], BED["y"], 0.9), lens)
+
+
+def ellipse(rx, ry, n=96, cx=0.0, cy=0.0):
+    return [(cx + rx * math.cos(2 * math.pi * i / n), cy + ry * math.sin(2 * math.pi * i / n)) for i in range(n)]
+
+
+def ellipse_curve(name, rx, ry, n=129, loc=(0, 0, 0), rot=(0, 0, 0)):
+    cu = bpy.data.curves.new(name, "CURVE"); cu.dimensions = "3D"; cu.twist_mode = "Z_UP"
+    sp = cu.splines.new("POLY"); sp.points.add(n - 1)
+    for i, pt in enumerate(sp.points):
+        t = 2 * math.pi * i / (n - 1)
+        pt.co = (rx * math.cos(t), ry * math.sin(t), 0, 1)
+    o = bpy.data.objects.new(name, cu); B.col.objects.link(o); o.parent = B.root
+    o.location = loc; o.rotation_euler = rot; o.hide_render = True
+    return o, sum(math.hypot(rx * (math.cos(2 * math.pi * (i + 1) / (n - 1)) - math.cos(2 * math.pi * i / (n - 1))),
+                             ry * (math.sin(2 * math.pi * (i + 1) / (n - 1)) - math.sin(2 * math.pi * i / (n - 1)))) for i in range(n - 1))
+
+
+def band(outer, inner):
+    """Two closed rings (same count) -> a list of quads (a band), for bm_prism per quad."""
+    n = len(outer)
+    return [[outer[i], outer[(i + 1) % n], inner[(i + 1) % n], inner[i]] for i in range(n)]
+
+
+def build_flowerbed():
+    t = math.radians(BED["tilt"]); zc = BED["zc"]
+    # (a) the parts on the tilted lawn plane: in a frame turned to face the gates and tilted about its X axis
+    fr = bpy.data.objects.new("BED_tilted", None); B.col.objects.link(fr); fr.parent = B.root
+    fr.location = (BED["x"], BED["y"], zc); fr.rotation_euler = (t, 0, math.radians(BED["ang"]))
+    prev = B.root; B.root = fr
+    lx, ly = BED["lawn"]; bx, by = BED["brick"]
+    prism("ST_Bed_lawn", [ellipse(lx, ly)], -0.3, 0.0, "grass")
+    bm = bmesh.new()
+    for q in band(ellipse(bx, by), ellipse(lx, ly)):
+        bm_prism(bm, q, -0.3, 0.04, "xy")
+    obj_bm("ST_Bed_brick_edging", bm, "brick")
+    # the Mickey face, in flowers: purple head and ears, white face mask (lower oval + two lobes round the eyes),
+    # purple eyes, nose and smile; red and white clumps on the right as in the photo
+    fz = 0.02
+    bm = bmesh.new()                                   # purple head and ears (each a little higher: no coincident faces)
+    for k, e in enumerate((ellipse(9.2, 5.9, 72, 0.0, -0.3), ellipse(3.3, 2.7, 48, -7.6, 4.3), ellipse(3.3, 2.7, 48, 7.6, 4.3))):
+        bm_prism(bm, e, fz, fz + 0.14 + 0.01 * k, "xy")
+    obj_bm("ST_Bed_mickey_head", bm, "flower_purple")
+    bm = bmesh.new()                                   # white face mask: lower oval + two lobes round the eyes
+    for k, e in enumerate((ellipse(7.9, 3.9, 72, 0.0, -1.3), ellipse(2.6, 3.0, 40, -2.25, 1.1), ellipse(2.6, 3.0, 40, 2.25, 1.1))):
+        bm_prism(bm, e, fz + 0.12, fz + 0.2 + 0.012 * k, "xy")
+    obj_bm("ST_Bed_mickey_face", bm, "flower_white")
+    feats = [ellipse(1.0, 1.9, 28, -1.4, 1.5), ellipse(1.0, 1.9, 28, 1.4, 1.5), ellipse(2.3, 1.35, 32, 0.0, -0.6)]
+    smile = []
+    for k in range(25):                                # the smile: a thick arc under the nose
+        a = math.radians(200 + 140 * k / 24)
+        smile.append((5.2 * math.cos(a), -0.4 + 3.6 * math.sin(a)))
+    for k in range(24, -1, -1):
+        a = math.radians(200 + 140 * k / 24)
+        smile.append((4.2 * math.cos(a), -0.4 + 2.7 * math.sin(a)))
+    feats.append(smile)
+    prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "flower_purple")
+    prism("ST_Bed_red_flowers", [ellipse(1.9, 1.2, 32, 10.9, 0.9)], fz, fz + 0.3, "flowers_red")
+    prism("ST_Bed_white_flowers", [ellipse(2.1, 1.25, 32, 12.4, -0.6)], fz, fz + 0.3, "flower_white")
+    B.root = prev
+    # (b) the shrub bank: from the ground at the fence up to the brick edging on the tilted plane (a loft)
+    ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
+    to_plan = lambda X, Y, Zl: (BED["x"] + X * ca - (Y * math.cos(t) - Zl * math.sin(t)) * sa,
+                                BED["y"] + X * sa + (Y * math.cos(t) - Zl * math.sin(t)) * ca,
+                                zc + Y * math.sin(t) + Zl * math.cos(t))
+    kx, ky = BED["bank"]; fx_, fy_ = BED["fence"]
+    n = 96
+    bm = bmesh.new()
+    outer = [bm.verts.new((BED["x"] + X * ca - Y * sa, BED["y"] + X * sa + Y * ca, 0.02)) for X, Y in ellipse(fx_ - 0.6, fy_ - 0.6, n)]
+    mid = [bm.verts.new(to_plan(X, Y, -0.35)) for X, Y in ellipse((kx + fx_) / 2, (ky + fy_) / 2, n)]
+    inner = [bm.verts.new(to_plan(X, Y, 0.02)) for X, Y in ellipse(kx, ky, n)]
+    for ra, rb in ((outer, mid), (mid, inner)):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((ra[i], ra[j], rb[j], rb[i]))
+    for i in range(n):                                 # lift the middle ring into a rounded shrub mass (never below the paving)
+        v = mid[i]; v.co.z = max(v.co.z + 0.45, 0.4)
+        inner[i].co.z = max(inner[i].co.z, 0.3)
+    bm.normal_update()
+    for f in bm.faces:
+        if f.normal.z < 0:
+            f.normal_flip()
+    o = obj_bm("ST_Bed_shrubs", bm, "hedge", smooth=True, recalc=False)
+    # (c) the fence round the bed: one panel (post, rails, bars, an arched band) + Array + Curve round the oval
+    ring, L = ellipse_curve("ST_Bed_fence_path", fx_, fy_, 129, (BED["x"], BED["y"], 0.0), (0, 0, math.radians(BED["ang"])))
+    N = int(L / 2.4); pw = L / N
+    bm = bmesh.new()
+    bm_box(bm, -0.05, 0.05, -0.05, 0.05, 0.0, 1.0)                         # post
+    bm_lathe(bm, [(0, 0), (0.07, 0.02), (0.05, 0.1), (0, 0.13)], 8, T(0, 0, 1.0))
+    bm_box(bm, 0.0, pw, -0.02, 0.02, 0.86, 0.92)                            # top rail
+    bm_box(bm, 0.0, pw, -0.02, 0.02, 0.1, 0.15)                             # bottom rail
+    for k in range(1, int(pw / 0.12)):
+        bm_box(bm, k * 0.12 - 0.01, k * 0.12 + 0.01, -0.01, 0.01, 0.15, 0.86)
+    for c0 in (0.0, pw / 2):                                                # two arches per panel
+        pts, _ = seg_arc(c0 + pw / 4, 0.55, pw / 2 - 0.05, pw / 4 - 0.02, 12)
+        outer_arc = [(x, z) for x, z in pts]; inner_arc = [(x, z - 0.05) for x, z in pts[::-1]]
+        bm_prism(bm, outer_arc + inner_arc, -0.015, 0.015, "xz")
+    fence = obj_bm("ST_Bed_fence", bm, "rail_blue")
+    array_mod(fence, N, (pw, 0, 0)); bend(fence, ring)
+
+
+# ================================================================ 4. the plaza: paving lines, lamps
 def build_plaza(context=True):
     A = ARC
     old = B.col
@@ -463,33 +580,12 @@ def build_plaza(context=True):
         p0 = (A["cx"] + ux * 22, A["cy"] + uy * 22); p1 = (A["cx"] + ux * 52, A["cy"] + uy * 52)
         bm_prism(bm, [(p0[0] + px, p0[1] + py), (p1[0] + px, p1[1] + py), (p1[0] - px, p1[1] - py), (p0[0] - px, p0[1] - py)], 0.0, 0.012, "xy")
     obj_bm("ST_Plaza_lines", bm, "white")
-    # Mickey flowerbed: grass mound in a hedge ring, the OSM Mickey shape in purple, a white face, eyes and nose
-    fx, fy = -538.0 - P0[0], 927.3 - P0[1]
-    bm = bmesh.new(); bm_lathe(bm, [(0, 0.55), (6.0, 0.45), (8.4, 0.2), (9.0, 0.0), (0, 0.0)], 48, T(fx, fy, 0)); obj_bm("ST_Plaza_grass", bm, "grass", smooth=True)
-    bm = bmesh.new(); bm_lathe(bm, [(9.0, 0), (9.6, 0), (9.6, 0.6), (9.0, 0.6)], 64, T(fx, fy, 0)); obj_bm("ST_Plaza_hedge", bm, "hedge")
-    # Mickey from circles laid on the OSM outline (head x -541.1 .. -536.3, ears to the south-west and south-east:
-    # upright for guests coming through the gates), enlarged by 1.25 round its centre (estimate)
-    k = 1.25
-    hx, hy, hr = fx - 0.3 * k, fy + 1.0 * k, 2.4 * k
-    ears = [(fx - 1.9 * k, fy - 2.2 * k), (fx + 2.0 * k, fy - 1.6 * k)]
-    bm = bmesh.new()
-    bm_lathe(bm, [(0, 0), (hr, 0), (hr, 0.12), (0, 0.12)], 48, T(hx, hy, 0.48))
-    for ex, ey in ears:
-        bm_lathe(bm, [(0, 0), (1.2 * k, 0), (1.2 * k, 0.12), (0, 0.12)], 32, T(ex, ey, 0.48))
-    obj_bm("ST_Plaza_mickey", bm, "flower_purple")
-    bm = bmesh.new(); bm_lathe(bm, [(0, 0), (1.0, 0), (1.0, 0.05), (0, 0.05)], 40, T(hx, hy + 0.55 * k, 0.6) @ Matrix.Diagonal((1.75 * k, 1.35 * k, 1, 1)))
-    obj_bm("ST_Plaza_face", bm, "flower_white")
-    bm = bmesh.new()
-    for ex, ey, sx, sy in ((-0.45, -0.25, 0.28, 0.5), (0.45, -0.25, 0.28, 0.5), (0.0, 0.55, 0.42, 0.3)):
-        bm_lathe(bm, [(0, 0), (1.0, 0), (1.0, 0.05), (0, 0.05)], 20, T(hx + ex * k, hy + 0.55 * k - ey * k, 0.64) @ Matrix.Diagonal((sx * k, sy * k, 1, 1)))
-    obj_bm("ST_Plaza_features", bm, "black")
-    bm = bmesh.new()                                      # a ring of bright flowers inside the hedge
-    for i in range(72):
-        a = 2 * math.pi * i / 72
-        bm_lathe(bm, [(0, 0), (0.28, 0), (0.22, 0.18), (0, 0.22)], 8, T(fx + 8.2 * math.cos(a), fy + 8.2 * math.sin(a), 0.18))
-    obj_bm("ST_Plaza_flower_ring", bm, "flowers_red")
+    build_flowerbed()
+    fx, fy = BED["x"], BED["y"]
     # lamp posts with four globes: round the plaza and either side of the central pavilion
-    posts = [(fx + 12 * math.cos(a), fy + 12 * math.sin(a)) for a in (0.3, 1.9, 3.5, 5.1)]
+    ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
+    posts = [(fx + 23.5 * math.cos(t) * ca - 16.0 * math.sin(t) * sa, fy + 23.5 * math.cos(t) * sa + 16.0 * math.sin(t) * ca)
+             for t in (0.35, 2.79, 3.49, 5.93)]   # round the bed, outside its fence
     for d in (-12.0, 12.0):
         a = math.radians(ARC["a_mid"]); t = (-math.sin(a), math.cos(a))
         for rr in (49.0, 71.0):
@@ -512,11 +608,12 @@ def cams():
     wb = (WB["x"], WB["y"])
     return {
         "gate_out": ((pav[0] + ou[0] * 32, pav[1] + ou[1] * 32, 1.7), (pav[0], pav[1], 6.0), 24),
-        "gate_in": ((pav[0] - ou[0] * 30, pav[1] - ou[1] * 30, 1.7), (pav[0], pav[1], 6.0), 24),
+        "gate_in": ((pav[0] - ou[0] * 17, pav[1] - ou[1] * 17, 1.7), (pav[0], pav[1], 6.0), 20),
         "gates_arc": ((ARC["cx"] + 5, ARC["cy"] + 10, 2.0), (arc_point(160)[0], arc_point(160)[1], 4.0), 20),
         "wb_porch": ((wb[0] + wd[0] * 24, wb[1] + wd[1] * 24, 1.7), (wb[0] + wd[0] * 4, wb[1] + wd[1] * 4, 5.0), 26),
         "wb_sign": ((wb[0] + wd[0] * 10.5, wb[1] + wd[1] * 10.5, 1.5), (wb[0] + wd[0] * 5.3, wb[1] + wd[1] * 5.3, 5.6), 18),
-        "flowerbed": ((-8 + 14, 12 + 16, 9.0), (-8, 12, 0.0), 30),
+        "flowerbed": bed_cam(17.0, 1.7, 16),              # from the gates' side, as the photos (the face reads upright)
+        "flowerbed_top": bed_cam(26.0, 14.0, 26),
         "aerial": ((70.0, -70.0, 85.0), (-10.0, 10.0, 0.0), 30),
     }
 
