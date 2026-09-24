@@ -1250,16 +1250,17 @@ async function init3D() {
     $("walkZ").textContent = `${wk.y >= 0 ? "+" : ""}${wk.y.toFixed(2)} m`;
     $("walkPos").textContent = `${wk.x.toFixed(0)}, ${(-wk.z).toFixed(0)} m`;
   }
-  // start at (x, y) in local metres facing yaw (default: where the overview is looking)
-  three.walkEnter = (x, y, yaw) => {
+  // start at (x, y) in local metres facing yaw (default: on the plaza 22 m from the AquaSphere, between the east lamps, facing the globe)
+  three.walkEnter = (x, y, yaw, pitch) => {
     if (ex !== 1) $("exag").click();
     $("exag").disabled = true;
     buildGrid();
-    wk.x = x ?? ctl.target.x; wk.z = y != null ? -y : ctl.target.z;
+    const AQ = D.aquasphere;
+    if (x == null) { const a = Math.PI / 8; x = AQ.cx + 22 * Math.cos(a); y = AQ.cy + 22 * Math.sin(a); yaw = Math.atan2(Math.cos(a), -Math.sin(a)); pitch = 0.12; }
+    wk.x = x; wk.z = -y;
     const hits = modelHits(wk.x, wk.z);
-    wk.y = hits.length ? Math.max(...hits) : (heightAt(wk.x, -wk.z) ?? 0);
-    const d = cam.position.clone().sub(ctl.target);
-    wk.yaw = yaw ?? Math.atan2(d.x, d.z); wk.pitch = -0.05;
+    wk.y = groundAt(wk.x, wk.z, (heightAt(wk.x, -wk.z) ?? 0) + 1) ?? (hits.length ? Math.max(...hits) : 0);   // not on a tree top
+    wk.yaw = yaw ?? 0; wk.pitch = pitch ?? -0.05;
     ctl.enabled = false; three.walking = true;
     cam.fov = 60; cam.near = 0.1; cam.far = 4000; cam.updateProjectionMatrix();
     $("walk").textContent = "俯瞰に戻る"; $("walk").classList.add("on");
