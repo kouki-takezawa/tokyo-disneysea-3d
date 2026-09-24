@@ -18,6 +18,7 @@ function create(T, opt = {}) {
 const S = {
   headLen: 15.05, midLen: 13.70, width: 2.98, gap: 0.55, cars: 6,     // Wikipedia
   yBot: -0.9, yTop: 3.95, roofR: 1.1, noseLen: 0.9,                   // estimates (from photos)
+  rake: 2.1, windBot: 2.05,   // raked windscreen: from the nose at windBot back to the roof, rake m behind the nose (photos)
   floor: 1.0, ceil: 3.18,                                              // interior levels (estimates)
   beamW: 0.85, beamH: 1.4, pillarEvery: 30, pillarH: 8.0,
 };
@@ -88,21 +89,21 @@ bool sideHole(vec2 p){
   for (int k = 0; k < 2; k++) { float dx = doorX(k); d = min(d, sdE(p, vec2(dx - 0.4, 2.3), vec2(0.22, 0.6))); d = min(d, sdE(p, vec2(dx + 0.4, 2.3), vec2(0.22, 0.6))); }
   return d < 0.0;
 }
-bool frontHole(vec2 p){   // p = (z, y): three panes, the centre one is the gangway door
-  float d = sdRB(p, vec2(0.0, 2.62), vec2(0.36, 0.52), 0.06);
-  d = min(d, sdRB(p, vec2(-0.69, 2.62), vec2(0.24, 0.52), 0.1));
-  d = min(d, sdRB(p, vec2(0.69, 2.62), vec2(0.24, 0.52), 0.1));
-  return d < 0.0;
-}`;
+// head car: the front above windBot is raked back to the roof; one big windscreen wraps over it
+const float RAKE = ${S.rake.toFixed(3)}, WB = ${S.windBot.toFixed(3)};
+bool onRake(){ return KIND == 1 && vLP.x > CL - RAKE + 0.02 && vLP.y > WB; }
+float frontSd(vec2 p){ return sdRB(p, vec2(0.0, 2.925), vec2(1.0, 0.725), 0.25); }   // p = (z, y)
+bool frontHole(vec2 p){ return onRake() && frontSd(p) < 0.0; }`;
 const VARYINGS = sh => { sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vLP; varying vec3 vLN;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvLP = position; vLN = normal;"); };
-const GLSL_DISCARD = `{ if (abs(vLN.z) > 0.75) { if (sideHole(vLP.xy)) discard; } else if (KIND == 1 && vLN.x > 0.9) { if (frontHole(vLP.zy)) discard; } }`;
+const GLSL_DISCARD = `{ if (frontHole(vLP.zy)) discard; if (abs(vLN.z) > 0.75 && sideHole(vLP.xy)) discard; }`;
 const GLSL_COLOR = `{
   vec3 white = vec3(0.93, 0.94, 0.95), silver = vec3(0.66, 0.69, 0.72), c = white;
   bool sideF = abs(vLN.z) > abs(vLN.x); float u = sideF ? vLP.x : vLP.z, y = vLP.y;
   float wv = sin(u * 1.7) * 0.10 + sin(u * 0.83 + 1.0) * 0.05;       // wavy top edge of the colour band
   float yA = 1.45 + wv, yB = yA + 0.2 + wv * 0.5;
   if (y < 0.55) c = silver; else if (y < yA) c = uA; else if (y < yB) c = uB;
-  if (KIND == 1 && vLN.x > 0.9) { if (y >= 0.55 && y < 2.02) c = uA; if (y >= 2.02 && y < 3.2 && abs(vLP.z) < 0.98) c = vec3(0.07); }
+  if (KIND == 1 && vLN.x > 0.9 && y >= 1.0 && y < WB) c = uA;                                   // nose below the windscreen: colour band
+  if (onRake() && frontSd(vLP.zy) < 0.07) c = vec3(0.07);                                        // black rubber round the windscreen
   if (sideF) {
     for (int k = 0; k < 2; k++) { float dx = doorX(k);
       if (abs(vLP.x - dx) < 0.012 && y > 0.95 && y < 3.15) c = vec3(0.10);                       // door leaf seam
@@ -114,7 +115,7 @@ const GLSL_COLOR = `{
   diffuseColor.rgb = c;
 }`;
 // far-away version: windows are painted dark glass instead of cut out (there is no cabin behind them)
-const GLSL_PAINT = `{ if ((abs(vLN.z) > 0.75 && sideHole(vLP.xy)) || (KIND == 1 && vLN.x > 0.9 && frontHole(vLP.zy))) diffuseColor.rgb = vec3(0.09, 0.13, 0.17); }`;
+const GLSL_PAINT = `{ if ((abs(vLN.z) > 0.75 && sideHole(vLP.xy)) || frontHole(vLP.zy)) diffuseColor.rgb = vec3(0.09, 0.13, 0.17); }`;
 function skinMaterial(kind, L, U, solid = false) {
   const m = new T.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.34, metalness: 0.05, clearcoat: 0.7, clearcoatRoughness: 0.15, side: T.DoubleSide });
   if (opt.envMap) m.envMap = opt.envMap;
@@ -139,6 +140,7 @@ function glassMaterial(kind, L, front) {
     VARYINGS(sh);
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\n" + GLSL_COMMON(kind, L))
       .replace("#include <clipping_planes_fragment>", "#include <clipping_planes_fragment>\n" + (front ? "if (!frontHole(vLP.zy)) discard;" : "if (!sideHole(vLP.xy)) discard;"));
+    if (front) sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>", "transformed += normal * 0.004;\n#include <project_vertex>");   // just outside the shell
   };
   m.customProgramCacheKey = () => `glass${kind}${front ? 1 : 0}`;
   return m;
@@ -152,12 +154,19 @@ function section(w, y0, y1, rt, rb, n = 10) {
 }
 // nose: quarter-round loft (rounded plan corners, roof and chin) ending in a flat front face; the rear end stays open
 // n: segments per rounded corner of the cross-section, N: sections along the nose (fewer for the far-away version)
+// head: the roof slopes down (the raked windscreen) over the last `rake` m to windBot at the nose, and the last
+// noseLen m are rounded in plan and at the chin; the nose ends in a flat face below the windscreen
 function skinGeometry(L, head, wScale = 1, n = 10, N = 12) {
-  const Ln = S.noseLen, w0 = W * wScale, secs = [];
+  const Ln = S.noseLen, R = S.rake, w0 = W * wScale, secs = [];
   secs.push({ x: 0, w: w0, top: S.yTop, bot: S.yBot, rt: S.roofR });
-  secs.push({ x: head ? L - Ln : L, w: w0, top: S.yTop, bot: S.yBot, rt: S.roofR });
-  if (head) for (let i = 1; i <= N; i++) { const th = i / N * Math.PI / 2, e = 1 - Math.cos(th);
-    secs.push({ x: L - Ln + Ln * Math.sin(th), w: w0 - 0.9 * e, top: S.yTop - 0.55 * e, bot: S.yBot + 0.95 * e, rt: S.roofR - 0.7 * e }); }
+  secs.push({ x: head ? L - R : L, w: w0, top: S.yTop, bot: S.yBot, rt: S.roofR });
+  if (head) {
+    const xs = [], ns = Math.max(2, Math.round(N / 2));
+    for (let i = 1; i <= ns; i++) xs.push(L - R + (R - Ln) * i / ns);
+    for (let i = 1; i <= N; i++) xs.push(L - Ln + Ln * Math.sin(i / N * Math.PI / 2));
+    xs.forEach(x => { const t = (x - (L - R)) / R, e = x > L - Ln ? 1 - Math.cos(Math.asin(Math.min(1, (x - (L - Ln)) / Ln))) : 0;
+      secs.push({ x, w: w0 - 0.9 * e, top: S.yTop - (S.yTop - S.windBot) * t, bot: S.yBot + 0.95 * e, rt: S.roofR - 0.7 * e }); });
+  }
   const pos = [], sideIdx = [], capIdx = [];
   secs.forEach(s => section(s.w, s.bot, s.top, s.rt, 0.18, n).forEach(([z, y]) => pos.push(s.x, y, z)));
   const P = 4 * (n + 1), skip = 3 * n + 2;    // segment `skip` is the flat bottom: left open so the beam passes under the car
@@ -226,11 +235,14 @@ function mergeByMaterial(g) {
 /* ---------- car interior ---------- */
 function interior(L, head) {
   const g = new T.Group(), f = S.floor, c = S.ceil, Li = head ? L - S.noseLen - 0.05 : L;   // Li: where the full-width cabin ends
+  // Lc: where the ceiling ends; in the head car, where the raked windscreen starts (past it the rounded roof
+  // corners come down below the ceiling's edges)
+  const Lc = head ? L - S.rake - 0.05 : L;
   box(g, Li - 0.05, 0.06, 2.92, M.floor, Li / 2, f - 0.03, 0);                                  // floor
-  box(g, Li - 0.05, 0.05, 2.7, M.ceil, Li / 2, c + 0.02, 0);                                    // ceiling
-  if (head) { box(g, L - Li - 0.12, 0.06, 1.9, M.floor, (Li + L - 0.12) / 2, f - 0.03, 0); box(g, L - Li - 0.12, 0.05, 1.7, M.ceil, (Li + L - 0.12) / 2, c + 0.02, 0); }
+  box(g, Lc - 0.05, 0.05, 2.7, M.ceil, Lc / 2, c + 0.02, 0);                                    // ceiling
+  if (head) box(g, L - Li - 0.12, 0.06, 1.9, M.floor, (Li + L - 0.12) / 2, f - 0.03, 0);
   [-1, 1].forEach(s => box(g, Li - 3.4, 0.03, 0.22, M.strip, Li / 2, c - 0.02, s * 0.85));      // light strips
-  [-1, 1].forEach(s => box(g, Li - 0.3, 0.16, 0.06, M.cream, Li / 2, c - 0.12, s * 1.36));      // upper wall band / duct
+  [-1, 1].forEach(s => box(g, Math.min(Li, Lc) - 0.5, 0.16, 0.06, M.cream, Math.min(Li, Lc) / 2, c - 0.12, s * 1.36));   // upper wall band / duct
   // coupling-end wall with a passage opening (you can see down the train)
   box(g, 0.05, c - f, 1.0, M.cream, 0.03, (c + f) / 2, -0.95); box(g, 0.05, c - f, 1.0, M.cream, 0.03, (c + f) / 2, 0.95); box(g, 0.05, 0.9, 0.95, M.cream, 0.03, c - 0.45, 0);
   [-1, 1].forEach(s => cyl(g, 0.025, c - f, M.steel, 0.12, (c + f) / 2, s * 0.5));
@@ -281,8 +293,8 @@ function buildCar(L, head, U, o = {}) {
   const gs = new T.PlaneGeometry(L - 0.4, 1.6); gs.translate(L / 2, 2.4, HW + 0.006);
   const gs2 = gs.clone(); gs2.scale(1, 1, -1);
   const gm = glassMaterial(kind, L, false); [gs, gs2].forEach(gg => { const m = new T.Mesh(gg, gm); m.renderOrder = 2; car.add(m); }); mats.push(gm);
-  if (head) { const gf = new T.PlaneGeometry(2.0, 1.2); gf.rotateY(Math.PI / 2); gf.translate(L + 0.006, 2.62, 0);
-    const fm = glassMaterial(kind, L, true); const m = new T.Mesh(gf, fm); m.renderOrder = 2; car.add(m); mats.push(fm); }
+  if (head) {   // windscreen: the shell's own surface, drawn as glass inside the opening (so it follows the rake and the corners)
+    const fm = glassMaterial(kind, L, true); const m = new T.Mesh(skin.geometry, fm); m.renderOrder = 2; car.add(m); mats.push(fm); }
   const parts = new T.Group();
   parts.add(interior(L, head));
   [2.5, L * 0.5 + 1.2, L - (head ? 4.2 : 2.5)].forEach(x => box(parts, 1.6, 0.16, 1.0, M.roofUnit, x, S.yTop + 0.06, 0));   // roof units
@@ -295,7 +307,6 @@ function buildCar(L, head, U, o = {}) {
   if (head) {   // oval headlights, coupler, destination strip
     [-1, 1].forEach(s => { const l = new T.Mesh(new T.SphereGeometry(1, 20, 12), M.lamp); l.scale.set(0.05, 0.12, 0.2); l.position.set(L + 0.005, 1.28, s * 0.74); parts.add(l); });
     cyl(parts, 0.11, 0.3, M.steel, L + 0.05, 0.22, 0, "x"); box(parts, 0.14, 0.24, 0.9, M.dark, L - 0.02, 0.28, 0);
-    box(parts, 0.04, 0.12, 0.7, M.strip, L + 0.005, 3.28, 0);
   }
   car.add(o.merge ? mergeByMaterial(parts) : parts);
   car.userData.mats = mats;
