@@ -10,6 +10,7 @@
   --water:#2C76A6; --water-tint:rgba(44,118,166,.09); --green:#4E8A45; --tree:#2F6B34; --rock:#8C6547;
   --path:#9AA59F; --rail:#445058; --priority:#C8432B; --land:#6A5A48;
   --p0:#B8731F; --p1:#9A553A; --p2:#56646D; --p3:#2F8585; --p4:#8458AB; --p5:#B99212; --p6:#5F8531; --p7:#BC4E86;
+  --l0:#B04A5A; --l1:#2E8B57; --l2:#A0522D; --l3:#6B8E23; --l4:#7B5EA7; --l5:#C98304; --l6:#2F6FB0; --l7:#8A9499; --mh:#0B7285;
   --focus:#1E2A30;
   --st-dem:#1F7A60; --st-link:#2C5FA8; --st-len:#B7791F; --st-unk:#D2362B; --contour:#CDBB98; --contour-idx:#A8926A; --wall:#7C7168; --bridge:#1E2A30; --gate:#0B7285;
   --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
@@ -22,6 +23,7 @@
     --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
     --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
     --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
+    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8;
     --focus:#D6E3EA;
     --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
   }
@@ -32,6 +34,7 @@
   --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
   --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
   --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
+    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8;
   --focus:#D6E3EA;
   --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
 }
@@ -249,6 +252,10 @@ body.coarse .hud.tc{top:auto;bottom:176px}
         <section>
           <h2>エリア</h2>
           <ul class="areas" id="areas"></ul>
+        </section>
+        <section>
+          <h2>ディズニーランド・舞浜駅(地図・俯瞰)</h2>
+          <ul class="areas" id="dlAreas"></ul>
         </section>
       </div>
       <div class="pane" data-pane="info" hidden>
@@ -477,6 +484,7 @@ const D = JSON.parse(document.getElementById("data").textContent);
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const LAT0 = D.origin[0], LON0 = D.origin[1];
+const DL = D.disneyland, MH = D.maihama;   // Tokyo Disneyland and Maihama layers (ds_disneyland.py)
 let mode = "plan";   // plan (地図) / orbit (俯瞰) / walk (散歩)
 const coarse = matchMedia("(pointer: coarse)").matches;
 if (coarse) document.body.classList.add("coarse");
@@ -489,7 +497,7 @@ const LAYERS = [
   ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
   ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
-  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["labels","ラベル","--muted",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
 try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
@@ -583,6 +591,25 @@ $("dest-aq").onclick = () => {
   else { sc = 5; ox = W / 2 - A.cx * sc; oy = H / 2 + A.cy * sc; redraw(); }
   if (narrow()) setPanel(false);
 };
+if (DL) {
+  const el = $("dlAreas"), cnt = DL.lands.map(() => 0);
+  DL.buildings.forEach(b => cnt[b.p]++);
+  const dest = [];
+  if (MH) dest.push(["舞浜駅(JR)", "--mh", MH.station.x, MH.station.y, 3.2, "", 260], ["ランドのメインエントランス", "--mh", MH.gate.x, MH.gate.y, 3.2, "", 200]);
+  DL.labels.forEach(l => dest.push([l.n, `--l${l.p}`, l.x, l.y, 2.2, cnt[l.p], 380]));
+  dest.forEach(([n, col, x, y, s2, c, dist]) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<button><span class="sw" style="color:var(${col});border-top-width:3px"></span><span>${n}</span><span class="n">${c}</span></button>`;
+    li.firstChild.onclick = () => {
+      if (mode === "walk") { toast("散歩はディズニーシーの中だけです。地図か俯瞰で見てください"); return; }
+      for (const k of ["disneyland", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; }
+      if (mode === "orbit") three.flyToPlan(x, y, dist * 1.4); else { sc = s2; ox = W / 2 - x * sc; oy = H / 2 + y * sc; redraw(); }
+      if (three.ready) three.visibility();
+      if (narrow()) setPanel(false);
+    };
+    el.appendChild(li);
+  });
+}
 $("st-b").textContent = D.buildings.length;
 $("st-w").textContent = D.water.length + D.ponds.length;
 $("st-p").textContent = D.paths.length;
@@ -615,8 +642,15 @@ function segDist(px, py, l) {
   }
   return best;
 }
-const HG = D.hgrid;
-function heightAt(x, y) {
+const HG = D.hgrid, HG2 = D.disneyland?.hgrid;
+function gridAt(G, x, y) {
+  const fi = (x - G.x0) / G.step, fj = (y - G.y0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
+  if (i < 0 || j < 0 || i >= G.nx - 1 || j >= G.ny - 1) return null;
+  const v = (a, b) => G.v[b * G.nx + a], u = fi - i, w = fj - j;
+  return v(i, j) * (1 - u) * (1 - w) + v(i + 1, j) * u * (1 - w) + v(i, j + 1) * (1 - u) * w + v(i + 1, j + 1) * u * w;
+}
+function heightAt(x, y) {   // both grids come from the same DEM: the Disneyland grid only extends the DisneySea one
+  if (HG2) { const h = gridAt(HG, x, y); return h != null ? h : gridAt(HG2, x, y); }
   const fi = (x - HG.x0) / HG.step, fj = (y - HG.y0) / HG.step, i = Math.floor(fi), j = Math.floor(fj);
   if (i < 0 || j < 0 || i >= HG.nx - 1 || j >= HG.ny - 1) return null;
   const v = (a, b) => HG.v[b * HG.nx + a], u = fi - i, w = fj - j;
@@ -630,6 +664,15 @@ const bboxOf = rings => {
   return [a, b, c, d];
 };
 const PB = bboxOf([D.park]);
+if (DL) DL.buildings.forEach(b => b.bb = bboxOf(b.r));
+const MHB = MH ? bboxOf([[[MH.station.x, MH.station.y]], ...MH.loop, ...MH.places.map(p => p.r[0])]) : null;
+const ALLB = bboxOf([D.park, ...(DL ? [DL.park] : []), ...(MHB ? [[[MHB[0], MHB[1]], [MHB[2], MHB[3]]]] : [])]);
+function viewBounds() {
+  const rs = [D.park];
+  if (DL && on.disneyland) rs.push(DL.park);
+  if (MHB && on.maihama) rs.push([[MHB[0], MHB[1]], [MHB[2], MHB[3]]]);
+  return bboxOf(rs);
+}
 D.buildings.forEach(b => b.bb = bboxOf(b.r));
 const pip = (x, y, poly) => {
   let c = false;
@@ -688,9 +731,9 @@ function resize() {
   if (three.ready) three.resize();
 }
 function fit() {
-  const bw = PB[2] - PB[0], bh = PB[3] - PB[1];
+  const B = viewBounds(), bw = B[2] - B[0], bh = B[3] - B[1];
   sc = Math.min(W / (bw * 1.08), H / (bh * 1.1));
-  ox = W / 2 - (PB[0] + bw / 2) * sc; oy = H / 2 + (PB[1] + bh / 2) * sc;
+  ox = W / 2 - (B[0] + bw / 2) * sc; oy = H / 2 + (B[1] + bh / 2) * sc;
 }
 function zoomAt(f, px, py) {
   const n = Math.max(0.15, Math.min(40, sc * f)); f = n / sc;
@@ -806,6 +849,8 @@ function redraw() {
     }
     ctx.globalAlpha = 1;
   }
+  if (on.maihama) drawMaihama(lw);
+  if (on.disneyland) drawDisneyland(lw);
   // park boundary
   ctx.globalAlpha = 1;
   strokeRings([D.park], C.ink, Math.max(1.2, lw * 1.6));
@@ -814,6 +859,10 @@ function redraw() {
   if (on.entrance) drawEntrance(lw);
   if (hover && hover.r) strokeRings(hover.r, C.ink, lw * 2.6);  // stairs highlight themselves in drawStairs
   if (on.labels) drawLabels(C);
+  if (on.labels && on.disneyland && DL) DL.labels.forEach(l => label(l.n, X(l.x), Y(l.y), css(`--l${l.p}`), Math.max(11, Math.min(16, 10 + sc * 3)), 700));
+  if (on.labels && on.disneyland && DL && sc > 1.1) { const seen = new Set();
+    DL.buildings.forEach(b => { if (!b.n || seen.has(b.n) || area(b.r[0]) < 400) return; seen.add(b.n);
+      label(b.n, X((b.bb[0] + b.bb[2]) / 2), Y((b.bb[1] + b.bb[3]) / 2), css(`--l${b.p}`), 10.5, 500); }); }
   updateScale();
 }
 
@@ -914,6 +963,41 @@ function drawLandmarks(C, lw) {
     else if (m.t === "ship") { ring(m.r); }
     ctx.stroke();
   }
+}
+
+// Tokyo Disneyland: water, green, trees, paths, the Western River Railroad, buildings coloured by land, park boundary
+function drawDisneyland(lw) {
+  if (!DL) return;
+  ctx.save(); ctx.setLineDash([]);
+  ctx.beginPath(); DL.water.forEach(r => ring(r)); ctx.fillStyle = css("--water-tint"); ctx.fill(); strokeRings(DL.water, css("--water"), lw);
+  strokeRings(DL.green, css("--green"), lw * 0.6);
+  strokeRings(DL.trees, css("--tree"), lw * 0.7, [2, 3]);
+  ctx.beginPath(); DL.paths.forEach(l => ring(l, false)); ctx.strokeStyle = css("--path"); ctx.lineWidth = Math.max(0.5, lw * 0.6); ctx.stroke();
+  ctx.beginPath(); DL.rail.forEach(l => ring(l, false)); ctx.strokeStyle = css("--rail"); ctx.lineWidth = Math.max(1, lw * 1.2); ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]);
+  for (let i = 0; i < DL.lands.length; i++) strokeRings(DL.buildings.filter(b => b.p === i).flatMap(b => b.r), css(`--l${i}`), lw);
+  strokeRings([DL.park], css("--ink"), Math.max(1.2, lw * 1.6));
+  ctx.restore();
+}
+// Maihama: JR Keiyo line and Maihama Station, the Resort Line loop with its stations, Ikspiari, hotels, walkways
+function drawMaihama(lw) {
+  if (!MH) return;
+  const g = css("--mh");
+  ctx.save(); ctx.setLineDash([]);
+  ctx.beginPath(); MH.jr.forEach(l => ring(l, false)); ctx.strokeStyle = css("--rail"); ctx.lineWidth = Math.max(2, 7 * sc); ctx.stroke();
+  ctx.strokeStyle = css("--sheet"); ctx.lineWidth = Math.max(0.6, 7 * sc - 3); ctx.stroke();
+  ctx.beginPath(); MH.loop.forEach(l => ring(l, false)); ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.4, 3 * sc); ctx.stroke();
+  ctx.strokeStyle = css("--sheet"); ctx.lineWidth = Math.max(0.4, 3 * sc - 2); ctx.stroke();
+  ctx.beginPath(); MH.platforms.forEach(r => ring(r)); ctx.fillStyle = g; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = g; ctx.lineWidth = Math.max(0.8, lw); ctx.stroke();
+  for (const p of MH.places) { strokeRings(p.r, p.k === "station" ? g : css("--muted"), lw * 1.1); }
+  ctx.beginPath(); MH.walks.forEach(l => ring(l, false)); ctx.strokeStyle = g; ctx.setLineDash([3, 3]); ctx.lineWidth = Math.max(0.7, lw * 0.8); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = g;
+  MH.stations.forEach(st => { const r = Math.max(3, 1.4 * sc); ctx.fillRect(X(st.x) - r, Y(st.y) - r, 2 * r, 2 * r); });
+  if (on.labels) {
+    MH.stations.forEach(st => label(st.k === "jr" ? "舞浜駅(JR 京葉線)" : st.n, X(st.x), Y(st.y) - 14, g, 11.5, 700));
+    if (sc > 0.35) MH.places.forEach(p => { if (!p.n) return; const b = bboxOf(p.r); label(p.n, X((b[0] + b[2]) / 2), Y((b[1] + b[3]) / 2), css("--muted"), 10.5, 500); });
+  }
+  ctx.restore();
 }
 
 // Resort Line station (on the viaduct), nearby track, ticket gate rows, turnstiles, guest relations, plaza walkways
@@ -1039,10 +1123,14 @@ function onHover(px, py) {
     if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
     if (pip(x, y, b.r[0])) { hit = b; break; }
   }
+  if (!hit && on.disneyland && DL) for (const b of DL.buildings) {
+    if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
+    if (pip(x, y, b.r[0])) { hit = b; hit.dl = 1; break; }
+  }
   if (hit !== hover) { hover = hit; redraw(); }
   const tip = $("tip");
   if (!hit) { tip.hidden = true; return; }
-  tip.innerHTML = `<b>${hit.n ? hit.n.replace(/ Tokyo DisneySea.*$/, "") : "名称なし"}</b>${D.ports[hit.p].ja}${hit.x ? " ・ 優先パーツ" : ""}<br><span class="mono">高さ ${hit.h} m${hit.h === 0 ? "" : " (推定含む)"} ・ 面積 ${Math.round(area(hit.r[0])).toLocaleString()} m²</span>`;
+  tip.innerHTML = `<b>${hit.n ? hit.n.replace(/ Tokyo DisneySea.*$/, "") : "名称なし"}</b>${hit.dl ? "ディズニーランド ・ " + DL.lands[hit.p].ja : D.ports[hit.p].ja}${hit.x ? " ・ 優先パーツ" : ""}<br><span class="mono">高さ ${hit.h} m${hit.h === 0 ? "" : " (推定含む)"} ・ 面積 ${Math.round(area(hit.r[0])).toLocaleString()} m²</span>`;
   tip.hidden = false;
   const tw = tip.offsetWidth, th = tip.offsetHeight;
   tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
@@ -1395,16 +1483,42 @@ async function init3D() {
         prism("entrance", [[x - ux * h - uy * w, y - uy * h + ux * w], [x + ux * h - uy * w, y + uy * h + ux * w], [x + ux * h + uy * w, y + uy * h - ux * w], [x - ux * h + uy * w, y - uy * h - ux * w]], z0, z0 + E.gate_h); });
     }
   }
+  if (DL) {
+    const hz = (x, y) => heightAt(x, y) ?? 0;
+    const ringG = (key, r, dz) => { for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+      seg(key, [...V(x1, y1, hz(x1, y1) + dz), ...V(x2, y2, hz(x2, y2) + dz)]); } };
+    ringG("dlpark", DL.park, 0);
+    DL.water.forEach(r => ringG("dlwater", r, -0.3));
+    DL.green.forEach(r => ringG("dlgreen", r, 0.05));
+    DL.trees.forEach(r => { ringG("dltrees", r, 2); ringG("dltrees", r, 7); });
+    DL.paths.forEach(l => lineZ("dlpaths", l, l.map(([x, y]) => hz(x, y))));
+    DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
+    DL.buildings.forEach(b => b.r.forEach(r => prism(`l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
+  }
+  if (MH) {
+    const hz = (x, y) => heightAt(x, y) ?? 0;
+    MH.loop.forEach(l => { line("mhline", l, MH.loop_z + 0.9); line("mhline", l, MH.loop_z);
+      for (let i = 0; i < l.length; i += 4) seg("mhline", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.loop_z)]); });
+    MH.jr.forEach(l => { line("mhjr", l, MH.jr_z + 1); line("mhjr", l, MH.jr_z);
+      for (let i = 0; i < l.length; i += 3) seg("mhjr", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.jr_z)]); });
+    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : MH.loop_z; prism("mhline", r, z - 0.4, z); });
+    MH.places.forEach(p => p.r.forEach(r => prism(p.k === "station" ? "mhline" : "mhplace", r, p.z || 0, (p.z || 0) + p.h)));
+    MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
+  }
   // 100 m grid under the park
   for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
   for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
 
   const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
     land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours",
-    aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance" };
+    aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
+    dlpark: "disneyland", dlwater: "disneyland", dlgreen: "disneyland", dltrees: "disneyland", dlpaths: "disneyland", dlrail: "disneyland",
+    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhwalk: "maihama" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
-    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate" };
+    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
+    dlpark: "--ink", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
+    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhwalk: "--mh" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
@@ -1417,7 +1531,7 @@ async function init3D() {
     renderer.setClearColor(new T.Color(css("--sheet")));
     for (const [k, o] of Object.entries(objs)) {
       const pi = k.startsWith("p") && k.length <= 2 ? +k.slice(1) : -1;
-      let c = pi >= 0 ? css(`--p${pi}`) : css(COLOR_OF[k]);
+      let c = pi >= 0 ? css(`--p${pi}`) : /^l\d$/.test(k) ? css(`--${k}`) : css(COLOR_OF[k]);
       if (k === "pri" && !on.priority) c = css("--muted");
       o.material.color.set(c);
       o.material.opacity = focus >= 0 && ((pi >= 0 && pi !== focus) || ["water", "green", "trees", "rock", "paths"].includes(k)) ? 0.25 : 1;
@@ -1428,7 +1542,7 @@ async function init3D() {
     const shown = m => mdl[m.id] !== false;
     const replaced = mdl.overlay ? new Set() : new Set(Object.values(three.models).filter(shown).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
-      const layer = /^p\d$/.test(k) ? "buildings" : LAYER_OF[k];
+      const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? "disneyland" : LAYER_OF[k];
       o.visible = (!layer || on[layer]) && !replaced.has(k);
     }
     for (const [id, m] of Object.entries(three.models)) {
@@ -1756,8 +1870,8 @@ async function init3D() {
     if (!r.width) return false;
     const d = Math.min(window.devicePixelRatio || 1, 2), w = r.width, h = r.height;
     mm.width = Math.round(w * d); mm.height = Math.round(h * d);
-    const bw = PB[2] - PB[0], bh = PB[3] - PB[1], s = Math.min(w / (bw * 1.06), h / (bh * 1.06));
-    const tf = { s, ox: w / 2 - (PB[0] + bw / 2) * s, oy: h / 2 + (PB[1] + bh / 2) * s, w, h, d };
+    const B = ALLB, bw = B[2] - B[0], bh = B[3] - B[1], s = Math.min(w / (bw * 1.06), h / (bh * 1.06));
+    const tf = { s, ox: w / 2 - (B[0] + bw / 2) * s, oy: h / 2 + (B[1] + bh / 2) * s, w, h, d };
     const oc = document.createElement("canvas"); oc.width = mm.width; oc.height = mm.height;
     const c = oc.getContext("2d"); c.setTransform(d, 0, 0, d, 0, 0);
     const path = rings => { c.beginPath(); for (const rr of rings) rr.forEach(([x, y], i) => { const px = tf.ox + x * s, py = tf.oy - y * s; i ? c.lineTo(px, py) : c.moveTo(px, py); }); };
@@ -1766,6 +1880,17 @@ async function init3D() {
     c.globalAlpha = 0.5; path(D.water.concat(D.islands)); c.fillStyle = css("--water"); c.fill("evenodd"); path(D.ponds); c.fill();
     c.globalAlpha = 0.75;
     D.ports.forEach((_, i) => { path(D.buildings.filter(b => b.p === i).map(b => b.r[0])); c.fillStyle = css(`--p${i}`); c.fill(); });
+    if (DL) {
+      c.globalAlpha = 1; path([DL.park]); c.fillStyle = css("--paper"); c.fill();
+      c.globalAlpha = 0.5; path(DL.water); c.fillStyle = css("--water"); c.fill();
+      c.globalAlpha = 0.75; DL.lands.forEach((_, i) => { path(DL.buildings.filter(b => b.p === i).map(b => b.r[0])); c.fillStyle = css(`--l${i}`); c.fill(); });
+      c.globalAlpha = 1; path([DL.park]); c.strokeStyle = css("--ink"); c.lineWidth = 1; c.stroke();
+    }
+    if (MH) {
+      c.beginPath(); MH.loop.forEach(l => l.forEach(([x, y], i) => { const px = tf.ox + x * s, py = tf.oy - y * s; i ? c.lineTo(px, py) : c.moveTo(px, py); }));
+      c.strokeStyle = css("--mh"); c.lineWidth = 1.2; c.stroke();
+      c.fillStyle = css("--mh"); c.fillRect(tf.ox + MH.station.x * s - 2.5, tf.oy - MH.station.y * s - 2.5, 5, 5);
+    }
     c.globalAlpha = 1; path([D.park]); c.strokeStyle = css("--ink"); c.lineWidth = 1; c.stroke();
     mmS = { tf, img: oc };
     return true;

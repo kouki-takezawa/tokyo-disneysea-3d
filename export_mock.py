@@ -15,6 +15,7 @@ import ds_terrain as T
 import ds_levels as LV
 import ds_volcano as VO
 import ds_aquasphere as AQ
+import ds_disneyland as DLM
 import math
 
 PORTS = list(C.PORT_COLOR)
@@ -147,6 +148,7 @@ def main():
                     "v": [round(LV.dem(g0x + i * step, g0y + j * step), 1) for j in range(ny) for i in range(nx)]}
 
     out["entrance"] = C.entrance_layer()      # Resort Line station + ticket gates (入場口・駅 layer)
+    out.update(DLM.build(out["levels"]["datum"]))   # ディズニーランド / 舞浜駅・周辺 layers (separate OSM extract)
     out["aquasphere"] = AQ.mock_geometry()     # same layout as the Blender build (ds_aquasphere.SPEC)
     vres = VO.build()
     out["volcano"] = {"contours": VO.contours(vres, 2.0), "summit": vres["summit"]}

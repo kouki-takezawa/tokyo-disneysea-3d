@@ -7,6 +7,7 @@
 !/docs/
 
 !/fetch_disneysea.py
+!/fetch_disneyland.py
 !/disneysea_draft.py
 !/disneysea_water_blender.py
 !/ds_*.py
@@ -16,6 +17,7 @@
 !/plateau_data/
 /plateau_data/*
 !/plateau_data/disneysea_osm.json
+!/plateau_data/disneyland_osm.json
 !/plateau_data/disneysea_levels.json
 !/plateau_data/disneysea_water.json
 !/plateau_data/disneysea_volcano.json
