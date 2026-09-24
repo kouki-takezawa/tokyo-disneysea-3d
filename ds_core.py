@@ -392,3 +392,52 @@ def height_for_way(w):
             pass
     cx, cy = poly_centroid(w["pts"])
     return PORT_DEFAULT_HEIGHT[nearest_port(cx, cy, w["pts"])]
+
+
+# ---------------------------------------------------------------- entrance / station layer
+# The Disney Resort Line station sits on the viaduct just outside the park boundary, above the entrance
+# plaza; the ticket gates (barrier=toll_booth "パークエントランス・…") line up to its west and south.
+STATION_PLATFORM_Z = 8.0   # platform height above the promenade datum (estimate; OSM has only layer=2)
+GATE_BOOTH_H = 1.2         # height of a gate booth (estimate)
+
+
+def entrance_layer():
+    """Station, nearby Resort Line track, gate rows, turnstiles, guest relations and the plaza walkways
+    outside the park boundary (in local metres, for export_mock)."""
+    st = next(p for p in DATA["pois"] if p["tags"].get("railway") == "station" and "ディズニーシー" in p["tags"].get("name", ""))
+    sx, sy = st["xy"]
+    near = lambda x, y, r: (x - sx) ** 2 + (y - sy) ** 2 < r * r
+    rnd = lambda pts: [[round(x, 1), round(y, 1)] for x, y in pts]
+    platforms = [rnd(_clean_ring(w["pts"])) for w in DATA["ways"]
+                 if w["tags"].get("railway") == "platform" and w["closed"] and near(*poly_centroid(w["pts"]), 40)]
+    rail = []
+    for w in DATA["ways"]:
+        if w["tags"].get("railway") != "monorail":
+            continue
+        run = []
+        for x, y in w["pts"]:
+            if near(x, y, 260):
+                run.append((x, y))
+            elif run:
+                if len(run) > 1: rail.append(rnd(run))
+                run = []
+        if len(run) > 1:
+            rail.append(rnd(run))
+    rows = {}
+    for p in DATA["pois"]:
+        n = p["tags"].get("name", "")
+        if p["tags"].get("barrier") == "toll_booth" and n.startswith("パークエントランス"):
+            rows.setdefault(n, []).append(p["xy"])
+    gates = []
+    for n, pts in rows.items():
+        (x0, y0), (x1, y1) = min(pts), max(pts)
+        dx, dy = x1 - x0, y1 - y0
+        gates.append({"n": n, "pts": rnd(sorted(pts, key=lambda q: (q[0] - x0) * dx + (q[1] - y0) * dy))})
+    turnstiles = [rnd([p["xy"]])[0] for p in DATA["pois"] if p["tags"].get("barrier") == "turnstile" and near(*p["xy"], 120)]
+    info = [{"n": "ゲストリレーション", "x": round(p["xy"][0], 1), "y": round(p["xy"][1], 1)} for p in DATA["pois"]
+            if "ゲストリレーション" in p["tags"].get("name", "") and near(*p["xy"], 120)]
+    walks = [rnd(w["pts"]) for w in DATA["ways"]
+             if w["tags"].get("highway") in ("footway", "pedestrian", "steps") and any(near(x, y, 70) for x, y in w["pts"])
+             and not point_in_poly(*poly_centroid(w["pts"]), PARK)]
+    return {"station": {"n": st["tags"]["name"], "x": round(sx, 1), "y": round(sy, 1), "z": STATION_PLATFORM_Z, "platforms": platforms},
+            "rail": rail, "gates": gates, "gate_h": GATE_BOOTH_H, "turnstiles": turnstiles, "info": info, "walks": walks}

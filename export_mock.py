@@ -146,6 +146,7 @@ def main():
     out["hgrid"] = {"x0": g0x, "y0": g0y, "step": step, "nx": nx, "ny": ny,
                     "v": [round(LV.dem(g0x + i * step, g0y + j * step), 1) for j in range(ny) for i in range(nx)]}
 
+    out["entrance"] = C.entrance_layer()      # Resort Line station + ticket gates (入場口・駅 layer)
     out["aquasphere"] = AQ.mock_geometry()     # same layout as the Blender build (ds_aquasphere.SPEC)
     vres = VO.build()
     out["volcano"] = {"contours": VO.contours(vres, 2.0), "summit": vres["summit"]}

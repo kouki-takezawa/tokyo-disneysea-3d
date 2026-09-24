@@ -11,7 +11,7 @@
   --path:#9AA59F; --rail:#445058; --priority:#C8432B; --land:#6A5A48;
   --p0:#B8731F; --p1:#9A553A; --p2:#56646D; --p3:#2F8585; --p4:#8458AB; --p5:#B99212; --p6:#5F8531; --p7:#BC4E86;
   --focus:#1E2A30;
-  --st-dem:#1F7A60; --st-link:#2C5FA8; --st-len:#B7791F; --st-unk:#D2362B; --contour:#CDBB98; --contour-idx:#A8926A; --wall:#7C7168; --bridge:#1E2A30;
+  --st-dem:#1F7A60; --st-link:#2C5FA8; --st-len:#B7791F; --st-unk:#D2362B; --contour:#CDBB98; --contour-idx:#A8926A; --wall:#7C7168; --bridge:#1E2A30; --gate:#0B7285;
   --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
 }
@@ -23,7 +23,7 @@
     --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
     --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
     --focus:#D6E3EA;
-    --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA;
+    --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
   }
 }
 :root[data-theme="dark"]{
@@ -33,7 +33,7 @@
   --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
   --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
   --focus:#D6E3EA;
-  --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA;
+  --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
 }
 *,*::before,*::after{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -489,7 +489,7 @@ const LAYERS = [
   ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
   ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
-  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["labels","ラベル","--muted",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
 try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
@@ -811,6 +811,7 @@ function redraw() {
   strokeRings([D.park], C.ink, Math.max(1.2, lw * 1.6));
 
   if (on.landmarks) drawLandmarks(C, lw);
+  if (on.entrance) drawEntrance(lw);
   if (hover && hover.r) strokeRings(hover.r, C.ink, lw * 2.6);  // stairs highlight themselves in drawStairs
   if (on.labels) drawLabels(C);
   updateScale();
@@ -913,6 +914,35 @@ function drawLandmarks(C, lw) {
     else if (m.t === "ship") { ring(m.r); }
     ctx.stroke();
   }
+}
+
+// Resort Line station (on the viaduct), nearby track, ticket gate rows, turnstiles, guest relations, plaza walkways
+function drawEntrance(lw) {
+  const E = D.entrance; if (!E) return;
+  const g = css("--gate");
+  ctx.save(); ctx.setLineDash([]);
+  ctx.beginPath(); E.rail.forEach(l => ring(l, false));
+  ctx.strokeStyle = g; ctx.lineWidth = Math.max(1.2, 3 * sc); ctx.stroke();
+  ctx.strokeStyle = css("--sheet"); ctx.lineWidth = Math.max(0.4, 3 * sc - 2); ctx.stroke();
+  ctx.beginPath(); E.station.platforms.forEach(r => ring(r));
+  ctx.fillStyle = g; ctx.globalAlpha = 0.18; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = g; ctx.lineWidth = Math.max(1, lw * 1.2); ctx.stroke();
+  ctx.beginPath(); E.walks.forEach(l => ring(l, false));
+  ctx.setLineDash([3, 3]); ctx.lineWidth = Math.max(0.8, lw); ctx.stroke(); ctx.setLineDash([]);
+  const s = Math.max(2.5, 1.1 * sc);   // gate booth marker (px)
+  for (const row of E.gates) {
+    const p = row.pts, a = p[0], b = p[p.length - 1];
+    ctx.beginPath(); ctx.moveTo(X(a[0]), Y(a[1])); ctx.lineTo(X(b[0]), Y(b[1])); ctx.lineWidth = Math.max(0.6, lw * 0.6); ctx.stroke();
+    ctx.fillStyle = g; p.forEach(([x, y]) => ctx.fillRect(X(x) - s / 2, Y(y) - s / 2, s, s));
+  }
+  E.turnstiles.forEach(([x, y]) => { ctx.beginPath(); ctx.arc(X(x), Y(y), Math.max(2, 0.8 * sc), 0, 6.2832); ctx.stroke(); });
+  ctx.fillStyle = g; E.info.forEach(m => { ctx.beginPath(); ctx.arc(X(m.x), Y(m.y), Math.max(2.5, 0.9 * sc), 0, 6.2832); ctx.fill(); });
+  if (sc > 0.9) {
+    label("東京ディズニーシー・ステーション", X(E.station.x) + 40, Y(E.station.y) - 26, g, 11.5, 700);
+    for (const row of E.gates) { const m = row.pts[Math.floor(row.pts.length / 2)]; label(row.n + "(入場口)", X(m[0]), Y(m[1]) + 14, g, 11, 700); }
+    if (sc > 2) E.info.forEach(m => label(m.n, X(m.x), Y(m.y) + 12, g, 10.5, 500));
+  }
+  ctx.restore();
 }
 
 function label(text, x, y, color, size, weight) {
@@ -1353,16 +1383,28 @@ async function init3D() {
     const s = A.coast;
     for (let k = 0; k < s.length; k += 4) seg("aqcoast", [...gp(s[k], s[k + 1]), ...gp(s[k + 2], s[k + 3])]);
   }
+  if (D.entrance) {   // station platforms and track on the viaduct, gate booths on the plaza
+    const E = D.entrance, zs = (heightAt(E.station.x, E.station.y) ?? 0) + E.station.z;
+    E.station.platforms.forEach(r => prism("entrance", r, zs - 0.4, zs));
+    E.rail.forEach(l => { line("entrance", l, zs + 0.9); line("entrance", l, zs + 0.2);
+      for (let i = 0; i < l.length; i += 3) seg("entrance", [...V(l[i][0], l[i][1], gz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], zs + 0.2)]); });
+    E.walks.forEach(l => lineZ("entrance", l, l.map(([x, y]) => gz(x, y))));
+    for (const row of E.gates) {
+      const p = row.pts, a = p[0], b = p[p.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+      p.forEach(([x, y]) => { const h = 0.35, w = 0.6, z0 = gz(x, y);
+        prism("entrance", [[x - ux * h - uy * w, y - uy * h + ux * w], [x + ux * h - uy * w, y + uy * h + ux * w], [x + ux * h + uy * w, y + uy * h - ux * w], [x - ux * h + uy * w, y - uy * h - ux * w]], z0, z0 + E.gate_h); });
+    }
+  }
   // 100 m grid under the park
   for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
   for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
 
   const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
     land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours",
-    aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks" };
+    aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
-    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land" };
+    walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
