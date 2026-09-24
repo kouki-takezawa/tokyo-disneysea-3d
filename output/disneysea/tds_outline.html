@@ -1192,7 +1192,7 @@ const RL = (() => {
     : `時速 ${Math.round(st.v * 3.6)} km ${st.phase === "brake" ? "・ 減速中 " : st.phase === "accel" ? "・ 加速中 " : ""}・ 次は ${st.next}`;
   window.TDS_TRAINS = { now, setClock, period: P, length: LEN, stations, trains,
     state: (t = now()) => trains.map(tr => { const st = state(tr, t), [x, y] = at(st.s); return { ...st, x, y, id: tr.id }; }) };
-  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots; the 3D trains follow the 3Dモデル toggle
+  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots (the 3D trains: trainsSolid / trainsWire)
 })();
 
 /* ---------- plan view ---------- */
@@ -2115,7 +2115,7 @@ async function init3D() {
       const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? ["disneyland", "buildings"] : LAYER_OF[k];
       o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
-    for (const t of three.trains || []) t.grp.visible = mdl.trains !== false;
+    for (const t of three.trains || []) { t.grp.visible = trainsSolid(); t.wire.group.visible = trainsWire(); }
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
@@ -2509,6 +2509,9 @@ async function init3D() {
   // (cabin seen through the windows); farther away, and always in lite mode, it is the simple shell.
   // No collision: the walker passes through them.
   const TRAIN_NEAR = 170;   // m from the camera to a car's middle
+  // 3D: the solid trains follow the 3Dモデル toggle; the 電車 layer draws them as outlines where the model is off
+  // (or on top of it with 枠線も重ねて表示), like the other parts
+  const trainsSolid = () => mdl.trains !== false, trainsWire = () => !!on.trains && (!trainsSolid() || !!mdl.overlay);
   const beamTop = MH ? MH.loop_z + 0.9 : 0;   // the beam drawn by the 舞浜駅・周辺 layer (estimated 8 m viaduct + 0.9 m beam)
 
   /* ---------- camera that follows a train (俯瞰) ---------- */
@@ -2565,7 +2568,15 @@ async function init3D() {
       const U = TM.uniforms(tr.scheme), grp = new T.Group();
       grp.name = `resort-line-${tr.scheme}`; scene.add(grp);
       const simple = TM.buildTrain(U, { simple: true }); grp.add(simple.group);
-      return { tr, U, grp, simple, detail: null, near: [] };
+      // outline version for the 電車 layer (shown when the 3D model is off, like the other layers' wireframes)
+      const wire = TM.buildTrain(U, { simple: true }), lm = new T.LineBasicMaterial({ color: tr.col });
+      wire.group.traverse(m => { if (!m.isMesh) return;
+        if (m.geometry.type === "SphereGeometry") { m.visible = false; return; }
+        const e = new T.LineSegments(new T.EdgesGeometry(m.geometry, 25), lm);
+        e.position.copy(m.position); e.rotation.copy(m.rotation); e.scale.copy(m.scale); m.parent.add(e);
+        m.visible = false; });
+      wire.group.name = `resort-line-${tr.scheme}-wire`; scene.add(wire.group);
+      return { tr, U, grp, simple, wire, detail: null, near: [] };
     });
     $("md-trains").disabled = false; $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
@@ -2577,10 +2588,13 @@ async function init3D() {
       b.gangways.forEach((g, i) => { const k = b.cars[i]; place(g, c + k.start + k.L - 0.02, 0.59, 0); });
     };
     three.trainTick = () => {
-      if (mdl.trains === false) return;
+      const solid = trainsSolid(), wire = trainsWire();
+      if (!solid && !wire) return;
       const t = RL.now();
       for (const o of three.trains) {
         const c = RL.state(o.tr, t).s;
+        if (wire) pose(o.wire, c);
+        if (!solid) continue;
         let anyNear = false;
         o.near = o.simple.cars.map(k => {
           const [x, y] = RL.at(c + k.start + k.L / 2), dz = beamTop * ex - cam.position.y;
@@ -2688,7 +2702,7 @@ if (RL) {
 /* ---------- follow a Resort Line train (俯瞰) ---------- */
 async function startFollow(id) {
   if (!RL) return;
-  if (mdl.trains === false) { mdl.trains = true; $("md-trains").checked = true; saveMdl(); }
+  if (mdl.trains === false && !on.trains) { mdl.trains = true; $("md-trains").checked = true; saveMdl(); }   // something must show the train
   if (mode !== "orbit") await show("orbit");
   if (!three.ready) return;
   three.visibility();
