@@ -37,6 +37,7 @@
 !/output/disneysea/mock_template.html
 !/output/disneysea/tds_outline.html
 !/output/disneysea/train.html
+!/output/disneysea/castle.html
 !/output/disneysea/train_model.js
 !/output/disneysea/models/
 /output/disneysea/models/*.glb

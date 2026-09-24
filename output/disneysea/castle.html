@@ -1,0 +1,557 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>シンデレラ城(2D 立面図)</title>
+<style>
+:root{--ink:#1E2A30;--muted:#66747C;--sheet:#F8FAF8;--rule:#D3DBD6}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#9cc3e6;font:13px/1.5 "Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;color:var(--ink)}
+#c{position:fixed;inset:0;display:block;width:100%;height:100%}
+.panel{position:fixed;left:10px;top:10px;width:300px;max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow:auto;background:rgba(248,250,248,.93);border:1px solid var(--rule);border-radius:6px;padding:10px 12px}
+.panel h1{margin:0 0 4px;font-size:14px}
+.panel h2{margin:8px 0 2px;font-size:11px;letter-spacing:.1em;color:var(--muted)}
+.panel p{margin:2px 0;color:var(--muted);font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 0}
+button{font:inherit;font-size:12px;height:28px;padding:0 10px;border:1px solid var(--rule);border-radius:4px;background:var(--sheet);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.spec{position:fixed;right:10px;bottom:10px;max-width:380px;background:rgba(248,250,248,.9);border:1px solid var(--rule);border-radius:6px;padding:8px 12px;font-size:11.5px;color:var(--muted)}
+.spec b{color:var(--ink);font-weight:500}
+body.clean .panel,body.clean .spec{display:none}
+@media (max-width:700px){.spec{display:none}.panel{width:auto;right:10px}.panel p.long{display:none}}
+</style>
+<canvas id="c"></canvas>
+<div class="panel">
+  <h1>シンデレラ城(2D 立面図)</h1>
+  <p class="long">東京ディズニーランドのシンデレラ城を、正面(ワールドバザール側)から見た 2D の絵。canvas だけで描いていて、画像ファイルは使っていない。</p>
+  <h2>時間帯</h2><div class="row" id="modes"></div>
+  <h2>表示</h2>
+  <div class="row"><button id="dims" aria-pressed="false">寸法線</button><button id="refl" aria-pressed="true">水面の映り込み</button><button id="save">PNG で保存</button></div>
+</div>
+<div class="spec">
+  <b>実測</b>(OSM): 高さ 51 m、建物の幅 約 36 m(東西)<br>
+  <b>写真から読み取った形</b>: 岩の土台と堀、灰色の石積みの城壁と胸壁、尖頭アーチの通り抜けと橋、白い上部の城と大広間の尖頭窓、青い円すい屋根と金の帯・頂部飾り、中央の尖塔と左右で高さの違う塔<br>
+  <b>推定</b>: 各塔の位置・太さ・高さ、窓の数と大きさ、城壁の長さ
+</div>
+<script>
+'use strict';
+// World units are metres: x = 0 at the centre of the archway (+x to the right, facing the castle),
+// y = 0 at the plaza level, up is +y. The waterline of the moat is at WATER.
+const WATER = -0.6, TOP = 51;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, S = 1, CX = 0, GY = 0;
+const sx = x => CX + x * S, sy = y => GY - y * S;
+
+// Two seeded random streams: rg for shapes (identical in every pass), rt for surface texture
+// (skipped in the emission pass, so it must not shift the shapes).
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rg, rt;
+
+const P = {
+  stone: '#b3ab9d', stoneT: '#bab2a4', rock: '#83796b', white: '#f0ece5', trim: '#ddd4c3',
+  roofL: '#6590db', roof: '#2d59ab', roofD: '#152d68', gold: '#d8b04a', goldL: '#f6dd8e', goldD: '#8e6a1f',
+  glass: '#26303e', leaf: '#4b7a3c', leafL: '#86ad5a', leafD: '#1f3c20',
+};
+
+// ---- colour helpers --------------------------------------------------------------------------------
+function rgb(c) { const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function sh(c, t) { const f = v => Math.max(0, Math.min(255, Math.round(t >= 0 ? v + (255 - v) * t : v * (1 + t)))); const [r, g, b] = rgb(c); return `rgb(${f(r)},${f(g)},${f(b)})`; }
+let g, EM = false;                 // g = the layer being drawn; EM = emission pass (everything black but lit windows)
+const C = c => EM ? '#000' : c;
+function LG(x0, y0, x1, y1, stops) { if (EM) return '#000'; const q = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => q.addColorStop(o, c)); return q; }
+function RG(x, y, r0, r1, stops) { if (EM) return '#000'; const q = g.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([o, c]) => q.addColorStop(o, c)); return q; }
+function fillRect(x0, y0, x1, y1, f) { g.fillStyle = f; g.fillRect(sx(x0), sy(y1), (x1 - x0) * S, (y1 - y0) * S); }
+// Light comes from the upper left: a cylinder is brightest a third of the way across.
+const cylShade = (x, r, k = 1) => LG(sx(x - r), 0, sx(x + r), 0, [[0, `rgba(0,0,0,${.14 * k})`], [.3, `rgba(255,255,255,${.16 * k})`], [.55, 'rgba(0,0,0,0)'], [.85, `rgba(0,0,0,${.22 * k})`], [1, `rgba(0,0,0,${.38 * k})`]]);
+
+// ---- masonry -------------------------------------------------------------------------------------
+function ashlar(x0, y0, x1, y1, base, ch, jit) {
+  if (EM || S < 3) return;
+  const pad = Math.min(.6, S * .06);
+  for (let y = y0, row = 0; y < y1; y += ch, row++) {
+    let x = x0 - rt() * 1.3;
+    while (x < x1) {
+      const w = .8 + rt() * 1.1;
+      g.fillStyle = sh(base, (rt() - .5) * jit);
+      g.fillRect(sx(x) + pad, sy(Math.min(y + ch, y1)) + pad, w * S - pad * 2, Math.min(ch, y1 - y) * S - pad * 2);
+      x += w;
+    }
+  }
+}
+function wall(x0, y0, x1, y1, base = P.stone, o = {}) {
+  g.save(); g.beginPath(); g.rect(sx(x0), sy(y1), (x1 - x0) * S, (y1 - y0) * S); g.clip();
+  g.fillStyle = C(sh(base, -.22)); g.fillRect(sx(x0), sy(y1), (x1 - x0) * S, (y1 - y0) * S);
+  if (EM || S < 3) { g.fillStyle = C(base); g.fillRect(sx(x0), sy(y1), (x1 - x0) * S, (y1 - y0) * S); }
+  ashlar(x0, y0, x1, y1, base, o.ch || .55, o.jit || .12);
+  // Soft darkening towards the ground and under the parapet.
+  g.fillStyle = LG(0, sy(y1), 0, sy(y0), [[0, 'rgba(0,0,0,.10)'], [.12, 'rgba(0,0,0,0)'], [.75, 'rgba(0,0,0,0)'], [1, 'rgba(40,30,20,.18)']]);
+  g.fillRect(sx(x0), sy(y1), (x1 - x0) * S, (y1 - y0) * S);
+  g.restore();
+}
+function cyl(x, r, y0, y1, base = P.stoneT, o = {}) {
+  const L = sx(x - r), T = sy(y1), w = 2 * r * S, h = (y1 - y0) * S;
+  g.save(); g.beginPath(); g.rect(L, T, w, h); g.clip();
+  g.fillStyle = C(o.smooth ? base : sh(base, -.2)); g.fillRect(L, T, w, h);
+  if (!EM && S >= 3) {
+    const ch = o.smooth ? 1.1 : .55, pad = Math.min(.6, S * .06);
+    for (let y = y0, row = 0; y < y1; y += ch, row++) {
+      if (o.smooth) { g.fillStyle = 'rgba(120,110,95,.12)'; g.fillRect(L, sy(y) - .5, w, .8); continue; }
+      const step = 1.2 / r; let a = -Math.PI / 2 + (row % 2) * step / 2 - step;
+      while (a < Math.PI / 2) {
+        const a1 = Math.min(a + step, Math.PI / 2), xa = x + r * Math.sin(Math.max(a, -Math.PI / 2)), xb = x + r * Math.sin(a1);
+        g.fillStyle = sh(base, (rt() - .5) * .12);
+        g.fillRect(sx(xa) + pad * .6, sy(Math.min(y + ch, y1)) + pad, (xb - xa) * S - pad * 1.2, ch * S - pad * 2);
+        a = a1;
+      }
+    }
+  }
+  g.fillStyle = cylShade(x, r, o.smooth ? .8 : 1); g.fillRect(L, T, w, h);
+  if (o.eave) { g.fillStyle = LG(0, T, 0, T + 1.4 * S, [[0, 'rgba(0,0,30,.35)'], [1, 'rgba(0,0,30,0)']]); g.fillRect(L, T, w, 1.4 * S); }
+  g.restore();
+}
+// Merlons along a flat wall top.
+function crenel(x0, x1, y, h = 1.05, mw = .95, gw = .7, base = P.stone) {
+  const n = Math.max(1, Math.round((x1 - x0 + gw) / (mw + gw))), sp = (x1 - x0 - n * mw) / Math.max(1, n - 1);
+  for (let i = 0; i < n; i++) { const a = x0 + i * (mw + sp); wall(a, y, a + mw, y + h, base, { ch: .5 }); fillRect(a, y + h - .12, a + mw, y + h, C(sh(base, .18))); }
+}
+// Merlons on a round parapet: narrower towards the edges.
+function crenelRound(x, r, y, h = 1.05, base = P.stoneT) {
+  const n = Math.max(4, Math.round(r * 2.2));
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + (i + .15) * Math.PI / n, a1 = -Math.PI / 2 + (i + .75) * Math.PI / n;
+    const xa = x + r * Math.sin(a0), xb = x + r * Math.sin(a1), lit = Math.cos((a0 + a1) / 2 + .6);
+    fillRect(xa, y, xb, y + h, C(sh(base, lit > 0 ? lit * .12 : lit * .35)));
+    fillRect(xa, y + h - .12, xb, y + h, C(sh(base, .2)));
+  }
+}
+// Projecting parapet carried on corbels (machicolations).
+function machicolate(x0, x1, y, base = P.stone, round = 0) {
+  const n = Math.max(3, Math.round((x1 - x0) / .9));
+  fillRect(x0 + .2, y - .75, x1 - .2, y, C(sh(base, -.45)));
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + (i + .5) * (x1 - x0) / n, w = (x1 - x0) / n * .42;
+    g.fillStyle = C(sh(base, round ? -.1 * Math.abs((cx - (x0 + x1) / 2) / ((x1 - x0) / 2)) : 0));
+    g.beginPath(); g.moveTo(sx(cx - w), sy(y)); g.lineTo(sx(cx + w), sy(y)); g.lineTo(sx(cx + w * .45), sy(y - .75)); g.lineTo(sx(cx - w * .45), sy(y - .75)); g.fill();
+  }
+}
+
+// ---- roofs ---------------------------------------------------------------------------------------
+function coneRoof(x, r, yb, yt, o = {}) {
+  const fl = r * 1.15, hh = yt - yb, dip = fl * .2;
+  const path = () => {
+    g.beginPath(); g.moveTo(sx(x - fl), sy(yb));
+    g.quadraticCurveTo(sx(x - r * .5), sy(yb + hh * .3), sx(x), sy(yt));
+    g.quadraticCurveTo(sx(x + r * .5), sy(yb + hh * .3), sx(x + fl), sy(yb));
+    g.quadraticCurveTo(sx(x), sy(yb - dip * 2), sx(x - fl), sy(yb)); g.closePath();
+  };
+  path(); g.fillStyle = LG(sx(x - fl), 0, sx(x + fl), 0, [[0, sh(P.roof, .05)], [.28, P.roofL], [.55, P.roof], [1, P.roofD]]); g.fill();
+  if (!EM && S >= 3) {
+    g.save(); path(); g.clip(); g.lineWidth = Math.max(.5, S * .045);
+    for (let y = yb; y < yt; y += .34) {            // shingle courses, bowed to read as round
+      const rr = fl * (1 - (y - yb) / hh) * 1.02;
+      g.strokeStyle = 'rgba(8,20,60,.28)'; g.beginPath(); g.moveTo(sx(x - rr), sy(y)); g.quadraticCurveTo(sx(x), sy(y - rr * .4), sx(x + rr), sy(y)); g.stroke();
+    }
+    for (let a = -1.3; a <= 1.31; a += .26) {       // seams from the tip
+      g.strokeStyle = a < 0 ? 'rgba(255,255,255,.08)' : 'rgba(0,0,40,.12)';
+      g.beginPath(); g.moveTo(sx(x), sy(yt)); g.lineTo(sx(x + fl * Math.sin(a)), sy(yb - dip * Math.cos(a))); g.stroke();
+    }
+    g.restore();
+  }
+  goldRing(x, fl * 1.01, yb - .05, .38, dip);
+  if (o.band) { const yy = yb + hh * o.band, rr = fl * (1 - o.band) * .98; goldRing(x, rr, yy, .28, rr * .2); }
+  finial(x, yt, o.fin ?? Math.max(.9, r * .55), o.fancy);
+}
+function goldRing(x, r, y, h, dip) {
+  g.beginPath(); g.moveTo(sx(x - r), sy(y)); g.quadraticCurveTo(sx(x), sy(y - dip * 2), sx(x + r), sy(y));
+  g.lineTo(sx(x + r), sy(y + h)); g.quadraticCurveTo(sx(x), sy(y + h - dip * 2), sx(x - r), sy(y + h)); g.closePath();
+  g.fillStyle = LG(sx(x - r), 0, sx(x + r), 0, [[0, P.gold], [.3, P.goldL], [.6, P.gold], [1, P.goldD]]); g.fill();
+}
+function finial(x, y, len, fancy) {
+  const gf = w => LG(sx(x - w), 0, sx(x + w), 0, [[0, P.gold], [.35, P.goldL], [1, P.goldD]]);
+  const ball = (yy, r) => { g.fillStyle = gf(r); g.beginPath(); g.arc(sx(x), sy(yy), r * S, 0, 7); g.fill(); };
+  if (fancy) {
+    ball(y + .05, .32); g.fillStyle = gf(.2); g.fillRect(sx(x - .09), sy(y + .75), .18 * S, .6 * S);
+    ball(y + .8, .22); ball(y + 1.18, .14);
+  } else ball(y + .08, Math.max(.13, len * .16));
+  g.fillStyle = gf(.1); g.beginPath(); g.moveTo(sx(x - .07), sy(y + (fancy ? 1.2 : .2))); g.lineTo(sx(x + .07), sy(y + (fancy ? 1.2 : .2))); g.lineTo(sx(x), sy(y + len)); g.fill();
+}
+// A hipped roof in elevation: a trapezoid with gold cresting on the ridge.
+function hipRoof(x0, x1, yb, yt, inset) {
+  const path = () => { g.beginPath(); g.moveTo(sx(x0), sy(yb)); g.lineTo(sx(x0 + inset), sy(yt)); g.lineTo(sx(x1 - inset), sy(yt)); g.lineTo(sx(x1), sy(yb)); g.closePath(); };
+  path(); g.fillStyle = LG(0, sy(yt), 0, sy(yb), [[0, P.roofL], [1, P.roof]]); g.fill();
+  // The hipped ends turn away from the light (left end lit, right end in shade).
+  g.fillStyle = C('rgba(255,255,255,.10)'); g.beginPath(); g.moveTo(sx(x0), sy(yb)); g.lineTo(sx(x0 + inset), sy(yt)); g.lineTo(sx(x0 + inset * 1.25), sy(yb)); g.fill();
+  g.fillStyle = C('rgba(0,0,40,.35)'); g.beginPath(); g.moveTo(sx(x1), sy(yb)); g.lineTo(sx(x1 - inset), sy(yt)); g.lineTo(sx(x1 - inset * 1.25), sy(yb)); g.fill();
+  if (!EM && S >= 3) { g.save(); path(); g.clip(); g.strokeStyle = 'rgba(8,20,60,.25)'; g.lineWidth = Math.max(.5, S * .045); for (let y = yb + .34; y < yt; y += .34) { g.beginPath(); g.moveTo(sx(x0), sy(y)); g.lineTo(sx(x1), sy(y)); g.stroke(); } g.restore(); }
+  fillRect(x0 - .1, yb - .1, x1 + .1, yb + .25, LG(sx(x0), 0, sx(x1), 0, [[0, P.gold], [.4, P.goldL], [1, P.goldD]]));
+  fillRect(x0 + inset, yt, x1 - inset, yt + .22, C(P.gold));
+  for (let x = x0 + inset; x <= x1 - inset + .01; x += .55) { g.fillStyle = C(P.gold); g.beginPath(); g.moveTo(sx(x - .1), sy(yt + .2)); g.lineTo(sx(x + .1), sy(yt + .2)); g.lineTo(sx(x), sy(yt + .75)); g.fill(); }
+  finial(x0 + inset, yt + .2, 1.3); finial(x1 - inset, yt + .2, 1.3);
+}
+function dormer(x, y, w, h) {
+  fillRect(x - w / 2, y, x + w / 2, y + h, LG(sx(x - w / 2), 0, sx(x + w / 2), 0, [[0, P.white], [1, sh(P.white, -.2)]]));
+  win(x, y + .15, w * .55, h * .8, 'round');
+  g.fillStyle = LG(sx(x - w / 2), 0, sx(x + w / 2), 0, [[0, P.roofL], [1, P.roofD]]);
+  g.beginPath(); g.moveTo(sx(x - w / 2 - .15), sy(y + h)); g.lineTo(sx(x), sy(y + h + w * .95)); g.lineTo(sx(x + w / 2 + .15), sy(y + h)); g.fill();
+  finial(x, y + h + w * .95, .6);
+}
+
+// ---- windows -------------------------------------------------------------------------------------
+function winPath(x, y0, w, h, type) {
+  const L = sx(x - w / 2), R = sx(x + w / 2), B = sy(y0);
+  g.beginPath();
+  if (type === 'slit') { g.rect(L, sy(y0 + h), R - L, B - sy(y0 + h)); return; }
+  const ah = type === 'round' ? w / 2 : w * .85, ys = y0 + h - ah;
+  g.moveTo(L, B); g.lineTo(L, sy(ys));
+  if (type === 'round') g.arc(sx(x), sy(ys), w / 2 * S, Math.PI, 0);
+  else { g.quadraticCurveTo(L, sy(ys + ah * .62), sx(x), sy(y0 + h)); g.quadraticCurveTo(R, sy(ys + ah * .62), R, sy(ys)); }
+  g.lineTo(R, B); g.closePath();
+}
+function win(x, y0, w, h, type = 'lancet', frame = P.trim) {
+  if (type !== 'slit') { winPath(x, y0 - .12, w + .34, h + .26, type); g.fillStyle = C(frame); g.fill(); }
+  winPath(x, y0, w, h, type);
+  if (EM) {
+    // Lit windows glow warm; arrow slits stay mostly dark. The level is fixed per window.
+    const k = type === 'slit' ? .25 : .55 + .45 * ((Math.sin(x * 12.9898 + y0 * 78.233) * 43758.5453) % 1 + 1) % 1;
+    g.fillStyle = `rgba(255,${190 + 30 * k | 0},${110 + 40 * k | 0},${k})`;
+  } else g.fillStyle = LG(0, sy(y0 + h), 0, sy(y0), [[0, '#1b222d'], [.55, P.glass], [1, '#4a5669']]);
+  g.fill();
+  if (!EM && S >= 3 && type !== 'slit') {
+    g.strokeStyle = 'rgba(210,200,185,.85)'; g.lineWidth = Math.max(.6, S * .06);
+    if (w > 1) { g.beginPath(); g.moveTo(sx(x), sy(y0)); g.lineTo(sx(x), sy(y0 + h - w * .45)); g.stroke(); }
+    if (h > 2.2) { g.beginPath(); g.moveTo(sx(x - w / 2), sy(y0 + h * .42)); g.lineTo(sx(x + w / 2), sy(y0 + h * .42)); g.stroke(); }
+    if (w > 1.3 && type === 'lancet') { g.beginPath(); g.arc(sx(x), sy(y0 + h - w * .42), w * .2 * S, 0, 7); g.stroke(); }
+  }
+  if (type !== 'slit') fillRect(x - w / 2 - .25, y0 - .3, x + w / 2 + .25, y0 - .1, C(sh(frame, -.08)));
+}
+
+// ---- parts of the castle ---------------------------------------------------------------------------
+function whiteTower(x, r, y0, y1, ytip, o = {}) {
+  cyl(x, r, y0, y1, P.white, { smooth: true, eave: true });
+  fillRect(x - r - .08, y1 - .45, x + r + .08, y1, C(P.trim));
+  fillRect(x - r - .08, y1 - .45, x + r + .08, y1, cylShade(x, r, .9));
+  const n = o.windows ?? Math.max(1, Math.floor((y1 - y0 - 2) / 5));
+  for (let i = 0; i < n; i++) { const yy = y0 + 2 + i * (y1 - y0 - 3) / n; win(x, yy, Math.min(.9, r * .55), Math.min(2.4, (y1 - y0 - 3) / n * .55), i === n - 1 ? 'lancet' : 'round'); }
+  coneRoof(x, r, y1, ytip, o);
+}
+function stoneTower(x, r, y0, y1, o = {}) {
+  cyl(x, r, y0, y1, P.stoneT, { eave: !!o.roof });
+  (o.slits || []).forEach(y => win(x - r * .15, y, .28, 1.2, 'slit'));
+  machicolate(x - r - .3, x + r + .3, y1 - .9, P.stoneT, 1);
+  cyl(x, r + .3, y1 - .9, y1, P.stoneT);
+  if (o.roof) coneRoof(x, r + .25, y1, o.roof, { band: .5 });
+  else crenelRound(x, r + .3, y1);
+}
+function bartizan(x, y0, y1, ytip, r = .8) {
+  g.fillStyle = C(P.stoneT);
+  g.beginPath(); g.moveTo(sx(x - r), sy(y0)); g.lineTo(sx(x + r), sy(y0)); g.lineTo(sx(x), sy(y0 - 1.6)); g.fill();
+  g.fillStyle = cylShade(x, r); g.beginPath(); g.moveTo(sx(x - r), sy(y0)); g.lineTo(sx(x + r), sy(y0)); g.lineTo(sx(x), sy(y0 - 1.6)); g.fill();
+  cyl(x, r, y0, y1, P.white, { smooth: true, eave: true });
+  win(x, y0 + .5, .3, 1, 'slit');
+  coneRoof(x, r, y1, ytip);
+}
+function thinSpire(x, r, y0, y1, ytip) { cyl(x, r, y0, y1, P.white, { smooth: true, eave: true }); win(x, y1 - 3, r * .6, 1.8, 'lancet'); coneRoof(x, r, y1, ytip, { fin: 1.1 }); }
+
+function mainTower() {
+  wall(-3.4, 27, 3.4, 41, P.white, { ch: 1.1, jit: .03 });
+  win(-1.25, 35.3, 1.05, 4.3); win(1.25, 35.3, 1.05, 4.3);
+  win(0, 40.1, .9, .7, 'round');
+  for (const s of [-1, 1]) { cyl(s * 3.5, .72, 33.5, 41.5, P.white, { smooth: true, eave: true }); coneRoof(s * 3.5, .72, 41.5, 45.3); }
+  fillRect(-3.55, 40.7, 3.55, 41.2, LG(sx(-3.5), 0, sx(3.5), 0, [[0, P.gold], [.35, P.goldL], [1, P.goldD]]));
+  // Octagonal drum under the spire: four faces seen, narrower towards the sides.
+  const faces = [[-2.6, -1.84, .06], [-1.84, 0, .16], [0, 1.84, -.1], [1.84, 2.6, -.32]];
+  faces.forEach(([a, b, t]) => fillRect(a, 41.2, b, 43.7, C(sh(P.white, t))));
+  win(-.95, 41.7, .5, 1.5, 'round'); win(.95, 41.7, .5, 1.5, 'round');
+  coneRoof(0, 2.75, 43.7, 50.1, { band: .42, fin: TOP - 50.1, fancy: true });
+  dormer(-1.15, 44.2, .7, .8); dormer(1.15, 44.2, .7, .8);
+}
+function section(x0, x1, y0, y1, ytip) {
+  wall(x0, y0, x1, y1, P.white, { ch: 1.1, jit: .03 });
+  const m = (x0 + x1) / 2; win(m, y0 + 3, 1.1, 3.6); win(m, y0 + 8, .9, 1.6, 'round');
+  hipRoof(x0 - .2, x1 + .2, y1, ytip, (x1 - x0) * .32);
+  dormer(m, y1 + .4, .9, 1);
+}
+function hall() {
+  wall(-5.6, 15, 5.6, 29, P.white, { ch: 1.1, jit: .03 });
+  for (const x of [-4.4, -1.6, 1.6, 4.4]) { fillRect(x - .28, 15, x + .28, 28.6, C(sh(P.white, .06))); fillRect(x + .28, 15, x + .45, 28.6, C('rgba(60,60,80,.16)')); }
+  win(0, 18.2, 2.0, 8.6); win(-3, 19, 1.3, 6.3); win(3, 19, 1.3, 6.3);
+  win(0, 27.3, .8, .8, 'round');
+  fillRect(-5.8, 28.5, 5.8, 29.05, LG(sx(-5.8), 0, sx(5.8), 0, [[0, P.gold], [.35, P.goldL], [1, P.goldD]]));
+  hipRoof(-5.9, 5.9, 29, 34.8, 3);
+  dormer(-3.9, 29.6, 1.1, 1.3); dormer(3.9, 29.6, 1.1, 1.3);
+}
+function crest(x, y) {
+  const w = 1.5, h = 2.2;
+  g.beginPath(); g.moveTo(sx(x - w / 2), sy(y + h)); g.lineTo(sx(x + w / 2), sy(y + h)); g.lineTo(sx(x + w / 2), sy(y + h * .45));
+  g.quadraticCurveTo(sx(x + w / 2), sy(y + .1), sx(x), sy(y)); g.quadraticCurveTo(sx(x - w / 2), sy(y + .1), sx(x - w / 2), sy(y + h * .45)); g.closePath();
+  g.fillStyle = LG(sx(x - w / 2), 0, sx(x + w / 2), 0, [[0, '#3864b8'], [1, '#1a3474']]); g.fill();
+  g.strokeStyle = C(P.gold); g.lineWidth = Math.max(1, S * .14); g.stroke();
+  g.fillStyle = C(P.goldL); g.beginPath(); g.arc(sx(x), sy(y + h * .55), .32 * S, 0, 7); g.fill();
+  g.fillStyle = C(P.gold); g.beginPath();                    // crown
+  g.moveTo(sx(x - .6), sy(y + h + .1)); g.lineTo(sx(x + .6), sy(y + h + .1)); g.lineTo(sx(x + .7), sy(y + h + .9)); g.lineTo(sx(x + .35), sy(y + h + .5));
+  g.lineTo(sx(x), sy(y + h + 1.05)); g.lineTo(sx(x - .35), sy(y + h + .5)); g.lineTo(sx(x - .7), sy(y + h + .9)); g.closePath(); g.fill();
+}
+function archPath(x, w, ys, apex, y0 = 0) {
+  g.beginPath(); g.moveTo(sx(x - w / 2), sy(y0)); g.lineTo(sx(x - w / 2), sy(ys));
+  g.quadraticCurveTo(sx(x - w / 2), sy(ys + (apex - ys) * .62), sx(x), sy(apex));
+  g.quadraticCurveTo(sx(x + w / 2), sy(ys + (apex - ys) * .62), sx(x + w / 2), sy(ys)); g.lineTo(sx(x + w / 2), sy(y0)); g.closePath();
+}
+function gatehouse() {
+  wall(-5.8, 0, 5.8, 15.2);
+  machicolate(-6.1, 6.1, 15.2); wall(-6.1, 15.2, 6.1, 16.2); crenel(-6.1, 6.1, 16.2);
+  // Voussoirs, then the passage through to Fantasyland.
+  archPath(0, 6.6, 6.2, 10.4); g.fillStyle = C(sh(P.stone, .22)); g.fill();
+  if (!EM) { g.strokeStyle = 'rgba(80,70,60,.35)'; g.lineWidth = Math.max(.6, S * .05); for (let i = 0; i <= 14; i++) { const t = i / 14, a = Math.PI * (1 - t); g.beginPath(); g.moveTo(sx(Math.cos(a) * 2.7), sy(6.2 + Math.sin(a) * 3.2)); g.lineTo(sx(Math.cos(a) * 3.3), sy(6.2 + Math.sin(a) * 4.0)); g.stroke(); } }
+  archPath(0, 5.4, 6.2, 9.6); g.fillStyle = LG(0, sy(9.6), 0, sy(0), [[0, '#1a1712'], [1, '#3a332a']]); g.fill();
+  if (EM) { archPath(0, 5.4, 6.2, 9.6); g.fillStyle = 'rgba(255,190,110,.22)'; g.fill(); }
+  archPath(0, 2.6, 3.4, 5.6); g.fillStyle = LG(0, sy(5.6), 0, sy(0), [[0, '#b8d3e6'], [.7, '#d9d2b8'], [1, '#9c8f74']]); g.fill();
+  archPath(0, 5.4, 6.2, 9.6); g.save(); g.clip();
+  if (!EM) { g.strokeStyle = 'rgba(255,230,190,.10)'; g.lineWidth = 1; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(sx(k * 2.7), sy(6.2)); g.lineTo(sx(k * 1.3), sy(3.4)); g.stroke(); g.beginPath(); g.moveTo(sx(k * 2.7), sy(0)); g.lineTo(sx(k * 1.3), sy(.4)); g.stroke(); } }
+  g.fillStyle = C('#2a2620'); for (let x = -2.6; x <= 2.61; x += .52) { g.beginPath(); g.moveTo(sx(x - .09), sy(9.8)); g.lineTo(sx(x + .09), sy(9.8)); g.lineTo(sx(x), sy(8.6)); g.fill(); }
+  fillRect(-2.7, 9.1, 2.7, 9.3, C('#2a2620'));
+  g.restore();
+  crest(0, 11.3);
+  for (const s of [-1, 1]) { win(s * 4.3, 7.5, .32, 1.7, 'slit'); win(s * 4.3, 11.8, .9, 2.2, 'lancet'); }
+}
+function curtain(s) {
+  const a = s < 0 ? -15 : 6, b = s < 0 ? -6 : 15;
+  wall(a, 0, b, 11.5); crenel(a + .2, b - .2, 11.5);
+  for (const x of [8.8, 11.2, 13.6]) win(s * x, 5.2, .28, 1.5, 'slit');
+  win(s * 12.6, 7.6, .8, 1.9, 'lancet');
+}
+function endWall(s) {
+  const steps = [[15, 18.2, 9], [18.2, 21.2, 7.4], [21.2, 24.2, 5.8]];
+  steps.forEach(([a, b, t]) => { const x0 = s < 0 ? -b : a, x1 = s < 0 ? -a : b; wall(x0, 0, x1, t); crenel(x0 + .15, x1 - .15, t, .9, .8, .6); });
+  win(s * 19.7, 3.5, .26, 1.3, 'slit');
+  bartizan(s * 23.9, 4.6, 7.2, 10);
+}
+
+// ---- rock, water edge, planting ------------------------------------------------------------------
+function rockTop(x) {
+  const pts = [[0, .5], [3.2, .5], [4.6, 2.2], [6.8, 3.6], [9, 5], [12.4, 3.4], [15.4, 6.4], [19, 4.4], [23.6, 3.4], [27, .3], [29, -.6]];
+  const a = Math.abs(x);
+  for (let i = 1; i < pts.length; i++) if (a <= pts[i][0]) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], t = (a - x0) / (x1 - x0); return y0 + (y1 - y0) * (t * t * (3 - 2 * t)); }
+  return WATER;
+}
+function rock() {
+  const pts = [];
+  for (let x = -29; x <= 29.01; x += .7) pts.push([x, rockTop(x) + (Math.abs(x) > 3.6 ? (rg() - .5) * .9 : 0)]);
+  const path = () => { g.beginPath(); g.moveTo(sx(-29), sy(WATER)); pts.forEach(([x, y]) => g.lineTo(sx(x), sy(y))); g.lineTo(sx(29), sy(WATER)); g.closePath(); };
+  path(); g.fillStyle = LG(0, sy(7), 0, sy(WATER), [[0, sh(P.rock, .12)], [1, sh(P.rock, -.3)]]); g.fill();
+  if (!EM && S >= 2) {
+    g.save(); path(); g.clip();
+    for (let i = 0; i < 420; i++) {             // boulders: lit on top, shaded underneath, dark joints between
+      const x = (rt() - .5) * 58, top = rockTop(x) + .4; if (top < WATER + .2) continue;
+      const y = WATER + Math.pow(rt(), .8) * (top - WATER), w = .7 + rt() * 1.8, h = .45 + rt() * .8, n = 7, q = [];
+      for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2, j = .75 + rt() * .3; q.push([x + Math.cos(a) * w / 2 * j, y + Math.sin(a) * h / 2 * j]); }
+      g.beginPath(); q.forEach(([a, b], k) => { const [c, d] = q[(k + 1) % n]; k ? g.quadraticCurveTo(sx(a), sy(b), sx((a + c) / 2), sy((b + d) / 2)) : g.moveTo(sx((a + c) / 2), sy((b + d) / 2)); });
+      g.quadraticCurveTo(sx(q[0][0]), sy(q[0][1]), sx((q[0][0] + q[1][0]) / 2), sy((q[0][1] + q[1][1]) / 2)); g.closePath();
+      const t = (rt() - .5) * .22;
+      g.fillStyle = g.createLinearGradient(sx(x - w / 3), sy(y + h / 2), sx(x + w / 4), sy(y - h / 2));
+      g.fillStyle.addColorStop(0, sh(P.rock, .2 + t)); g.fillStyle.addColorStop(.55, sh(P.rock, t)); g.fillStyle.addColorStop(1, sh(P.rock, -.35 + t));
+      g.fill(); g.strokeStyle = 'rgba(35,30,25,.4)'; g.lineWidth = Math.max(.6, S * .05); g.stroke();
+    }
+    g.fillStyle = LG(0, sy(1), 0, sy(WATER), [[0, 'rgba(40,50,30,0)'], [1, 'rgba(40,50,30,.45)']]); g.fillRect(sx(-29), sy(1), 58 * S, 1.6 * S);
+    g.restore();
+  }
+}
+function bridge() {
+  // The walkway runs out of the arch towards us; seen end-on, only its deck and the two parapet heads show.
+  fillRect(-2.9, WATER, 2.9, .05, LG(0, sy(.05), 0, sy(WATER), [[0, '#cfc3ab'], [1, '#8e826c']]));
+  for (const s of [-1, 1]) {
+    const a = s < 0 ? -4.3 : 2.9, b = s < 0 ? -2.9 : 4.3;
+    wall(a, WATER, b, 1.9, P.stoneT, { ch: .45 });
+    fillRect(a - .12, 1.9, b + .12, 2.2, C(sh(P.stone, .25)));
+    fillRect(s * 3.6 - .08, 2.2, s * 3.6 + .08, 4.3, C('#2c2c2c'));   // lamp
+    g.fillStyle = C('#2c2c2c'); g.fillRect(sx(s * 3.6 - .3), sy(4.9), .6 * S, .6 * S);
+    g.fillStyle = EM ? 'rgba(255,215,140,1)' : '#f2ead0'; g.fillRect(sx(s * 3.6 - .22), sy(4.82), .44 * S, .45 * S);
+    finial(s * 3.6, 4.9, .45);
+  }
+}
+function blob(x, y, r, dark) {
+  g.fillStyle = RG(sx(x - r * .35), sy(y + r * .4), r * .1 * S, r * 1.1 * S, [[0, dark ? P.leaf : P.leafL], [.55, dark ? P.leafD : P.leaf], [1, P.leafD]]);
+  g.beginPath(); g.arc(sx(x), sy(y), r * S, 0, 7); g.fill();
+  if (EM || S < 3) return;
+  for (let i = 0; i < r * 9; i++) {               // leaf clumps
+    const a = rt() * 7, d = Math.sqrt(rt()) * r * .9, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d, up = (py - y + r) / (2 * r);
+    g.fillStyle = up > .55 ? `rgba(190,220,130,${.10 + rt() * .12})` : `rgba(10,30,10,${.10 + rt() * .15})`;
+    g.beginPath(); g.arc(sx(px), sy(py), (.12 + rt() * .18) * S, 0, 7); g.fill();
+  }
+}
+function tree(x, y0, h, w) {
+  fillRect(x - .25, y0, x + .25, y0 + h * .4, C('#3b2e22'));
+  const n = 46, pts = [];
+  for (let i = 0; i < n; i++) { const a = rg() * 7, d = Math.sqrt(rg()); pts.push([x + Math.cos(a) * w * .44 * d, y0 + h * .62 + Math.sin(a) * h * .31 * d, (.13 + rg() * .1) * w]); }
+  pts.sort((p, q) => q[1] - p[1] + (p[0] - q[0]) * .2).forEach(([a, b, r]) => blob(a, b, r, b < y0 + h * .5));
+}
+function shrubs(x0, x1, yf, n, size) {
+  for (let i = 0; i < n; i++) { const x = x0 + rg() * (x1 - x0), r = size * (.5 + rg() * .6); blob(x, yf(x) + r * .45, r, rg() < .4); }
+}
+function treeLine() {
+  g.fillStyle = LG(0, sy(9), 0, sy(0), [[0, '#5e8550'], [1, '#2c4a2c']]);
+  for (let x = -80; x <= 80; x += 1.6) { const r = 1.6 + rg() * 1.6, y = 3 + rg() * 3; g.beginPath(); g.arc(sx(x), sy(y), r * S, 0, 7); g.fill(); }
+  fillRect(-80, WATER, 80, 4, LG(0, sy(4), 0, sy(WATER), [[0, '#3f6238'], [1, '#253f25']]));
+}
+function drawCastle() {
+  rg = rng(7); rt = rng(11);
+  treeLine();
+  // Upper castle, back to front.
+  thinSpire(-9.7, .8, 23, 37, 45.6); thinSpire(10, .75, 22, 33, 39.6);
+  mainTower();
+  section(-11.6, -7.2, 13, 24, 28.6); section(7.2, 11.6, 13, 23.5, 28.1);
+  whiteTower(-11.8, 1.6, 12, 25, 32.6); whiteTower(11.9, 1.55, 12, 24.2, 31.3);
+  whiteTower(-8.1, 2.1, 15, 31, 40.6, { windows: 3, band: .45 }); whiteTower(8.3, 2.0, 15, 30, 39.3, { windows: 3, band: .45 });
+  hall();
+  whiteTower(-5.75, 1.05, 26, 35.5, 42.3); whiteTower(5.8, 1.0, 26, 34.8, 41.5);
+  // Lower castle: the fortress in grey stone.
+  endWall(-1); endWall(1);
+  whiteTower(-16.7, .85, 14.5, 19, 23.2); whiteTower(16.8, .85, 14.5, 18.6, 22.6);
+  curtain(-1); curtain(1);
+  stoneTower(-15.5, 2.8, 0, 16.4, { slits: [4.5, 9.5] }); stoneTower(15.5, 2.8, 0, 16.4, { slits: [4.5, 9.5] });
+  bartizan(-10, 10.2, 12.9, 15.6); bartizan(10, 10.2, 12.9, 15.6);
+  gatehouse();
+  stoneTower(-6.5, 2.05, 0, 20.3, { roof: 27.6, slits: [4, 9, 14] }); stoneTower(6.5, 2.05, 0, 20.3, { roof: 27.6, slits: [4, 9, 14] });
+  rock(); bridge();
+  shrubs(-28, -4.5, rockTop, 26, 1.1); shrubs(4.5, 28, rockTop, 26, 1.1);
+  shrubs(-30, -24, () => WATER, 8, 1.4); shrubs(24, 30, () => WATER, 8, 1.4);
+  tree(-27.5, WATER, 11, 7); tree(27.8, WATER, 10.5, 7);
+  tree(-35, WATER, 17, 11); tree(35.5, WATER, 16, 11);
+}
+
+// ---- sky, lighting, water --------------------------------------------------------------------------
+const MODES = {
+  day:   { name: '昼',   sky: [[0, '#5d97d6'], [.6, '#a9cdef'], [1, '#e2eef6']], water: ['#5b8a98', '#2d5563'], refl: .5 },
+  dusk:  { name: '夕方', sky: [[0, '#2b3d72'], [.45, '#8b6c9e'], [.8, '#ef9d6c'], [1, '#fbd28e']], water: ['#6c6582', '#2a2d4a'], refl: .55,
+           tint: '#f1c3a2', glow: .45, sun: 'rgba(255,170,90,.35)' },
+  night: { name: '夜',   sky: [[0, '#060c22'], [.6, '#16244c'], [1, '#2d3b6a']], water: ['#101a36', '#050a18'], refl: .65,
+           tint: '#26315f', glow: 1, flood: true },
+};
+let mode = 'day', showDims = false, showRefl = true;
+const layer = () => document.createElement('canvas');
+const cc = layer(), mask = layer(), lt = layer(), em = layer();
+
+function sky(m) {
+  const q = ctx.createLinearGradient(0, 0, 0, sy(WATER)); m.sky.forEach(([o, c]) => q.addColorStop(o, c));
+  ctx.fillStyle = q; ctx.fillRect(0, 0, W, sy(WATER));
+  const r = rng(3);
+  if (mode === 'night') {
+    for (let i = 0; i < 260; i++) { const x = r() * W, y = r() * sy(12), a = .3 + r() * .7; ctx.fillStyle = `rgba(255,255,240,${a * (1 - y / sy(12)) })`; ctx.fillRect(x, y, r() < .1 ? 2 : 1.2, r() < .1 ? 2 : 1.2); }
+    const mx = sx(24), my = sy(44), mr = 1.4 * S;
+    const halo = ctx.createRadialGradient(mx, my, mr, mx, my, mr * 7); halo.addColorStop(0, 'rgba(200,215,255,.25)'); halo.addColorStop(1, 'rgba(200,215,255,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(mx, my, mr * 7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#f4f1e0'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, 7); ctx.fill();
+    return;
+  }
+  if (mode === 'dusk') {
+    const sxp = sx(-40), syp = sy(6), sun = ctx.createRadialGradient(sxp, syp, 0, sxp, syp, 45 * S);
+    sun.addColorStop(0, 'rgba(255,220,150,.75)'); sun.addColorStop(1, 'rgba(255,160,90,0)'); ctx.fillStyle = sun; ctx.fillRect(0, 0, W, sy(WATER));
+  }
+  for (let i = 0; i < 7; i++) {                 // soft cumulus
+    const x = sx(-60 + r() * 120), y = sy(30 + r() * 26), w = (8 + r() * 12) * S;
+    for (let k = 0; k < 9; k++) {
+      const px = x + (r() - .5) * w, py = y + (r() - .5) * w * .18, pr = w * (.12 + r() * .14);
+      const q2 = ctx.createRadialGradient(px, py - pr * .3, 0, px, py, pr);
+      const c = mode === 'dusk' ? '255,205,175' : '255,255,255';
+      q2.addColorStop(0, `rgba(${c},.55)`); q2.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = q2; ctx.beginPath(); ctx.arc(px, py, pr, 0, 7); ctx.fill();
+    }
+  }
+}
+function setupLayer(c) { c.width = W * DPR; c.height = H * DPR; const k = c.getContext('2d'); k.setTransform(DPR, 0, 0, DPR, 0, 0); k.clearRect(0, 0, W, H); return k; }
+
+function render() {
+  const m = MODES[mode];
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+  sky(m);
+  g = setupLayer(cc); EM = false; drawCastle();
+  if (m.tint) {
+    const mk = setupLayer(mask); mk.setTransform(1, 0, 0, 1, 0, 0); mk.drawImage(cc, 0, 0);
+    g.globalCompositeOperation = 'multiply'; g.fillStyle = m.tint; g.fillRect(0, 0, W, H);
+    // Light: the setting sun from the left at dusk, floodlights from below at night.
+    const l = setupLayer(lt);
+    if (m.sun) { const q = l.createLinearGradient(sx(-20), 0, sx(20), 0); q.addColorStop(0, m.sun); q.addColorStop(1, 'rgba(255,170,90,0)'); l.fillStyle = q; l.fillRect(0, 0, W, H); }
+    if (m.flood) {
+      l.save(); l.translate(sx(0), sy(4)); l.scale(1, 1.6);
+      const q = l.createRadialGradient(0, 0, 0, 0, 0, 26 * S); q.addColorStop(0, 'rgba(175,195,255,.62)'); q.addColorStop(.6, 'rgba(165,185,255,.28)'); q.addColorStop(1, 'rgba(165,185,255,0)');
+      l.fillStyle = q; l.fillRect(-W, -H, 2 * W, 2 * H); l.restore();
+      const s = l.createRadialGradient(sx(0), sy(36), 0, sx(0), sy(36), 22 * S); s.addColorStop(0, 'rgba(235,175,255,.35)'); s.addColorStop(1, 'rgba(235,175,255,0)'); l.fillStyle = s; l.fillRect(0, 0, W, H);
+    }
+    l.setTransform(1, 0, 0, 1, 0, 0); l.globalCompositeOperation = 'destination-in'; l.drawImage(mask, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-in'; g.drawImage(mask, 0, 0);
+    g.globalCompositeOperation = 'screen'; g.drawImage(lt, 0, 0);
+    // Lit windows: the castle drawn again in black with only the windows glowing, so nearer parts still hide them.
+    const e = setupLayer(em); const keep = g; g = e; EM = true; drawCastle(); g = keep; EM = false;
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = m.glow;
+    g.filter = `blur(${Math.max(2, S * .5)}px)`; g.drawImage(em, 0, 0); g.filter = 'none'; g.drawImage(em, 0, 0);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(cc, 0, 0); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  water(m);
+  if (showDims) dims();
+}
+function water(m) {
+  const wl = sy(WATER);
+  const q = ctx.createLinearGradient(0, wl, 0, H); q.addColorStop(0, m.water[0]); q.addColorStop(1, m.water[1]);
+  ctx.fillStyle = q; ctx.fillRect(0, wl, W, H - wl);
+  if (showRefl) {
+    // Mirror the castle about the waterline, one thin strip at a time, each nudged sideways by a small wave.
+    ctx.save(); ctx.globalAlpha = m.refl; ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const WL = wl * DPR, step = 2 * DPR;
+    for (let py = WL; py < H * DPR; py += step) {
+      const d = py - WL, src = WL - d - step; if (src < 0) break;
+      const off = Math.sin(py * .21 / DPR) * (1 + d * .012) * DPR + Math.sin(py * .057 / DPR + 1) * DPR;
+      ctx.drawImage(cc, 0, src, W * DPR, step, off, py, W * DPR, step);
+    }
+    ctx.restore();
+    const fade = ctx.createLinearGradient(0, wl, 0, H); fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, m.water[1]);
+    ctx.fillStyle = fade; ctx.fillRect(0, wl, W, H - wl);
+  }
+  const r = rng(5); ctx.lineWidth = 1;
+  for (let i = 0; i < 140; i++) {                // glints on the ripples
+    const y = wl + Math.pow(r(), 1.6) * (H - wl), x = r() * W, w = (4 + r() * 30) * (1 + (y - wl) / (H - wl));
+    ctx.strokeStyle = mode === 'night' ? `rgba(180,200,255,${.08 + r() * .12})` : `rgba(255,255,255,${.08 + r() * .18})`;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(0, wl, W, 1.5);
+}
+function dims() {
+  const ink = mode === 'day' ? '#1E2A30' : '#f2f4f8';
+  ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineWidth = 1; ctx.font = '12px system-ui,sans-serif';
+  const X = sx(21);
+  ctx.beginPath(); ctx.moveTo(X, sy(0)); ctx.lineTo(X, sy(TOP)); ctx.stroke();
+  for (let y = 0; y <= 50; y += 10) { ctx.beginPath(); ctx.moveTo(X - 4, sy(y)); ctx.lineTo(X + 4, sy(y)); ctx.stroke(); ctx.fillText(`${y} m`, X + 7, sy(y) + 4); }
+  ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(sx(0), sy(TOP)); ctx.lineTo(X + 4, sy(TOP)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx(-30), sy(0)); ctx.lineTo(sx(30), sy(0)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.font = '600 12px system-ui,sans-serif'; ctx.fillText('51 m(実測・頂部飾りの先まで)', X + 7, sy(TOP) + 4);
+  ctx.font = '12px system-ui,sans-serif'; ctx.fillText('園路の高さ(0 m)', sx(-30), sy(0) - 5);
+  // Width of the building: OSM gives about 36 m east–west.
+  const y = sy(-3.2);
+  ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(sx(-18.3), y); ctx.lineTo(sx(18.3), y); ctx.moveTo(sx(-18.3), y - 5); ctx.lineTo(sx(-18.3), y + 5); ctx.moveTo(sx(18.3), y - 5); ctx.lineTo(sx(18.3), y + 5); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.fillText('建物の幅 約 36 m(OSM)', sx(0), y - 6); ctx.textAlign = 'left';
+}
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  // Portrait screens crop the trees at the sides and sit the castle lower, below the panel.
+  S = Math.min(W / (W < H ? 46 : 76), H / 62);
+  CX = W / 2; GY = W < H ? H * .78 : H / 2 + 22 * S;
+  render();
+}
+const modesEl = document.getElementById('modes');
+Object.entries(MODES).forEach(([k, m]) => {
+  const b = document.createElement('button'); b.textContent = m.name; b.dataset.k = k; b.setAttribute('aria-pressed', k === mode);
+  b.onclick = () => { mode = k; modesEl.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.k === mode)); render(); };
+  modesEl.appendChild(b);
+});
+const toggle = (id, set) => { const b = document.getElementById(id); b.onclick = () => { const v = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', v); set(v); render(); }; };
+toggle('dims', v => showDims = v); toggle('refl', v => showRefl = v);
+document.getElementById('save').onclick = () => { const a = document.createElement('a'); a.download = `cinderella_castle_${mode}.png`; a.href = cv.toDataURL('image/png'); a.click(); };
+// ?mode=night&dims=1&clean=1 opens the page in that state (clean hides the panels, for screenshots).
+addEventListener('resize', resize);
+resize();
+const qs = new URLSearchParams(location.search);
+if (MODES[qs.get('mode')]) modesEl.querySelector(`[data-k=${qs.get('mode')}]`).click();
+if (qs.get('dims') === '1') document.getElementById('dims').click();
+if (qs.get('clean') === '1') document.body.classList.add('clean');
+</script>
