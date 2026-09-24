@@ -1638,7 +1638,11 @@ async function init3D() {
   addEventListener("keyup", e => wk.keys.delete(e.code));
   addEventListener("blur", () => wk.keys.clear());
   three.walkTick = dt => {
-    if (three.walkDirty) { three.walkDirty = false; buildGrid(); }
+    if (three.walkDirty) {   // models loaded or toggled: re-seat the feet on what is there now
+      three.walkDirty = false; buildGrid();
+      const g = groundAt(wk.x, wk.z, Math.max(wk.y, heightAt(wk.x, -wk.z) ?? 0) + 1);
+      if (g != null && g !== wk.y) { wk.y = g; placeCamera(); }
+    }
     const k = wk.keys;
     const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0) - joy.y;
     const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0) + joy.x;
