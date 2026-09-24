@@ -1312,7 +1312,7 @@ async function init3D() {
         seg("land", [...V(m.x + c * m.r1, m.y + s * m.r1, bz), ...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h)]);
         seg("land", [...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h), ...V(m.x + c * m.r2 * .45, m.y + s * m.r2 * .45, bz + m.h - m.crater)]); }
     } else if ((m.t === "sphere" && !D.aquasphere) || m.t === "dome") {
-      const R = m.r, zc = m.t === "sphere" ? m.z : 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
+      const R = m.r, zc = m.z || 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
       for (let k = lo; k <= 6; k++) { const ph = k / 6 * Math.PI / 2; circ("land", m.x, m.y, R * Math.cos(ph), zc + R * Math.sin(ph) * sz, 40); }
       for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832;
         for (let j = lo; j < 6; j++) { const p1 = j / 6 * Math.PI / 2, p2 = (j + 1) / 6 * Math.PI / 2;

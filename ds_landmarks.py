@@ -98,20 +98,20 @@ def build_aquasphere():
 
 
 def build_triton_dome():
-    """King Triton's Castle / Mermaid Lagoon dome hall. Anchor from OSM POIs
-    'マーメイドラグーン'/'キング・トリトンズ・キャッスル' cluster ~(-190,32)."""
-    cx, cy = -190.0, 32.0
-    r = 50.0
+    """Octagonal tent roof over the Mermaid Lagoon indoor hall (ds_core.TRITON_ROOF, from the aerial photo),
+    sitting on the hall's flat roof; the hall itself is boxed by ds_buildings."""
+    from ds_core import TRITON_ROOF as TR
+    cx, cy, r = TR["x"], TR["y"], TR["r"]
     bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=28, v_segments=16, radius=r)
+    bmesh.ops.create_uvsphere(bm, u_segments=8, v_segments=8, radius=r)
     below = [v for v in bm.verts if v.co.z < -0.01]
     bmesh.ops.delete(bm, geom=below, context="VERTS")
     open_edges = [e for e in bm.edges if e.is_boundary]
     if open_edges:
         bmesh.ops.holes_fill(bm, edges=open_edges, sides=0)
-    bmesh.ops.scale(bm, vec=(1.0, 1.0, 0.55), verts=bm.verts)  # low dome ~27 m, not a 50 m hemisphere
+    bmesh.ops.scale(bm, vec=(1.0, 1.0, (TR["peak"] - TR["eaves"]) / r), verts=bm.verts)
     mat = flat_material("mat_triton_dome", (0.58, 0.44, 0.64), roughness=0.7)
-    return _finish(bm, "Triton_Dome", (cx, cy, 0.0), mat)
+    return _finish(bm, "Triton_Dome", (cx, cy, TR["eaves"]), mat)
 
 
 def _footprint_by_name(*keys):

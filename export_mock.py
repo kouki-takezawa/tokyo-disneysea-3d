@@ -156,7 +156,8 @@ def main():
         # AquaSphere: globe 8 m on a 2 m pedestal (user spec), pool r 11.16 (OSM 72388087), rim 0.40 m; ground -0.39 (water tab)
         {"t": "sphere", "n": "アクアスフィア(直径8 m・台座2 m)", "x": 360.85, "y": 36.37, "r": 4.0, "z": -0.39 + 2.0 + 4.0,
          "basin": 11.16, "rim_h": 0.40, "g": -0.39, "ped": 2.0},
-        {"t": "dome", "n": "マーメイドラグーン(トリトン・ドーム)", "x": -190, "y": 32, "r": 50, "h": 27.5},
+        {"t": "dome", "n": "マーメイドラグーン(屋内ホールの八角屋根)", "x": C.TRITON_ROOF["x"], "y": C.TRITON_ROOF["y"],
+         "r": C.TRITON_ROOF["r"], "z": C.TRITON_ROOF["eaves"], "h": C.TRITON_ROOF["peak"] - C.TRITON_ROOF["eaves"]},
     ]
     ship = next((w for w in C.DATA["ways"]
                  if any(k in w["tags"].get("name", "") + w["tags"].get("name:en", "") for k in C.LANDMARK_SKIP)), None)

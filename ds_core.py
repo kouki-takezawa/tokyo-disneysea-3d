@@ -114,6 +114,7 @@ PORT_COLOR = {  # flat placeholder colors for the draft (no photo textures)
 HEIGHT_OVERRIDE = {
     217617810: 24.0,   # Hotel MiraCosta (OSM tag says 20m; harbor wings read taller)
     1259623365: 38.2,  # Fantasy Springs Hotel (OSM height tag)
+    111785344: 15.0,   # Mermaid Lagoon indoor hall: flat roof under the octagonal tent roof (estimate, see TRITON_ROOF)
 }
 NAME_HEIGHT_OVERRIDE = [
     ("ラプンツェル", 32.0),       # Rapunzel's Lantern Festival tower cluster
@@ -134,13 +135,12 @@ DETAIL_PRIORITY = [
     "ニモフレンズ", "Nemo",                                                    # Port Discovery
     "ミッキー＆フレンズ・グリーティングトレイル",                              # cross-park (near Mysterious Island)
 ]
-# Reference-only (not in current OSM / current park layout - Tower of Terror /
-# Hotel Hightower was demolished for Fantasy Springs): noted in case the user
-# later wants the pre-2022 layout reconstructed as an alternate scene.
 # Footprints rebuilt by ds_landmarks with a custom silhouette -> not boxed.
 LANDMARK_SKIP = ["S.S.コロンビア", "SS Columbia"]
 LANDMARK_SKIP_IDS = {217618801}  # unnamed building=yes on the AquaSphere pool circle (ds_aquasphere owns it)
-REMOVED_LANDMARKS_NOTE = "Hotel Hightower / Tower of Terror: demolished 2022, not modelled unless requested."
+# Mermaid Lagoon: the octagonal tent roof over the indoor hall (way 111785344), read off the GSI aerial photo:
+# centre, radius (m), eaves = hall roof height, peak height (both heights are estimates)
+TRITON_ROOF = {"x": -188.0, "y": -43.0, "r": 17.0, "eaves": 15.0, "peak": 27.5}
 
 
 _PORT_POIS = []   # [(x, y, land)], filled on first use (mutated in place, see the module docstring)
@@ -381,7 +381,7 @@ def height_for_way(w):
     tag_h = w["tags"].get("height")
     if tag_h:
         try:
-            return float(str(tag_h).replace("m", "").strip())
+            return float(str(tag_h).split(";")[0].replace("m", "").strip())   # "10;3": first value
         except ValueError:
             pass
     levels = w["tags"].get("building:levels")
