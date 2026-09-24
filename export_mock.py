@@ -202,7 +202,13 @@ def main():
           f"bldg={len(out['buildings'])} water={len(out['water'])} paths={len(out['paths'])}")
     # always rebuild the publishable page from the template (keeps other tabs' template hooks)
     tpl = ROOT / "output" / "disneysea" / "mock_template.html"
-    page = tpl.read_text(encoding="utf-8").replace("__DATA__", path.read_text(encoding="utf-8").replace("</", r"<\/"))
+    # the Resort Line train model (train_model.js, shared with train.html) goes into the page itself, so the
+    # 3D trains never depend on a second file being fetched
+    tm = (ROOT / "output" / "disneysea" / "train_model.js").read_text(encoding="utf-8")
+    if "</" in tm:
+        raise SystemExit("train_model.js must not contain '</' (it is inlined in a <script> tag)")
+    page = tpl.read_text(encoding="utf-8").replace("__TRAIN_MODEL__", tm)
+    page = page.replace("__DATA__", path.read_text(encoding="utf-8").replace("</", r"<\/"))
     (ROOT / "output" / "disneysea" / "tds_outline.html").write_text(page, encoding="utf-8")
     print(f"[mock] page tds_outline.html {len(page.encode('utf-8')) / 1024:.0f} KB")
 
