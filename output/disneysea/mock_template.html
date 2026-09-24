@@ -120,7 +120,8 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 
 /* view + overlays */
 .viewport{flex:1 1 auto;min-width:0;position:relative;background:var(--sheet);overflow:hidden;touch-action:none}
-#plan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#plan,#trainPlan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#trainPlan{pointer-events:none}
 #plan{cursor:grab}
 #plan.dragging{cursor:grabbing}
 .hud{position:absolute;display:flex;gap:6px;pointer-events:none;z-index:5}
@@ -277,6 +278,11 @@ body.coarse .hud.tc{top:auto;bottom:176px}
           </dl>
         </section>
         <div id="wxSlot"></div>
+        <section id="rlSec" hidden>
+          <h2>リゾートライン(電車)</h2>
+          <ul class="notes" id="rlStatus"></ul>
+          <p class="hintp" id="rlNote"></p>
+        </section>
         <section>
           <h2>階段・高低差</h2>
           <ul class="basis" id="basis"></ul>
@@ -294,6 +300,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
             <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
             <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
             <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
+            <li>リゾートラインの電車は、実際の時刻表ではなく、同じ走り方をくり返す想定の運行です(速度・停車時間は推定)。</li>
           </ul>
         </section>
         <section>
@@ -303,6 +310,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
             <li>標高: 国土地理院 基盤地図情報 数値標高モデル(5 mメッシュ, DEM5A)</li>
             <li>航空写真: 国土地理院 シームレス空中写真</li>
             <li>地球儀: NOAA ETOPO(パブリックドメイン)</li>
+            <li>電車の寸法: Wikipedia「舞浜リゾートライン」(形と色は写真を見て手で作ったもの)</li>
           </ul>
         </section>
       </div>
@@ -311,6 +319,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
 
   <div class="viewport" id="viewport">
     <canvas id="plan" aria-label="ディズニーパークの平面図"></canvas>
+    <canvas id="trainPlan" aria-hidden="true"></canvas>
     <div id="three" hidden></div>
     <div class="hud tl">
       <button class="btn no-walk" id="zin" aria-label="拡大">＋</button>
@@ -718,10 +727,103 @@ function findSpot(x, y) {   // nearest dry point in the park outside buildings (
   return [x, y];
 }
 
+/* ---------- Resort Line: two trains running round the loop ---------- */
+// The timetable is plain JS (it also drives the markers on the plan); the 3D bodies come from train_model.js.
+// Both trains follow the same pattern half a lap apart: dwell at a station, speed up, run, slow down, stop.
+const RL = (() => {
+  if (!MH || !MH.loop || !MH.loop.length) return null;
+  const V = 35 / 3.6, ACC = 0.9, DWELL = 20;           // m/s (35 km/h; the line runs at up to 50), m/s², s
+  const TL = 2 * 15.05 + 4 * 13.70 + 5 * 0.55;         // train length (train_model.js: 6 cars and the gaps)
+  const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  // chain the loop's ways into one closed line
+  const rest = MH.loop.map(l => l.map(p => [p[0], p[1]]));
+  let pts = rest.shift();
+  while (rest.length) {
+    const end = pts[pts.length - 1]; let bi = 0, bd = Infinity, rev = false;
+    rest.forEach((s, i) => { const a = d2(end, s[0]), b = d2(end, s[s.length - 1]); if (a < bd) { bd = a; bi = i; rev = false; } if (b < bd) { bd = b; bi = i; rev = true; } });
+    const s = rest.splice(bi, 1)[0]; if (rev) s.reverse();
+    pts = pts.concat(bd < 0.5 ? s.slice(1) : s);
+  }
+  if (d2(pts[0], pts[pts.length - 1]) < 0.5) pts.pop();
+  let a2 = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a2 += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
+  if (a2 < 0) pts.reverse();   // anticlockwise, the way the line runs: Gateway → Tokyo Disneyland → Bayside → Tokyo DisneySea
+  pts.push(pts[0]);
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + d2(pts[i - 1], pts[i]));
+  const LEN = cum[cum.length - 1];
+  function at(s) {   // [x, y, ux, uy] at arc length s (wraps round the loop)
+    s = ((s % LEN) + LEN) % LEN;
+    let lo = 0, hi = cum.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+    const a = pts[lo], b = pts[hi], L = cum[hi] - cum[lo] || 1e-6, t = (s - cum[lo]) / L;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  }
+  function project(x, y) {
+    let best = 0, bd = Infinity;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)), d = Math.hypot(x - ax - dx * t, y - ay - dy * t);
+      if (d < bd) { bd = d; best = cum[i - 1] + Math.sqrt(L2) * t; }
+    }
+    return best;
+  }
+  // stations: the Resort Line's own (JR Maihama is not on the loop); the train stops centred on the platforms
+  const stations = MH.stations.filter(st => st.k === "monorail").map(st => {
+    const cs = MH.platforms.map(r => [r.reduce((a, p) => a + p[0], 0) / r.length, r.reduce((a, p) => a + p[1], 0) / r.length]).filter(c => d2(c, [st.x, st.y]) < 45);
+    const c = cs.length ? [cs.reduce((a, p) => a + p[0], 0) / cs.length, cs.reduce((a, p) => a + p[1], 0) / cs.length] : [st.x, st.y];
+    return { n: st.n, s: project(c[0], c[1]) };
+  }).sort((a, b) => a.s - b.s);
+  const g0 = Math.max(0, stations.findIndex(st => st.n.includes("ゲートウェイ")));
+  stations.push(...stations.splice(0, g0));
+  // one lap: [dwell at station i, run to station i + 1] for every station
+  const run = d => {
+    const da = V * V / (2 * ACC);
+    if (d >= 2 * da) return { d, ta: V / ACC, tc: (d - 2 * da) / V, vm: V, T: 2 * V / ACC + (d - 2 * da) / V };
+    const vm = Math.sqrt(d * ACC); return { d, ta: vm / ACC, tc: 0, vm, T: 2 * vm / ACC };
+  };
+  const runAt = (r, t) => {   // [distance, speed] t s after leaving
+    const da = 0.5 * ACC * r.ta * r.ta;
+    if (t < r.ta) return [0.5 * ACC * t * t, ACC * t];
+    if (t < r.ta + r.tc) return [da + r.vm * (t - r.ta), r.vm];
+    t = Math.min(r.T, t) - r.ta - r.tc; return [da + r.vm * r.tc + r.vm * t - 0.5 * ACC * t * t, Math.max(0, r.vm - ACC * t)];
+  };
+  const legs = []; let P = 0;
+  stations.forEach((st, i) => {
+    const nx = stations[(i + 1) % stations.length], r = run(((nx.s - st.s) % LEN + LEN) % LEN || LEN);
+    legs.push({ i, t0: P, r }); P += DWELL + r.T;
+  });
+  const trains = [{ id: 0, scheme: "blue", ja: "ブルー", col: "#2f7fd6", off: 0 }, { id: 1, scheme: "yellow", ja: "イエロー", col: "#e0a50c", off: P / 2 }];
+  // state at time t (s): s = arc position of the train's middle, v = speed (m/s), stop / next = station names
+  function state(tr, t) {
+    const tt = (((t + tr.off) % P) + P) % P;
+    let k = legs.length - 1; while (k > 0 && legs[k].t0 > tt) k--;
+    const L = legs[k], st = stations[L.i], nx = stations[(L.i + 1) % stations.length], dt = tt - L.t0;
+    if (dt < DWELL) return { s: st.s, v: 0, stop: st.n, next: nx.n, left: DWELL - dt };
+    const [d, v] = runAt(L.r, dt - DWELL);
+    return { s: st.s + d, v, stop: null, next: nx.n, phase: dt - DWELL < L.r.ta ? "accel" : dt - DWELL < L.r.ta + L.r.tc ? "cruise" : "brake" };
+  }
+  // clock (s): runs with the page; TDS_TRAINS can set it or speed it up for checking
+  const clk = { base: 0, at: performance.now(), k: 1 };
+  const now = () => clk.base + (performance.now() - clk.at) / 1000 * clk.k;
+  const setClock = (t, k = clk.k) => { clk.base = t; clk.at = performance.now(); clk.k = k; };
+  // train under plan point (x, y) within r m
+  function hit(x, y, r) {
+    const t = now();
+    for (const tr of trains) { const c = state(tr, t).s;
+      for (let s = -TL / 2; s <= TL / 2; s += 3) { const p = at(c + s); if (Math.hypot(p[0] - x, p[1] - y) < r) return tr; } }
+    return null;
+  }
+  const describe = (tr, st) => st.stop ? `${st.stop}に停車中(あと ${Math.ceil(st.left)} 秒)・ 次は ${st.next}`
+    : `時速 ${Math.round(st.v * 3.6)} km ${st.phase === "brake" ? "・ 減速中 " : st.phase === "accel" ? "・ 加速中 " : ""}・ 次は ${st.next}`;
+  window.TDS_TRAINS = { now, setClock, period: P, length: LEN, stations, trains,
+    state: (t = now()) => trains.map(tr => { const st = state(tr, t), [x, y] = at(st.s); return { ...st, x, y, id: tr.id }; }) };
+  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.rail && on.maihama };
+})();
+
 /* ---------- plan view ---------- */
 const cv = $("plan"), ctx = cv.getContext("2d"), vp = $("viewport");
 let W = 0, H = 0, dpr = 1, sc = 1, ox = 0, oy = 0, hover = null;
 const X = x => ox + x * sc, Y = y => oy - y * sc;
+const tcv = $("trainPlan"), tctx = tcv.getContext("2d");   // Resort Line trains, redrawn on their own as they move
 
 function resize() {
   const r = vp.getBoundingClientRect();
@@ -730,6 +832,7 @@ function resize() {
   const cx = (W / 2 - ox) / sc, cy = (oy - H / 2) / sc;
   W = r.width; H = r.height;
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  tcv.width = cv.width; tcv.height = cv.height;
   if (first) fit(); else { ox = W / 2 - cx * sc; oy = H / 2 + cy * sc; }
   redraw();
   if (three.ready) three.resize();
@@ -869,7 +972,26 @@ function redraw() {
     DL.buildings.forEach(b => { if (!b.n || seen.has(b.n) || area(b.r[0]) < 400) return; seen.add(b.n);
       label(b.n, X((b.bb[0] + b.bb[2]) / 2), Y((b.bb[1] + b.bb[3]) / 2), css(`--l${b.p}`), 10.5, 500); }); }
   updateScale();
+  drawTrainsPlan();
 }
+
+// Resort Line trains on the plan: a short bar along the track (the train's 87.7 m, at least a few px) with the nose marked
+function drawTrainsPlan() {
+  tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, tcv.width, tcv.height);
+  if (!RL || mode !== "plan" || !RL.shown()) return;
+  tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.lineJoin = tctx.lineCap = "round";
+  const t = RL.now(), w = Math.max(4, 3.2 * sc), half = Math.max(RL.TL / 2, 5 / sc), sheet = css("--sheet"), ink = css("--ink");
+  for (const tr of RL.trains) {
+    const c = RL.state(tr, t).s;
+    tctx.beginPath();
+    for (let k = 0; k <= 16; k++) { const [x, y] = RL.at(c - half + 2 * half * k / 16); k ? tctx.lineTo(X(x), Y(y)) : tctx.moveTo(X(x), Y(y)); }
+    tctx.strokeStyle = sheet; tctx.lineWidth = w + 3; tctx.stroke();
+    tctx.strokeStyle = tr.col; tctx.lineWidth = w; tctx.stroke();
+    const [fx, fy, ux, uy] = RL.at(c + half), r = Math.max(2.2, w * 0.45);   // nose: a dark dot at the front end
+    tctx.beginPath(); tctx.arc(X(fx) + ux * r * 0.3, Y(fy) - uy * r * 0.3, r, 0, 6.2832); tctx.fillStyle = ink; tctx.fill();
+  }
+}
+setInterval(() => { if (mode === "plan" && !document.hidden) drawTrainsPlan(); }, 100);
 
 function p_w(list) { return 3.0; }
 function stairColor(p) { return css(BASIS[p.s.basis] ? BASIS[p.s.basis][1] : "--st-dem"); }
@@ -1154,6 +1276,16 @@ function onHover(px, py) {
   const hz = heightAt(x, y);
   $("coord").textContent = `x ${x.toFixed(0)} m  y ${y.toFixed(0)} m ・ 地盤 ${hz == null ? "—" : (hz >= 0 ? "+" : "") + hz.toFixed(1) + " m"} ・ ${lat.toFixed(5)}N ${lon.toFixed(5)}E`;
   let hit = null;
+  const tr = RL && RL.shown() && RL.hit(x, y, Math.max(4, 9 / sc));
+  if (tr) {
+    if (hover) { hover = null; redraw(); }
+    const st = RL.state(tr, RL.now()), tip = $("tip");
+    tip.innerHTML = `<b>ディズニーリゾートライン ・ ${tr.ja}の編成</b>${RL.describe(tr, st)}<br><span class="mono">6 両 ・ ${RL.TL.toFixed(1)} m ・ 1 周 ${(RL.LEN / 1000).toFixed(2)} km を ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒</span>`;
+    tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
+    return;
+  }
   if (on.stairs) {
     let best = null, bd = Math.max(2.5, 8 / sc);
     for (const p of on.disneyland ? STAIRS.concat(DL_STAIRS) : STAIRS) { const d = segDist(x, y, p.l); if (d < bd) { bd = d; best = p; } }
@@ -1332,14 +1464,17 @@ function makeSpray(T, n = 700) {
   pts.frustumCulled = false;
   return pts;
 }
-async function loadModels(T, scene, root) {
-  try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+function addLights(T, scene) {   // the solid parts (Blender models, trains) share one sky and sun
   if (!three.skyEnv) three.skyEnv = makeSkyEnv(T, three.renderer);
   if (!three.lit) {
     scene.add(new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85));
     const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun);
     three.lit = true;
   }
+}
+async function loadModels(T, scene, root) {
+  try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+  addLights(T, scene);
   const loader = new T.GLTFLoader();
   for (const m of D.models) {
     loader.load(m.src, gltf => {
@@ -1604,6 +1739,7 @@ async function init3D() {
       const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? ["disneyland", "buildings"] : LAYER_OF[k];
       o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
+    for (const t of three.trains || []) t.grp.visible = RL.shown();
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
@@ -1959,6 +2095,11 @@ async function init3D() {
     if (!mmS && !mmSetup()) return;
     const { tf, img } = mmS, P = (x, y) => [tf.ox + x * tf.s, tf.oy - y * tf.s], col = css("--priority");
     mmx.setTransform(1, 0, 0, 1, 0, 0); mmx.drawImage(img, 0, 0); mmx.setTransform(tf.d, 0, 0, tf.d, 0, 0);
+    if (RL && RL.shown()) {   // Resort Line trains
+      const t = RL.now();
+      for (const tr of RL.trains) { const [x, y] = RL.at(RL.state(tr, t).s), [px, py] = P(x, y);
+        mmx.beginPath(); mmx.arc(px, py, 3.2, 0, 6.2832); mmx.fillStyle = tr.col; mmx.fill(); mmx.strokeStyle = "#fff"; mmx.lineWidth = 1; mmx.stroke(); }
+    }
     mmx.fillStyle = col; mmx.strokeStyle = col;
     if (three.walking) {
       const [px, py] = P(wk.x, -wk.z), hx = -Math.sin(wk.yaw), hy = -Math.cos(wk.yaw), a = Math.atan2(hy, hx);
@@ -1984,6 +2125,54 @@ async function init3D() {
   });
   addEventListener("resize", () => { mmS = null; });
   three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
+  /* ---------- Resort Line trains (train_model.js): posed car by car on the loop every frame ---------- */
+  // Each car follows the track (heading from its two bogies). Near the camera a car is the detailed model
+  // (cabin seen through the windows); farther away, and always in lite mode, it is the simple shell.
+  // No collision: the walker passes through them.
+  const TRAIN_NEAR = 170;   // m from the camera to a car's middle
+  if (RL) loadScript("train_model.js").then(() => {
+    addLights(T, scene);
+    const TM = window.TrainModel.create(T, { linear: true, envMap: three.skyEnv });
+    three.trains = RL.trains.map(tr => {
+      const U = TM.uniforms(tr.scheme), grp = new T.Group();
+      grp.name = `resort-line-${tr.scheme}`; scene.add(grp);
+      const simple = TM.buildTrain(U, { simple: true }); grp.add(simple.group);
+      return { tr, U, grp, simple, detail: null, near: [] };
+    });
+    const beamTop = MH.loop_z + 0.9;   // the beam drawn by the 舞浜駅・周辺 layer (estimated 8 m viaduct + 0.9 m beam)
+    const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
+      const a = RL.at(s), b = RL.at(s + len), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6, ux = dx / L, uy = dy / L;
+      o.position.set(a[0] - ux * off, beamTop * ex, -(a[1] - uy * off)); o.rotation.set(0, Math.atan2(uy, ux), 0);
+    };
+    const pose = (b, c) => {
+      b.cars.forEach((k, i) => place(b.slots[i], c + k.start + 2.7, k.L - 5.4, 2.7));
+      b.gangways.forEach((g, i) => { const k = b.cars[i]; place(g, c + k.start + k.L - 0.02, 0.59, 0); });
+    };
+    three.trainTick = () => {
+      if (!RL.shown()) return;
+      const t = RL.now();
+      for (const o of three.trains) {
+        const c = RL.state(o.tr, t).s;
+        let anyNear = false;
+        o.near = o.simple.cars.map(k => {
+          const [x, y] = RL.at(c + k.start + k.L / 2), dz = beamTop * ex - cam.position.y;
+          const n = !lite && Math.hypot(x - cam.position.x, -y - cam.position.z, dz) < TRAIN_NEAR;
+          anyNear ||= n; return n;
+        });
+        if (anyNear && !o.detail) { o.detail = TM.buildTrain(o.U, { merge: true }); o.grp.add(o.detail.group); }
+        pose(o.simple, c);
+        o.simple.slots.forEach((sl, i) => sl.visible = !o.near[i]);
+        o.simple.gangways.forEach((g, i) => g.visible = !(o.near[i] && o.near[i + 1]));
+        if (o.detail) {
+          if (anyNear) pose(o.detail, c);
+          o.detail.slots.forEach((sl, i) => sl.visible = o.near[i]);
+          o.detail.gangways.forEach((g, i) => g.visible = o.near[i] && o.near[i + 1]);
+        }
+      }
+    };
+    three.visibility();
+  }).catch(() => {});   // no trains in 3D (the plan still shows them)
+
   three.visibility(); three.resize();
   if (D.models && D.models.length) loadModels(T, scene, root);
   let last = performance.now(), mmLast = 0, aimLast = 0;
@@ -1993,6 +2182,7 @@ async function init3D() {
     if (!three.active) return;
     if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else ctl.update();
     FX_TIME.value = now / 1000;
+    three.trainTick?.();
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
     if (three.walking && !three.anim && now - aimLast > 160) { aimLast = now; updateAim(); }
@@ -2010,7 +2200,7 @@ async function show(next, opts = {}) {
   document.body.dataset.mode = next;
   const is3d = next !== "plan";
   [["plan", "plan"], ["3d", "orbit"], ["walk", "walk"]].forEach(([id, m]) => $("tab-" + id).setAttribute("aria-selected", String(m === next)));
-  cv.hidden = is3d; $("three").hidden = !is3d; $("tip").hidden = true;
+  cv.hidden = tcv.hidden = is3d; $("three").hidden = !is3d; $("tip").hidden = true;
   if (!is3d) setPhoto(false);
   three.active = is3d;
   if (is3d && !three.ready && !(await init3D())) return;
@@ -2052,6 +2242,18 @@ $("btnPanel").onclick = () => setPanel($("panel").classList.contains("closed"));
 $("panelClose").onclick = () => setPanel(false);
 setTab(ui.tab || "layers");
 setPanel(!narrow() && ui.panel !== false);
+
+/* ---------- Resort Line status (情報 tab) ---------- */
+if (RL) {
+  $("rlSec").hidden = false;
+  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km ・ 各駅で 20 秒停車 ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。「高架鉄道」と「舞浜駅・周辺」の両方がオンのときに表示します。`;
+  const upd = () => {
+    if (document.hidden || $("rlSec").offsetParent === null) return;
+    const t = RL.now();
+    $("rlStatus").innerHTML = RL.trains.map(tr => `<li><span style="color:${tr.col}">■</span> <strong>${tr.ja}</strong>: ${RL.describe(tr, RL.state(tr, t))}</li>`).join("");
+  };
+  setInterval(upd, 1000); upd();
+}
 
 /* ---------- toast, photo mode, lite mode, share ---------- */
 function toast(msg, ms = 2200) {
