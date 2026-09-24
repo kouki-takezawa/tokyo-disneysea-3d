@@ -203,6 +203,12 @@ def part_tdl_entrance():
     return EN.export_objects(merged)
 
 
+def part_tracks():
+    import ds_tdl_station, ds_tracks as TK
+    importlib.reload(ds_tdl_station); importlib.reload(TK)
+    return TK.export_objects(merged)
+
+
 def part_train():
     """Resort Line cars for the mock (they replace the JS-built trains): a head car (TRH), a middle car (TRM) and a
     gangway (TRG), each an empty with one mesh per material under it ("TRH_glass", "TRM_seat_back", ...). Car-local
@@ -317,8 +323,8 @@ def main():
             render_checks(part, args.samples)
             continue
         objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano,
-                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "train": part_train}[part]()
-        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_station", "tdl_entrance")))
+                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tracks": part_tracks, "train": part_train}[part]()
+        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_station", "tdl_entrance", "tracks")))
 
 
 if __name__ == "__main__":

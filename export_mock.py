@@ -232,7 +232,8 @@ def main():
     MODELS = [("water", "water", ["water"]), ("aquasphere", "landmarks", ["aqwire", "aqglobe", "aqcoast"]),
               ("plaza", "paths", []), ("volcano", "landmarks", ["volc"]),   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
               ("tdl_station", "maihama", ["mhstation"]),                    # ds_tdl_station.py: replaces the station building's box
-              ("tdl_entrance", "disneyland", [])]                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
+              ("tdl_entrance", "disneyland", []),                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
+              ("tracks", "maihama", ["mhline", "mhjr"])]                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
     mdir = ROOT / "output" / "disneysea" / "models"
     out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]

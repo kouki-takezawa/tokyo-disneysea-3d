@@ -559,7 +559,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["trains", "電車(リゾートライン・京葉線)"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tracks", "線路(リゾートライン・京葉線)"], ["trains", "電車(リゾートライン・京葉線)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -1501,6 +1501,12 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_flower_purple: { color: 0x6a3f9e, roughness: 1 }, ST_flower_white: { color: 0xeeeee6, roughness: 1 }, ST_flowers_red: { color: 0xc23350, roughness: 1 },
   ST_hedge: { color: 0x2d5a26, roughness: 1 }, ST_grass: { color: 0x4f7d3a, roughness: 1 }, ST_win_dark: { color: 0x1a2229, roughness: 0.2 },
   ST_rail_blue: { color: 0x234f52, roughness: 0.5, metalness: 0.4 }, ST_blue_disc: { color: 0x3350a0, roughness: 0.5 },
+  // 線路 (ds_tracks.py): meshes TK_<material>
+  ST_beam: { color: 0x9a978f, roughness: 0.9 }, ST_pier: { color: 0xa9a69e, roughness: 0.9 }, ST_viaduct: { color: 0x8f8e89, roughness: 0.9 },
+  ST_steel: { color: 0x8d9196, roughness: 0.4, metalness: 0.6 }, ST_rail: { color: 0x6e6a66, roughness: 0.35, metalness: 0.7 },
+  ST_slab: { color: 0x7c7c78, roughness: 0.9 }, ST_insulator: { color: 0x5a4238, roughness: 0.5 }, ST_copper_wire: { color: 0x6b5236, roughness: 0.4, metalness: 0.6 },
+  ST_mast: { color: 0x8a9095, roughness: 0.5, metalness: 0.5 }, ST_canopy: { color: 0xdcdedf, roughness: 0.6 }, ST_deck_top: { color: 0x3a3a3a, roughness: 1 },
+  ST_barrier: { color: 0xb4b9b9, roughness: 0.5, metalness: 0.2 },
 };
 function makeSkyEnv(T, renderer) {
   const sc = new T.Scene();
@@ -1658,7 +1664,7 @@ async function loadModels(T, scene, root) {
     loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
-        const nm = o.name.startsWith("EN_") ? "ST_" + o.name.slice(3) : o.name;   // the entrance shares the station's materials
+        const nm = /^(EN|TK)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (o.name.startsWith("WS_water")) { o.material = makeWater(T); (three.heavy ||= []).push(o.material); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
