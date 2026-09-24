@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>東京ディズニーシー枠線図</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,56 +35,50 @@
   --focus:#D6E3EA;
   --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA;
 }
-html,body{height:100%}
-body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.6;
-  padding:0 16px;padding-block:14px 20px;box-sizing:border-box}
 *,*::before,*::after{box-sizing:border-box}
-.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;
-  padding-bottom:12px;border-bottom:1px solid var(--rule);margin-bottom:14px}
-.top h1{margin:0;font-size:22px;font-weight:700;letter-spacing:.02em;text-wrap:balance}
-.top .sub{margin:2px 0 0;color:var(--muted);font-size:12.5px}
-.top .sub .mono{font-family:var(--font-mono);font-size:11.5px}
-.seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--sheet)}
-.seg button{font:inherit;font-size:13px;font-weight:500;color:var(--muted);background:none;border:0;padding:7px 16px;cursor:pointer}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.6;
+  display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+[hidden]{display:none!important}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* thin top bar */
+.top{flex:none;display:flex;align-items:center;gap:8px 14px;height:48px;padding:0 12px;border-bottom:1px solid var(--rule);background:var(--sheet)}
+.ttl{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:12px;overflow:hidden}
+.top h1{margin:0;font-size:15px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.top .sub{margin:0;color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{flex:none;display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--sheet)}
+.seg button{font:inherit;font-size:13px;font-weight:500;color:var(--muted);background:none;border:0;padding:5px 14px;cursor:pointer}
 .seg button[aria-selected="true"]{color:var(--paper);background:var(--ink)}
 .seg button:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
-
-.stage{display:grid;grid-template-columns:minmax(0,1fr) 272px;gap:16px;align-items:start}
-.viewport{position:relative;height:max(420px,calc(100vh - 120px));background:var(--sheet);
-  border:1px solid var(--rule);border-radius:4px;overflow:hidden;touch-action:none}
-#plan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-#plan{cursor:grab}
-#plan.dragging{cursor:grabbing}
-.hud{position:absolute;display:flex;gap:6px;pointer-events:none}
-.hud>*{pointer-events:auto}
-.hud.tl{top:10px;left:10px}
-.hud.bl{bottom:10px;left:12px;flex-direction:column;gap:2px}
-.hud.br{bottom:10px;right:12px}
-.hud.tr{top:10px;right:12px}
+.tools{flex:none;display:flex;gap:6px}
 .btn{font:inherit;font-size:12.5px;min-width:32px;height:30px;padding:0 10px;border-radius:4px;border:1px solid var(--rule);
   background:var(--sheet);color:var(--ink);cursor:pointer}
 .btn:hover{border-color:var(--muted)}
 .btn:focus-visible{outline:2px solid var(--water);outline-offset:1px}
-.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-.coord{font-size:11px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:2px 6px;border-radius:3px}
-.scale{font-size:10.5px;color:var(--muted)}
-#scaleBar{display:block;height:6px;border:1.5px solid var(--ink);border-top:0}
-[hidden]{display:none!important}
-.north{width:34px;height:34px}
-.tip{position:absolute;pointer-events:none;max-width:260px;background:var(--sheet);border:1px solid var(--ink);
-  border-radius:3px;padding:6px 9px;font-size:12px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.12)}
-.tip b{display:block;font-weight:700;font-size:12.5px}
-.tip .mono{font-size:11px;color:var(--muted)}
-.hint3d{font-size:11.5px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:3px 8px;border-radius:3px}
+.btn[aria-pressed="true"],.btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-.panel{display:flex;flex-direction:column;gap:18px;font-size:13px}
+/* stage: side panel + full-size view */
+.stage{flex:1 1 auto;min-height:0;display:flex;position:relative}
+.panel{flex:none;width:300px;display:flex;flex-direction:column;min-height:0;background:var(--sheet);border-right:1px solid var(--rule);z-index:30}
+.ptabs{flex:none;display:flex;border-bottom:1px solid var(--rule)}
+.ptabs button{flex:1 1 auto;font:inherit;font-size:12.5px;font-weight:500;color:var(--muted);background:none;border:0;
+  border-bottom:2px solid transparent;padding:10px 4px 8px;cursor:pointer;white-space:nowrap}
+.ptabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.ptabs button:focus-visible{outline:2px solid var(--water);outline-offset:-2px}
+.ptabs .pclose{flex:0 0 40px;font-size:17px}
+.pbody{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 14px 20px;font-size:13px}
+.pane{display:flex;flex-direction:column;gap:18px}
 .panel h2{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--muted)}
-.fold>summary{list-style:none;cursor:pointer;display:block}
-.fold>summary::-webkit-details-marker{display:none}
-.fold>summary h2::before{content:"▾";display:inline-block;width:1.1em;letter-spacing:0}
-.fold:not([open])>summary h2::before{content:"▸"}
-.fold:not([open])>summary h2{margin-bottom:0}
-.fold>summary:focus-visible{outline:2px solid var(--water);outline-offset:2px}
+.hintp{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pbtn{font:inherit;display:flex;flex-direction:column;align-items:center;gap:0;padding:7px 4px;border-radius:6px;border:1px solid var(--rule);
+  background:var(--sheet);color:var(--ink);cursor:pointer;line-height:1.3}
+.pbtn b{font-size:12px;font-weight:500}
+.pbtn span{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.pbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.pbtn[aria-pressed="true"] span{color:inherit;opacity:.7}
+.pbtn:focus-visible{outline:2px solid var(--water);outline-offset:1px}
 .bulk{display:flex;gap:6px;margin:0 0 8px}
 .bulk button{font:inherit;font-size:11.5px;height:24px;padding:0 9px;border-radius:4px;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);cursor:pointer}
 .bulk button:hover:not(:disabled){background:var(--grid)}
@@ -93,9 +88,10 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .layers input{accent-color:var(--ink);margin:0}
 .sw{display:inline-block;width:16px;height:0;border-top:2px solid currentColor;flex:none}
 .sw.dash{border-top-style:dashed}
+.models-h{margin:8px 0 0;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:inherit}
 .areas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .areas button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;
-  width:100%;padding:5px 6px;border-radius:3px;cursor:pointer}
+  width:100%;padding:7px 6px;border-radius:3px;cursor:pointer}
 .areas button:hover{background:var(--grid)}
 .areas button:focus-visible{outline:2px solid var(--water)}
 .areas button[aria-pressed="true"]{background:var(--grid);font-weight:700}
@@ -104,15 +100,11 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .notes li{padding-left:12px;position:relative}
 .notes li::before{content:"";position:absolute;left:0;top:.72em;width:5px;border-top:1px solid var(--muted)}
 .notes strong{color:var(--ink);font-weight:500}
+.keys{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12.5px}
+.keys dt{font-family:var(--font-mono);font-size:11.5px;color:var(--ink);white-space:nowrap}
+.keys dd{margin:0;color:var(--muted)}
 .credit{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;color:var(--muted);font-size:11px;line-height:1.5}
 .credit a{color:inherit;text-decoration:underline}
-.credit-hud{font-size:10.5px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 85%,transparent);padding:1px 6px;border-radius:3px}
-.credit-hud a{color:inherit}
-.btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.walkhud{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink);background:color-mix(in srgb,var(--sheet) 88%,transparent);padding:5px 9px;border-radius:4px;border:1px solid var(--rule)}
-.walkhud .mono{font-family:var(--font-mono)}
-.walkhud .k{color:var(--muted)}
-.models-h{margin:8px 0 0;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:inherit}
 .basis{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:3px}
 .basis li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center}
 .basis .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
@@ -122,106 +114,232 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .stats div{display:flex;flex-direction:column}
 .stats .v{font-family:var(--font-mono);font-size:17px;font-weight:500}
 .stats .k{font-size:11px;color:var(--muted)}
-@media (max-width:860px){
-  .stage{grid-template-columns:1fr}
-  .viewport{height:clamp(380px,70vh,640px)}
+
+/* view + overlays */
+.viewport{flex:1 1 auto;min-width:0;position:relative;background:var(--sheet);overflow:hidden;touch-action:none}
+#plan,#three,#three canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#plan{cursor:grab}
+#plan.dragging{cursor:grabbing}
+.hud{position:absolute;display:flex;gap:6px;pointer-events:none;z-index:5}
+.hud>*{pointer-events:auto}
+.hud.tl{top:10px;left:10px;flex-wrap:wrap;max-width:calc(100% - 20px)}
+.hud.tc{top:10px;left:50%;transform:translateX(-50%)}
+.hud.tr{top:10px;right:12px}
+.hud.bl{bottom:26px;left:12px;flex-direction:column;gap:2px}
+.hud.br{bottom:26px;right:12px}
+.hud.bc{bottom:4px;left:50%;transform:translateX(-50%)}
+.glass{background:color-mix(in srgb,var(--sheet) 88%,transparent);border:1px solid var(--rule);border-radius:4px}
+.coord{font-size:11px;color:var(--muted);padding:2px 6px}
+.scale{font-size:10.5px;color:var(--muted)}
+#scaleBar{display:block;height:6px;border:1.5px solid var(--ink);border-top:0}
+.north{width:34px;height:34px}
+.tip{position:absolute;pointer-events:none;max-width:260px;background:var(--sheet);border:1px solid var(--ink);z-index:6;
+  border-radius:3px;padding:6px 9px;font-size:12px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.tip b{display:block;font-weight:700;font-size:12.5px}
+.tip .mono{font-size:11px;color:var(--muted)}
+.hint3d{font-size:11.5px;color:var(--muted);padding:3px 8px}
+.credit-hud{font-size:10px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 80%,transparent);padding:0 6px;border-radius:3px;white-space:nowrap}
+.credit-hud a{color:inherit}
+.walkhud{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink);padding:5px 9px;max-width:min(560px,calc(100vw - 260px))}
+.walkhud .k{color:var(--muted)}
+.compass{font-size:12px;padding:2px 12px;border-radius:12px}
+#minimap{display:block;width:210px;height:150px;border-radius:6px;cursor:crosshair;box-shadow:0 2px 10px rgba(0,0,0,.14)}
+.cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;z-index:4}
+.cross::before,.cross::after{content:"";position:absolute;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+.cross::before{left:8px;top:0;width:2px;height:18px}
+.cross::after{top:8px;left:0;height:2px;width:18px}
+.aim{position:absolute;left:50%;top:calc(50% + 20px);transform:translateX(-50%);pointer-events:none;z-index:4;
+  font-size:12px;line-height:1.45;text-align:center;width:max-content;max-width:calc(100% - 24px);padding:3px 9px}
+.aim b{font-weight:700}
+.aim .mono{font-size:11px;color:var(--muted)}
+.joy{position:absolute;left:22px;bottom:34px;width:124px;height:124px;border-radius:50%;z-index:6;touch-action:none;
+  background:rgba(30,42,48,.10);border:2px solid rgba(30,42,48,.30)}
+.joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+  background:rgba(30,42,48,.42);box-shadow:0 1px 4px rgba(0,0,0,.25);pointer-events:none}
+.runbtn{position:absolute;right:22px;bottom:50px;width:74px;height:74px;border-radius:50%;z-index:6;font:inherit;font-size:13px;font-weight:700;
+  border:2px solid rgba(30,42,48,.30);background:rgba(30,42,48,.10);color:var(--ink);touch-action:none}
+.runbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.toast{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:8;pointer-events:none;
+  background:var(--ink);color:var(--paper);font-size:12.5px;padding:6px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.2);white-space:nowrap}
+
+/* what shows in which mode */
+body:not([data-mode="plan"]) .only-plan, body:not([data-mode="orbit"]) .only-orbit, body:not([data-mode="walk"]) .only-walk,
+body[data-mode="plan"] .only-3d, body[data-mode="walk"] .no-walk,
+body:not(.coarse) .only-touch, body.coarse .only-mouse{display:none!important}
+.photo-only{display:none!important}
+body.photo .photo-only{display:flex!important}
+body.photo .top, body.photo .panel, body.photo .hud:not(.photo-only), body.photo .cross, body.photo .aim,
+body.photo .joy, body.photo .runbtn{display:none!important}
+.panel.closed{display:none}
+
+/* touch devices: walk info and minimap move up so the stick and run button have the bottom */
+body.coarse .hud.bl#walkHud{bottom:auto;top:50px}
+body.coarse[data-mode="walk"] #mmWrap{bottom:auto;top:10px}
+body.coarse #minimap{width:136px;height:98px}
+body.coarse .hud.tc{top:auto;bottom:176px}
+@media (max-width:760px){
+  .top{padding:0 8px;gap:8px}
+  .top .sub{display:none}
+  .top h1{font-size:13px}
+  .seg button{padding:5px 9px;font-size:12.5px}
+  .tools .btn{padding:0 7px;font-size:12px}
+  .panel{position:absolute;left:0;right:0;bottom:0;width:auto;max-height:64%;border-right:0;border-top:1px solid var(--rule);
+    border-radius:12px 12px 0 0;box-shadow:0 -8px 24px rgba(0,0,0,.2)}
+  .walkhud{max-width:calc(100vw - 180px)}
+  #minimap{width:150px;height:108px}
 }
+@media (max-width:460px){ .ttl{display:none} .top{justify-content:space-between} }
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 
+<body data-mode="plan">
 <header class="top">
-  <div>
+  <div class="ttl">
     <h1>東京ディズニーシー 枠線図</h1>
-    <p class="sub">下書き v0 ・ OSM外形から作成、高さの大半は推定 ・ <span class="mono">原点 35.6267N 139.8851E / グリッド 100 m</span></p>
+    <p class="sub">下書き v0 ・ OSM外形から作成、高さの大半は推定 ・ <span class="mono">原点 35.6267N 139.8851E</span></p>
   </div>
-  <div class="seg" role="tablist" aria-label="表示">
-    <button id="tab-plan" role="tab" aria-selected="true">平面図</button>
-    <button id="tab-3d" role="tab" aria-selected="false">3D ワイヤー</button>
+  <div class="seg" role="tablist" aria-label="モード">
+    <button id="tab-plan" role="tab" aria-selected="true" title="平面図">地図</button>
+    <button id="tab-3d" role="tab" aria-selected="false" title="3D で上から見る">俯瞰</button>
+    <button id="tab-walk" role="tab" aria-selected="false" title="身長 170 cm の人になって歩く">散歩</button>
+  </div>
+  <div class="tools">
+    <button class="btn" id="btnShare" title="今の視点の URL を共有">共有</button>
+    <button class="btn" id="btnLite" aria-pressed="false" title="水の透過・しぶきを切り、解像度を下げて軽くする">軽量</button>
+    <button class="btn" id="btnPanel" aria-expanded="true" aria-controls="panel" title="パネルの表示・非表示">パネル</button>
   </div>
 </header>
 
 <main class="stage">
+  <aside class="panel" id="panel" aria-label="パネル">
+    <div class="ptabs" role="tablist">
+      <button role="tab" data-tab="layers" aria-selected="true">表示</button>
+      <button role="tab" data-tab="areas" aria-selected="false">エリア・移動</button>
+      <button role="tab" data-tab="info" aria-selected="false">情報</button>
+      <button class="pclose" id="panelClose" aria-label="パネルを閉じる">×</button>
+    </div>
+    <div class="pbody">
+      <div class="pane" data-pane="layers">
+        <section>
+          <h2>表示のプリセット</h2>
+          <div class="presets">
+            <button class="pbtn" id="pre-model" aria-pressed="false"><b>モデルのみ</b><span>1</span></button>
+            <button class="pbtn" id="pre-mix" aria-pressed="false"><b>枠線+モデル</b><span>2</span></button>
+            <button class="pbtn" id="pre-wire" aria-pressed="false"><b>枠線のみ</b><span>3</span></button>
+          </div>
+        </section>
+        <section>
+          <h2>レイヤー(枠線)</h2>
+          <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
+          <div class="layers" id="layers"></div>
+        </section>
+        <section>
+          <h2>3Dモデル(俯瞰・散歩)</h2>
+          <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
+          <div class="layers" id="models"></div>
+          <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
+        </section>
+      </div>
+      <div class="pane" data-pane="areas" hidden>
+        <p class="hintp">地図・俯瞰では、そのエリアへ移動して強調します(もう一度押すと解除)。散歩では、その場所へ移動します。</p>
+        <section>
+          <h2>スタート地点</h2>
+          <ul class="areas"><li><button id="dest-aq"><span class="sw" style="color:var(--water);border-top-width:3px"></span><span>アクアスフィア</span><span class="n"></span></button></li></ul>
+        </section>
+        <section>
+          <h2>エリア</h2>
+          <ul class="areas" id="areas"></ul>
+        </section>
+      </div>
+      <div class="pane" data-pane="info" hidden>
+        <div class="stats">
+          <div><span class="v" id="st-b">0</span><span class="k">建物</span></div>
+          <div><span class="v" id="st-w">0</span><span class="k">水面</span></div>
+          <div><span class="v" id="st-p">0</span><span class="k">園路</span></div>
+        </div>
+        <section>
+          <h2>操作</h2>
+          <dl class="keys">
+            <dt>1 / 2 / 3</dt><dd>表示のプリセット(モデルのみ / 枠線+モデル / 枠線のみ)</dd>
+            <dt>W A S D・矢印</dt><dd>散歩で歩く(Shift で走る)</dd>
+            <dt>クリック</dt><dd>散歩でマウス視点に切り替え(Esc で解除)</dd>
+            <dt>V</dt><dd>散歩の一人称 / 三人称</dd>
+            <dt>H</dt><dd>写真モード(操作部品を隠す)</dd>
+            <dt>Esc</dt><dd>散歩から俯瞰へ戻る</dd>
+            <dt>ミニマップ</dt><dd>クリックした場所へ移動</dd>
+          </dl>
+        </section>
+        <div id="wxSlot"></div>
+        <section>
+          <h2>階段・高低差</h2>
+          <ul class="basis" id="basis"></ul>
+          <div class="review">
+            <button class="btn" id="nextStair">要確認の階段を順に見る →</button>
+            <span class="mono" id="reviewPos"></span>
+          </div>
+        </section>
+        <section>
+          <h2>この下書きについて</h2>
+          <ul class="notes">
+            <li><strong>赤線</strong>は参考モデルがある優先パーツ。次の段階で作り込む箇所です。</li>
+            <li>高さは実測タグ約15棟とプロメテウス火山(51 m)以外、エリアごとの推定値です。</li>
+            <li>地面の高さは国土地理院の5 mメッシュ標高(航空レーザー)。園路の中央値 <span class="mono" id="datum"></span> を 0 m としています。</li>
+            <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
+            <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
+            <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
+          </ul>
+        </section>
+        <section>
+          <h2>出典</h2>
+          <ul class="credit">
+            <li>地図: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>(ODbL)</li>
+            <li>標高: 国土地理院 基盤地図情報 数値標高モデル(5 mメッシュ, DEM5A)</li>
+            <li>航空写真: 国土地理院 シームレス空中写真</li>
+            <li>地球儀: NOAA ETOPO(パブリックドメイン)</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </aside>
+
   <div class="viewport" id="viewport">
     <canvas id="plan" aria-label="東京ディズニーシーの平面枠線図"></canvas>
     <div id="three" hidden></div>
     <div class="hud tl">
-      <button class="btn" id="zin" aria-label="拡大">＋</button>
-      <button class="btn" id="zout" aria-label="縮小">－</button>
-      <button class="btn" id="fit">全体</button>
-      <button class="btn" id="exag" hidden>高さ ×1</button>
-      <button class="btn" id="walk" hidden>人の目線</button>
-      <button class="btn" id="walkView" hidden>三人称</button>
+      <button class="btn no-walk" id="zin" aria-label="拡大">＋</button>
+      <button class="btn no-walk" id="zout" aria-label="縮小">－</button>
+      <button class="btn no-walk" id="fit">全体</button>
+      <button class="btn only-orbit" id="exag">高さ ×1</button>
+      <button class="btn only-walk" id="walkView">三人称</button>
+      <button class="btn only-3d" id="btnPhoto" title="操作部品を隠す(H)">写真</button>
     </div>
-    <div class="hud bl" id="walkHud" hidden>
-      <div class="walkhud">
-        <span>身長 170 cm ・ 目の高さ 1.58 m ・ <span id="walkMode">一人称</span></span>
-        <span>足元 <span class="mono" id="walkZ">—</span>(園路基準) ・ <span class="mono" id="walkPos">—</span></span>
-        <span class="k">W A S D / 矢印で移動 ・ Shift で走る ・ ドラッグで向き ・ V で視点切替 ・ Esc で戻る</span>
-      </div>
-    </div>
-    <div class="hud tr" id="northWrap">
+    <div class="hud tc only-walk"><span class="compass glass mono" id="compass">北 0°</span></div>
+    <div class="hud tr only-plan" id="northWrap">
       <svg class="north" viewBox="0 0 34 34" aria-label="北">
         <circle cx="17" cy="17" r="15" fill="none" stroke="var(--rule)" stroke-width="1"/>
         <path d="M17 5 L21 19 L17 16.5 L13 19 Z" fill="var(--ink)"/>
         <text x="17" y="30" text-anchor="middle" font-size="8" font-family="IBM Plex Mono, monospace" fill="var(--muted)">N</text>
       </svg>
     </div>
-    <div class="hud bl" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i><span class="credit-hud">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
-    <div class="hud br"><span class="coord mono" id="coord">— </span></div>
-    <div class="hud br" id="hint3d" hidden><span class="hint3d">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span><span class="credit-hud">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
+    <div class="hud tr photo-only"><button class="btn" id="photoExit">表示を戻す</button></div>
+    <div class="hud bl only-plan" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i></div>
+    <div class="hud bl only-orbit" id="hint3d"><span class="hint3d glass"><span class="only-mouse">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span><span class="only-touch">1本指で回転 ・ 2本指で移動・拡大</span></span></div>
+    <div class="hud bl only-walk" id="walkHud">
+      <div class="walkhud glass">
+        <span>身長 170 cm ・ 目の高さ 1.58 m ・ <span id="walkMode">一人称</span> ・ 足元 <span class="mono" id="walkZ">—</span>(園路基準) ・ <span class="mono" id="walkPos">—</span></span>
+        <span class="k only-mouse">画面をクリックでマウス視点(Esc で解除) ・ W A S D / 矢印で移動 ・ Shift で走る ・ V 視点 ・ H 写真 ・ Esc で俯瞰へ</span>
+      </div>
+    </div>
+    <div class="hud br only-plan"><span class="coord glass mono" id="coord">— </span></div>
+    <div class="hud br only-3d" id="mmWrap"><canvas id="minimap" class="glass" aria-label="ミニマップ(押した場所へ移動)"></canvas></div>
+    <div class="hud bc"><span class="credit-hud">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
+    <div class="cross only-walk" id="cross"></div>
+    <div class="aim glass only-walk" id="aim" hidden></div>
+    <div class="joy only-walk only-touch" id="joy" aria-label="移動スティック"><i></i></div>
+    <button class="runbtn only-walk only-touch" id="runBtn" aria-pressed="false">走る</button>
+    <div class="toast" id="toast" role="status" hidden></div>
     <div class="tip" id="tip" hidden></div>
   </div>
-
-  <aside class="panel">
-    <div class="stats">
-      <div><span class="v" id="st-b">0</span><span class="k">建物</span></div>
-      <div><span class="v" id="st-w">0</span><span class="k">水面</span></div>
-      <div><span class="v" id="st-p">0</span><span class="k">園路</span></div>
-    </div>
-    <details class="fold" data-fold="layers" open>
-      <summary><h2>レイヤー</h2></summary>
-      <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
-      <div class="layers" id="layers"></div>
-    </details>
-    <details class="fold" data-fold="models" open>
-      <summary><h2>3Dモデル(3Dタブのみ)</h2></summary>
-      <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
-      <div class="layers" id="models"></div>
-      <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
-    </details>
-    <section>
-      <h2>エリア</h2>
-      <ul class="areas" id="areas"></ul>
-    </section>
-    <section>
-      <h2>階段・高低差</h2>
-      <ul class="basis" id="basis"></ul>
-      <div class="review">
-        <button class="btn" id="nextStair">要確認の階段を順に見る →</button>
-        <span class="mono" id="reviewPos"></span>
-      </div>
-    </section>
-    <section>
-      <h2>この下書きについて</h2>
-      <ul class="notes">
-        <li><strong>赤線</strong>は参考モデルがある優先パーツ。次の段階で作り込む箇所です。</li>
-        <li>高さは実測タグ約15棟とプロメテウス火山(51 m)以外、エリアごとの推定値です。</li>
-        <li>地面の高さは国土地理院の5 mメッシュ標高(航空レーザー)。園路の中央値 <span class="mono" id="datum"></span> を 0 m としています。</li>
-        <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
-        <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
-        <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
-      </ul>
-    </section>
-    <section>
-      <h2>出典</h2>
-      <ul class="credit">
-        <li>地図: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>(ODbL)</li>
-        <li>標高: 国土地理院 基盤地図情報 数値標高モデル(5 mメッシュ, DEM5A)</li>
-        <li>航空写真: 国土地理院 シームレス空中写真</li>
-        <li>地球儀: NOAA ETOPO(パブリックドメイン)</li>
-      </ul>
-    </section>
-  </aside>
 </main>
 
 <script id="data" type="application/json">__DATA__</script>
@@ -262,9 +380,8 @@ sec.className = "wx";
 sec.innerHTML = `<h2>水面・護岸</h2><ul>${Object.entries(SH).filter(([k]) => W3.len[k]).map(([k, [lab, v, d]]) =>
   `<li style="color:var(${v})"><i class="${d.length ? "d" : ""}"></i><span style="color:var(--ink)">${lab}</span><span class="n">${(W3.len[k] / 1000).toFixed(2)} km</span></li>`).join("")}</ul>
   <div class="card" id="wxCard"><span class="mono">水面にマウスを乗せると、水位・水深・岸の内訳が出ます。</span></div>`;
-const areas = document.getElementById("areas");
-const anchor = areas ? areas.closest("section") : null;
-if (anchor) anchor.parentNode.insertBefore(sec, anchor); else document.querySelector(".panel")?.appendChild(sec);
+const slot = document.getElementById("wxSlot");
+if (slot) slot.appendChild(sec); else document.querySelector(".panel")?.appendChild(sec);
 
 // geometry helpers
 const pip = (x, y, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
@@ -360,6 +477,11 @@ const D = JSON.parse(document.getElementById("data").textContent);
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const LAT0 = D.origin[0], LON0 = D.origin[1];
+let mode = "plan";   // plan (地図) / orbit (俯瞰) / walk (散歩)
+const coarse = matchMedia("(pointer: coarse)").matches;
+if (coarse) document.body.classList.add("coarse");
+let lite = (() => { try { const v = localStorage.getItem("tds-lite"); if (v != null) return v === "1"; } catch (e) {} return coarse; })();
+const joy = { x: 0, y: 0, run: false };   // touch stick (-1..1) and run toggle
 
 /* ---------- layers ---------- */
 const LAYERS = [
@@ -378,7 +500,7 @@ LAYERS.forEach(([k, label, color, dash]) => {
   l.querySelector("input").addEventListener("change", e => {
     on[k] = e.target.checked;
     try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
-    redraw(); if (three.ready) three.visibility();
+    redraw(); if (three.ready) three.visibility(); syncPresets();
   });
   layersEl.appendChild(l);
 });
@@ -386,28 +508,16 @@ LAYERS.forEach(([k, label, color, dash]) => {
 function setAllLayers(v) {
   LAYERS.forEach(([k]) => { on[k] = v; $("ly-" + k).checked = v; });
   try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
-  redraw(); if (three.ready) three.visibility();
+  redraw(); if (three.ready) three.visibility(); syncPresets();
 }
 $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
-
-/* ---------- fold state of the panel sections ---------- */
-let foldState = {};
-try { foldState = JSON.parse(localStorage.getItem("tds-fold") || "null") || {}; } catch (e) {}
-document.querySelectorAll("details.fold").forEach(d => {
-  const k = d.dataset.fold;
-  if (foldState[k] === false) d.open = false;
-  d.addEventListener("toggle", () => {
-    foldState[k] = d.open;
-    try { localStorage.setItem("tds-fold", JSON.stringify(foldState)); } catch (err) {}
-  });
-});
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
 const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
-const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); };
+const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
 MODELS.forEach(([k, label]) => {
   const l = document.createElement("label");
   l.innerHTML = `<input type="checkbox" id="md-${k}" ${mdl[k] ? "checked" : ""} disabled>${label}`;
@@ -423,22 +533,56 @@ $("mdl-all-off").addEventListener("click", () => setAllModels(false));
 $("mdl-overlay").checked = mdl.overlay;
 $("mdl-overlay").addEventListener("change", e => { mdl.overlay = e.target.checked; saveMdl(); });
 
-/* ---------- areas ---------- */
+/* ---------- display presets (keys 1 / 2 / 3) ---------- */
+const PRESETS = { model: [false, true, false, "3Dモデルのみ"], mix: [true, true, false, "枠線+モデル"], wire: [true, false, false, "枠線のみ"] };
+function applyPreset(k) {
+  const [ly, md, ov, name] = PRESETS[k];
+  LAYERS.forEach(([n]) => { on[n] = ly; $("ly-" + n).checked = ly; });
+  MODELS.forEach(([n]) => { mdl[n] = md; $("md-" + n).checked = md; });
+  mdl.overlay = ov; $("mdl-overlay").checked = ov;
+  try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
+  saveMdl(); redraw();
+  toast(`表示: ${name}${mode === "plan" && k === "model" ? "(3Dモデルは俯瞰・散歩で表示されます)" : ""}`);
+}
+function syncPresets() {
+  for (const [k, [ly, md, ov]] of Object.entries(PRESETS))
+    $("pre-" + k).setAttribute("aria-pressed", String(LAYERS.every(([n]) => on[n] === ly) && MODELS.every(([n]) => mdl[n] === md) && mdl.overlay === ov));
+}
+Object.keys(PRESETS).forEach(k => { $("pre-" + k).onclick = () => applyPreset(k); });
+syncPresets();
+
+/* ---------- areas: highlight + move there (plan / orbit), teleport (walk) ---------- */
 let focus = -1;
 const counts = D.ports.map(() => 0);
 D.buildings.forEach(b => counts[b.p]++);
 const areasEl = $("areas");
+const areaPt = i => {
+  const l = D.labels.find(l => l.p === i);
+  if (l) return [l.x, l.y];
+  const bb = bboxOf(D.buildings.filter(b => b.p === i).flatMap(b => b.r));
+  return [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
+};
 D.ports.forEach((p, i) => {
   const li = document.createElement("li");
   li.innerHTML = `<button aria-pressed="false" id="area-${i}"><span class="sw" style="color:var(--p${i});border-top-width:3px"></span><span>${p.ja}</span><span class="n">${counts[i]}</span></button>`;
-  li.firstChild.addEventListener("click", () => {
-    focus = focus === i ? -1 : i;
-    areasEl.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === focus)));
-    if (focus >= 0) zoomToArea(focus);
-    redraw(); if (three.ready) three.colors();
-  });
+  li.firstChild.addEventListener("click", () => goArea(i));
   areasEl.appendChild(li);
 });
+function goArea(i) {
+  if (mode === "walk") { const [x, y] = areaPt(i); three.walkTo(x, y); if (narrow()) setPanel(false); return; }
+  focus = focus === i ? -1 : i;
+  areasEl.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === focus)));
+  if (focus >= 0) { zoomToArea(focus); if (mode === "orbit") { const [x, y] = areaPt(i); three.flyToPlan(x, y, 520); } }
+  redraw(); if (three.ready) three.colors();
+  if (narrow() && focus >= 0) setPanel(false);
+}
+$("dest-aq").onclick = () => {
+  const A = D.aquasphere;
+  if (mode === "walk") three.walkEnter();
+  else if (mode === "orbit") three.flyToPlan(A.cx, A.cy, 90);
+  else { sc = 5; ox = W / 2 - A.cx * sc; oy = H / 2 + A.cy * sc; redraw(); }
+  if (narrow()) setPanel(false);
+};
 $("st-b").textContent = D.buildings.length;
 $("st-w").textContent = D.water.length + D.ponds.length;
 $("st-p").textContent = D.paths.length;
@@ -496,6 +640,36 @@ const pip = (x, y, poly) => {
   return c;
 };
 const area = r => { let s = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) s += r[j][0] * r[i][1] - r[i][0] * r[j][1]; return Math.abs(s) / 2; };
+const fz = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + " m";
+const BCELL = 20, BGRID = new Map();   // building footprints bucketed by 20 m cells
+D.buildings.forEach((b, i) => {
+  for (let a = Math.floor(b.bb[0] / BCELL); a <= Math.floor(b.bb[2] / BCELL); a++)
+    for (let c = Math.floor(b.bb[1] / BCELL); c <= Math.floor(b.bb[3] / BCELL); c++) {
+      const k = a * 4096 + c; let l = BGRID.get(k); if (!l) BGRID.set(k, l = []); l.push(i);
+    }
+});
+function buildingAt(x, y) {
+  const l = BGRID.get(Math.floor(x / BCELL) * 4096 + Math.floor(y / BCELL));
+  if (!l) return null;
+  for (const i of l) {
+    const b = D.buildings[i];
+    if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
+    if (b.r.reduce((c, r) => c !== pip(x, y, r), false)) return b;
+  }
+  return null;
+}
+const ringBoxes = rings => rings.map(r => bboxOf([r]));
+const WBB = ringBoxes(D.water), IBB = ringBoxes(D.islands), PBB = ringBoxes(D.ponds);
+const inRings = (rings, bb, x, y) => rings.some((r, i) => x >= bb[i][0] && x <= bb[i][2] && y >= bb[i][1] && y <= bb[i][3] && pip(x, y, r));
+function inWater(x, y) { return (inRings(D.water, WBB, x, y) && !inRings(D.islands, IBB, x, y)) || inRings(D.ponds, PBB, x, y); }
+function findSpot(x, y) {   // nearest dry point in the park outside buildings (teleport target)
+  for (let r = 0; r <= 90; r += 3)
+    for (let k = 0, n = r ? Math.max(8, Math.round(r)) : 1; k < n; k++) {
+      const a = k / n * Math.PI * 2, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      if (heightAt(px, py) != null && pip(px, py, D.park) && !buildingAt(px, py) && !inWater(px, py)) return [px, py];
+    }
+  return [x, y];
+}
 
 /* ---------- plan view ---------- */
 const cv = $("plan"), ctx = cv.getContext("2d"), vp = $("viewport");
@@ -796,9 +970,9 @@ const endPtr = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null
 cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
 cv.addEventListener("pointerleave", () => { hover = null; $("tip").hidden = true; redraw(); });
 cv.addEventListener("wheel", e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.offsetX, e.offsetY); }, { passive: false });
-$("zin").onclick = () => { if (three.walking) return; if (three.active) return three.dolly(0.8); zoomAt(1.4, W / 2, H / 2); };
-$("zout").onclick = () => { if (three.walking) return; if (three.active) return three.dolly(1.25); zoomAt(1 / 1.4, W / 2, H / 2); };
-$("fit").onclick = () => { if (three.walking) three.walkExit(); if (three.active) return three.home(); fit(); redraw(); };
+$("zin").onclick = () => { if (mode === "orbit") return three.dolly(0.8); if (mode === "plan") zoomAt(1.4, W / 2, H / 2); };
+$("zout").onclick = () => { if (mode === "orbit") return three.dolly(1.25); if (mode === "plan") zoomAt(1 / 1.4, W / 2, H / 2); };
+$("fit").onclick = () => { if (mode === "orbit") return three.home(); if (mode === "plan") { fit(); redraw(); } };
 
 function showStairTip(p, px, py) {
   const s = p.s, tip = $("tip");
@@ -809,9 +983,10 @@ function showStairTip(p, px, py) {
   const tw = tip.offsetWidth, th = tip.offsetHeight;
   tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
 }
-$("nextStair").onclick = () => {
+$("nextStair").onclick = async () => {
   if (!REVIEW.length) return;
-  if (three.active) show("plan");
+  if (mode !== "plan") await show("plan");
+  if (narrow()) setPanel(false);
   reviewIdx = (reviewIdx + 1) % REVIEW.length;
   const p = REVIEW[reviewIdx], [cx, cy] = alongAt(p.l, polyLen(p.l) / 2);
   sc = 6; ox = W / 2 - cx * sc; oy = H / 2 + cy * sc; hover = p;
@@ -1013,11 +1188,11 @@ async function loadModels(T, scene, root) {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
         const key = Object.keys(MODEL_MAT).filter(k => o.name.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
-        if (o.name.startsWith("WS_water")) o.material = makeWater(T);
+        if (o.name.startsWith("WS_water")) { o.material = makeWater(T); (three.heavy ||= []).push(o.material); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
-        else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
+        else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); const sp = makeSpray(T); (three.sprays ||= []).push(sp); o.add(sp); }
         else if (key) o.material = new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] });
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
@@ -1035,7 +1210,7 @@ async function loadModels(T, scene, root) {
       });
       root.add(gltf.scene);
       three.models[m.id] = { id: m.id, obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
-      three.visibility();
+      three.visibility(); applyLite(false);
     }, undefined, () => {});   // model missing: keep the wireframe
   }
 }
@@ -1049,12 +1224,12 @@ async function init3D() {
     await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js");
     await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js");
   } catch (e) {
-    host.innerHTML = `<p style="padding:24px;color:var(--muted)">3D表示用のライブラリを読み込めませんでした。通信状況を確認して、もう一度「3D ワイヤー」を押してください。</p>`;
+    host.innerHTML = `<p style="padding:24px;color:var(--muted)">3D表示用のライブラリを読み込めませんでした。通信状況を確認して、もう一度「俯瞰」か「散歩」を押してください。</p>`;
     return false;
   }
   const T = window.THREE;
   const renderer = new T.WebGLRenderer({ antialias: true }); three.renderer = renderer;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio || 1, 2));
   host.appendChild(renderer.domElement);
   const scene = new T.Scene();
   const cam = new T.PerspectiveCamera(38, 1, 1, 9000);
@@ -1254,7 +1429,12 @@ async function init3D() {
   }
   person.visible = false; scene.add(person);
 
-  // walkable triangles of the visible models, bucketed into CELL m squares in plan
+  // walkable triangles of the visible models, bucketed into CELL m squares in plan; lab = what the surface is (aim readout)
+  const SURF = [["WS_water", "水面"], ["WS_bed", "水底"], ["WS_quay", "護岸の石積み"], ["WS_coping", "護岸の笠石"], ["WS_wet", "水際の基礎"],
+    ["WS_rock", "岩場の岸"], ["WS_sand", "砂浜"], ["WS_grass", "土手の草地"], ["WS_mud", "土手"], ["WS_deck", "桟橋"],
+    ["VO_", "プロメテウス火山の岩山"], ["PZ_Blue", "プラザの石畳"], ["PZ_Brick", "プラザのレンガ舗装"], ["PZ_Lines", "プラザの白線"],
+    ["PZ_Curb", "植え込みの縁石"], ["PZ_Soil", "植え込み"], ["PZ_Trunk", "プラザの木"], ["PZ_Canopy", "プラザの木"],
+    ["AQ_Globe", "アクアスフィアの地球儀"], ["AQ_Water", "アクアスフィアの池"], ["AQ_", "アクアスフィア"]];
   let grid = null, gridKey = "";
   const walkable = o => o.isMesh && !/^AQ_(WaterFilm|Curtain)/.test(o.name);
   function buildGrid() {
@@ -1262,9 +1442,10 @@ async function init3D() {
     const key = loaded.map(([id]) => id).join(",");
     if (grid && key === gridKey) return;
     root.updateMatrixWorld(true);
-    const tris = [], cells = new Map(), p = new T.Vector3();
+    const tris = [], labs = [], cells = new Map(), p = new T.Vector3();
     for (const [, m] of loaded) m.obj.traverse(o => {
       if (!walkable(o)) return;
+      const li = SURF.findIndex(([pre]) => o.name.startsWith(pre)), lab = li < 0 ? 255 : li;
       const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
       const w = new Float32Array(pos.count * 3);
       for (let i = 0; i < pos.count; i++) { p.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); w[i * 3] = p.x; w[i * 3 + 1] = p.y; w[i * 3 + 2] = p.z; }
@@ -1273,7 +1454,7 @@ async function init3D() {
         const ax = w[a * 3], az = w[a * 3 + 2], bx = w[b * 3], bz = w[b * 3 + 2], cx = w[c * 3], cz = w[c * 3 + 2];
         if (Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az)) < 1e-6) continue;   // vertical in plan
         const k = tris.length / 9;
-        tris.push(ax, w[a * 3 + 1], az, bx, w[b * 3 + 1], bz, cx, w[c * 3 + 1], cz);
+        tris.push(ax, w[a * 3 + 1], az, bx, w[b * 3 + 1], bz, cx, w[c * 3 + 1], cz); labs.push(lab);
         const i0 = Math.floor(Math.min(ax, bx, cx) / CELL), i1 = Math.floor(Math.max(ax, bx, cx) / CELL);
         const j0 = Math.floor(Math.min(az, bz, cz) / CELL), j1 = Math.floor(Math.max(az, bz, cz) / CELL);
         for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
@@ -1281,9 +1462,10 @@ async function init3D() {
         }
       }
     });
-    grid = { tris: new Float32Array(tris), cells }; gridKey = key;
+    grid = { tris: new Float32Array(tris), lab: Uint8Array.from(labs), cells }; gridKey = key;
   }
-  function modelHits(x, z) {
+  // heights of the model surfaces straight above/below (x, z); labsOut (optional) receives their surface kinds
+  function modelHits(x, z, labsOut) {
     const out = [];
     const l = grid && grid.cells.get(Math.floor(x / CELL) * 65536 + Math.floor(z / CELL));
     if (!l) return out;
@@ -1294,6 +1476,7 @@ async function init3D() {
       const u = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d, v = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d;
       if (u < -1e-4 || v < -1e-4 || u + v > 1 + 1e-4) continue;
       out.push(u * ay + v * by + (1 - u - v) * cy);
+      if (labsOut) labsOut.push(grid.lab[k]);
     }
     return out;
   }
@@ -1305,22 +1488,17 @@ async function init3D() {
     for (const h of hits) if (h <= y + STEP && h > best) best = h;
     return best === -Infinity ? null : best;
   }
-  function inBuilding(x, z) {
-    const px = x, py = -z;
-    for (const b of D.buildings) {
-      const [a, c, e, f] = b.bb;
-      if (px < a || px > e || py < c || py > f) continue;
-      if (b.r.reduce((inside, ring) => inside !== pip(px, py, ring), false)) return true;
-    }
-    return false;
-  }
+  const inBuilding = (x, z) => !!buildingAt(x, -z);
 
   const wk = { x: 0, y: 0, z: 0, yaw: 0, pitch: -0.05, first: true, keys: new Set() };
   three.walking = false;
+  const HEADINGS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
   function setView() {
     $("walkView").textContent = wk.first ? "三人称" : "一人称";
     $("walkMode").textContent = wk.first ? "一人称" : "三人称";
-    person.visible = !wk.first;
+    person.visible = three.walking && !wk.first;
+    $("cross").hidden = !wk.first;
+    if (!wk.first) $("aim").hidden = true;
   }
   function placeCamera() {
     person.position.set(wk.x, wk.y, wk.z); person.rotation.y = wk.yaw;
@@ -1340,69 +1518,134 @@ async function init3D() {
       cam.position.set(px, py, pz);
       cam.lookAt(wk.x, hy, wk.z);
     }
+    const deg = ((-wk.yaw * 180 / Math.PI) % 360 + 360) % 360;
+    $("compass").textContent = `${HEADINGS[Math.round(deg / 45) % 8]} ${deg.toFixed(0).padStart(3, "0")}°`;
     $("walkZ").textContent = `${wk.y >= 0 ? "+" : ""}${wk.y.toFixed(2)} m`;
     $("walkPos").textContent = `${wk.x.toFixed(0)}, ${(-wk.z).toFixed(0)} m`;
   }
+
+  // camera animation: one running tween at a time; the render loop steps it instead of the controls / walking
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  function animate(dur, step, done) {
+    if (reduceMotion || dur <= 0) { three.anim = null; step(1); done?.(); return; }
+    three.anim = { t0: performance.now(), dur, step, done };
+    step(0);
+  }
+  function stepAnim(now) {
+    const a = three.anim, e = Math.min(1, (now - a.t0) / a.dur);
+    a.step(ease(e));
+    if (e >= 1) { three.anim = null; a.done?.(); }
+  }
+  // from pose (p0, q0, fov f0) to the pose the camera has been given
+  function tweenFrom(p0, q0, f0, dur, done) {
+    const p1 = cam.position.clone(), q1 = cam.quaternion.clone(), f1 = cam.fov;
+    animate(dur, k => {
+      cam.position.lerpVectors(p0, p1, k); cam.quaternion.slerpQuaternions(q0, q1, k);
+      cam.fov = f0 + (f1 - f0) * k; cam.updateProjectionMatrix();
+    }, done);
+  }
+
   // start at (x, y) in local metres facing yaw (default: on the plaza 22 m from the AquaSphere, between the east lamps, facing the globe)
-  three.walkEnter = (x, y, yaw, pitch) => {
+  three.walkEnter = (x, y, yaw, pitch, anim = false, first) => {
     if (ex !== 1) $("exag").click();
-    $("exag").disabled = true;
     buildGrid();
     const AQ = D.aquasphere;
     if (x == null) { const a = Math.PI / 8; x = AQ.cx + 22 * Math.cos(a); y = AQ.cy + 22 * Math.sin(a); yaw = Math.atan2(Math.cos(a), -Math.sin(a)); pitch = 0.12; }
+    const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     wk.x = x; wk.z = -y;
     const hits = modelHits(wk.x, wk.z);
     wk.y = groundAt(wk.x, wk.z, (heightAt(wk.x, -wk.z) ?? 0) + 1) ?? (hits.length ? Math.max(...hits) : 0);   // not on a tree top
     wk.yaw = yaw ?? 0; wk.pitch = pitch ?? -0.05;
+    if (first != null) wk.first = first;
     ctl.enabled = false; three.walking = true;
-    cam.fov = 60; cam.near = 0.1; cam.far = 4000; cam.updateProjectionMatrix();
-    $("walk").textContent = "俯瞰に戻る"; $("walk").classList.add("on");
-    $("walkView").hidden = false; $("walkHud").hidden = false; $("hint3d").hidden = true;
-    setView(); placeCamera();
+    cam.fov = 60; cam.near = 0.1; cam.far = 4000;
+    setView(); placeCamera(); cam.updateProjectionMatrix();
+    if (anim) tweenFrom(p0, q0, f0, 1500);
   };
-  three.walkExit = () => {
-    three.walking = false; wk.keys.clear(); person.visible = false;
-    cam.fov = 38; cam.near = 1; cam.far = 9000; cam.updateProjectionMatrix();
-    cam.rotation.order = "XYZ";
+  three.walkTo = (x, y) => { const [sx, sy] = findSpot(x, y); three.walkEnter(sx, sy, wk.yaw, wk.pitch); };
+  three.walkExit = (anim = false) => {
+    three.walking = false; wk.keys.clear(); drag = null; person.visible = false; $("aim").hidden = true;
+    if (document.pointerLockElement === cvs) document.exitPointerLock();
+    const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
+    cam.fov = 38; cam.updateProjectionMatrix();
     ctl.target.set(wk.x, wk.y, wk.z);
     cam.position.set(wk.x + 60 * Math.sin(wk.yaw), wk.y + 45, wk.z + 60 * Math.cos(wk.yaw));
-    ctl.enabled = true; ctl.update();
-    $("exag").disabled = false;
-    $("walk").textContent = "人の目線"; $("walk").classList.remove("on");
-    $("walkView").hidden = true; $("walkHud").hidden = true; $("hint3d").hidden = !three.active;
+    cam.lookAt(ctl.target);
+    ctl.enabled = false;
+    const fin = () => { cam.near = 1; cam.far = 9000; cam.updateProjectionMatrix(); ctl.enabled = true; ctl.update(); };
+    if (anim) tweenFrom(p0, q0, f0, 1100, fin); else fin();
   };
-  window.TDS_WALK = three.walkEnter;
+  // overview: look at plan point (x, y) from span-dependent distance, keeping the viewing direction
+  three.fromPlan = (x, y, span) => {
+    const dir = cam.position.clone().sub(ctl.target).normalize(), dist = Math.max(60, Math.min(1600, span * 1.25));
+    ctl.target.set(x, heightAt(x, y) ?? 0, -y); cam.position.copy(ctl.target).addScaledVector(dir, dist); ctl.update();
+  };
+  three.flyToPlan = (x, y, dist) => {
+    const t0 = ctl.target.clone(), p0 = cam.position.clone(), dir = p0.clone().sub(t0), d = dist ?? dir.length();
+    dir.normalize();
+    const t1 = new T.Vector3(x, heightAt(x, y) ?? 0, -y), p1 = t1.clone().addScaledVector(dir, d);
+    ctl.enabled = false;
+    animate(900, k => { ctl.target.lerpVectors(t0, t1, k); cam.position.lerpVectors(p0, p1, k); cam.lookAt(ctl.target); },
+      () => { ctl.enabled = true; ctl.update(); });
+  };
+  three.groundCenter = () => three.walking ? [wk.x, -wk.z] : [ctl.target.x, -ctl.target.z];
+  three.stateHash = () => {
+    const f = v => v.toFixed(1);
+    if (three.walking) return `#walk/${f(wk.x)},${f(-wk.z)},${wk.yaw.toFixed(3)},${wk.pitch.toFixed(3)},${wk.first ? 1 : 3}`;
+    const t = ctl.target, p = cam.position;
+    return `#orbit/${f(t.x)},${f(t.y)},${f(t.z)},${f(p.x)},${f(p.y)},${f(p.z)}`;
+  };
+  three.setOrbit = a => { ctl.target.set(a[0], a[1], a[2]); cam.position.set(a[3], a[4], a[5]); ctl.update(); };
   window.TDS_WALK_STATE = () => ({ x: wk.x, y: -wk.z, z: wk.y, yaw: wk.yaw });
-  $("walk").onclick = () => three.walking ? three.walkExit() : three.walkEnter();
   $("walkView").onclick = () => { wk.first = !wk.first; setView(); placeCamera(); };
+
+  // looking around: mouse = pointer lock after a click (drag until it engages), touch = drag
+  const cvs = renderer.domElement;
+  let drag = null, unlockAt = 0;
+  const look = (dx, dy) => { wk.yaw -= dx; wk.pitch = Math.max(-1.3, Math.min(1.3, wk.pitch - dy)); placeCamera(); };
+  document.addEventListener("pointerlockchange", () => {
+    if (document.pointerLockElement === cvs) toast("マウスで見回せます(Esc で解除)");
+    else unlockAt = performance.now();
+  });
+  cvs.addEventListener("pointerdown", e => {
+    if (!three.walking || three.anim) return;
+    drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+    if (e.pointerType === "mouse" && !coarse && document.pointerLockElement !== cvs && cvs.requestPointerLock) {
+      try { cvs.requestPointerLock()?.catch?.(() => {}); } catch (err) {}
+    }
+  });
+  cvs.addEventListener("pointermove", e => {
+    if (!three.walking || !drag || e.pointerId !== drag.id || document.pointerLockElement === cvs) return;
+    look((e.clientX - drag.x) * 0.004, (e.clientY - drag.y) * 0.004);
+    drag.x = e.clientX; drag.y = e.clientY;
+  });
+  const endDrag = () => { drag = null; };
+  cvs.addEventListener("pointerup", endDrag); cvs.addEventListener("pointercancel", endDrag);
+  document.addEventListener("mousemove", e => { if (three.walking && document.pointerLockElement === cvs) look(e.movementX * 0.0022, e.movementY * 0.0022); });
+
   const MOVE_KEYS = new Set(["KeyW", "ArrowUp", "KeyS", "ArrowDown", "KeyA", "ArrowLeft", "KeyD", "ArrowRight", "ShiftLeft", "ShiftRight"]);
   addEventListener("keydown", e => {
     if (!three.walking || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === "Escape") { three.walkExit(); return; }
+    if (e.code === "Escape") {   // the first Esc only releases the mouse
+      if (document.pointerLockElement === cvs || performance.now() - unlockAt < 600) return;
+      show("orbit"); return;
+    }
     if (e.code === "KeyV") { $("walkView").click(); return; }
     if (MOVE_KEYS.has(e.code)) { wk.keys.add(e.code); e.preventDefault(); }
   });
   addEventListener("keyup", e => wk.keys.delete(e.code));
   addEventListener("blur", () => wk.keys.clear());
-  let drag = null;
-  renderer.domElement.addEventListener("pointerdown", e => {
-    if (!three.walking) return;
-    drag = { x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId);
-  });
-  renderer.domElement.addEventListener("pointermove", e => {
-    if (!three.walking || !drag) return;
-    wk.yaw -= (e.clientX - drag.x) * 0.004;
-    wk.pitch = Math.max(-1.3, Math.min(1.3, wk.pitch - (e.clientY - drag.y) * 0.004));
-    drag = { x: e.clientX, y: e.clientY }; placeCamera();
-  });
-  renderer.domElement.addEventListener("pointerup", () => { drag = null; });
   three.walkTick = dt => {
     if (three.walkDirty) { three.walkDirty = false; buildGrid(); }
     const k = wk.keys;
-    const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0);
-    const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0);
-    if (!f && !s) return;
-    const sp = (k.has("ShiftLeft") || k.has("ShiftRight") ? RUN : WALK) * Math.min(dt, 0.25) / Math.hypot(f, s);
+    const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0) - joy.y;
+    const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0) + joy.x;
+    const len = Math.hypot(f, s), mag = Math.min(1, len);
+    if (mag < 0.08) return;
+    const running = k.has("ShiftLeft") || k.has("ShiftRight") || joy.run;
+    const sp = (running ? RUN : WALK) * Math.min(dt, 0.25) * mag / len;
     const dx = (-Math.sin(wk.yaw) * f + Math.cos(wk.yaw) * s) * sp, dz = (-Math.cos(wk.yaw) * f - Math.sin(wk.yaw) * s) * sp;
     const wasIn = inBuilding(wk.x, wk.z);
     const tryMove = (nx, nz) => {
@@ -1414,38 +1657,262 @@ async function init3D() {
     tryMove(wk.x + dx, wk.z + dz) || tryMove(wk.x + dx, wk.z) || tryMove(wk.x, wk.z + dz);
     placeCamera();
   };
+
+  // what the crosshair is on: march along the view ray (building footprints, model surfaces, ground)
+  const aimDir = new T.Vector3(), aimLabs = [];
+  function updateAim() {
+    const el = $("aim");
+    if (!wk.first) { el.hidden = true; return; }
+    cam.getWorldDirection(aimDir);
+    const o = cam.position;
+    let t = 0.4, hit = null;
+    while (t < 260) {
+      const x = o.x + aimDir.x * t, y = o.y + aimDir.y * t, z = o.z + aimDir.z * t;
+      if (on.buildings) {
+        const b = buildingAt(x, -z);
+        if (b && y >= (b.z || 0) - 0.2 && y <= (b.z || 0) + b.h) { hit = { b }; break; }
+      }
+      aimLabs.length = 0;
+      const hs = modelHits(x, z, aimLabs);
+      if (hs.length) {
+        let top = -Infinity, li = 255;
+        hs.forEach((h, i) => { if (h > top) { top = h; li = aimLabs[i]; } });
+        if (y <= top) { hit = { m: SURF[li]?.[1] ?? "3Dモデル", h: top }; break; }
+      } else {
+        const g = heightAt(x, -z);
+        if (g != null && y <= g) { hit = { g, x, y: -z }; break; }
+      }
+      t += t < 30 ? 0.3 : t < 80 ? 0.8 : 2;
+    }
+    if (!hit) { el.hidden = true; return; }
+    const dist = `${t < 10 ? t.toFixed(1) : Math.round(t)} m 先`;
+    let html;
+    if (hit.b) {
+      const b = hit.b;
+      html = `<b>${b.n ? b.n.replace(/ Tokyo DisneySea.*$/, "") : "建物(名称なし)"}</b><br><span class="mono">${D.ports[b.p].ja}${b.x ? " ・ 優先パーツ" : ""} ・ 高さ ${b.h} m ・ ${dist}</span>`;
+    } else if (hit.m) {
+      html = `<b>${hit.m}</b><br><span class="mono">高さ ${fz(hit.h)} ・ ${dist}</span>`;
+    } else {
+      const st = on.stairs && STAIRS.find(p => segDist(hit.x, hit.y, p.l) < (p.w || 3.5) / 2);
+      html = st ? `<b>${st.s.n ? st.s.n + " ・ " : ""}階段</b><br><span class="mono">${BASIS[st.s.basis][0]} ・ 上がり ${st.s.rise.toFixed(2)} m ・ ${dist}</span>`
+        : inWater(hit.x, hit.y) ? `<b>水面</b><br><span class="mono">${dist}</span>`
+        : `<b>地面</b><br><span class="mono">標高 ${fz(hit.g)}(園路基準) ・ ${dist}</span>`;
+    }
+    el.innerHTML = html; el.hidden = false;
+  }
+
+  // minimap: static park drawing cached per size/theme, marker redrawn a few times a second; press = move there
+  const mm = $("minimap"), mmx = mm.getContext("2d");
+  let mmS = null;
+  three.mmReset = () => { mmS = null; };
+  function mmSetup() {
+    const r = mm.getBoundingClientRect();
+    if (!r.width) return false;
+    const d = Math.min(window.devicePixelRatio || 1, 2), w = r.width, h = r.height;
+    mm.width = Math.round(w * d); mm.height = Math.round(h * d);
+    const bw = PB[2] - PB[0], bh = PB[3] - PB[1], s = Math.min(w / (bw * 1.06), h / (bh * 1.06));
+    const tf = { s, ox: w / 2 - (PB[0] + bw / 2) * s, oy: h / 2 + (PB[1] + bh / 2) * s, w, h, d };
+    const oc = document.createElement("canvas"); oc.width = mm.width; oc.height = mm.height;
+    const c = oc.getContext("2d"); c.setTransform(d, 0, 0, d, 0, 0);
+    const path = rings => { c.beginPath(); for (const rr of rings) rr.forEach(([x, y], i) => { const px = tf.ox + x * s, py = tf.oy - y * s; i ? c.lineTo(px, py) : c.moveTo(px, py); }); };
+    c.fillStyle = css("--sheet"); c.fillRect(0, 0, w, h);
+    path([D.park]); c.fillStyle = css("--paper"); c.fill();
+    c.globalAlpha = 0.5; path(D.water.concat(D.islands)); c.fillStyle = css("--water"); c.fill("evenodd"); path(D.ponds); c.fill();
+    c.globalAlpha = 0.75;
+    D.ports.forEach((_, i) => { path(D.buildings.filter(b => b.p === i).map(b => b.r[0])); c.fillStyle = css(`--p${i}`); c.fill(); });
+    c.globalAlpha = 1; path([D.park]); c.strokeStyle = css("--ink"); c.lineWidth = 1; c.stroke();
+    mmS = { tf, img: oc };
+    return true;
+  }
+  function mmDraw() {
+    if (!mm.offsetParent) return;
+    if (!mmS && !mmSetup()) return;
+    const { tf, img } = mmS, P = (x, y) => [tf.ox + x * tf.s, tf.oy - y * tf.s], col = css("--priority");
+    mmx.setTransform(1, 0, 0, 1, 0, 0); mmx.drawImage(img, 0, 0); mmx.setTransform(tf.d, 0, 0, tf.d, 0, 0);
+    mmx.fillStyle = col; mmx.strokeStyle = col;
+    if (three.walking) {
+      const [px, py] = P(wk.x, -wk.z), hx = -Math.sin(wk.yaw), hy = -Math.cos(wk.yaw), a = Math.atan2(hy, hx);
+      mmx.globalAlpha = 0.2; mmx.beginPath(); mmx.moveTo(px, py); mmx.arc(px, py, 28, a - 0.52, a + 0.52); mmx.closePath(); mmx.fill();
+      mmx.globalAlpha = 1; mmx.beginPath();
+      mmx.moveTo(px + hx * 7, py + hy * 7); mmx.lineTo(px - hx * 4 - hy * 4.5, py - hy * 4 + hx * 4.5); mmx.lineTo(px - hx * 4 + hy * 4.5, py - hy * 4 - hx * 4.5);
+      mmx.closePath(); mmx.fill(); mmx.strokeStyle = "#fff"; mmx.lineWidth = 1; mmx.stroke();
+    } else {
+      const [tx, ty] = P(ctl.target.x, -ctl.target.z);
+      let [cx, cy] = P(cam.position.x, -cam.position.z);
+      cx = Math.max(3, Math.min(tf.w - 3, cx)); cy = Math.max(3, Math.min(tf.h - 3, cy));
+      mmx.globalAlpha = 0.8; mmx.lineWidth = 1.5; mmx.beginPath(); mmx.moveTo(cx, cy); mmx.lineTo(tx, ty); mmx.stroke();
+      mmx.globalAlpha = 1; mmx.beginPath(); mmx.arc(tx, ty, 3.5, 0, 6.2832); mmx.fill();
+      mmx.beginPath(); mmx.arc(cx, cy, 2.5, 0, 6.2832); mmx.fill();
+    }
+  }
+  mm.addEventListener("pointerdown", e => {
+    if (!mmS || three.anim) return;
+    e.stopPropagation();
+    const r = mm.getBoundingClientRect(), tf = mmS.tf;
+    const x = (e.clientX - r.left - tf.ox) / tf.s, y = (tf.oy - (e.clientY - r.top)) / tf.s;
+    if (three.walking) three.walkTo(x, y); else three.flyToPlan(x, y);
+  });
+  addEventListener("resize", () => { mmS = null; });
   three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
   three.visibility(); three.resize();
   if (D.models && D.models.length) loadModels(T, scene, root);
-  let last = performance.now();
-  (function loop() { requestAnimationFrame(loop); const now = performance.now(), dt = (now - last) / 1000; last = now; if (!three.active) return; if (three.walking) three.walkTick(dt); else ctl.update(); FX_TIME.value = now / 1000; renderer.render(scene, cam); })();
+  let last = performance.now(), mmLast = 0, aimLast = 0;
+  (function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now(), dt = (now - last) / 1000; last = now;
+    if (!three.active) return;
+    if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else ctl.update();
+    FX_TIME.value = now / 1000;
+    renderer.render(scene, cam);
+    if (now - mmLast > 120) { mmLast = now; mmDraw(); }
+    if (three.walking && !three.anim && now - aimLast > 160) { aimLast = now; updateAim(); }
+  })();
   three.ready = true;
+  applyLite(false);
   return true;
 }
 
-/* ---------- tabs ---------- */
-async function show(mode) {
-  const is3d = mode === "3d";
-  $("tab-plan").setAttribute("aria-selected", String(!is3d));
-  $("tab-3d").setAttribute("aria-selected", String(is3d));
-  cv.hidden = is3d; $("three").hidden = !is3d;
-  $("scaleWrap").hidden = is3d; $("exag").hidden = !is3d; $("walk").hidden = !is3d;
-  if (!is3d && three.walking) three.walkExit(); $("coord").parentElement.hidden = is3d; $("hint3d").hidden = !is3d; $("northWrap").hidden = is3d;
-  $("tip").hidden = true;
+/* ---------- modes: 地図 (plan) / 俯瞰 (orbit) / 散歩 (walk) ---------- */
+async function show(next, opts = {}) {
+  const prev = mode;
+  if (next === prev && (next !== "walk" || opts.x == null)) return;
+  mode = next;
+  document.body.dataset.mode = next;
+  const is3d = next !== "plan";
+  [["plan", "plan"], ["3d", "orbit"], ["walk", "walk"]].forEach(([id, m]) => $("tab-" + id).setAttribute("aria-selected", String(m === next)));
+  cv.hidden = is3d; $("three").hidden = !is3d; $("tip").hidden = true;
+  if (!is3d) setPhoto(false);
   three.active = is3d;
-  if (is3d && !three.ready) { await init3D(); }
-  if (is3d && three.ready) three.resize(); else resize();
+  if (is3d && !three.ready && !(await init3D())) return;
+  if (is3d) three.resize(); else resize();
+  if (three.ready) {
+    if (prev === "walk" && next !== "walk") three.walkExit(next === "orbit" && !opts.instant);
+    if (next === "orbit" && prev === "plan" && !opts.keep) three.fromPlan((W / 2 - ox) / sc, (oy - H / 2) / sc, H / sc);
+    if (next === "walk") three.walkEnter(opts.x, opts.y, opts.yaw, opts.pitch, prev === "orbit" && !opts.instant, opts.first);
+    if (next === "plan" && prev !== "plan") {
+      const [x, y] = three.groundCenter();
+      if (prev === "walk") sc = Math.max(sc, 3);
+      ox = W / 2 - x * sc; oy = H / 2 + y * sc; redraw();
+    }
+  }
+  if (next === "walk" && prev !== "walk") toast(coarse ? "左のスティックで移動、画面をドラッグして見回せます" : "画面をクリックすると、マウスで見回せます", 3500);
+  if (narrow() && next === "walk") setPanel(false);
 }
 $("tab-plan").onclick = () => show("plan");
-$("tab-3d").onclick = () => show("3d");
+$("tab-3d").onclick = () => show("orbit");
+$("tab-walk").onclick = () => show("walk");
+window.TDS_WALK = (x, y, yaw, pitch) => mode === "walk" && three.ready ? three.walkEnter(x, y, yaw, pitch) : show("walk", { x, y, yaw, pitch, instant: true });
 
-/* ---------- theme / resize ---------- */
+/* ---------- panel: tabs, open/closed (a bottom sheet on narrow screens) ---------- */
+const ui = (() => { try { return JSON.parse(localStorage.getItem("tds-ui") || "null") || {}; } catch (e) { return {}; } })();
+const saveUi = () => { try { localStorage.setItem("tds-ui", JSON.stringify(ui)); } catch (e) {} };
+function narrow() { return matchMedia("(max-width: 760px)").matches; }
+function setPanel(open) {
+  $("panel").classList.toggle("closed", !open);
+  $("btnPanel").setAttribute("aria-expanded", String(open)); $("btnPanel").setAttribute("aria-pressed", String(open));
+  if (!narrow()) { ui.panel = open; saveUi(); }
+}
+function setTab(k) {
+  document.querySelectorAll(".ptabs [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
+  document.querySelectorAll(".pane").forEach(p => p.hidden = p.dataset.pane !== k);
+  ui.tab = k; saveUi();
+}
+document.querySelectorAll(".ptabs [data-tab]").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+$("btnPanel").onclick = () => setPanel($("panel").classList.contains("closed"));
+$("panelClose").onclick = () => setPanel(false);
+setTab(ui.tab || "layers");
+setPanel(!narrow() && ui.panel !== false);
+
+/* ---------- toast, photo mode, lite mode, share ---------- */
+function toast(msg, ms = 2200) {
+  const t = $("toast");
+  t.textContent = msg; t.hidden = !msg;
+  clearTimeout(toast.h);
+  if (msg) toast.h = setTimeout(() => { t.hidden = true; }, ms);
+}
+function setPhoto(v) {
+  document.body.classList.toggle("photo", v);
+  if (v) toast("写真モード(H か「表示を戻す」で戻る)");
+}
+$("btnPhoto").onclick = () => setPhoto(true);
+$("photoExit").onclick = () => setPhoto(false);
+// lite: no transmission on the harbour water, no spray, pixel ratio 1
+function applyLite(announce) {
+  $("btnLite").setAttribute("aria-pressed", String(lite));
+  try { localStorage.setItem("tds-lite", lite ? "1" : "0"); } catch (e) {}
+  if (announce) toast(lite ? "軽量モード: 水の透過・しぶきを切り、解像度を下げました" : "軽量モードを解除しました");
+  if (!three.ready) return;
+  three.renderer.setPixelRatio(lite ? 1 : Math.min(window.devicePixelRatio || 1, 2)); three.resize();
+  for (const m of three.heavy || []) {
+    const t = lite ? 0 : 1;
+    if (m.transmission === t) continue;
+    m.transmission = t; m.color.set(lite ? 0x1f5a52 : 0xffffff); m.needsUpdate = true;
+  }
+  for (const s of three.sprays || []) s.visible = !lite;
+}
+$("btnLite").onclick = () => { lite = !lite; applyLite(true); };
+applyLite(false);
+// the view lives in the URL (#map/x,y,scale  #orbit/target,camera  #walk/x,y,yaw,pitch,view) so it can be shared
+function stateHash() {
+  if (mode === "plan") return `#map/${((W / 2 - ox) / sc).toFixed(1)},${((oy - H / 2) / sc).toFixed(1)},${sc.toFixed(3)}`;
+  return three.ready ? three.stateHash() : `#${mode}`;
+}
+setInterval(() => {
+  if (document.hidden || three.anim) return;
+  const h = stateHash();
+  if (h !== location.hash) history.replaceState(null, "", h);
+}, 800);
+$("btnShare").onclick = async () => {
+  history.replaceState(null, "", stateHash());
+  const url = location.href;
+  if (coarse && navigator.share) {
+    try { await navigator.share({ title: document.title, url }); return; } catch (e) { if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast("今の視点の URL をコピーしました"); } catch (e) { toast(url, 6000); }
+};
+
+/* ---------- keys for every mode ---------- */
+addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const photo = document.body.classList.contains("photo");
+  if (e.code === "Escape" && photo) { setPhoto(false); e.stopImmediatePropagation(); return; }
+  if (e.code === "Digit1") applyPreset("model");
+  else if (e.code === "Digit2") applyPreset("mix");
+  else if (e.code === "Digit3") applyPreset("wire");
+  else if (e.code === "KeyH" && mode !== "plan") setPhoto(!photo);
+});
+
+/* ---------- touch: stick to walk, button to run ---------- */
+{
+  const el = $("joy"), knob = el.querySelector("i");
+  const move = e => {
+    const r = el.getBoundingClientRect(), R = r.width / 2, m = R * 0.62;
+    let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+    const L = Math.hypot(dx, dy);
+    if (L > m) { dx *= m / L; dy *= m / L; }
+    joy.x = dx / m; joy.y = dy / m;
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+  };
+  const end = () => { joy.x = joy.y = 0; knob.style.transform = ""; };
+  el.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId); move(e); });
+  el.addEventListener("pointermove", e => { if (el.hasPointerCapture(e.pointerId)) move(e); });
+  el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  $("runBtn").onclick = () => { joy.run = !joy.run; $("runBtn").setAttribute("aria-pressed", String(joy.run)); };
+}
+
+/* ---------- theme / resize / start ---------- */
 new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
-const retheme = () => { redraw(); if (three.ready) three.colors(); };
+const retheme = () => { redraw(); if (three.ready) { three.colors(); three.mmReset(); } };
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
 new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
-if (location.hash === "#3d") show("3d");
+{
+  const hm = location.hash.match(/^#(map|orbit|walk|3d)(?:\/([-\d.,]+))?$/);
+  const hv = hm && hm[2] ? hm[2].split(",").map(Number) : null;
+  if (hm && hm[1] === "map" && hv && hv.length === 3 && hv.every(isFinite)) { sc = hv[2]; ox = W / 2 - hv[0] * sc; oy = H / 2 + hv[1] * sc; redraw(); }
+  else if (hm && (hm[1] === "orbit" || hm[1] === "3d")) show("orbit", { keep: true }).then(() => { if (hv && hv.length === 6 && hv.every(isFinite) && three.ready) three.setOrbit(hv); });
+  else if (hm && hm[1] === "walk") show("walk", hv && hv.length >= 4 && hv.every(isFinite) ? { x: hv[0], y: hv[1], yaw: hv[2], pitch: hv[3], first: hv[4] !== 3, instant: true } : { instant: true });
+}
 })();
 </script>
