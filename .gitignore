@@ -15,6 +15,7 @@
 !/ds_*.py
 !/export_mock.py
 !/export_models.py
+!/train_blender.py
 
 !/plateau_data/
 /plateau_data/*
@@ -35,6 +36,7 @@
 /output/disneysea/*
 !/output/disneysea/mock_template.html
 !/output/disneysea/tds_outline.html
+!/output/disneysea/train.html
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
 

@@ -37,6 +37,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 舞浜駅・周辺(JR・リゾートライン全周・イクスピアリ・ホテル・歩道) | 済(モックのレイヤー) | `ds_disneyland.py` |
 | モック(地図・俯瞰・散歩、PC とスマホ) | 済 | `export_mock.py`, `output/disneysea/mock_template.html` |
 | Blender で作ったものをモックに 3D モデルとして表示 | 済(水面・アクアスフィア・プラザ・火山) | `export_models.py` |
+| 電車(リゾートライン Type X)の試作と JS / Blender の比較 | JS 版の試作は済。Blender 版は下書きのみ(未実行) | `output/disneysea/train.html`, `train_blender.py`, `docs/train/spec.md` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | これから | — |
 
@@ -91,6 +92,7 @@ blender -b --python export_models.py -- --parts aquasphere --render             
 - [ ] `disneysea_draft.py` で下書きを出し直す。トリトンの屋根(`ds_landmarks.build_triton_dome`、`ds_core.TRITON_ROOF`)を屋内ホールの上(中心 -188, -43、軒 15 m・頂点 27.5 m)に移したが、Blender ではまだ確かめていない。
 - [ ] `docs/draft/` の画像を撮り直す。エリアの色分けを 2026-09-24 に直したので、今の画像は古い色分けのまま。
 - [ ] ランド・舞浜駅は今はモックだけ。Blender で作るなら `ds_disneyland.py` のデータから作る。
+- [ ] 電車: `blender -b --python train_blender.py -- --out output/disneysea/models/train_head.glb` を動かし(下書きなので直しが要る)、`train.html` と見比べる。ドア・フロントガラス・台車・塗装のベイクは TODO。
 
 座標: 原点 35.6267N 139.8851E(メディテレーニアンハーバー付近)、+X が東、+Y が北、単位はメートル。
 高さ: 国土地理院 DEM5A で測った園路の中央値(標高 5.29 m。厳密には 5.285778 m を `datum_exact` に保存)を 0 m とする。ランドも同じ基準。
@@ -208,6 +210,13 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 4. **向き不明**: 上の方法で決まらない。モックで赤く表示し、確認が必要(シー 13、ランド 3)
 
 ![DEM の陰影図](docs/draft/dem5a_hillshade.jpg)
+
+### 電車の試作(JS と Blender の比較)
+
+`output/disneysea/train.html`(公開 URL の `/train.html`)は、ディズニーリゾートラインの Type X(青い 6 両編成)を JS(three.js)だけで作った単独のページ。地図のモックとは別で、まだモックには入れていない。寸法は Wikipedia の値、色・窓・ドアなどは推定(`docs/train/spec.md`)。
+JS 版は、形・配色・ミッキー型の窓・台車・桁まで出せた。窓の凹み・フロントガラス・塗装の絵柄などの近景のリアルさは Blender のほうが上になる、というのが現時点の判断(比較表と理由は `docs/train/spec.md`)。Blender 版は `train_blender.py` に下書きだけあり、この端末では動かせないので未実行。
+
+![JS 版の先頭のアップ](docs/train/js_nose.jpg)
 
 ### 入場口・駅(`ds_core.entrance_layer()`)
 
