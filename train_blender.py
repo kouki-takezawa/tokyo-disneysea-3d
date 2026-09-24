@@ -6,6 +6,11 @@ Same numbers as output/disneysea/train.html (see docs/train/spec.md; keep the tw
 Local metres, +X = travel direction, Z up (the glTF exporter converts to Y up). Beam top is z = 0.
 Body = loft of rounded-rectangle sections (bmesh) with a tapered nose; the Mickey-head windows are cut with
 booleans so that they are recessed.
+
+NOTE: this draft still has the first prototype's shape (streamlined 3.4 m nose, round Mickey windows).
+The JS model was rebuilt from reference photos on 2026-09-24 (boxy nose with three windscreen panes, tall
+Mickey windows, white body + colour band + silver skirt, full interior): follow docs/train/spec.md and
+output/disneysea/train.html (skinGeometry / sideHole / frontHole / interior) when finishing this in Blender.
 """
 import sys, math, argparse, pathlib
 import bpy, bmesh
