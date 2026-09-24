@@ -43,7 +43,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 京葉線の電車(E233 系 10 両、上下線、舞浜駅に停車) | 済(モック。舞浜駅の前後 約 790 m だけ) | `mock_template.html` の `MOV` |
 | 夜のモード・施設の検索 | 済(モック) | `mock_template.html` |
 | 屋根だけの構造物を屋根の板に・樹林を木の記号に | 済(モック。屋根は Blender の下書きも) | `ds_core.py`, `ds_buildings.py`, `mock_template.html` |
-| 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・入口の広場。参考動画・写真・航空写真・OSM から) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_entrance.py` |
+| 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・ミッキーの花壇。参考動画・写真・OSM から) | 済(Blender で作り、ユーザーの確認後にモックの 3D モデルに) | `ds_tdl_entrance.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -89,6 +89,8 @@ blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16        
 blender -b --python disneysea_water_blender.py -- --cams harbor,caldera         # 水面
 blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
 blender -b --python export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
+blender -b --python export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
+blender -b --python ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
 blender -b --python ds_tdl_station.py -- --samples 32                            # 駅の確認レンダーと .blend(電車も停車中)
 blender -b --python export_models.py -- --parts aquasphere --render             # アクアスフィアの確認レンダー
 ```
@@ -101,7 +103,7 @@ blender -b --python export_models.py -- --parts aquasphere --render             
 - [ ] `docs/draft/` の画像を撮り直す。エリアの色分けを 2026-09-24 に直したので、今の画像は古い色分けのまま。
 - [ ] ランド・舞浜駅: `blender -b --python disneyland_blender.py -- --cams aerial,castle,maihama` を動かす(`ds_disneyland.py` のデータから、建物・水面・緑地・木・線路・京葉線の高架・リゾートラインの桁・舞浜駅周辺の建物を組む)。`python disneyland_blender.py --summary` で、Blender なしに中身の数を見られる。
 - [x] 東京ディズニーランド・ステーション: `ds_tdl_station.py` で作り、ユーザーが Blender で確認して OK(2026-09-24)。モックに反映済み。
-- [ ] エントランス: `blender -b --python ds_tdl_entrance.py -- --samples 32` で作った `output/disneyland/entrance/tdl_entrance.blend` をユーザーが確認する。OK が出たら、駅と同じ手順(`export_objects()`、`export_models.py` に部品を足す、`export_mock.py` の `MODELS`)でモックに反映する。
+- [x] エントランス: `ds_tdl_entrance.py` で作り、ユーザーが Blender で確認して OK(花壇は 2 回直した: 入場口に向けて傾ける、円形にして真上からミッキーに見えるように)。モックに反映済み(2026-09-24)。
 - [x] 電車: `train_blender.py` を v2 に作り込み(外装・台車・車内・ガラス)、モックの電車をこのモデルに差し替えた(2026-09-24)。汚れのベイクは TODO。
 
 座標: 原点 35.6267N 139.8851E(メディテレーニアンハーバー付近)、+X が東、+Y が北、単位はメートル。
@@ -216,6 +218,7 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | ディズニーシー・プラザ(舗装・植え込み・木) | 園路(と一緒に表示) | `output/disneysea/models/plaza.json` |
 | プロメテウス火山(岩山・台地・カルデラの崖) | ランドマーク(等高線を置き換え) | `output/disneysea/models/volcano.json` |
 | 東京ディズニーランド・ステーション | 舞浜駅・周辺(駅の箱を置き換え) | `output/disneysea/models/tdl_station.json` |
+| 東京ディズニーランドのエントランス(ゲート・ワールドバザールの入口・花壇) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/tdl_entrance.json` |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
 
 - パネルの「3Dモデル」欄で、モデルごとに表示を切り替えられる(「すべてオン / オフ」あり)。チェックを外すと、そのモデルに置き換えられていた枠線が出る。「枠線も重ねて表示」で同時に見られる。モデルの表示はレイヤーとは独立で、レイヤーを全部オフにすればモデルだけを表示できる。設定はブラウザの localStorage(`tds-layers` `tds-models` `tds-ui`)に保存する。
@@ -274,6 +277,24 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | ![改札ホール](docs/station/station_gates.jpg) | ![魚眼](docs/station/station_concourse.jpg) |
 | **階段・エスカレーター** | **モックでの表示** |
 | ![階段](docs/station/station_stairs.jpg) | ![モック](docs/station/mock_station.jpg) |
+
+### 東京ディズニーランドのエントランス(`ds_tdl_entrance.py`)
+
+参考動画(同じ投稿者の Shorts「Blenderでディズニーエントランスをモデリング」)が作っているワールドバザールの入口と、2023 年に建て替えられたメインエントランスのゲート、その間の入口の広場。
+
+- **ワールドバザールの入口(動画の順番)**: ① 看板(赤い板に金の縁と渦巻き、「Tokyo Disneyland」、楕円の「Welcome」、上の縁の電球は 1 個 +「配列 + カーブ」、メダル)。② 柱(台座の百合の紋章、細い柱、柱頭、球形の灯り)。③ 梁(エンタブレチュア、飾り板 1 枚 + 配列、手すり子 1 本 + 配列)。④ アーチ(透かし板と輪の飾り)。⑤ 奥のれんがの建物(アーチの 1 階、Main Street への通路、アーチ窓の 2 階、バルコニーの青緑の手すりと花箱、付け柱、コーニス)。
+- **メインエントランス(写真 2023〜2025 年)**: 中央の建物(青いスレートの寄棟屋根と手すりの付いた屋上、2 本の尖塔、白い破風と透かしの破風板、ミントグリーンの菱形の格子、赤い楕円の「Tokyo Disneyland」の看板、メダル、緑の「ENTRANCE」の板)。左右のゲートの列は、1 区画(四角い柱とミントのパネル、透かし板、区画ごとの小さな破風とマゼンタのメダル、屋根の飾りの鉄柵、改札機、灯り)を作り、OSM の屋根(半径 54〜66 m の弧)に沿って「配列 + カーブ」で並べた。両端に小さな建物。
+- **ミッキーの花壇**: 円形(柵までの直径 約 34 m)。外から、アーチ模様の鉄の柵(1 区画 + 配列 + カーブ)、植え込みの土手、赤れんがの縁、芝生。芝生は入場口に向けて 7° 傾き(手前 0.5 m、奥 3.7 m)、入場口から全体が見える。顔は真上から見てミッキーになる形(丸い頭と耳、目のまわりが 2 つにふくらんだ白い顔、縦長の目、楕円の鼻、口角の上がった口、赤い舌)を紫と白の花で。
+- **資料**: OSM(ゲートの屋根、ワールドバザールの建物、花壇の位置)、Wikimedia Commons の写真 18 枚、参考動画の画面。どれも見て参考にしただけ。
+- **推定**: 高さ(柱 3.7 m、区画の破風 6.1 m、中央の建物の屋上 10 m、尖塔 12.5 m、ワールドバザールの柱 6.6 m・手すり 8.4 m)、区画の数、花壇の大きさと傾き、顔の描き方。
+- モック用(`export_models.py --parts tdl_entrance`)は面取りと区画ごとの小さな「ENTRANCE」の文字を外し、約 13 万三角形。材質は駅と同じ名前の色を使う(メッシュ名 `EN_*`)。
+- カメラ: `CAM_gate_in` `CAM_gate_out` `CAM_gates_arc` `CAM_wb_porch` `CAM_wb_sign` `CAM_flowerbed` `CAM_flowerbed_top` `CAM_flowerbed_plan`(真上) `CAM_aerial`。
+
+| メインエントランス(広場側) | ワールドバザールの入口 |
+|---|---|
+| ![ゲート](docs/entrance/entrance_gate_in.jpg) | ![看板](docs/entrance/entrance_wb_sign.jpg) |
+| **ミッキーの花壇(真上)** | **モックでの表示** |
+| ![花壇](docs/entrance/entrance_flowerbed_plan.jpg) | ![モック](docs/entrance/mock_entrance.jpg) |
 
 ### 電車(ディズニーリゾートライン)
 
@@ -427,6 +448,7 @@ https://tokyo-disneysea-3d.vercel.app で誰でも見られる。GitHub の main
 - 京葉線は、データのある舞浜駅の前後 約 790 m だけを走る(端で現れて消える)。本数・速度・停車時間は推定。
 - スマホでは、散歩のスタート地点で描く三角形が約 44 万になる(アクアスフィアの地球儀 約 15 万・火山 約 14 万)。軽量モードでもモデルは同じなので、重い端末では地球儀と火山の軽い版(Blender で減らす)が要る。
 - リゾートラインの電車は、推定の走り方をくり返すだけ(実際の時刻表・編成数ではない)。桁と柱は、東京ディズニーランド・ステーションの前後 60 m を除いて枠線のまま。桁の高さは全周で一定(実物は場所によって違う)。
+- 東京ディズニーランドのエントランスは、ランドの建物の枠線(ワールドバザールの箱など)と重なる。「3Dモデルのみ」で見るとモデルだけになる。
 - 東京ディズニーランド・ステーションは、図面も実測もないので、寸法は写真から割り出した推定(ホームの床 7 m など)。モックでは Blender の手続き型の質感(れんがの目地など)は出ず、材質ごとの単色になる。
 - 電車を 12 両すべて近くで見ると、車内込みで約 30 万三角形になる(車内は 150 m 以内だけ)。スマホで重いときは軽量モード。
 - ランド・舞浜駅の Blender の場面(`disneyland_blender.py`)は、まだ Blender で動かしていない。トイ・ストーリーホテルの建物は OSM にない。

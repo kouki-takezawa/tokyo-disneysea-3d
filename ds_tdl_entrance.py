@@ -664,6 +664,8 @@ def export_objects(merged):
     for o in B.col.objects:
         if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith("CAM_"):
             continue
+        if o.name.startswith("ST_Gate_") and "_entrance" in o.name:
+            continue                                      # web weight: the bays' small ENTRANCE lettering (the boards stay)
         mats = [m for m in (o.data.materials if o.data else []) if m]
         if mats:
             groups.setdefault("EN_" + mats[0].name[3:], []).append((o, GROUND_DATUM))
