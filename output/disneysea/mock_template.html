@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>東京ディズニーシー枠線図</title>
+<title>ディズニーパーク3Dモデル</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
@@ -198,7 +198,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
 <body data-mode="plan">
 <header class="top">
   <div class="ttl">
-    <h1>東京ディズニーシー 枠線図</h1>
+    <h1>ディズニーパーク3Dモデル</h1>
     <p class="sub">下書き v0 ・ OSM外形から作成、高さの大半は推定 ・ <span class="mono">原点 35.6267N 139.8851E</span></p>
   </div>
   <div class="seg" role="tablist" aria-label="モード">
@@ -310,7 +310,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
   </aside>
 
   <div class="viewport" id="viewport">
-    <canvas id="plan" aria-label="東京ディズニーシーの平面枠線図"></canvas>
+    <canvas id="plan" aria-label="ディズニーパークの平面図"></canvas>
     <div id="three" hidden></div>
     <div class="hud tl">
       <button class="btn no-walk" id="zin" aria-label="拡大">＋</button>
@@ -618,11 +618,15 @@ $("st-p").textContent = D.paths.length;
 const BASIS = { dem: ["DEMで確定", "--st-dem"], link: ["つながりから推定", "--st-link"], length: ["長さから推定", "--st-len"],
   unknown: ["要確認(向き不明)", "--st-unk"], user: ["修正済み", "--st-dem"] };
 const STAIRS = D.paths.filter(p => p.s);
+const DL_STAIRS = DL ? DL.paths.filter(p => p.s) : [];
+DL_STAIRS.forEach(p => p.dl = 1);
 const bcount = {}; STAIRS.forEach(p => bcount[p.s.basis] = (bcount[p.s.basis] || 0) + 1);
+const dcount = {}; DL_STAIRS.forEach(p => dcount[p.s.basis] = (dcount[p.s.basis] || 0) + 1);
 $("basis").innerHTML = ["dem", "link", "length", "unknown"].map(k =>
-  `<li><span class="sw" style="color:var(${BASIS[k][1]});border-top-width:3px"></span><span>${BASIS[k][0]}</span><span class="n">${bcount[k] || 0}</span></li>`).join("");
+  `<li><span class="sw" style="color:var(${BASIS[k][1]});border-top-width:3px"></span><span>${BASIS[k][0]}</span><span class="n">${bcount[k] || 0}${DL ? ` ・ ランド ${dcount[k] || 0}` : ""}</span></li>`).join("");
 $("datum").textContent = `(海抜 ${D.levels.datum} m)`;
-const REVIEW = STAIRS.filter(p => p.s.basis === "unknown").concat(STAIRS.filter(p => p.s.basis === "length"));
+const REVIEW = STAIRS.filter(p => p.s.basis === "unknown").concat(STAIRS.filter(p => p.s.basis === "length"),
+  DL_STAIRS.filter(p => p.s.basis === "unknown"), DL_STAIRS.filter(p => p.s.basis === "length"));
 let reviewIdx = -1;
 const polyLen = l => { let s = 0; for (let i = 1; i < l.length; i++) s += Math.hypot(l[i][0] - l[i - 1][0], l[i][1] - l[i - 1][1]); return s; };
 function alongAt(l, d) { // point + unit direction at distance d along polyline
@@ -860,6 +864,7 @@ function redraw() {
   if (hover && hover.r) strokeRings(hover.r, C.ink, lw * 2.6);  // stairs highlight themselves in drawStairs
   if (on.labels) drawLabels(C);
   if (on.labels && on.disneyland && DL) DL.labels.forEach(l => label(l.n, X(l.x), Y(l.y), css(`--l${l.p}`), Math.max(11, Math.min(16, 10 + sc * 3)), 700));
+  if (on.labels && on.disneyland && DL) DL.construction.forEach(c => { const b = bboxOf([c.r]); label(c.n.replace("東京ディズニーランド", "").replace("TDL ", ""), X((b[0] + b[2]) / 2), Y((b[1] + b[3]) / 2) + 16, css("--l6"), 10.5, 500); });
   if (on.labels && on.disneyland && DL && sc > 1.1) { const seen = new Set();
     DL.buildings.forEach(b => { if (!b.n || seen.has(b.n) || area(b.r[0]) < 400) return; seen.add(b.n);
       label(b.n, X((b.bb[0] + b.bb[2]) / 2), Y((b.bb[1] + b.bb[3]) / 2), css(`--l${b.p}`), 10.5, 500); }); }
@@ -868,8 +873,8 @@ function redraw() {
 
 function p_w(list) { return 3.0; }
 function stairColor(p) { return css(BASIS[p.s.basis] ? BASIS[p.s.basis][1] : "--st-dem"); }
-function drawStairs(C, lw) {
-  for (const p of STAIRS) {
+function drawStairs(C, lw, list = STAIRS) {
+  for (const p of list) {
     const col = stairColor(p), l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
     const dim = focus >= 0 ? 0.3 : 1;
     ctx.globalAlpha = hover === p ? 1 : dim;
@@ -966,15 +971,50 @@ function drawLandmarks(C, lw) {
 }
 
 // Tokyo Disneyland: water, green, trees, paths, the Western River Railroad, buildings coloured by land, park boundary
-function drawDisneyland(lw) {
+function drawDisneyland(lw) {   // each part also follows its feature layer (建物・水面・階段 ...)
   if (!DL) return;
+  const C = { path: css("--path"), muted: css("--muted"), sheet: css("--sheet"), green: css("--green") };
   ctx.save(); ctx.setLineDash([]);
-  ctx.beginPath(); DL.water.forEach(r => ring(r)); ctx.fillStyle = css("--water-tint"); ctx.fill(); strokeRings(DL.water, css("--water"), lw);
-  strokeRings(DL.green, css("--green"), lw * 0.6);
-  strokeRings(DL.trees, css("--tree"), lw * 0.7, [2, 3]);
-  ctx.beginPath(); DL.paths.forEach(l => ring(l, false)); ctx.strokeStyle = css("--path"); ctx.lineWidth = Math.max(0.5, lw * 0.6); ctx.stroke();
-  ctx.beginPath(); DL.rail.forEach(l => ring(l, false)); ctx.strokeStyle = css("--rail"); ctx.lineWidth = Math.max(1, lw * 1.2); ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]);
-  for (let i = 0; i < DL.lands.length; i++) strokeRings(DL.buildings.filter(b => b.p === i).flatMap(b => b.r), css(`--l${i}`), lw);
+  if (on.contours) for (const [lv, segs] of Object.entries(DL.contours)) {
+    const idx = Math.round(+lv) % 5 === 0;
+    ctx.beginPath();
+    for (let k = 0; k < segs.length; k += 4) { ctx.moveTo(X(segs[k]), Y(segs[k + 1])); ctx.lineTo(X(segs[k + 2]), Y(segs[k + 3])); }
+    ctx.strokeStyle = idx ? css("--contour-idx") : css("--contour"); ctx.lineWidth = idx ? 1.2 : 0.7; ctx.stroke();
+  }
+  if (on.water) { ctx.beginPath(); DL.water.forEach(r => ring(r)); ctx.fillStyle = css("--water-tint"); ctx.fill(); strokeRings(DL.water, css("--water"), lw); }
+  if (on.green) strokeRings(DL.green, C.green, lw * 0.6);
+  if (on.trees) strokeRings(DL.trees, css("--tree"), lw * 0.7, [2, 3]);
+  if (on.walls) {
+    const WD = { wall: [], hedge: [4, 3], fence: [1.5, 2.5], retaining_wall: [], embankment: [6, 2, 1, 2] };
+    for (const t of Object.keys(WD)) {
+      ctx.beginPath(); DL.walls.forEach(w => { if (w.t === t) ring(w.l, false); });
+      ctx.strokeStyle = t === "hedge" ? C.green : css("--wall");
+      ctx.lineWidth = t === "retaining_wall" ? Math.max(1.4, lw * 1.8) : Math.max(0.6, lw * 0.8);
+      ctx.setLineDash(WD[t]); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  if (on.paths) {
+    ctx.beginPath(); DL.paths.forEach(p => { if (!p.b && !p.a && !p.u && !p.s) ring(p.l, false); });
+    ctx.strokeStyle = C.path; ctx.lineWidth = Math.max(0.5, lw * 0.6); ctx.stroke();
+    strokeRings(DL.paths.filter(p => p.a && !p.u).map(p => p.l), C.path, lw * 0.6);
+  }
+  if (on.tunnels) {
+    ctx.beginPath(); DL.paths.forEach(p => { if (p.u && !p.s) ring(p.l, !!p.a); });
+    ctx.strokeStyle = C.muted; ctx.lineWidth = Math.max(0.8, lw); ctx.setLineDash([2, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (on.bridges) {
+    const br = DL.paths.filter(p => p.b && !p.s);
+    for (const pass of [0, 1]) {
+      ctx.beginPath(); br.forEach(p => ring(p.l, false));
+      ctx.strokeStyle = pass ? C.sheet : css("--bridge");
+      ctx.lineWidth = pass ? Math.max(0.6, 3 * sc - 2) : Math.max(2.2, 3 * sc); ctx.stroke();
+    }
+  }
+  if (on.stairs) drawStairs(C, lw, DL_STAIRS);
+  if (on.rail) { ctx.beginPath(); DL.rail.forEach(l => ring(l, false)); ctx.strokeStyle = css("--rail"); ctx.lineWidth = Math.max(1, lw * 1.2); ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]); }
+  if (on.buildings) for (let i = 0; i < DL.lands.length; i++) strokeRings(DL.buildings.filter(b => b.p === i).flatMap(b => b.r), css(`--l${i}`), lw);
+  strokeRings(DL.construction.map(c => c.r), css("--l6"), Math.max(1, lw * 1.2), [6, 4]);   // construction sites
   strokeRings([DL.park], css("--ink"), Math.max(1.2, lw * 1.6));
   ctx.restore();
 }
@@ -1091,7 +1131,7 @@ $("fit").onclick = () => { if (mode === "orbit") return three.home(); if (mode =
 function showStairTip(p, px, py) {
   const s = p.s, tip = $("tip");
   const dir = s.basis === "unknown" ? "向き不明(仮に矢印方向を上り)" : "矢印の方向が上り";
-  tip.innerHTML = `<b>${s.n ? s.n + " ・ " : ""}階段</b><span style="color:var(${BASIS[s.basis][1]})">${BASIS[s.basis][0]}</span><br>` +
+  tip.innerHTML = `<b>${p.dl ? "ディズニーランド ・ " : ""}${s.n ? s.n + " ・ " : ""}階段</b><span style="color:var(${BASIS[s.basis][1]})">${BASIS[s.basis][0]}</span><br>` +
     `<span class="mono">上がり ${s.rise.toFixed(2)} m ・ 約${s.steps}段 ・ 長さ ${s.len} m</span><br>${dir}<br><span class="mono">OSM way ${s.id}</span>`;
   tip.hidden = false;
   const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -1104,7 +1144,7 @@ $("nextStair").onclick = async () => {
   reviewIdx = (reviewIdx + 1) % REVIEW.length;
   const p = REVIEW[reviewIdx], [cx, cy] = alongAt(p.l, polyLen(p.l) / 2);
   sc = 6; ox = W / 2 - cx * sc; oy = H / 2 + cy * sc; hover = p;
-  if (!on.stairs) { on.stairs = true; const cb = $("ly-stairs"); if (cb) cb.checked = true; }
+  for (const k of p.dl ? ["stairs", "disneyland"] : ["stairs"]) if (!on[k]) { on[k] = true; const cb = $("ly-" + k); if (cb) cb.checked = true; }
   redraw(); showStairTip(p, W / 2, H / 2);
   $("reviewPos").textContent = `${reviewIdx + 1} / ${REVIEW.length}  (${BASIS[p.s.basis][0]})`;
 };
@@ -1116,21 +1156,21 @@ function onHover(px, py) {
   let hit = null;
   if (on.stairs) {
     let best = null, bd = Math.max(2.5, 8 / sc);
-    for (const p of STAIRS) { const d = segDist(x, y, p.l); if (d < bd) { bd = d; best = p; } }
+    for (const p of on.disneyland ? STAIRS.concat(DL_STAIRS) : STAIRS) { const d = segDist(x, y, p.l); if (d < bd) { bd = d; best = p; } }
     if (best) { if (best !== hover) { hover = best; redraw(); } showStairTip(best, px, py); return; }
   }
   if (on.buildings) for (const b of D.buildings) {
     if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
     if (pip(x, y, b.r[0])) { hit = b; break; }
   }
-  if (!hit && on.disneyland && DL) for (const b of DL.buildings) {
+  if (!hit && on.disneyland && on.buildings && DL) for (const b of DL.buildings) {
     if (x < b.bb[0] || x > b.bb[2] || y < b.bb[1] || y > b.bb[3]) continue;
     if (pip(x, y, b.r[0])) { hit = b; hit.dl = 1; break; }
   }
   if (hit !== hover) { hover = hit; redraw(); }
   const tip = $("tip");
   if (!hit) { tip.hidden = true; return; }
-  tip.innerHTML = `<b>${hit.n ? hit.n.replace(/ Tokyo DisneySea.*$/, "") : "名称なし"}</b>${hit.dl ? "ディズニーランド ・ " + DL.lands[hit.p].ja : D.ports[hit.p].ja}${hit.x ? " ・ 優先パーツ" : ""}<br><span class="mono">高さ ${hit.h} m${hit.h === 0 ? "" : " (推定含む)"} ・ 面積 ${Math.round(area(hit.r[0])).toLocaleString()} m²</span>`;
+  tip.innerHTML = `<b>${hit.n ? hit.n.replace(/ Tokyo DisneySea.*$/, "") : "名称なし"}</b>${hit.dl ? "ディズニーランド ・ " + DL.lands[hit.p].ja + (hit.c ? " ・ 建設工事の区域" : "") : D.ports[hit.p].ja}${hit.x ? " ・ 優先パーツ" : ""}<br><span class="mono">高さ ${hit.h} m${hit.h === 0 ? "" : " (推定含む)"} ・ 面積 ${Math.round(area(hit.r[0])).toLocaleString()} m²</span>`;
   tip.hidden = false;
   const tw = tip.offsetWidth, th = tip.offsetHeight;
   tip.style.left = `${Math.min(W - tw - 8, px + 14)}px`; tip.style.top = `${Math.max(8, Math.min(H - th - 8, py + 14))}px`;
@@ -1383,38 +1423,49 @@ async function init3D() {
   D.green.forEach(r => ringH("green", r, 0.05));
   D.trees.forEach(r => { ringH("trees", r, 2); ringH("trees", r, 7); });
   D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
-  for (const p of D.paths) {
-    const z = p.z || p.l.map(([x, y]) => gz(x, y));
-    if (p.s) continue;
-    const key = p.u ? "tunnel" : p.b ? "bridge" : "paths";
-    if (p.a) { for (let i = 0; i < p.l.length; i++) { const j = (i + 1) % p.l.length;
-      seg(key, [...V(p.l[i][0], p.l[i][1], z[i] + 0.05), ...V(p.l[j][0], p.l[j][1], z[j] + 0.05)]); } }
-    else lineZ(key, p.l, z);
-  }
-  for (const p of STAIRS) {  // stepped profile on both edges + nosing lines
-    const l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
-    const z0 = p.z ? p.z[0] : 0, z1 = p.z ? p.z[p.z.length - 1] : 0;
-    for (let k = 0; k < n; k++) {
-      const [xa, ya, ux, uy] = alongAt(l, L * k / n), [xb, yb] = alongAt(l, L * (k + 1) / n);
-      const hk = z0 + (z1 - z0) * k / n, hk1 = z0 + (z1 - z0) * (k + 1) / n, asc = z1 > z0;
-      const za = asc ? hk1 : hk;                        // tread height
-      const [rx, ry] = asc ? [xa, ya] : [xb, yb];        // riser sits on the uphill side of the tread
-      for (const sd of [1, -1]) {
-        const ox_ = -uy * hw * sd, oy_ = ux * hw * sd;
-        seg("stairs", [...V(xa + ox_, ya + oy_, za), ...V(xb + ox_, yb + oy_, za)]);            // tread
-        seg("stairs", [...V(rx + ox_, ry + oy_, hk), ...V(rx + ox_, ry + oy_, hk1)]);           // riser
-      }
-      seg("stairs", [...V(xa - uy * hw, ya + ux * hw, za), ...V(xa + uy * hw, ya - ux * hw, za)]);
+  function paths3d(list, keys) {
+    for (const p of list) {
+      if (p.s) continue;
+      const z = p.z || p.l.map(([x, y]) => gz(x, y)), key = p.u ? keys.tunnel : p.b ? keys.bridge : keys.paths;
+      if (p.a) { for (let i = 0; i < p.l.length; i++) { const j = (i + 1) % p.l.length;
+        seg(key, [...V(p.l[i][0], p.l[i][1], z[i] + 0.05), ...V(p.l[j][0], p.l[j][1], z[j] + 0.05)]); } }
+      else lineZ(key, p.l, z);
     }
   }
-  D.walls.forEach(w => { for (let i = 0; i < w.l.length; i++) {
-    const [x, y] = w.l[i], z = w.z[i];
-    if (i) { const [xp, yp] = w.l[i - 1], zp = w.z[i - 1];
-      seg("walls", [...V(xp, yp, zp + w.h), ...V(x, y, z + w.h)]); seg("walls", [...V(xp, yp, zp), ...V(x, y, z)]); }
-    if (i === 0 || i === w.l.length - 1 || i % 4 === 0) seg("walls", [...V(x, y, z), ...V(x, y, z + w.h)]); } });
-  for (const [lv, segs] of Object.entries(D.contours)) {
-    for (let k = 0; k < segs.length; k += 4) seg("contours", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+  function stairs3d(list, key) {  // stepped profile on both edges + nosing lines
+    for (const p of list) {
+      const l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
+      const z0 = p.z ? p.z[0] : 0, z1 = p.z ? p.z[p.z.length - 1] : 0;
+      for (let k = 0; k < n; k++) {
+        const [xa, ya, ux, uy] = alongAt(l, L * k / n), [xb, yb] = alongAt(l, L * (k + 1) / n);
+        const hk = z0 + (z1 - z0) * k / n, hk1 = z0 + (z1 - z0) * (k + 1) / n, asc = z1 > z0;
+        const za = asc ? hk1 : hk;                        // tread height
+        const [rx, ry] = asc ? [xa, ya] : [xb, yb];        // riser sits on the uphill side of the tread
+        for (const sd of [1, -1]) {
+          const ox_ = -uy * hw * sd, oy_ = ux * hw * sd;
+          seg(key, [...V(xa + ox_, ya + oy_, za), ...V(xb + ox_, yb + oy_, za)]);            // tread
+          seg(key, [...V(rx + ox_, ry + oy_, hk), ...V(rx + ox_, ry + oy_, hk1)]);           // riser
+        }
+        seg(key, [...V(xa - uy * hw, ya + ux * hw, za), ...V(xa + uy * hw, ya - ux * hw, za)]);
+      }
+    }
   }
+  function walls3d(list, key) {
+    list.forEach(w => { for (let i = 0; i < w.l.length; i++) {
+      const [x, y] = w.l[i], z = w.z[i];
+      if (i) { const [xp, yp] = w.l[i - 1], zp = w.z[i - 1];
+        seg(key, [...V(xp, yp, zp + w.h), ...V(x, y, z + w.h)]); seg(key, [...V(xp, yp, zp), ...V(x, y, z)]); }
+      if (i === 0 || i === w.l.length - 1 || i % 4 === 0) seg(key, [...V(x, y, z), ...V(x, y, z + w.h)]); } });
+  }
+  function contours3d(obj, key) {
+    for (const [lv, segs] of Object.entries(obj)) {
+      for (let k = 0; k < segs.length; k += 4) seg(key, [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+    }
+  }
+  paths3d(D.paths, { paths: "paths", bridge: "bridge", tunnel: "tunnel" });
+  stairs3d(STAIRS, "stairs");
+  walls3d(D.walls, "walls");
+  contours3d(D.contours, "contours");
   D.rail.forEach(l => { const zs = l.map(([x, y]) => gz(x, y)); lineZ("rail", l, zs.map(z => z + 7)); lineZ("rail", l, zs.map(z => z + 7.8)); });
   D.buildings.forEach(b => b.r.forEach(r => prism(b.x ? "pri" : `p${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
   if (D.volcano) for (const [lv, segs] of Object.entries(D.volcano.contours))
@@ -1491,7 +1542,11 @@ async function init3D() {
     DL.water.forEach(r => ringG("dlwater", r, -0.3));
     DL.green.forEach(r => ringG("dlgreen", r, 0.05));
     DL.trees.forEach(r => { ringG("dltrees", r, 2); ringG("dltrees", r, 7); });
-    DL.paths.forEach(l => lineZ("dlpaths", l, l.map(([x, y]) => hz(x, y))));
+    paths3d(DL.paths, { paths: "dlpaths", bridge: "dlbridge", tunnel: "dltunnel" });
+    stairs3d(DL_STAIRS, "dlstairs");
+    walls3d(DL.walls, "dlwalls");
+    contours3d(DL.contours, "dlcontours");
+    DL.construction.forEach(c => ringG("dlsite", c.r, 0.1));
     DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
     DL.buildings.forEach(b => b.r.forEach(r => prism(`l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
   }
@@ -1512,19 +1567,23 @@ async function init3D() {
   const LAYER_OF = { park: null, water: "water", green: "green", trees: "trees", rock: "rock", paths: "paths", rail: "rail",
     land: "landmarks", pri: "buildings", grid: null, stairs: "stairs", bridge: "bridges", tunnel: "tunnels", walls: "walls", contours: "contours",
     aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
-    dlpark: "disneyland", dlwater: "disneyland", dlgreen: "disneyland", dltrees: "disneyland", dlpaths: "disneyland", dlrail: "disneyland",
+    dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
+    dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
+    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"],
     mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhwalk: "maihama" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
-    dlpark: "--ink", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
+    dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
+    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhwalk: "--mh" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
-    const mat = k === "tunnel" ? new T.LineDashedMaterial({ transparent: true, dashSize: 2, gapSize: 2 }) : new T.LineBasicMaterial({ transparent: true });
+    const dashed = k === "tunnel" || k === "dltunnel";
+    const mat = dashed ? new T.LineDashedMaterial({ transparent: true, dashSize: 2, gapSize: 2 }) : new T.LineBasicMaterial({ transparent: true });
     objs[k] = new T.LineSegments(geo, mat);
-    if (k === "tunnel") objs[k].computeLineDistances();
+    if (dashed) objs[k].computeLineDistances();
     root.add(objs[k]);
   }
   three.colors = () => {
@@ -1542,8 +1601,8 @@ async function init3D() {
     const shown = m => mdl[m.id] !== false;
     const replaced = mdl.overlay ? new Set() : new Set(Object.values(three.models).filter(shown).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
-      const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? "disneyland" : LAYER_OF[k];
-      o.visible = (!layer || on[layer]) && !replaced.has(k);
+      const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? ["disneyland", "buildings"] : LAYER_OF[k];
+      o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);

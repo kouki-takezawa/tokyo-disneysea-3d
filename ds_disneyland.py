@@ -5,6 +5,8 @@ refetching it never changes the DisneySea pipeline. Ground heights come from the
 (ds_levels), which already covers Tokyo Disneyland and Maihama Station.
 
   build(datum) -> {"disneyland": {...}, "maihama": {...}}   (local metres, same origin as DisneySea)
+  python ds_disneyland.py --levels   # stairs / path heights / walls -> plateau_data/disneyland_levels.json
+                                      # (ds_levels.compute on disneyland_osm_raw.json, DisneySea's datum)
 
 Lands: a building belongs to the land of a POI (or named building) inside its footprint, else to the land
 of the nearest such point within POI_REACH m, else to "other" (backstage, parking, service buildings).
@@ -63,6 +65,19 @@ LANDS = [   # (key, 日本語, name substrings of POIs / buildings that identify
         "ショーベース", "プラズマ・レイズ", "スペース・マウンテン", "バズ・ライトイヤー")),
 ]
 OTHER = len(LANDS)   # バックステージ・その他
+BACKSTAGE_NAMES = ("機関庫", "従業員", "メンテナンス")   # named, but not part of a land
+LEVELS_JSON = ROOT / "plateau_data" / "disneyland_levels.json"
+PATH_W = {"pedestrian": 8.0, "footway": 3.5, "steps": 3.5, "service": 5.0, "corridor": 3.0}
+
+
+def compute_levels(datum):
+    return LV.compute(raw_name="disneyland_osm_raw.json", park_id=TDL_PARK_WAY, out_name=LEVELS_JSON.name, datum=datum)
+
+
+def load_levels(datum):
+    if LEVELS_JSON.exists():
+        return json.loads(LEVELS_JSON.read_text(encoding="utf-8"))
+    return compute_levels(datum)
 
 
 def R(pts):
@@ -95,6 +110,8 @@ def outer_rings(rel):
 
 
 def land_of_name(name):
+    if any(k in name for k in BACKSTAGE_NAMES):
+        return None
     return next((i for i, (_, _, keys) in enumerate(LANDS) if any(k in name for k in keys)), None)
 
 
@@ -141,6 +158,12 @@ def build(datum):
             except ValueError: pass
         return OTHER_H if li == OTHER else DEFAULT_H
 
+    construction = []   # areas under construction: [(ring, name)]
+    for w in DATA["ways"]:
+        t = w["tags"]
+        if w["closed"] and (t.get("landuse") == "construction" or "construction" in t) and "building" not in t and in_tdl(*poly_centroid(w["pts"])):
+            construction.append((ring_of(w), t.get("name", "建設工事")))
+
     items = [(w["tags"], [ring_of(w)]) for w in DATA["ways"] if "building" in w["tags"] and w["closed"]]
     items += [(r["tags"], outer_rings(r)) for r in DATA["relations"] if "building" in r["tags"]]
     buildings, pts_by_land = [], {i: [] for i in range(len(LANDS))}
@@ -148,8 +171,16 @@ def build(datum):
         rings = [r for r in rings if len(r) >= 3]
         if not rings or not in_tdl(*poly_centroid(rings[0])):
             continue
-        li = land_of(rings[0]); cx, cy = poly_centroid(rings[0]); a = poly_area(rings[0])
+        cx, cy = poly_centroid(rings[0]); a = poly_area(rings[0])
+        site = next((n for r, n in construction if point_in_poly(cx, cy, r)), None)
+        if any(k in tags.get("name", "") for k in BACKSTAGE_NAMES):
+            li = OTHER
+        elif site is not None and land_of_name(site) is not None:   # e.g. the new Tomorrowland attraction site
+            li = land_of_name(site)
+        else:
+            li = land_of(rings[0])
         b = {"r": [R(r) for r in rings], "h": round(height(tags, li), 1), "p": li, "z": z_of(cx, cy)}
+        if site is not None: b["c"] = site
         if tags.get("name"): b["n"] = tags["name"]
         buildings.append(b)
         if li != OTHER: pts_by_land[li].append((cx, cy, a))
@@ -170,8 +201,34 @@ def build(datum):
     water = areas(lambda t: t.get("natural") == "water" or t.get("water") or t.get("leisure") == "swimming_pool")
     green = areas(lambda t: t.get("leisure") in ("park", "garden") or t.get("landuse") in ("grass", "meadow") and not t.get("tourism"))
     trees = areas(lambda t: t.get("landuse") == "forest" or t.get("natural") in ("wood", "scrub"))
-    paths = [R(w["pts"]) for w in DATA["ways"] if w["tags"].get("highway") in ("footway", "pedestrian", "steps", "path")
-             and in_tdl(*poly_centroid(w["pts"]))]
+    lev = load_levels(datum)
+    paths = []   # same format as the DisneySea paths in export_mock: l, w, z, b (bridge), u (tunnel), a (area), s (stair)
+    for w in DATA["ways"]:
+        hw = w["tags"].get("highway")
+        if hw not in PATH_W or not in_tdl(*poly_centroid(w["pts"])):
+            continue
+        p = {"l": R(w["pts"]), "w": PATH_W[hw]}
+        lw = lev["ways"].get(str(w["id"]))
+        if lw and len(lw["z"]) == len(w["pts"]):
+            p["z"] = lw["z"]
+            if lw["kind"] == "bridge": p["b"] = 1
+            elif lw["kind"] == "tunnel": p["u"] = 1
+        elif w["tags"].get("bridge") in ("yes", "viaduct"):
+            p["b"] = 1
+        if w["closed"] and (hw == "pedestrian" or w["tags"].get("area") == "yes"):
+            p["a"] = 1
+        st = lev["stairs"].get(str(w["id"]))
+        if st:
+            p["s"] = {k: st[k] for k in ("rise", "steps", "up", "basis", "len")}
+            p["s"]["id"] = w["id"]
+            if w["tags"].get("width"):
+                try: p["w"] = float(w["tags"]["width"])
+                except ValueError: pass
+            if w["tags"].get("name"): p["s"]["n"] = w["tags"]["name"]
+        paths.append(p)
+    walls = [{"t": wl["type"], "h": wl["h"], "l": wl["pts"], "z": wl["z"]} for wl in lev["walls"]]
+    LV.DATUM = datum
+    contours = {str(k): v for k, v in LV.contours(park, interval=1.0).items()}
     rail = [R(w["pts"]) for w in DATA["ways"] if w["tags"].get("railway") in ("narrow_gauge", "rail", "light_rail")
             and "京葉" not in w["tags"].get("name", "") and in_tdl(*poly_centroid(w["pts"]))]
 
@@ -184,7 +241,8 @@ def build(datum):
 
     disneyland = {"park": R(park), "lands": [{"id": k, "ja": ja} for k, ja, _ in LANDS] + [{"id": "other", "ja": "バックステージ・その他"}],
                   "buildings": buildings, "labels": labels, "water": water, "green": green, "trees": trees,
-                  "paths": paths, "rail": rail, "hgrid": hgrid}
+                  "paths": paths, "walls": walls, "contours": contours, "levels": {"counts": lev["counts"]},
+                  "construction": [{"n": n, "r": R(r)} for r, n in construction], "rail": rail, "hgrid": hgrid}
 
     # ---- Maihama station and around: JR Keiyo line near the station, the whole Resort Line loop and its
     # stations, Ikspiari, hotels, station buildings, and the walkways between the station and the park gates
@@ -241,12 +299,19 @@ def build(datum):
 
 
 if __name__ == "__main__":
-    import collections
-    out = build(5.29)
+    import collections, sys
+    datum = json.loads((ROOT / "plateau_data" / "disneysea_levels.json").read_text(encoding="utf-8"))["datum_m"]   # DisneySea's 0 m
+    if "--levels" in sys.argv:
+        r = compute_levels(datum)
+        print("stairs by basis:", r["counts"], " walls:", len(r["walls"]), " ways:", len(r["ways"]))
+        sys.exit()
+    out = build(datum)
     d, m = out["disneyland"], out["maihama"]
     c = collections.Counter(b["p"] for b in d["buildings"])
     print("buildings", len(d["buildings"]), {d["lands"][k]["ja"]: v for k, v in sorted(c.items())})
-    print("water", len(d["water"]), "green", len(d["green"]), "trees", len(d["trees"]), "paths", len(d["paths"]), "rail", len(d["rail"]))
+    print("water", len(d["water"]), "green", len(d["green"]), "trees", len(d["trees"]), "paths", len(d["paths"]), "rail", len(d["rail"]),
+          "stairs", sum(1 for p in d["paths"] if "s" in p), "walls", len(d["walls"]), "contour levels", len(d["contours"]),
+          "construction", [c["n"] for c in d["construction"]], "under construction bldgs", [(b.get("n", ""), d["lands"][b["p"]]["ja"]) for b in d["buildings"] if "c" in b])
     print("labels", [(l["n"], l["x"], l["y"]) for l in d["labels"]])
     print("maihama jr", len(m["jr"]), "loop", len(m["loop"]), "stations", [s["n"] for s in m["stations"]], "platforms", len(m["platforms"]),
           "places", [(p["n"], p["k"]) for p in m["places"]], "walks", len(m["walks"]))

@@ -122,12 +122,14 @@ def _layer(t):
 
 
 # ---------------------------------------------------------------- main solve
-def compute():
+def compute(raw_name="disneysea_osm_raw.json", park_id=203538370, out_name="disneysea_levels.json", datum=None):
+    """Levels for the paths, stairs and walls inside one park. datum=None measures it from this park's ground
+    paths (DisneySea); another park passes DisneySea's datum so both share the same 0 m."""
     global DATUM
-    raw = json.loads((PD / "disneysea_osm_raw.json").read_text(encoding="utf-8"))
+    raw = json.loads((PD / raw_name).read_text(encoding="utf-8"))
     nodes = {e["id"]: _xy(e["lat"], e["lon"]) for e in raw["elements"] if e["type"] == "node" and "lat" in e}
     ways = [e for e in raw["elements"] if e["type"] == "way"]
-    park_way = next(w for w in ways if w["id"] == 203538370)
+    park_way = next(w for w in ways if w["id"] == park_id)
     park = [nodes[n] for n in park_way["nodes"] if n in nodes]
 
     hw = []
@@ -146,7 +148,7 @@ def compute():
                    "bridge": t.get("bridge") in ("yes", "viaduct"), "tunnel": t.get("tunnel") == "yes" or _layer(t) < 0})
 
     ground_pts = [p for w in hw if not (w["steps"] or w["bridge"] or w["tunnel"] or w["layer"] > 0) for p in w["pts"]]
-    DATUM = float(np.median([dem_abs(x, y) for x, y in ground_pts]))
+    DATUM = float(np.median([dem_abs(x, y) for x, y in ground_pts])) if datum is None else float(datum)
 
     node_ways = {}
     for k, w in enumerate(hw):
@@ -288,7 +290,7 @@ def compute():
            "walls": [{"id": wl["id"], "type": wl["type"], "h": wl["h"],
                       "pts": [[round(x, 1), round(y, 1)] for x, y in wl["pts"]], "z": [round(v, 2) for v in wl["z"]]} for wl in walls],
            "shifted_components": len(shift)}
-    (PD / "disneysea_levels.json").write_text(json.dumps(res, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (PD / out_name).write_text(json.dumps(res, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return res
 
 
