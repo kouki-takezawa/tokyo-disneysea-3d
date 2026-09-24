@@ -37,7 +37,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 舞浜駅・周辺(JR・リゾートライン全周・イクスピアリ・ホテル・歩道) | 済(モックのレイヤー) | `ds_disneyland.py` |
 | モック(地図・俯瞰・散歩、PC とスマホ) | 済 | `export_mock.py`, `output/disneysea/mock_template.html` |
 | Blender で作ったものをモックに 3D モデルとして表示 | 済(水面・アクアスフィア・プラザ・火山) | `export_models.py` |
-| 電車(リゾートライン Type X)の試作と JS / Blender の比較 | JS 版の試作は済。Blender 版は下書きのみ(未実行) | `output/disneysea/train.html`, `train_blender.py`, `docs/train/spec.md` |
+| 電車(リゾートライン)の JS 版と JS / Blender の比較 | JS 版は写真に合わせて車内まで作り込み済み。Blender 版は下書きのみ(未実行) | `output/disneysea/train.html`, `train_blender.py`, `docs/train/spec.md` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | これから | — |
 
@@ -211,12 +211,18 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 
 ![DEM の陰影図](docs/draft/dem5a_hillshade.jpg)
 
-### 電車の試作(JS と Blender の比較)
+### 電車(ディズニーリゾートライン)
 
-`output/disneysea/train.html`(公開 URL の `/train.html`)は、ディズニーリゾートラインの Type X(青い 6 両編成)を JS(three.js)だけで作った単独のページ。地図のモックとは別で、まだモックには入れていない。寸法は Wikipedia の値、色・窓・ドアなどは推定(`docs/train/spec.md`)。
-JS 版は、形・配色・ミッキー型の窓・台車・桁まで出せた。窓の凹み・フロントガラス・塗装の絵柄などの近景のリアルさは Blender のほうが上になる、というのが現時点の判断(比較表と理由は `docs/train/spec.md`)。Blender 版は `train_blender.py` に下書きだけあり、この端末では動かせないので未実行。
+`output/disneysea/train.html`(公開 URL の `/train.html`)は、リゾートラインの 6 両編成を JS(three.js)だけで作った単独のページ。地図のモックにはまだ入れていない。
 
-![JS 版の先頭のアップ](docs/train/js_nose.jpg)
+- 寸法は Wikipedia の値。形と色は、Wikimedia Commons の写真(CC0 / CC BY-SA。個人利用の参考として見ただけで、リポジトリには入れていない)に合わせた: 白い車体 + 波形の色帯 + 銀灰のスカート、縦長のミッキー窓、楕円窓のドア、3 枚のフロントガラス。
+- 窓は実際に穴が開いていて、ガラス越しに車内が見える。車内は、柄入りの長い座席、黄色い床、アーチ形の手すり、つり革、照明、貫通路、先頭車の運転台と展望席まで作った。
+- 視点(外から 6、断面、車内の通路・運転席・座席)、断面表示(手前の壁・屋根を外す)、5 色の編成、走行を切り替えられる。
+- 仕様・参考写真の一覧・JS と Blender の比較は `docs/train/spec.md`。判断: 外から見る編成は JS 版で十分。車内の近景(座席の丸み・窓枠の厚み・照明)は Blender が上。Blender 版は `train_blender.py` に下書きだけあり、未実行。
+
+| 外観 | 車内 |
+|---|---|
+| ![先頭](docs/train/js2_nose.jpg) | ![通路](docs/train/js2_aisle.jpg) |
 
 ### 入場口・駅(`ds_core.entrance_layer()`)
 

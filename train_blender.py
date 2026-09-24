@@ -11,7 +11,7 @@ import sys, math, argparse, pathlib
 import bpy, bmesh
 
 SPEC = dict(head_len=15.05, mid_len=13.70, width=2.98, nose_len=3.4, bottom=0.62, top=3.95, roof_r=1.15,
-            beam_w=0.85, color=(0.011, 0.156, 0.62, 1.0))   # linear RGB of #1c6fcf (approx.)
+            beam_w=0.85, color=(0.84, 0.86, 0.88, 1.0))   # white body; the colour band / skirt are TODO (see docs/train/spec.md)
 
 
 def section(w, z0, z1, rt, rb, n=8):
