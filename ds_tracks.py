@@ -44,6 +44,7 @@ import ds_tdl_station as ST
 from ds_tdl_station import B, obj_bm, bm_box, bm_lathe, bm_prism, T, R, _principled, _mottle, text
 
 OUT = ROOT / "output" / "disneyland" / "tracks"
+RL_STATIONS = False          # the other three Resort Line stations are built separately later (user, 2026-09-25)
 WEB = False                  # export_objects() sets it: lighter piers, sampling and fittings for the mock
 SPEC = dict(beam_w=0.85, beam_d=1.5, span=22.0, jr_gauge=1.067, jr_deck_edge=2.8, parapet=1.6, bent=10.0, mast=50.0,
             contact=5.1, messenger=6.2, platform_jr=1.1, ground_fallback=-2.3)
@@ -233,7 +234,7 @@ def build_resort_line(D, h, skip):
     S = SPEC; zt = D["maihama"]["loop_z"] + 0.9; zb = zt - S["beam_d"]
     loop = chaikin(chain_loop(D["maihama"]["loop"]), True, 2)
     pts, L = resample(loop, 4.0 if WEB else 2.0, True)
-    keep = [not skip(p[0], p[1]) for p in pts]
+    keep = [True for p in pts]                               # the beam runs unbroken, through Tokyo Disneyland Station too
     # runs of kept points (the loop is cut where Tokyo Disneyland Station's own model takes over)
     runs, cur = [], []
     for i, p in enumerate(pts):
@@ -265,7 +266,7 @@ def build_resort_line(D, h, skip):
         # joints every span: finger plates on the top, a pier under each
         s0 = run[0][2]
         for p in run:
-            if (p[2] - s0) % S["span"] < (4.0 if WEB else 2.0) - 1e-6 and len(piers) < 10000:
+            if (p[2] - s0) % S["span"] < (4.0 if WEB else 2.0) - 1e-6 and not skip(p[0], p[1]):   # no piers inside the station
                 piers.append(p)
     F = frames([(p[0], p[1]) for p in pts], True)
     idx = {id(p): i for i, p in enumerate(pts)}
@@ -568,7 +569,7 @@ def station_skip():
     """Inside Tokyo Disneyland Station's own model (its beam runs 60 m each way from its centre)."""
     def skip(x, y):
         u, v = ST.to_local(x, y)
-        return abs(u) < 58.0 and abs(v) < 20.0
+        return abs(u) < 47.0 and abs(v) < 16.0          # the station building (its ground floor holds the beam up)
     return skip
 
 
@@ -582,7 +583,8 @@ def build(context=True, train=True):
     D = data(); h = make_ground(D); skip = station_skip()
     t0 = time.time()
     pts = build_resort_line(D, h, skip)
-    build_rl_platforms(D, h, skip)
+    if RL_STATIONS:
+        build_rl_platforms(D, h, skip)
     build_keiyo(D, h)
     if context:
         build_context(D, h, (-900.0, 40.0, 520.0, 1260.0))

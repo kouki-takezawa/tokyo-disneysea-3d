@@ -713,7 +713,11 @@ def build_shell():
     cb, cv0, wu, wv0 = S["cb_u"], S["cb_v0"], S["wing_u"], S["wing_v0"]
     tv, eave = S["track_v"], S["eave"]
     # ---- ground floor: brick blocks either side of the through passage (lockers, toilets, offices)
-    gw = box("ST_Ground_blocks", sym([(-U, -cb, V0, V1 - 0.5, 0, F2 - sl), (-wu, -cb, wv0, V0, 0, F2 - sl)]), "brick")
+    # the track runs through the whole block: the ground floor stops at the platform edge and resumes behind the track,
+    # and under the track well it only reaches the well floor (3.8 m), so the train passes (user, 2026-09-25)
+    gw = box("ST_Ground_blocks", sym([(-U, -cb, V0, S["plat_edge"], 0, F2 - sl), (-U, -cb, tv + 1.65, V1 - 0.5, 0, F2 - sl),
+                                       (-wu, -cb, wv0, V0, 0, F2 - sl)]), "brick")
+    box("ST_Ground_under_well", sym([(-U, -cb, S["plat_edge"], tv + 1.65, 0, 3.8)]), "brick")
     doors = sym([(-14.5 - 1.1, -14.5 + 1.1, wv0 - 0.1, wv0 + 0.4, 0, 2.9)] + [(u - 1.1, u + 1.1, V0 - 0.1, V0 + 0.4, 0, 3.1) for u in (-42.0, -36.5)])
     doors += sym([(u - 1.1, u + 1.1, V1 - 0.9, V1 - 0.4, 0, 3.1) for u in (-40.0, -30.0, -20.0)])
     cutter("ST_Ground_doorcut", doors, gw)
@@ -772,7 +776,7 @@ def build_shell():
     box("ST_North_parapet", sym([(-U, -cb, V1 - 0.5, V1, F2 - sl, 8.1)]), "brick")
     box("ST_North_coping", (-U - 0.1, U + 0.1, V1 - 0.6, V1 + 0.1, 8.1, 8.25), "trim", 0.02)
     # ---- 2F park-side wall (stone, paired arched windows under red awnings), end walls
-    sw = box("ST_2F_southwall", sym([(-U, -wu, V0 - 0.35, V0, F2, eave - 0.2), (-U, -U + 0.35, V0, V1 - 0.5, F2, eave - 0.2)]), "stone")
+    sw = box("ST_2F_southwall", sym([(-U, -wu, V0 - 0.35, V0, F2, eave - 0.2)]), "stone")   # (no end walls: the train runs through)
     pairs = [22.5, 27.5, 32.5, 37.5, 42.5]
     wx = [s * c + dx for c in pairs for s in (-1, 1) for dx in (-0.6, 0.6)]
     cutter("ST_2F_windowcut", [arch_opening(x - 0.42, x + 0.42, F2 + 0.8, F2 + 2.7, 0.42, 12) for x in wx], sw, "xz", (V0 - 1.0, V0 + 0.6))
@@ -1242,8 +1246,8 @@ def export_objects(merged):
     bpy.context.view_layer.update()
     groups = {}
     for o in B.col.objects:
-        if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith("CAM_"):
-            continue
+        if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith(("CAM_", "ST_Track_")):
+            continue                                          # (the beam through the station comes from ds_tracks)
         mats = [m for m in (o.data.materials if o.data else []) if m]
         if not mats:
             continue
