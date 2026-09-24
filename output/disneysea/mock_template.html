@@ -100,6 +100,8 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .sw.dash{border-top-style:dashed}
 .models-h{margin:8px 0 0;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:inherit}
 .areas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.search{width:100%;font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--rule);border-radius:4px;background:var(--sheet);color:var(--ink);margin-bottom:4px}
+.search:focus{outline:2px solid var(--water);outline-offset:0}
 .areas button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;
   width:100%;padding:7px 6px;border-radius:3px;cursor:pointer}
 .areas button:hover{background:var(--grid)}
@@ -216,6 +218,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
   </div>
   <div class="tools">
     <button class="btn" id="btnShare" title="今の視点の URL を共有">共有</button>
+    <button class="btn" id="btnNight" aria-pressed="false" title="夜にする(N)">夜</button>
     <button class="btn" id="btnLite" aria-pressed="false" title="水の透過・しぶきを切り、解像度を下げて軽くする">軽量</button>
     <button class="btn" id="btnPanel" aria-expanded="true" aria-controls="panel" title="パネルの表示・非表示">パネル</button>
   </div>
@@ -256,6 +259,11 @@ body.coarse .hud.tc{top:auto;bottom:176px}
         </section>
       </div>
       <div class="pane" data-pane="areas" hidden>
+        <section>
+          <h2>施設を探す</h2>
+          <input type="search" id="q" class="search" placeholder="例: タワー・オブ・テラー、シンデレラ城、ベイサイド" autocomplete="off" aria-label="施設名で探す">
+          <ul class="areas" id="qres"></ul>
+        </section>
         <p class="hintp">地図・俯瞰では、そのエリアへ移動して強調します(もう一度押すと解除)。散歩では、その場所へ移動します。</p>
         <section>
           <h2>スタート地点</h2>
@@ -288,6 +296,7 @@ body.coarse .hud.tc{top:auto;bottom:176px}
             <dt>クリック</dt><dd>散歩でマウス視点に切り替え(Esc で解除)</dd>
             <dt>V</dt><dd>散歩の一人称 / 三人称</dd>
             <dt>H</dt><dd>写真モード(操作部品を隠す)</dd>
+            <dt>N</dt><dd>夜 / 昼</dd>
             <dt>Esc</dt><dd>散歩から俯瞰へ戻る ・ 電車を追うのをやめる</dd>
             <dt>F</dt><dd>俯瞰で電車を追う / やめる</dd>
             <dt>T</dt><dd>追う電車を 1 本目 / 2 本目で切り替える</dd>
@@ -526,7 +535,7 @@ const LAYERS = [
   ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
   ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
-  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["trains","電車(リゾートライン)","--mh",0], ["labels","ラベル","--muted",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["trains","電車(リゾートライン・京葉線)","--mh",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
 try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
@@ -551,7 +560,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["trains", "電車(リゾートライン)"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["trains", "電車(リゾートライン・京葉線)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -654,14 +663,14 @@ $("st-w").textContent = D.water.length + D.ponds.length;
 $("st-p").textContent = D.paths.length;
 
 /* ---------- stairs / levels ---------- */
-const BASIS = { dem: ["DEMで確定", "--st-dem"], link: ["つながりから推定", "--st-link"], length: ["長さから推定", "--st-len"],
+const BASIS = { dem: ["DEMで確定", "--st-dem"], link: ["つながりから推定", "--st-link"], wide: ["周辺のDEMから推定", "--st-link"], length: ["長さから推定", "--st-len"],
   unknown: ["要確認(向き不明)", "--st-unk"], user: ["修正済み", "--st-dem"] };
 const STAIRS = D.paths.filter(p => p.s);
 const DL_STAIRS = DL ? DL.paths.filter(p => p.s) : [];
 DL_STAIRS.forEach(p => p.dl = 1);
 const bcount = {}; STAIRS.forEach(p => bcount[p.s.basis] = (bcount[p.s.basis] || 0) + 1);
 const dcount = {}; DL_STAIRS.forEach(p => dcount[p.s.basis] = (dcount[p.s.basis] || 0) + 1);
-$("basis").innerHTML = ["dem", "link", "length", "unknown"].map(k =>
+$("basis").innerHTML = ["dem", "link", "wide", "length", "unknown"].map(k =>
   `<li><span class="sw" style="color:var(${BASIS[k][1]});border-top-width:3px"></span><span>${BASIS[k][0]}</span><span class="n">${bcount[k] || 0}${DL ? ` ・ ランド ${dcount[k] || 0}` : ""}</span></li>`).join("");
 $("datum").textContent = `(海抜 ${D.levels.datum} m)`;
 const REVIEW = STAIRS.filter(p => p.s.basis === "unknown").concat(STAIRS.filter(p => p.s.basis === "length"),
@@ -729,6 +738,7 @@ const area = r => { let s = 0; for (let i = 0, j = r.length - 1; i < r.length; j
 const fz = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + " m";
 const BCELL = 20, BGRID = new Map();   // building footprints bucketed by 20 m cells
 D.buildings.forEach((b, i) => {
+  if (b.rf) return;   // roof-only structures don't block the walker (the grid is only used for walking into buildings / aiming)
   for (let a = Math.floor(b.bb[0] / BCELL); a <= Math.floor(b.bb[2] / BCELL); a++)
     for (let c = Math.floor(b.bb[1] / BCELL); c <= Math.floor(b.bb[3] / BCELL); c++) {
       const k = a * 4096 + c; let l = BGRID.get(k); if (!l) BGRID.set(k, l = []); l.push(i);
@@ -848,6 +858,107 @@ const RL = (() => {
     state: (t = now()) => trains.map(tr => { const st = state(tr, t), [x, y] = at(st.s); return { ...st, x, y, id: tr.id }; }) };
   return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots (the 3D trains: trainsSolid / trainsWire)
 })();
+
+/* ---------- JR Keiyo Line trains through Maihama ---------- */
+// Same idea as the Resort Line: a timetable in plain JS (plan markers + 3D). A train has a path, its car lengths and
+// a "through" motion: it comes in, stops at the platform, leaves (the Keiyo Line only exists in the data near
+// Maihama, so trains appear and disappear at the ends). Speeds, dwell and headway are estimates.
+const MOV = (() => {
+  const mk = (pts, closed) => {
+    const P = pts.map(p => [p[0], p[1]]); if (closed) P.push(P[0]);
+    const cum = [0]; for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    const LEN = cum[cum.length - 1];
+    const at = s => {
+      s = closed ? ((s % LEN) + LEN) % LEN : Math.max(0, Math.min(LEN, s));
+      let lo = 0, hi = cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+      const a = P[lo], b = P[hi], L = cum[hi] - cum[lo] || 1e-6, t = (s - cum[lo]) / L;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (b[0] - a[0]) / L, (b[1] - a[1]) / L, lo + t];
+    };
+    const project = (x, y) => { let best = 0, bd = Infinity;
+      for (let i = 1; i < P.length; i++) { const [ax, ay] = P[i - 1], [bx, by] = P[i], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1e-9;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)), d = Math.hypot(x - ax - dx * t, y - ay - dy * t);
+        if (d < bd) { bd = d; best = cum[i - 1] + Math.sqrt(L2) * t; } }
+      return best; };
+    return { P, LEN, closed, at, project };
+  };
+  const list = [];
+  const add = m => { m.TL = m.cars.reduce((a, b) => a + b, 0) + (m.cars.length - 1) * (m.gap || 0); list.push(m); return m; };
+  // motion -> state(t) = { c: arc position of the middle, dir: +1 (direction of travel along the path), v, hidden }
+  const through = (m, v, a, dwell, stopC, period, off) => {
+    const cS = -m.TL / 2 - 20, cE = m.path.LEN + m.TL / 2 + 20, db = v * v / (2 * a), t1 = Math.max(0, (stopC - db - cS) / v), tb = v / a,
+          t2 = t1 + tb, t3 = t2 + dwell, t4 = t3 + tb, t5 = t4 + Math.max(0, (cE - stopC - db) / v);
+    return t => { const tt = (((t + off) % period) + period) % period;
+      if (tt < t1) return { c: cS + v * tt, dir: 1, v };
+      if (tt < t2) { const u = tt - t1; return { c: stopC - db + v * u - 0.5 * a * u * u, dir: 1, v: v - a * u }; }
+      if (tt < t3) return { c: stopC, dir: 1, v: 0, stop: true };
+      if (tt < t4) { const u = tt - t3; return { c: stopC + 0.5 * a * u * u, dir: 1, v: a * u }; }
+      if (tt < t5) return { c: stopC + db + v * (tt - t4), dir: 1, v };
+      return { c: cE, dir: 1, v: 0, hidden: true }; }; };
+
+  // JR Keiyo Line: 10-car E233 sets (20 m cars) through Maihama both ways. Trains keep left: the Tokyo-bound track
+  // is the south one. Every 6 minutes each way (estimate), 45 s at the platform.
+  if (MH && MH.jr && MH.jr.length && MH.jr_station) {
+    const J = MH.jr_station, hx = Math.cos(J.ang), hy = Math.sin(J.ang), nx = Math.sin(J.ang), ny = -Math.cos(J.ang);   // +x toward Tokyo, n = north
+    MH.jr.forEach((l, i) => {
+      const mx = l.reduce((a, p) => a + p[0], 0) / l.length - J.x, my = l.reduce((a, p) => a + p[1], 0) / l.length - J.y;
+      const south = mx * nx + my * ny < 0, toTokyo = south;
+      let pts = l.slice(); const d = (pts[pts.length - 1][0] - pts[0][0]) * hx + (pts[pts.length - 1][1] - pts[0][1]) * hy;
+      if ((d > 0) !== toTokyo) pts.reverse();
+      const m = add({ id: "jr" + i, ja: toTokyo ? "京葉線(東京方面)" : "京葉線(蘇我方面)", group: "trains", kind: "jr", col: "#c9242f",
+        path: mk(pts, false), cars: Array(10).fill(20), gap: 0.6, base: () => MH.jr_z });
+      m.state = through(m, 16.7, 0.8, 45, m.path.project(J.x, J.y), 360, i * 170);
+    });
+  }
+  // car k (from the front): [arc position of its middle, its length]
+  const carsAt = (m, st) => { const out = []; let o = m.TL / 2;
+    m.cars.forEach(L => { out.push([st.c + st.dir * (o - L / 2), L]); o -= L + (m.gap || 0); }); return out; };
+  return { list, carsAt, shown: () => on.trains };
+})();
+
+/* ---------- search: facility names -> move there ---------- */
+// Everything with a name: DisneySea / Disneyland buildings, areas, Maihama places and stations, named stairs.
+// Matching ignores case, spaces, dots and hiragana / katakana; the largest footprint of a repeated name wins.
+const fold = t => (t || "").toLowerCase().normalize("NFKC").replace(/[\u3041-\u3096]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[\s・･.\-ー―]/g, "");
+const SEARCH = (() => {
+  const by = new Map();
+  const put = (n, sub, x, y, a, col, extra) => { if (!n) return; const k = fold(n), o = by.get(k); if (!o || a > o.a) by.set(k, { n, sub, x, y, a, col, k, ...extra }); };
+  D.buildings.forEach(b => { if (!b.n) return; const [x0, y0, x1, y1] = b.bb; put(b.n.replace(/ Tokyo DisneySea.*$/, ""), D.ports[b.p].ja, (x0 + x1) / 2, (y0 + y1) / 2, area(b.r[0]), `--p${b.p}`, { b, sea: 1 }); });
+  D.labels.forEach(l => put(l.n, "ディズニーシーのエリア", l.x, l.y, 1e9, `--p${l.p}`, { sea: 1 }));
+  (D.pois || []).forEach(p => put(p.n, D.ports[p.p].ja, p.x, p.y, 5e5, `--p${p.p}`, { sea: 1 }));   // attractions, shops, restaurants
+  if (DL) { DL.buildings.forEach(b => { if (!b.n) return; const [x0, y0, x1, y1] = b.bb; put(b.n, "ディズニーランド ・ " + DL.lands[b.p].ja, (x0 + x1) / 2, (y0 + y1) / 2, area(b.r[0]), `--l${b.p}`, { b }); });
+    DL.labels.forEach(l => put(l.n, "ディズニーランドのエリア", l.x, l.y, 1e9, `--l${l.p}`));
+    (DL.pois || []).forEach(p => put(p.n, "ディズニーランド ・ " + (DL.lands[p.p] || DL.lands[DL.lands.length - 1]).ja, p.x, p.y, 5e5, `--l${p.p}`)); }
+  if (MH) { MH.stations.forEach(st => put(st.k === "jr" ? "舞浜駅(JR 京葉線)" : st.n, "駅", st.x, st.y, 1e8, "--mh"));
+    MH.places.forEach(p => { if (!p.n) return; const [x0, y0, x1, y1] = bboxOf(p.r); put(p.n, "舞浜駅・周辺", (x0 + x1) / 2, (y0 + y1) / 2, area(p.r[0]), "--muted"); }); }
+  D.paths.forEach(p => { if (p.s && p.s.n) { const [x, y] = alongAt(p.l, polyLen(p.l) / 2); put(p.s.n + "(階段)", "ディズニーシー", x, y, 1, "--st-dem", { sea: 1 }); } });
+  if (D.aquasphere) put("アクアスフィア", "ディズニーシー・プラザ", D.aquasphere.cx, D.aquasphere.cy, 1e9, "--water", { sea: 1 });
+  return [...by.values()];
+})();
+function searchGo(it) {
+  if (mode === "walk") {
+    if (!pip(it.x, it.y, D.park)) { toast("散歩はディズニーシーの中だけです。地図か俯瞰で見てください"); return; }
+    three.walkTo(it.x, it.y);
+  } else {
+    if (!it.sea) for (const k of ["disneyland", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; }
+    if (mode === "orbit") { if (three.ready) { three.visibility(); three.flyToPlan(it.x, it.y, 260); } }
+    else { sc = Math.max(sc, 3.5); ox = W / 2 - it.x * sc; oy = H / 2 + it.y * sc; hover = it.b || null; redraw(); }
+  }
+  if (narrow()) setPanel(false);
+}
+{
+  const q = $("q"), res = $("qres");
+  const run = () => {
+    const k = fold(q.value); res.innerHTML = "";
+    if (!k) return;
+    const hits = SEARCH.filter(it => it.k.includes(k)).sort((a, b) => (a.k.startsWith(k) ? 0 : 1) - (b.k.startsWith(k) ? 0 : 1) || a.k.length - b.k.length).slice(0, 20);
+    if (!hits.length) { res.innerHTML = `<li class="hintp">見つかりませんでした</li>`; return; }
+    hits.forEach(it => { const li = document.createElement("li");
+      li.innerHTML = `<button><span class="sw" style="color:var(${it.col});border-top-width:3px"></span><span>${it.n}</span><span class="n">${it.sub}</span></button>`;
+      li.firstChild.onclick = () => searchGo(it); res.appendChild(li); });
+  };
+  q.addEventListener("input", run);
+  q.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") { const b = res.querySelector("button"); if (b) b.click(); } });
+}
 
 /* ---------- plan view ---------- */
 const cv = $("plan"), ctx = cv.getContext("2d"), vp = $("viewport");
@@ -977,7 +1088,8 @@ function redraw() {
   if (on.buildings) {
     for (let i = 0; i < D.ports.length; i++) {
       ctx.globalAlpha = focus < 0 || focus === i ? 1 : 0.22;
-      strokeRings(D.buildings.filter(b => b.p === i && !(on.priority && b.x)).flatMap(b => b.r), C.p[i], lw);
+      strokeRings(D.buildings.filter(b => b.p === i && !b.rf && !(on.priority && b.x)).flatMap(b => b.r), C.p[i], lw);
+      strokeRings(D.buildings.filter(b => b.p === i && b.rf && !(on.priority && b.x)).flatMap(b => b.r), C.p[i], lw * 0.8, [4, 3]);   // roof only
     }
     if (on.priority) {
       ctx.globalAlpha = 1;
@@ -1008,9 +1120,25 @@ function redraw() {
 // Resort Line trains on the plan: a short bar along the track (the train's 87.7 m, at least a few px) with the nose marked
 function drawTrainsPlan() {
   tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, tcv.width, tcv.height);
-  if (!RL || mode !== "plan" || !RL.shown()) return;
+  if (mode !== "plan") return;
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.lineJoin = tctx.lineCap = "round";
-  const t = RL.now(), w = Math.max(4, 3.2 * sc), half = Math.max(RL.TL / 2, 5 / sc), sheet = css("--sheet"), ink = css("--ink");
+  const sheet = css("--sheet"), ink = css("--ink"), t = RL ? RL.now() : performance.now() / 1000;
+  // JR Keiyo Line trains: a bar along the track, clipped to the part in the data, nose dot
+  for (const m of MOV.list) {
+    if (!MOV.shown(m.group)) continue;
+    const st = m.state(t); if (st.hidden) continue;
+    const half = Math.max(m.TL / 2, 3 / sc), lo = st.c - half, hi = st.c + half, P = m.path;
+    const a = P.closed ? lo : Math.max(0, lo), b = P.closed ? hi : Math.min(P.LEN, hi);
+    if (b <= a) continue;
+    const w = Math.max(3.5, 3.0 * sc);
+    tctx.beginPath();
+    for (let k = 0; k <= 12; k++) { const [x, y] = P.at(a + (b - a) * k / 12); k ? tctx.lineTo(X(x), Y(y)) : tctx.moveTo(X(x), Y(y)); }
+    tctx.strokeStyle = sheet; tctx.lineWidth = w + 2.5; tctx.stroke(); tctx.strokeStyle = m.col; tctx.lineWidth = w; tctx.stroke();
+    const f = st.dir > 0 ? b : a, [fx, fy] = P.at(f);
+    if (f > 0 && f < P.LEN || P.closed) { tctx.beginPath(); tctx.arc(X(fx), Y(fy), Math.max(1.8, w * 0.4), 0, 6.2832); tctx.fillStyle = ink; tctx.fill(); }
+  }
+  if (!RL || !RL.shown()) return;
+  const w = Math.max(4, 3.2 * sc), half = Math.max(RL.TL / 2, 5 / sc);
   for (const tr of RL.trains) {
     const c = RL.state(tr, t).s;
     tctx.beginPath();
@@ -1165,7 +1293,10 @@ function drawDisneyland(lw) {   // each part also follows its feature layer (建
   }
   if (on.stairs) drawStairs(C, lw, DL_STAIRS);
   if (on.rail) { ctx.beginPath(); DL.rail.forEach(l => ring(l, false)); ctx.strokeStyle = css("--rail"); ctx.lineWidth = Math.max(1, lw * 1.2); ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]); }
-  if (on.buildings) for (let i = 0; i < DL.lands.length; i++) strokeRings(DL.buildings.filter(b => b.p === i).flatMap(b => b.r), css(`--l${i}`), lw);
+  if (on.buildings) for (let i = 0; i < DL.lands.length; i++) {
+    strokeRings(DL.buildings.filter(b => b.p === i && !b.rf).flatMap(b => b.r), css(`--l${i}`), lw);
+    strokeRings(DL.buildings.filter(b => b.p === i && b.rf).flatMap(b => b.r), css(`--l${i}`), lw * 0.8, [4, 3]);   // roof only
+  }
   strokeRings(DL.construction.map(c => c.r), css("--l6"), Math.max(1, lw * 1.2), [6, 4]);   // construction sites
   strokeRings([DL.park], css("--ink"), Math.max(1.2, lw * 1.6));
   ctx.restore();
@@ -1497,9 +1628,9 @@ function makeSpray(T, n = 700) {
 function addLights(T, scene) {   // the solid parts (Blender models, trains) share one sky and sun
   if (!three.skyEnv) three.skyEnv = makeSkyEnv(T, three.renderer);
   if (!three.lit) {
-    scene.add(new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85));
-    const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun);
-    three.lit = true;
+    three.hemi = new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85); scene.add(three.hemi);
+    const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun); three.sun = sun;
+    three.lit = true; three.nightLights?.();
   }
 }
 async function loadModels(T, scene, root) {
@@ -1586,7 +1717,23 @@ async function init3D() {
   D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
   D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
   D.green.forEach(r => ringH("green", r, 0.05));
-  D.trees.forEach(r => { ringH("trees", r, 2); ringH("trees", r, 7); });
+  // woods: the outline on the ground and a tree symbol every 9 m inside (trunk + crown), instead of a 2-7 m box
+  // that hid the water and the buildings behind it
+  function woods(key, r, gzf) {
+    const g = (x, y) => gzf(x, y) ?? 0;
+    for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; seg(key, [...V(x1, y1, g(x1, y1) + 0.1), ...V(x2, y2, g(x2, y2) + 0.1)]); }
+    const [a, b, c, d] = bboxOf([r]), st = 9;
+    for (let x = Math.ceil(a / st) * st; x <= c; x += st) for (let y = Math.ceil(b / st) * st; y <= d; y += st) {
+      const jx = x + ((y * 7) % 5) - 2, jy = y + ((x * 3) % 5) - 2;   // a little irregular
+      if (!pip(jx, jy, r)) continue;
+      const z = g(jx, jy);
+      seg(key, [...V(jx, jy, z), ...V(jx, jy, z + 3.2)]);
+      for (let k = 0; k < 6; k++) { const a1 = k / 6 * 6.2832, a2 = (k + 1) / 6 * 6.2832;
+        seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx + Math.cos(a2) * 2, jy + Math.sin(a2) * 2, z + 4.6)]);
+        if (k % 2 === 0) seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx, jy, z + 6.2)]); }
+    }
+  }
+  D.trees.forEach(r => woods("trees", r, gz));
   D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
   function paths3d(list, keys) {
     for (const p of list) {
@@ -1632,7 +1779,13 @@ async function init3D() {
   walls3d(D.walls, "walls");
   contours3d(D.contours, "contours");
   D.rail.forEach(l => { const zs = l.map(([x, y]) => gz(x, y)); lineZ("rail", l, zs.map(z => z + 7)); lineZ("rail", l, zs.map(z => z + 7.8)); });
-  D.buildings.forEach(b => b.r.forEach(r => prism(b.x ? "pri" : `p${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
+  // roof-only structures (OSM building=roof): the slab and a few posts, open underneath
+  function roof3d(key, r, z, h) {
+    prism(key, r, z + h - 0.4, z + h);
+    const n = r.length, k = Math.max(1, Math.floor(n / 6));
+    for (let i = 0; i < n; i += k) seg(key, [...V(r[i][0], r[i][1], z), ...V(r[i][0], r[i][1], z + h - 0.4)]);
+  }
+  D.buildings.forEach(b => b.r.forEach(r => (b.rf ? roof3d : prism)(b.x ? "pri" : `p${b.p}`, r, b.z || 0, b.rf ? b.h : (b.z || 0) + b.h)));
   if (D.volcano) for (const [lv, segs] of Object.entries(D.volcano.contours))
     for (let k = 0; k < segs.length; k += 4) seg("volc", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
   if (D.water_tunnels) D.water_tunnels.forEach(r => prism("tunnel", r, D.water_tunnels_z, D.water_tunnels_z));
@@ -1706,14 +1859,14 @@ async function init3D() {
     ringG("dlpark", DL.park, 0);
     DL.water.forEach(r => ringG("dlwater", r, -0.3));
     DL.green.forEach(r => ringG("dlgreen", r, 0.05));
-    DL.trees.forEach(r => { ringG("dltrees", r, 2); ringG("dltrees", r, 7); });
+    DL.trees.forEach(r => woods("dltrees", r, hz));
     paths3d(DL.paths, { paths: "dlpaths", bridge: "dlbridge", tunnel: "dltunnel" });
     stairs3d(DL_STAIRS, "dlstairs");
     walls3d(DL.walls, "dlwalls");
     contours3d(DL.contours, "dlcontours");
     DL.construction.forEach(c => ringG("dlsite", c.r, 0.1));
     DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
-    DL.buildings.forEach(b => b.r.forEach(r => prism(`l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
+    DL.buildings.forEach(b => b.r.forEach(r => b.rf ? roof3d(`l${b.p}`, r, b.z || 0, b.h) : prism(`l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
   }
   if (MH) {
     const hz = (x, y) => heightAt(x, y) ?? 0;
@@ -1751,6 +1904,13 @@ async function init3D() {
     if (dashed) objs[k].computeLineDistances();
     root.add(objs[k]);
   }
+  // night: moonlight instead of the sky and sun, reflections of the (day) sky turned down; the lines follow the dark theme
+  three.nightLights = () => {
+    if (three.hemi) { three.hemi.intensity = night ? 0.2 : 0.85; three.hemi.color.set(night ? 0x7d8fb8 : 0xdfe8f0); three.hemi.groundColor.set(night ? 0x1c2230 : 0x5a5448); }
+    if (three.sun) { three.sun.intensity = night ? 0.12 : 0.9; three.sun.color.set(night ? 0xa9bcff : 0xfff4e0); }
+    scene.traverse(o => { const ms = o.material ? [].concat(o.material) : [];
+      for (const m of ms) { if (!("envMapIntensity" in m)) continue; if (m.userData.env0 == null) m.userData.env0 = m.envMapIntensity; m.envMapIntensity = m.userData.env0 * (night ? 0.2 : 1); } });
+  };
   three.colors = () => {
     renderer.setClearColor(new T.Color(css("--sheet")));
     for (const [k, o] of Object.entries(objs)) {
@@ -1775,7 +1935,7 @@ async function init3D() {
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
       $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     }
-    three.colors();
+    three.colors(); three.nightLights();
     three.walkDirty = true;
   };
   three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
@@ -1788,6 +1948,8 @@ async function init3D() {
     ctl.update();
   };
   window.TDS_FOCUS = three.focus;
+  window.TDS_STATS = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lines: renderer.info.render.lines,
+    geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() });   // for checking load
   let ex = 1;
   $("exag").onclick = () => { ex = ex === 1 ? 3 : 1; root.scale.set(1, ex, 1); $("exag").textContent = `高さ ×${ex}`; };
 
@@ -2269,6 +2431,59 @@ async function init3D() {
     three.visibility();
   }).catch(e => { console.error("Resort Line trains:", e); toast(`電車の3Dモデルを作れませんでした(${e && e.message || e})`, 8000); });
 
+  /* ---------- 3D bodies for MOV: JR Keiyo Line trains (E233-5000 look, simple shapes) ---------- */
+  // Local axes of a car: x along it (front at +x, centred), y up from the rail top, z sideways. They follow the
+  // 電車 layer / 3D model toggles like the Resort Line (outlines when only the layer is on).
+  const movSolid = () => mdl.trains !== false, movWire = () => !!on.trains && (!movSolid() || !!mdl.overlay);
+  three.movers = (() => {
+    addLights(T, scene);
+    const mat = (c, o = {}) => new T.MeshStandardMaterial({ color: new T.Color(c).multiplyScalar(0.82), roughness: 0.7, ...o });
+    const tex = (w, h, draw) => { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h); const t = new T.CanvasTexture(c); t.encoding = T.LinearEncoding; t.anisotropy = 4; return t; };
+    const bx = (g, w, h, d, m, x, y, z) => { const e = new T.Mesh(new T.BoxGeometry(w, h, d), m); e.position.set(x, y, z); g.add(e); return e; };
+    const M = { steel: mat(0x7d8288, { metalness: 0.5 }), dark: mat(0x23272b) };
+    // JR E233-5000 (Keiyo Line): stainless body, wine-red band, 4 doors a side
+    const jrSide = tex(1024, 160, (c, w, h) => { c.fillStyle = "#c6cacd"; c.fillRect(0, 0, w, h);
+      c.fillStyle = "#28313a"; for (let x = 0; x < w; x += 4) {} [2.55, 7.35, 12.65, 17.45].forEach((d, i) => { const X0 = (d - 0.65) / 20 * w, X1 = (d + 0.65) / 20 * w;
+        c.fillStyle = "#b3b8bc"; c.fillRect(X0, 18, X1 - X0, 132); c.fillStyle = "#28313a"; c.fillRect(X0 + 8, 30, (X1 - X0) / 2 - 12, 50); c.fillRect((X0 + X1) / 2 + 4, 30, (X1 - X0) / 2 - 12, 50);
+        if (i < 3) { const n = [2.55, 7.35, 12.65, 17.45][i + 1]; c.fillStyle = "#28313a"; c.fillRect(X1 + 14, 30, (n - 0.65) / 20 * w - X1 - 28, 52); } });
+      c.fillRect(0, 30, 2.55 / 20 * w - 0.65 / 20 * w - 14, 52); c.fillRect((17.45 + 0.65) / 20 * w + 14, 30, w, 52);
+      c.fillStyle = "#c9242f"; c.fillRect(0, 88, w, 10); c.fillRect(0, 22, w, 4); });
+    const jrFront = tex(256, 160, (c, w, h) => { c.fillStyle = "#c6cacd"; c.fillRect(0, 0, w, h); c.fillStyle = "#14191e"; c.fillRect(0, 12, w, 78);
+      c.fillStyle = "#c9242f"; c.fillRect(0, 90, w, 16); c.fillStyle = "#fff8e0"; c.fillRect(22, 112, 34, 12); c.fillRect(w - 56, 112, 34, 12); });
+    const Mjs = new T.MeshStandardMaterial({ map: jrSide, roughness: 0.45, metalness: 0.3 }), Mjf = new T.MeshStandardMaterial({ map: jrFront, roughness: 0.4, metalness: 0.2 }), Mjr = mat(0x9aa0a5);
+    const jrCar = (L, frontAt) => { const g = new T.Group();
+      const b = new T.Mesh(new T.BoxGeometry(L, 3.1, 2.95), [frontAt > 0 ? Mjf : Mjr, frontAt < 0 ? Mjf : Mjr, Mjr, M.dark, Mjs, Mjs]); b.position.y = 2.5; g.add(b);
+      bx(g, L - 3, 0.6, 2.3, M.dark, 0, 0.65, 0); [-1, 1].forEach(s => bx(g, 2.4, 0.5, 2.2, M.steel, s * (L / 2 - 3.2), 0.3, 0));
+      bx(g, L * 0.5, 0.25, 1.4, M.steel, 0, 4.15, 0); return g; };
+    const build = (m, k, L) => jrCar(L, k === 0 ? 1 : k === m.cars.length - 1 ? -1 : 0);
+    const edgesOf = (g, col) => { const w = new T.Group(), lm = new T.LineBasicMaterial({ color: col }); g.updateMatrixWorld(true);
+      g.traverse(o => { if (!o.isMesh) return; const e = new T.LineSegments(new T.EdgesGeometry(o.geometry, 25), lm); o.matrixWorld.decompose(e.position, e.quaternion, e.scale); w.add(e); }); return w; };
+    const items = MOV.list.map(m => {
+      const solid = new T.Group(), wire = new T.Group(); solid.name = `mover-${m.id}`;
+      const cars = m.cars.map((L, k) => { const c = build(m, k, L); solid.add(c); const e = edgesOf(c, m.col); wire.add(e); return { c, e }; });
+      scene.add(solid, wire); return { m, solid, wire, cars };
+    });
+    if (items.length) $("md-trains").disabled = false;
+    return items;
+  })();
+  three.moverTick = () => {
+    const t = RL ? RL.now() : performance.now() / 1000;
+    for (const it of three.movers) {
+      const sOn = movSolid(), wOn = movWire();
+      it.solid.visible = sOn; it.wire.visible = wOn;
+      if (!sOn && !wOn) continue;
+      const m = it.m, st = m.state(t), P = m.path;
+      MOV.carsAt(m, st).forEach(([sc, L], k) => {
+        const inside = !st.hidden && (P.closed || (sc - L / 2 >= -0.5 && sc + L / 2 <= P.LEN + 0.5));
+        const { c, e } = it.cars[k]; c.visible = e.visible = inside;
+        if (!inside) return;
+        const a = P.at(sc - st.dir * L * 0.3), b = P.at(sc + st.dir * L * 0.3), mid = P.at(sc);
+        const h = Math.atan2(b[1] - a[1], b[0] - a[0]), y = m.base(mid[0], mid[1]) * ex;
+        for (const o of [c, e]) { o.position.set(mid[0], y, -mid[1]); o.rotation.set(0, h, 0); }
+      });
+    }
+  };
+
   three.visibility(); three.resize();
   if (D.models && D.models.length) loadModels(T, scene, root);
   let last = performance.now(), mmLast = 0, aimLast = 0;
@@ -2278,6 +2493,7 @@ async function init3D() {
     if (!three.active) return;
     if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
     FX_TIME.value = now / 1000;
+    try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
     try { three.trainTick?.(); }
     catch (e) { three.trainTick = null; console.error("Resort Line trains:", e); toast(`電車の3Dモデルを動かせませんでした(${e && e.message || e})`, 8000); }
     renderer.render(scene, cam);
@@ -2382,6 +2598,17 @@ if (RL) {
   $("btnSwap").onclick = swapFollow;
 } else $("btnFollow").hidden = true;
 
+/* ---------- night (N): dark theme + moonlight in 3D; kept in tds-night ---------- */
+let night = (() => { try { return localStorage.getItem("tds-night") === "1"; } catch (e) { return false; } })();
+function applyNight(announce) {
+  $("btnNight").setAttribute("aria-pressed", String(night));
+  try { localStorage.setItem("tds-night", night ? "1" : "0"); } catch (e) {}
+  if (night) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;   // the observer below redraws
+  if (three.ready) three.nightLights();
+  if (announce) toast(night ? "夜にしました(リゾートラインの車内の明かりだけ灯ります)" : "昼に戻しました");
+}
+$("btnNight").onclick = () => { night = !night; applyNight(true); };
+
 /* ---------- toast, photo mode, lite mode, share ---------- */
 function toast(msg, ms = 2200) {
   const t = $("toast");
@@ -2411,6 +2638,7 @@ function applyLite(announce) {
 }
 $("btnLite").onclick = () => { lite = !lite; applyLite(true); };
 applyLite(false);
+applyNight(false);
 // the view lives in the URL (#map/x,y,scale  #orbit/target,camera  #walk/x,y,yaw,pitch,view) so it can be shared
 function stateHash() {
   if (mode === "plan") return `#map/${((W / 2 - ox) / sc).toFixed(1)},${((oy - H / 2) / sc).toFixed(1)},${sc.toFixed(3)}`;
@@ -2439,6 +2667,7 @@ addEventListener("keydown", e => {
   else if (e.code === "Digit2") applyPreset("mix");
   else if (e.code === "Digit3") applyPreset("wire");
   else if (e.code === "KeyH" && mode !== "plan") setPhoto(!photo);
+  else if (e.code === "KeyN") $("btnNight").click();
   else if (e.code === "KeyF" && mode === "orbit" && RL && three.ready) three.following() ? three.unfollow() : startFollow(0);
   else if (e.code === "KeyT" && mode === "orbit" && RL && three.ready) swapFollow();
   else if (e.code === "Escape" && mode === "orbit" && three.ready && three.following()) three.unfollow();

@@ -8,7 +8,7 @@ level of the reference models on Sketchfab (see ds_core docstring) without
 touching anything else.
 """
 import bpy, pathlib
-from ds_core import (DATA, get_collection, flat_material, extrude_footprint, extrude_loops,
+from ds_core import (DATA, get_collection, flat_material, extrude_footprint, extrude_loops, is_roof, ROOF_T,
                       link, ways_with, height_for_way, nearest_port, multipolygons,
                       poly_centroid, ring_inside, in_park, PORT_COLOR, DETAIL_PRIORITY,
                       LANDMARK_SKIP, LANDMARK_SKIP_IDS)
@@ -45,7 +45,8 @@ def build_buildings():
             port = nearest_port(cx, cy, w["pts"])
             height = height_for_way(w)
             is_pri = bool(name) and _is_priority(name)
-            obj = extrude_loops(f"Bldg_{w['id']}", loops, 0.0, height,
+            z0 = max(0.0, height - ROOF_T) if is_roof(w["tags"]) else 0.0   # roof-only structures: a slab, open underneath
+            obj = extrude_loops(f"Bldg_{w['id']}", loops, z0, height - z0,
                                 mat_priority if is_pri else mats[port])
             if not obj:
                 continue
