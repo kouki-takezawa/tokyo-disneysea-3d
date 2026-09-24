@@ -44,7 +44,7 @@ def _smooth(t):
 
 
 def build():
-    lev = LV.compute()  # also sets LV.DATUM
+    lev = LV.levels()  # committed levels JSON (--relevel: recompute from the raw OSM); also sets LV.DATUM
     x0, y0, x1, y1 = BBOX
     nx, ny = int((x1 - x0) / STEP) + 1, int((y1 - y0) / STEP) + 1
     xs = x0 + np.arange(nx) * STEP

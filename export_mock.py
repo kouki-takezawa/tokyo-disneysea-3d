@@ -1,6 +1,9 @@
 """Export the DisneySea draft geometry as compact JSON for the outline (枠線) mock page.
 
-  python export_mock.py        (plain Python; Blender is not needed)
+  python export_mock.py             (plain Python; Blender is not needed)
+  python export_mock.py --relevel   also recompute stairs / path levels from the raw OSM extracts
+                                    (plateau_data/*_osm_raw.json, not in git; they are refetched copies,
+                                     so relevelling may change the levels and volcano data)
 
 Reuses ds_core / ds_terrain logic (park clipping, water holes, heights, port
 classification) so the mock and the Blender draft always show the same thing.
@@ -46,7 +49,7 @@ def main():
            "water": [], "ponds": [], "islands": [], "buildings": [], "green": [],
            "trees": [], "rock": [], "paths": [], "rail": [], "landmarks": [], "labels": []}
 
-    lev = LV.compute()
+    lev = LV.levels()   # committed plateau_data/disneysea_levels.json unless --relevel
     out["levels"] = {"datum": lev["datum_m"], "pixel": lev["pixel_m"], "counts": lev["counts"]}
 
     def water_level(ring):
@@ -160,7 +163,7 @@ def main():
         {"t": "sphere", "n": "アクアスフィア(直径8 m・台座2 m)", "x": 360.85, "y": 36.37, "r": 4.0, "z": -0.39 + 2.0 + 4.0,
          "basin": 11.16, "rim_h": 0.40, "g": -0.39, "ped": 2.0},
         {"t": "dome", "n": "マーメイドラグーン(屋内ホールの八角屋根)", "x": C.TRITON_ROOF["x"], "y": C.TRITON_ROOF["y"],
-         "r": C.TRITON_ROOF["r"], "z": C.TRITON_ROOF["eaves"], "h": C.TRITON_ROOF["peak"] - C.TRITON_ROOF["eaves"]},
+         "r": C.TRITON_ROOF["r"], "h": C.TRITON_ROOF["peak"] - C.TRITON_ROOF["eaves"], "z": C.TRITON_ROOF["eaves"]},
     ]
     ship = next((w for w in C.DATA["ways"]
                  if any(k in w["tags"].get("name", "") + w["tags"].get("name:en", "") for k in C.LANDMARK_SKIP)), None)
@@ -199,9 +202,10 @@ def main():
           f"bldg={len(out['buildings'])} water={len(out['water'])} paths={len(out['paths'])}")
     # always rebuild the publishable page from the template (keeps other tabs' template hooks)
     tpl = ROOT / "output" / "disneysea" / "mock_template.html"
-    page = tpl.read_text(encoding="utf-8").replace("__DATA__", path.read_text(encoding="utf-8").replace("</", "<\/"))
+    page = tpl.read_text(encoding="utf-8").replace("__DATA__", path.read_text(encoding="utf-8").replace("</", r"<\/"))
     (ROOT / "output" / "disneysea" / "tds_outline.html").write_text(page, encoding="utf-8")
     print(f"[mock] page tds_outline.html {len(page.encode('utf-8')) / 1024:.0f} KB")
 
 
-main()
+if __name__ == "__main__":
+    main()

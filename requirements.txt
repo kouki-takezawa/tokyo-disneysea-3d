@@ -1,0 +1,6 @@
+# Plain-Python side (export_mock.py, ds_levels.py, ds_volcano.py, ds_water.py, ds_plaza.py, fetch_*.py).
+# Blender 5.2 runs the Blender scripts with its own bundled Python (numpy included); none of these are needed there.
+numpy>=1.26
+opencv-python-headless>=4.8   # ds_volcano.py, ds_aquasphere.py --textures
+Pillow>=10                     # ds_photo.py
+shapely>=2.0                   # ds_water.py, ds_plaza.py (regenerating the water / plaza plans only)

@@ -226,7 +226,7 @@ def _split_caldera(bodies):
 
 
 def build():
-    LV.compute()
+    LV.levels()   # committed levels JSON (--relevel: recompute from the raw OSM); sets LV.DATUM
     if not T.STATE["holes"]:
         T._plan_water()
     names = _names()

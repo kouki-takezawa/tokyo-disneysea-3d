@@ -75,7 +75,8 @@ def compute_levels(datum):
 
 
 def load_levels(datum):
-    if LEVELS_JSON.exists():
+    import sys
+    if LEVELS_JSON.exists() and "--relevel" not in sys.argv:
         return json.loads(LEVELS_JSON.read_text(encoding="utf-8"))
     return compute_levels(datum)
 

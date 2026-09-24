@@ -30,13 +30,13 @@ Blender で作る前に、ブラウザで見られる**枠線モック**で配�
 ```
 python fetch_disneysea.py          # OSM を取得(plateau_data/disneysea_osm.json)
 python fetch_disneyland.py         # ランド・舞浜駅まわりの OSM(plateau_data/disneyland_osm.json、シーとは別ファイル)
-python ds_disneyland.py --levels    # ランドの階段・高低差 → plateau_data/disneyland_levels.json(シーと同じ 0 m 基準)
-python ds_levels.py                # 階段・高低差 → plateau_data/disneysea_levels.json
+python ds_disneyland.py --levels    # ランドの階段・高低差 → plateau_data/disneyland_levels.json(シーと同じ 0 m 基準、raw が必要)
+python ds_levels.py                # 階段・高低差 → plateau_data/disneysea_levels.json(raw が必要)
 python ds_water.py                 # 水面モデル   → plateau_data/disneysea_water.json
 python ds_volcano.py               # 火山の岩山   → plateau_data/disneysea_volcano.json
 python ds_plaza.py                 # プラザの地面 → plateau_data/disneysea_plaza.json
 python ds_aquasphere.py --textures # 地球儀のテクスチャ → plateau_data/globe/
-python export_mock.py              # 枠線モック   → output/disneysea/tds_outline.html
+python export_mock.py              # 枠線モック   → output/disneysea/tds_outline.html(--relevel で高低差も計算し直す)
 
 blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16      # 下書き全体
 blender -b --python disneysea_water_blender.py -- --cams harbor,caldera       # 水面
@@ -48,6 +48,22 @@ Blender は 5.2。複数の作業を同時に進めるときも、Blender を起
 
 座標: 原点 35.6267N 139.8851E(メディテレーニアンハーバー付近)、+X が東、+Y が北、単位はメートル。
 高さの基準: 国土地理院 DEM5A で測った園路の中央値(標高 5.29 m)を 0 m とする。
+
+### 別の端末で作業するとき(Blender がある端末など)
+
+1. `git clone` して `pip install -r requirements.txt`(通常の Python 側。Blender のスクリプトは Blender に同梱の Python で動くので不要)。
+2. 取得し直さない: `fetch_disneysea.py` / `fetch_disneyland.py` はリポジトリの `plateau_data/*_osm.json` から処理するのではなく、OSM を取り直す。取り直すと OSM の更新分で高低差・火山の元データまで変わるので、データを更新したいときだけ実行する。
+3. 元の OSM(`plateau_data/*_osm_raw.json`)は git に入れていない(大きいため)。無くても次は動く:
+   - `python export_mock.py`(コミット済みの `disneysea_levels.json` / `disneyland_levels.json` を読む。raw から計算し直すのは `--relevel` のときだけ)
+   - Blender のスクリプト(コミット済みの JSON・DEM・地球儀テクスチャ・`output/disneysea/models/` だけを使う)
+4. `python export_mock.py` はクローン直後でもコミット済みのページとほぼ同じものを作る(2026-09-24 確認: 違いはシーの等高線の 6 点が 0.1 m ずれるだけ。基準の高さを丸めずに `datum_exact` として保存している)。
+
+Blender で最初にやること(2026-09-24 時点で Blender 未実行のもの):
+
+- [ ] `blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16` で下書きを出し直す。トリトンの屋根(`ds_landmarks.build_triton_dome`、`ds_core.TRITON_ROOF`)を屋内ホールの上(中心 -188, -43、軒 15 m・頂点 27.5 m)に移したが、Blender ではまだ確かめていない。
+- [ ] `docs/draft/` の画像を撮り直す(エリアの色分けを 2026-09-24 に直したので、今の画像は古い色分けのまま)。
+- [ ] ランド・舞浜駅は枠線モックのレイヤーだけで、Blender の下書きシーンには入っていない。Blender で作るなら `ds_disneyland.py` のデータから作る。
+- [ ] 3D モデル(`output/disneysea/models/`)を書き出し直したら、`python export_mock.py` を実行してからコミットする。
 
 ## 枠線モック
 

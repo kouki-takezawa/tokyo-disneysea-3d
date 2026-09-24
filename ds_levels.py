@@ -18,6 +18,8 @@ a stair are shifted so the stair actually connects (raised terraces / sunken
 landings) while the main promenade stays on the DEM.
 
   python ds_levels.py          # builds plateau_data/disneysea_levels.json and prints a summary
+                               # (needs plateau_data/disneysea_osm_raw.json, which is not in git; other scripts
+                               #  read the committed JSON through levels() unless given --relevel)
 """
 import json, math, pathlib
 import numpy as np
@@ -283,7 +285,7 @@ def compute(raw_name="disneysea_osm_raw.json", park_id=203538370, out_name="disn
         walls.append({"id": w["id"], "type": typ, "h": round(h, 2), "pts": pts,
                       "z": [dem(x, y) for x, y in pts]})
 
-    res = {"datum_m": round(DATUM, 2), "pixel_m": round(pixel_size_m(), 2), "counts": counts,
+    res = {"datum_m": round(DATUM, 2), "datum_exact": round(DATUM, 6), "pixel_m": round(pixel_size_m(), 2), "counts": counts,
            "ways": {str(k): {"z": [round(v, 2) for v in val["z"]], "kind": val["kind"]} for k, val in out_ways.items()},
            "stairs": {str(k): {kk: (round(vv, 2) if isinstance(vv, float) else vv) for kk, vv in s.items() if kk not in ("A", "B")}
                       for k, s in stairs.items()},
@@ -291,6 +293,22 @@ def compute(raw_name="disneysea_osm_raw.json", park_id=203538370, out_name="disn
                       "pts": [[round(x, 1), round(y, 1)] for x, y in wl["pts"]], "z": [round(v, 2) for v in wl["z"]]} for wl in walls],
            "shifted_components": len(shift)}
     (PD / out_name).write_text(json.dumps(res, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return res
+
+
+def levels(name="disneysea_levels.json", relevel=None, **compute_args):
+    """The committed levels JSON (and sets DATUM from it). The OSM raw extracts are not in git, so a fresh
+    clone uses these; relevel=True (or `--relevel` on the command line) recomputes from the raw extract."""
+    global DATUM
+    if relevel is None:
+        import sys
+        relevel = "--relevel" in sys.argv
+    f = PD / name
+    if relevel or not f.exists():
+        return compute(out_name=name, **compute_args)
+    res = json.loads(f.read_text(encoding="utf-8"))
+    if compute_args.get("datum") is None:   # unrounded, so heights match what compute() gave
+        DATUM = res.get("datum_exact", res["datum_m"])
     return res
 
 
