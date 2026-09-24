@@ -28,7 +28,7 @@ for name, mod in (("bpy", MagicMock()), ("bmesh", MagicMock()), ("mathutils", ma
 
 results = []
 MODULES = ["ds_core", "ds_terrain", "ds_buildings", "ds_landmarks", "ds_aquasphere", "ds_plaza", "ds_volcano_model",
-           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender", "disneyland_blender", "ds_tdl_station", "ds_tdl_entrance", "ds_tracks"]
+           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender", "disneyland_blender", "ds_tdl_station", "ds_tdl_entrance", "ds_tracks", "ds_tdl_bb_castle"]
 for m in MODULES:
     try:
         importlib.import_module(m)
