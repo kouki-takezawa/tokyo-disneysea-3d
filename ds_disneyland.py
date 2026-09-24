@@ -13,7 +13,7 @@ of the nearest such point within POI_REACH m, else to "other" (backstage, parkin
 """
 import json, math, pathlib
 import ds_levels as LV
-from ds_core import point_in_poly, poly_centroid, poly_area, _clean_ring
+from ds_core import point_in_poly, poly_centroid, poly_area, _clean_ring, ROOF_H
 
 ROOT = pathlib.Path(__file__).resolve().parent
 DATA = json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))
@@ -150,6 +150,7 @@ def build(datum):
         n = tags.get("name", "")
         for k, h in NAME_HEIGHT.items():
             if k in n: return h
+        if tags.get("building") == "roof" and not tags.get("height"): return ROOF_H
         try:
             return float(str(tags.get("height")).split(";")[0].replace("m", "").strip())
         except ValueError:
@@ -181,10 +182,20 @@ def build(datum):
         else:
             li = land_of(rings[0])
         b = {"r": [R(r) for r in rings], "h": round(height(tags, li), 1), "p": li, "z": z_of(cx, cy)}
+        if tags.get("building") == "roof": b["rf"] = 1   # roof only: open underneath
         if site is not None: b["c"] = site
         if tags.get("name"): b["n"] = tags["name"]
         buildings.append(b)
         if li != OTHER: pts_by_land[li].append((cx, cy, a))
+    pois = []   # named points (attractions, shops, restaurants) for the search box
+    for p in DATA["pois"]:
+        n = p["tags"].get("name", "")
+        if n and in_tdl(*p["xy"]):
+            li = land_of_name(n)
+            if li is None:
+                li = min(range(len(marks)), key=lambda i: math.hypot(marks[i][0] - p["xy"][0], marks[i][1] - p["xy"][1]), default=None)
+                li = marks[li][2] if li is not None else OTHER
+            pois.append({"n": n, "x": round(p["xy"][0], 1), "y": round(p["xy"][1], 1), "p": li})
     labels = []
     for li, pts in pts_by_land.items():
         if pts:
@@ -243,7 +254,7 @@ def build(datum):
     disneyland = {"park": R(park), "lands": [{"id": k, "ja": ja} for k, ja, _ in LANDS] + [{"id": "other", "ja": "バックステージ・その他"}],
                   "buildings": buildings, "labels": labels, "water": water, "green": green, "trees": trees,
                   "paths": paths, "walls": walls, "contours": contours, "levels": {"counts": lev["counts"]},
-                  "construction": [{"n": n, "r": R(r)} for r, n in construction], "rail": rail, "hgrid": hgrid}
+                  "construction": [{"n": n, "r": R(r)} for r, n in construction], "rail": rail, "hgrid": hgrid, "pois": pois}
 
     # ---- Maihama station and around: JR Keiyo line near the station, the whole Resort Line loop and its
     # stations, Ikspiari, hotels, station buildings, and the walkways between the station and the park gates
@@ -293,7 +304,23 @@ def build(datum):
     lo_y, hi_y = min(sy, gate[1]) - 80, max(sy, gate[1]) + 90
     walks = [R(w["pts"]) for w in DATA["ways"] if w["tags"].get("highway") in ("footway", "pedestrian", "steps")
              and all(lo_x < x < hi_x and lo_y < y < hi_y for x, y in w["pts"]) and outside_parks(*poly_centroid(w["pts"]))]
-    maihama = {"station": {"n": "舞浜駅(JR 京葉線)", "x": round(sx, 1), "y": round(sy, 1)}, "gate": {"n": "東京ディズニーランド メインエントランス", "x": round(gate[0], 1), "y": round(gate[1], 1)},
+    # JR Maihama: middle of the island platform (OSM) and the line's bearing toward Tokyo (west); the mock stops
+    # the Keiyo Line trains there and tells the two tracks apart (trains keep left)
+    jr_station = None
+    plat = max((w for w in DATA["ways"] if w["tags"].get("railway") == "platform" and w["closed"] and w["tags"].get("train") == "yes"
+                and math.hypot(*(a - b for a, b in zip(poly_centroid(w["pts"]), (sx, sy)))) < 60),
+               key=lambda w: poly_area(w["pts"]), default=None)
+    if plat and jr:
+        c0 = poly_centroid(plat["pts"])
+        near = sorted((p for l in jr for p in l), key=lambda p: math.hypot(p[0] - c0[0], p[1] - c0[1]))[:6]
+        (ax, ay), (bx, by) = min(near), max(near)
+        ang = math.atan2(by - ay, bx - ax)
+        if math.cos(ang) > 0: ang += math.pi                           # toward Tokyo (west)
+        ux, uy = math.cos(ang), math.sin(ang)
+        us = [(x - c0[0]) * ux + (y - c0[1]) * uy for x, y in plat["pts"]]
+        mid = (max(us) + min(us)) / 2
+        jr_station = {"x": round(c0[0] + ux * mid, 2), "y": round(c0[1] + uy * mid, 2), "ang": round(ang, 4), "len": round(max(us) - min(us), 1)}
+    maihama = {"station": {"n": "舞浜駅(JR 京葉線)", "x": round(sx, 1), "y": round(sy, 1)}, "jr_station": jr_station, "gate": {"n": "東京ディズニーランド メインエントランス", "x": round(gate[0], 1), "y": round(gate[1], 1)},
                "jr": jr, "jr_z": JR_Z, "loop": loop, "loop_z": RESORT_LINE_Z, "stations": stations, "platforms": platforms,
                "places": places, "walks": walks}
     return {"disneyland": disneyland, "maihama": maihama}

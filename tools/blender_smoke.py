@@ -28,7 +28,7 @@ for name, mod in (("bpy", MagicMock()), ("bmesh", MagicMock()), ("mathutils", ma
 
 results = []
 MODULES = ["ds_core", "ds_terrain", "ds_buildings", "ds_landmarks", "ds_aquasphere", "ds_plaza", "ds_volcano_model",
-           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender"]
+           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender", "disneyland_blender"]
 for m in MODULES:
     try:
         importlib.import_module(m)
@@ -47,7 +47,26 @@ CALLS = [
     ("ds_aquasphere globe textures", lambda: all((sys.modules["ds_aquasphere"].GLOBE_DIR / f).exists()
                                                   for f in ("globe_color.png", "globe_height.png", "globe_landmask.png"))),
     ("ds_plaza plan json", lambda: (REPO / "plateau_data" / "disneysea_plaza.json").exists()),
+    ("disneyland_blender.summary()", lambda: sys.modules["disneyland_blender"].summary()),
+    ("train_blender.SPEC == train_model.js S", lambda: train_spec_matches()),
+    ("train_blender.sections(head)", lambda: len(sys.modules["train_blender"].sections(15.05, True))),
 ]
+
+
+def train_spec_matches():
+    """The Blender train uses the same numbers as the JS model (S in output/disneysea/train_model.js)."""
+    import re
+    js = (REPO / "output" / "disneysea" / "train_model.js").read_text(encoding="utf-8")
+    keys = {"headLen": "head_len", "midLen": "mid_len", "width": "width", "gap": "gap", "cars": "cars", "yBot": "y_bot", "yTop": "y_top",
+            "roofR": "roof_r", "noseLen": "nose_len", "rake": "rake", "windBot": "wind_bot", "floor": "floor", "ceil": "ceil"}
+    spec, bad = sys.modules["train_blender"].SPEC, []
+    for jk, pk in keys.items():
+        m = re.search(rf"\b{jk}:\s*(-?[\d.]+)", js)
+        if not m or abs(float(m.group(1)) - spec[pk]) > 1e-9:
+            bad.append((jk, m and m.group(1), spec[pk]))
+    if bad:
+        raise AssertionError(f"differs from train_model.js: {bad}")
+    return "all match"
 for label, fn in CALLS:
     try:
         results.append((label, "ok", repr(fn())[:120]))

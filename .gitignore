@@ -16,6 +16,7 @@
 !/export_mock.py
 !/export_models.py
 !/train_blender.py
+!/disneyland_blender.py
 
 !/plateau_data/
 /plateau_data/*

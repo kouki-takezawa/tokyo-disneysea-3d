@@ -370,6 +370,14 @@ def poly_centroid(pts):
     return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
 
 
+ROOF_H = 4.5      # roof-only structures (building=roof: canopies, shelters) without a height tag: canopy height (estimate)
+ROOF_T = 0.4      # thickness of their roof slab (the mock and the Blender draft leave the space under it open)
+
+
+def is_roof(tags):
+    return tags.get("building") == "roof"
+
+
 def height_for_way(w):
     wid = w["id"]
     if wid in HEIGHT_OVERRIDE:
@@ -390,6 +398,8 @@ def height_for_way(w):
             return max(4.0, float(levels) * 3.6)
         except ValueError:
             pass
+    if is_roof(w["tags"]):
+        return ROOF_H
     cx, cy = poly_centroid(w["pts"])
     return PORT_DEFAULT_HEIGHT[nearest_port(cx, cy, w["pts"])]
 

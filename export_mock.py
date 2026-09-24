@@ -42,6 +42,36 @@ def L(line):
     return [[round(x, 1), round(y, 1)] for x, y in line]
 
 
+def resolve_stairs(paths):
+    """Stairs whose direction ds_levels could not tell ("unknown": the DEM just past both ends differs by < 0.1 m).
+    Look farther: the DEM 6, 10 and 15 m beyond each end. If the difference has the same sign at all three and
+    reaches 0.25 m, or one end joins a tunnel (that end is down), take that direction (basis "wide"). The stair's
+    heights are flipped when the top turns out to be at the start. Works on the committed data (no raw OSM)."""
+    def beyond(l, at_end, d):
+        (x0, y0), (x1, y1) = (l[-2], l[-1]) if at_end else (l[1], l[0])
+        L = math.dist((x0, y0), (x1, y1)) or 1.0
+        return x1 + (x1 - x0) / L * d, y1 + (y1 - y0) / L * d
+    ends = [(tuple(q["l"][0]), q) for q in paths] + [(tuple(q["l"][-1]), q) for q in paths]
+    def joins_tunnel(pt, me):
+        return any(q is not me and q.get("u") and math.dist(pt, e) < 0.5 for e, q in ends)
+    for p in paths:
+        s = p.get("s")
+        if not s or s["basis"] != "unknown":
+            continue
+        l = p["l"]
+        diffs = [LV.dem(*beyond(l, True, d)) - LV.dem(*beyond(l, False, d)) for d in (6, 10, 15)]
+        if joins_tunnel(l[-1], p) != joins_tunnel(l[0], p):
+            up = "start" if joins_tunnel(l[-1], p) else "end"
+        elif (all(v > 0 for v in diffs) or all(v < 0 for v in diffs)) and max(abs(v) for v in diffs) >= 0.25:
+            up = "end" if diffs[0] > 0 else "start"
+        else:
+            continue
+        s["basis"] = "wide"
+        if up != s["up"] and p.get("z"):
+            p["z"] = p["z"][::-1]
+        s["up"] = up
+
+
 def main():
     T.plan_water()   # water tab's bodies (cut / surface / tunnels) when available
     out = {"origin": C.DATA["origin"], "park": R(C.PARK),
@@ -89,6 +119,8 @@ def main():
              "z": round(LV.dem(cx, cy), 2)}
         if pri:
             b["x"] = 1
+        if C.is_roof(w["tags"]):
+            b["rf"] = 1   # roof only (canopy / shelter): a slab on posts, open underneath
         if name:
             b["n"] = name
         out["buildings"].append(b)
@@ -142,6 +174,12 @@ def main():
         if "エレクトリックレールウェイ" in w["tags"].get("name", "") and C.in_park(w["pts"]):
             out["rail"].append(L(w["pts"]))
 
+    resolve_stairs(out["paths"])
+    # named points (attractions, shops, restaurants, services) for the search box
+    out["pois"] = [{"n": p["tags"]["name"], "x": round(p["xy"][0], 1), "y": round(p["xy"][1], 1),
+                    "p": PORTS.index(C.nearest_port(p["xy"][0], p["xy"][1], [p["xy"]])),
+                    "k": next((p["tags"][k] for k in ("attraction", "tourism", "amenity", "shop", "leisure") if k in p["tags"]), "")}
+                   for p in C.DATA["pois"] if p["tags"].get("name") and C.point_in_poly(*p["xy"], C.PARK)]
     out["walls"] = [{"t": wl["type"], "h": wl["h"], "l": wl["pts"], "z": wl["z"]} for wl in lev["walls"]]
     out["contours"] = {str(k): v for k, v in LV.contours(C.PARK, interval=1.0).items()}
     xs = [p[0] for p in C.PARK]; ys = [p[1] for p in C.PARK]
@@ -152,6 +190,7 @@ def main():
 
     out["entrance"] = C.entrance_layer()      # Resort Line station + ticket gates (入場口・駅 layer)
     out.update(DLM.build(out["levels"]["datum"]))   # ディズニーランド / 舞浜駅・周辺 layers (separate OSM extract)
+    resolve_stairs(out["disneyland"]["paths"])
     out["aquasphere"] = AQ.mock_geometry()     # same layout as the Blender build (ds_aquasphere.SPEC)
     vres = VO.build()
     out["volcano"] = {"contours": VO.contours(vres, 2.0), "summit": vres["summit"]}
