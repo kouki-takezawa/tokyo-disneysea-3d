@@ -23,7 +23,11 @@ TDS_PARK_WAY = 203538370           # 東京ディズニーシー: its contents a
 MAIHAMA_STATION = "舞浜"
 POI_REACH = 90.0
 DEFAULT_H, OTHER_H = 12.0, 10.0    # estimates for untagged buildings (m)
-RESORT_LINE_Z, JR_Z = 8.0, 10.0    # viaduct heights above the promenade datum (estimates)
+JR_Z = 10.0                        # Keiyo Line viaduct height above the promenade datum (estimate)
+# Resort Line beam: the mock draws it from RESORT_LINE_Z to RESORT_LINE_Z + 0.9. Its top (4.21 m on the datum) is the
+# beam top of the Blender-built Tokyo Disneyland Station (ds_tdl_station: 6.0 m above its ground at -1.79 m); the
+# ground along the loop is -3.2 .. -0.1 m, so the beam runs about 4.3 .. 7.4 m above it. Car floors are 1 m above the beam.
+RESORT_LINE_Z = 3.31
 NAME_HEIGHT = {"シンデレラ城": 51.0}
 
 LANDS = [   # (key, 日本語, name substrings of POIs / buildings that identify the land)

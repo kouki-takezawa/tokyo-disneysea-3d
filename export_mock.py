@@ -230,10 +230,13 @@ def main():
 
     # Blender-built parts (export_models.py): shown as solid models in 3D, replacing their draft wireframe
     MODELS = [("water", "water", ["water"]), ("aquasphere", "landmarks", ["aqwire", "aqglobe", "aqcoast"]),
-              ("plaza", "paths", []), ("volcano", "landmarks", ["volc"])]   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
+              ("plaza", "paths", []), ("volcano", "landmarks", ["volc"]),   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
+              ("tdl_station", "maihama", ["mhstation"])]                     # ds_tdl_station.py: replaces the station building's box
     mdir = ROOT / "output" / "disneysea" / "models"
     out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
+    if (mdir / "train.json").exists():   # the Resort Line cars (export_models.py --parts train), posed by the page's timetable
+        out["train"] = "models/train.json"
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -241,12 +244,8 @@ def main():
           f"bldg={len(out['buildings'])} water={len(out['water'])} paths={len(out['paths'])}")
     # always rebuild the publishable page from the template (keeps other tabs' template hooks)
     tpl = ROOT / "output" / "disneysea" / "mock_template.html"
-    # the Resort Line train model (train_model.js, shared with train.html) goes into the page itself, so the
-    # 3D trains never depend on a second file being fetched
-    tm = (ROOT / "output" / "disneysea" / "train_model.js").read_text(encoding="utf-8")
-    if "</" in tm:
-        raise SystemExit("train_model.js must not contain '</' (it is inlined in a <script> tag)")
-    page = tpl.read_text(encoding="utf-8").replace("__TRAIN_MODEL__", tm)
+    # the Resort Line cars are the Blender model (models/train.json); train_model.js now only serves train.html
+    page = tpl.read_text(encoding="utf-8")
     page = page.replace("__DATA__", path.read_text(encoding="utf-8").replace("</", r"<\/"))
     (ROOT / "output" / "disneysea" / "tds_outline.html").write_text(page, encoding="utf-8")
     print(f"[mock] page tds_outline.html {len(page.encode('utf-8')) / 1024:.0f} KB")

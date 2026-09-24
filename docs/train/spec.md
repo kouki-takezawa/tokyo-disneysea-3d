@@ -79,3 +79,14 @@ Wikimedia Commons(2026-09-24 に閲覧)。
 | 俯瞰(駅に停車中) | カーブ |
 |---|---|
 | ![俯瞰](mock_orbit.jpg) | ![カーブ](mock_curve.jpg) |
+
+## Blender 版 v2 とモックへの差し替え(2026-09-24)
+
+ユーザーの指示で、モックの電車を JS 版から Blender 版(`train_blender.py`)に差し替えた。JS 版は `train.html` にだけ残している。
+
+- 追加で見た写真(Wikimedia Commons、Category:Disney Resort Line Type C / Type X。個人利用の参考のみ): 「DRL-TypeC121-wiki.jpg」「DisneyResortLine141.jpg」「Type C(100形)の第1編成であるイエロー.jpg」「Disney-Resort-Line Type-C Inside Free-space.jpg」「Resort Liner Type X windows.jpg」ほか、外観・車内・運転台の写真。
+- 跨座式モノレールの作り(一般的な構造): 走行輪(ゴムタイヤ)が桁の上面を走り、案内輪が桁の側面の上、安定輪が下を挟む。電気は桁の側面の電車線から集電靴で取る。台車はスカートで隠れる。
+- 外装: 殻の厚み 10 cm(窓の額縁)、全部の窓にガラス、ドアの線とステップ、スカートのルーバー・点検蓋の線、屋根の空調とグリル、前面ガラスの中央の柱、縁取りのある丸い前照灯、連結器。
+- 車内(Type C): 市松の床、照明 2 列、赤い妻壁とガラスの貫通扉、黒い座面と赤い波形の背もたれ・黄色い水玉、丸い透明の仕切りと赤い玉、白いポール、ミッキーの輪のつり革、ドア上の画面、運転台・ガラスの仕切り・展望ソファ。
+- 寸法(`SPEC`)は変えていない(`tools/blender_smoke.py` が JS 版と突き合わせる)。新しい部品の位置・大きさは写真からの推定。
+- モック: `export_models.py --parts train` が先頭車・中間車・幌を材質ごとのメッシュで書き出し、ページが編成ごとに複製する。色帯は JS 版と同じ式のシェーダー。

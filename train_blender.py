@@ -16,10 +16,17 @@ to Y up), beam top z = 0. Sources and estimates: docs/train/spec.md.
   paint    one material: white body, silver skirt below 0.55 m, the scheme colour band with a wavy top edge (object
            coordinates -> math nodes, the same formula as the JS shader), dark rubber round the windscreen is a separate
            frame object
-  inside   floor, ceiling, long benches, bogies, roof units (the JS model's detailed cabin is still TODO here)
+  inside   v2 (2026-09-24, from the Type C photos): checkered floor, ceiling light strips, red end walls with glass
+           gangway doors, black benches with red wavy backrests and yellow dots, round clear partitions with red balls,
+           white poles, ceiling rails with Mickey-ring straps, LCDs over the doors; head car: glass cab partition,
+           driver's desk with screens, magenta observation sofa
+  outside  v2: glass in every window, door seams and sills, louvred skirt vents and panel lines, roof units with
+           grilles, raked windscreen pane with a centre pillar, round headlights with rims, coupler; straddle bogies
+           (dual running tyres on the beam top, guide and stabilising wheels, side frames, power collectors)
 """
 import sys, math, argparse, pathlib
 import bpy, bmesh
+from mathutils import Vector, Matrix
 
 # keep in sync with S in output/disneysea/train_model.js (tools/blender_smoke.py compares them)
 SPEC = dict(head_len=15.05, mid_len=13.70, width=2.98, gap=0.55, cars=6,
@@ -81,9 +88,11 @@ def car_body(name, L, head):
     bm.free()
     ob = bpy.data.objects.new(name, me)
     bpy.context.collection.objects.link(ob)
-    mod = ob.modifiers.new("thickness", "SOLIDIFY")   # a real skin for the booleans (JS draws a single sheet)
-    mod.thickness = 0.06
+    mod = ob.modifiers.new("thickness", "SOLIDIFY")   # a real skin: the window holes get deep reveals
+    mod.thickness = 0.10
     mod.offset = -1
+    mod.material_offset = 1                            # inner face and the reveals: the cabin wall material
+    mod.material_offset_rim = 1
     return ob
 
 
@@ -126,6 +135,7 @@ def cut(body, cutters):
     for i, c in enumerate(cutters):
         m = body.modifiers.new(f"cut{i}", "BOOLEAN")
         m.operation, m.object, m.solver = "DIFFERENCE", c, "EXACT"
+        c.parent = body                          # the cutters are in car coordinates: they move with the car
 
 
 # ---------------------------------------------------------------- materials
@@ -185,9 +195,14 @@ def material(name, color, rough=0.6, metal=0.0, alpha=1.0, emit=0.0):
     b.inputs["Base Color"].default_value = (*color, 1.0)
     b.inputs["Roughness"].default_value = rough
     b.inputs["Metallic"].default_value = metal
-    if alpha < 1:
+    if alpha < 1:                               # see-through in Cycles and in EEVEE / Material Preview
         b.inputs["Alpha"].default_value = alpha
-        m.blend_method = "BLEND"
+        for attr, val in (("surface_render_method", "BLENDED"), ("blend_method", "BLEND")):
+            try:
+                setattr(m, attr, val)
+            except (AttributeError, TypeError):
+                pass
+        m.diffuse_color = (*color, alpha)
     if emit:
         b.inputs["Emission Color"].default_value = (*color, 1.0)
         b.inputs["Emission Strength"].default_value = emit
@@ -203,35 +218,280 @@ def box(name, size, loc, mat, parent):
     return o
 
 
+# ---------------------------------------------------------------- detail parts (one bmesh per material, v2)
+# v2 (2026-09-24): photos of the Type C cars (Wikimedia Commons, see docs/train/spec.md) and how a straddle-type
+# (Alweg / Hitachi) monorail is built: rubber running tyres on the beam top, guide wheels on the beam sides, a pair
+# of stabilising wheels lower down, the power collector on the side of the beam, a skirt hiding all of it.
+def _v(x, y, z):
+    return Vector((x, y, z))
+
+
+def _cube(bm, cx, cy, cz, sx, sy, sz, M=None):
+    vs = bmesh.ops.create_cube(bm, size=1.0)["verts"]
+    for v in vs:
+        p = _v(v.co.x * sx, v.co.y * sy, v.co.z * sz)
+        v.co = (M @ p if M is not None else p) + _v(cx, cy, cz)
+
+
+def _cyl(bm, r, h, M, segs=16, r2=None):
+    """Cylinder (cone) along local Z, centred, placed by the 4x4 matrix M."""
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=r if r2 is None else r2, depth=h, matrix=M)
+
+
+def _sphere(bm, r, M, u=8, v=6):
+    bmesh.ops.create_uvsphere(bm, u_segments=u, v_segments=v, radius=r, matrix=M)
+
+
+def _torus(bm, R, r, M, seg=12, rseg=4):
+    rings = []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        ring = []
+        for j in range(rseg):
+            b = 2 * math.pi * j / rseg
+            ring.append(bm.verts.new(M @ _v((R + r * math.cos(b)) * math.cos(a), (R + r * math.cos(b)) * math.sin(a), r * math.sin(b))))
+        rings.append(ring)
+    for i in range(seg):
+        for j in range(rseg):
+            a, b = rings[i], rings[(i + 1) % seg]
+            bm.faces.new((a[j], b[j], b[(j + 1) % rseg], a[(j + 1) % rseg]))
+
+
+def _prism_xz(bm, pts, y0, y1):
+    """Polygon in (x, z) extruded along y."""
+    v0 = [bm.verts.new((x, y0, z)) for x, z in pts]; v1 = [bm.verts.new((x, y1, z)) for x, z in pts]
+    bm.faces.new(v0[::-1]); bm.faces.new(v1)
+    n = len(pts)
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((v0[i], v0[j], v1[j], v1[i]))
+
+
+def _T(x, y, z):
+    return Matrix.Translation((x, y, z))
+
+
+def _R(a, axis):
+    return Matrix.Rotation(a, 4, axis)
+
+
+def _S(x, y, z):
+    return Matrix.Diagonal((x, y, z, 1.0))
+
+
+def _flush(parts, name, parent):
+    """One child object per material from the per-material bmeshes."""
+    for k, (bm, mat) in parts.items():
+        if not bm.verts:
+            bm.free(); continue
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        me = bpy.data.meshes.new(f"{name}_{k}"); bm.to_mesh(me); bm.free()
+        me.materials.append(mat)
+        o = bpy.data.objects.new(f"{name}_{k}", me); bpy.context.collection.objects.link(o); o.parent = parent
+
+
 # ---------------------------------------------------------------- one car / the set
 def build_car(name, L, head, M):
+    S = SPEC; hw = S["width"] / 2; f, c = S["floor"], S["ceil"]
     body = car_body(name, L, head)
-    body.data.materials.append(M["paint"])
+    body.data.materials.append(M["paint"]); body.data.materials.append(M["cabin"])   # outside / inside + window reveals
     cut(body, window_cutters(L, head))
-    f, c = SPEC["floor"], SPEC["ceil"]
-    Li = L - SPEC["rake"] - 0.05 if head else L
-    box(f"{name}_floor", (Li - 0.1, 2.9, 0.06), (Li / 2, 0, f - 0.03), M["floor"], body)
-    box(f"{name}_ceiling", (Li - 0.1, 2.7, 0.05), (Li / 2, 0, c + 0.02), M["ceil"], body)
-    for side in (-1, 1):                       # long benches between the doors
-        x0, x1 = 3.2, (8.4 if head else 10.5)
-        box(f"{name}_bench{side}", (x1 - x0, 0.56, 0.55), ((x0 + x1) / 2, side * 1.13, f + 0.28), M["seat"], body)
-        box(f"{name}_back{side}", (x1 - x0, 0.13, 0.42), ((x0 + x1) / 2, side * 1.38, f + 0.72), M["seat"], body)
-    for bx in (2.7, L - 2.7):                  # bogies
-        box(f"{name}_bogie{bx:.0f}", (2.6, 1.0, 0.14), (bx, 0, f - 0.12), M["dark"], body)
-    for x in (2.5, L * 0.5 + 1.2, L - (4.2 if head else 2.5)):   # roof units
-        box(f"{name}_roofunit{x:.0f}", (1.6, 1.0, 0.16), (x, 0, SPEC["y_top"] + 0.06), M["roof"], body)
-    if head:                                   # windscreen glass + headlights
-        box(f"{name}_windscreen", (SPEC["rake"] - 0.1, 2.0, 1.4), (L - SPEC["rake"] / 2 + 0.05, 0, 2.925), M["glass"], body)
-        for side in (-1, 1):
-            box(f"{name}_lamp{side}", (0.05, 0.4, 0.24), (L + 0.01, side * 0.74, 1.28), M["lamp"], body)
+    P = {k: (bmesh.new(), M[k]) for k in M if k != "paint"}
+    bm = lambda k: P[k][0]
+    doors = [1.95, L - 5.6 if head else L - 1.95]
+    x_in0 = 0.3                                   # cabin: from the rear end wall ...
+    x_in1 = L - 3.6 if head else L - 0.3          # ... to the cab partition (head) / the front end wall
+    # ---- glass in every window opening (the same ellipses as the cutters), set in the middle of the thick skin
+    for side in (-1, 1):
+        y = side * (hw - 0.05)
+        wins = []
+        for i in range(3 if head else 4):
+            cx, cz = 3.9 + 1.9 * i, 2.35
+            wins += [(cx, cz, 0.34, 0.44), (cx - 0.36, cz + 0.46, 0.19, 0.19), (cx + 0.36, cz + 0.46, 0.19, 0.19)]
+        if head:
+            wins.append((12.35, 2.4, 0.9, 0.55))
+        for d in doors:
+            wins += [(d - 0.4, 2.3, 0.22, 0.6), (d + 0.4, 2.3, 0.22, 0.6)]
+        for k, (x, z, ry, rz) in enumerate(wins):
+            _cyl(bm("glass"), 1.0, 0.012, _T(x, y + side * 0.002 * (k % 3), z) @ _R(math.pi / 2, "X") @ _S(ry + 0.03, rz + 0.03, 1.0), 24)
+        # ---- doors: leaf seam, frame, sills (dark lines on the white skin, as in the photos)
+        for d in doors:
+            yo = side * (hw + 0.004)
+            for dx, w in ((0.0, 0.03), (-0.78, 0.035), (0.78, 0.035)):
+                _cube(bm("dark"), d + dx, yo, 1.9, w, 0.012, 1.9)
+            _cube(bm("dark"), d, yo, 0.97, 1.6, 0.012, 0.03)
+            _cube(bm("steel"), d, side * (hw + 0.02), 0.93, 1.6, 0.05, 0.04)     # door sill plate
+        # ---- skirt: two round louvred vents, access-panel lines, lower edge trim
+        for vx in (L * 0.28, L * 0.72):
+            _cyl(bm("vent"), 0.27, 0.02, _T(vx, side * (hw + 0.006), 0.12) @ _R(math.pi / 2, "X"), 24)
+            for k in range(7):
+                zz = 0.12 - 0.18 + k * 0.06
+                half = math.sqrt(max(0.0, 0.25 ** 2 - (zz - 0.12) ** 2))
+                if half > 0.03:
+                    _cube(bm("dark"), vx, side * (hw + 0.018), zz, 2 * half, 0.012, 0.018)
+        for px in [x for x in (1.0, L / 2 - 0.2, L - 1.0)]:
+            _cube(bm("dark"), px, side * (hw + 0.004), -0.2, 0.012, 0.012, 1.3)
+        _cube(bm("vent"), L / 2, side * (hw + 0.01), -0.86, L - 0.6, 0.03, 0.06)
+    # ---- roof: air-conditioning units (rounded), grilles; an antenna on the head car
+    for x in (2.5, L * 0.5 + 1.2, L - (4.2 if head else 2.5)):
+        _cube(bm("roof"), x, 0, S["y_top"] + 0.1, 1.7, 1.1, 0.2)
+        for k in range(5):
+            _cube(bm("dark"), x - 0.6 + 0.3 * k, 0, S["y_top"] + 0.205, 0.12, 0.9, 0.012)
+    if head:
+        _cyl(bm("dark"), 0.02, 0.35, _T(L - 4.0, 0.4, S["y_top"] + 0.17))
+    # ---- head car front: windscreen pane along the rake, centre pillar, round headlights, coupler, dark recess
+    if head:
+        R_, wb, yt = S["rake"], S["wind_bot"], S["y_top"]
+        zr = lambda x: yt - (yt - wb) * (x - (L - R_)) / R_          # the raked surface
+        x0, x1 = L - R_ + 0.15, L - 0.15
+        a = math.atan2(zr(x0) - zr(x1), x1 - x0)
+        mid = _v((x0 + x1) / 2, 0, (zr(x0) + zr(x1)) / 2 - 0.06)
+        span = math.hypot(x1 - x0, zr(x0) - zr(x1))
+        Mw = _T(*mid) @ _R(a, "Y")
+        _cube(bm("glass"), 0, 0, 0, span, 2.05, 0.012, Mw)
+        _cube(bm("rubber"), 0, 0, 0, span, 0.06, 0.03, Mw @ _T(0, 0, 0.07))    # centre pillar (emergency door frame)
+        for s in (-1, 1):
+            _cyl(bm("lamp"), 0.15, 0.04, _T(L + 0.01, s * 0.74, 1.28) @ _R(math.pi / 2, "Y"), 20)
+            _torus(bm("steel"), 0.165, 0.025, _T(L + 0.02, s * 0.74, 1.28) @ _R(math.pi / 2, "Y"), 20, 4)
+        _cube(bm("dark"), L - 0.01, 0, 0.35, 0.04, 1.3, 0.55)                  # recess round the coupler
+        _cyl(bm("steel"), 0.1, 0.5, _T(L + 0.15, 0, 0.25) @ _R(math.pi / 2, "Y"), 12)
+        _cube(bm("dark"), L + 0.42, 0, 0.25, 0.08, 0.36, 0.26)                 # coupler head
+        _cube(bm("dark"), L + 0.01, 0, 0.72, 0.03, 0.5, 0.05)                  # number plate strip
+    # ---- bogies (straddle type): frame, dual running tyres on the beam top, guide + stabilising wheels, collectors
+    bw = 0.85
+    for bx in (2.7, L - 2.7):
+        _cube(bm("dark"), bx, 0, f - 0.14, 2.6, 1.1, 0.14)
+        for dx in (-0.85, 0.85):
+            for ty in (-0.19, 0.19):
+                _cyl(bm("rubber"), 0.44, 0.3, _T(bx + dx, ty, 0.44) @ _R(math.pi / 2, "X"), 20)
+                _cyl(bm("steel"), 0.2, 0.32, _T(bx + dx, ty, 0.44) @ _R(math.pi / 2, "X"), 10)
+        for s in (-1, 1):
+            _cube(bm("dark"), bx, s * (bw / 2 + 0.42), -0.2, 2.5, 0.12, 1.0)   # side frame
+            for dx in (-0.8, 0.8):
+                _cyl(bm("rubber"), 0.2, 0.26, _T(bx + dx, s * (bw / 2 + 0.2), -0.2), 14)      # guide wheels (upper)
+                _cyl(bm("rubber"), 0.16, 0.22, _T(bx + dx, s * (bw / 2 + 0.17), -0.7), 12)    # stabilising wheels (lower)
+            _cube(bm("steel"), bx, s * (bw / 2 + 0.07), -0.85, 0.5, 0.06, 0.1)              # current collector shoe
+    # ---- interior: checkered floor, ceiling with light strips, end walls
+    tile = 0.5
+    nx, ny = int((x_in1 - x_in0) / tile) + 1, 6
+    for i in range(nx):
+        for j in range(ny):
+            xa, ya = x_in0 + i * tile, -1.4 + j * (2.8 / ny)
+            xb = min(xa + tile, x_in1)
+            if xb <= xa:
+                continue
+            _cube(bm("floor_a" if (i + j) % 2 == 0 else "floor_b"), (xa + xb) / 2, ya + 1.4 / ny, f - 0.01, xb - xa, 2.8 / ny, 0.02)
+    _cube(bm("ceiling"), (x_in0 + x_in1) / 2, 0, c + 0.02, x_in1 - x_in0, 2.6, 0.04)
+    for s in (-1, 1):
+        _cube(bm("light"), (x_in0 + x_in1) / 2, s * 0.55, c - 0.005, x_in1 - x_in0 - 0.6, 0.12, 0.02)
+    ends = [(x_in0, 1)] + ([] if head else [(x_in1, -1)])
+    for xe, d in ends:                           # red end walls round the gangway door (glass)
+        for ya, yb in ((-1.36, -0.5), (0.5, 1.36)):   # inside the skin: the roof curves in above 2.85 m
+            _cube(bm("red_wall"), xe, (ya + yb) / 2, (f + 2.85) / 2, 0.08, yb - ya, 2.85 - f)
+        _cube(bm("red_wall"), xe, 0, (f + 2.1 + c) / 2, 0.08, 1.0, c - f - 2.1)
+        for ya, yb in ((-1.25, -0.5), (0.5, 1.25)):
+            _cube(bm("red_wall"), xe, (ya + yb) / 2, (2.85 + c) / 2, 0.08, yb - ya, c - 2.85)
+        _cube(bm("glass"), xe, 0, f + 1.05, 0.015, 1.0, 2.1)
+        for yy in (-0.5, 0.5):
+            _cube(bm("steel"), xe, yy, f + 1.05, 0.1, 0.05, 2.1)
+    # ---- long benches between the doors: black cushion, red wavy backrest with yellow dots, glow under the seat,
+    #      round clear partitions with red balls at both ends, white poles; the photos' Type C seats
+    b0, b1 = doors[0] + 0.85, doors[1] - 0.85
+    import random
+    rnd = random.Random(7 if head else 3)
+    for s in (-1, 1):
+        _cube(bm("seat"), (b0 + b1) / 2, s * 1.1, f + 0.44, b1 - b0, 0.5, 0.12)
+        _cube(bm("dark"), (b0 + b1) / 2, s * 1.22, f + 0.19, b1 - b0 - 0.1, 0.3, 0.38)
+        _cube(bm("light"), (b0 + b1) / 2, s * 1.07, f + 0.37, b1 - b0 - 0.2, 0.02, 0.012)
+        n = max(2, int((b1 - b0) / 0.46))
+        top = [(b1, f + 0.5)] + [(b1 - (b1 - b0) * k / (n * 6), f + 0.95 + 0.07 * abs(math.sin(math.pi * k / 6))) for k in range(n * 6 + 1)] + [(b0, f + 0.5)]
+        _prism_xz(bm("seat_back"), top, s * 1.33, s * 1.41) if s > 0 else _prism_xz(bm("seat_back"), top, s * 1.41, s * 1.33)
+        for k in range(int((b1 - b0) * 3.2)):     # yellow polka dots on the backrest
+            dx, dz, r = b0 + 0.1 + rnd.random() * (b1 - b0 - 0.2), f + 0.58 + rnd.random() * 0.3, 0.035 + rnd.random() * 0.05
+            _cyl(bm("dots"), r, 0.01, _T(dx, s * 1.325, dz) @ _R(math.pi / 2, "X"), 12)
+        for xe in (b0 - 0.08, b1 + 0.08):         # the round clear partitions
+            M_ = _T(xe, s * 1.02, f + 0.72) @ _R(math.pi / 2, "Y")
+            _torus(bm("pole"), 0.34, 0.025, M_, 20, 5)
+            _cyl(bm("partition"), 0.33, 0.012, M_, 20)
+            for zz, yy in ((f + 1.06, s * 1.02), (f + 0.38, s * 1.02), (f + 0.72, s * 0.68)):
+                _sphere(bm("ball"), 0.045, _T(xe, yy, zz))
+            _cyl(bm("pole"), 0.02, c - f - 1.06, _T(xe, s * 1.02, (f + 1.06 + c) / 2), 8)
+    for d in doors:                               # grab poles beside the doors, red balls
+        for dx in (-0.95, 0.95):
+            for s in (-1, 1):
+                _cyl(bm("pole"), 0.02, c - f, _T(d + dx, s * 1.3, (f + c) / 2), 8)
+                for zz in (f + 0.9, f + 1.7):
+                    _sphere(bm("ball"), 0.04, _T(d + dx, s * 1.3, zz))
+        for s in (-1, 1):                         # LCD above each door, inside
+            _cube(bm("lcd"), d, s * 1.3, c - 0.2, 1.0, 0.06, 0.22)
+            _cube(bm("screen"), d, s * 1.265, c - 0.2, 0.9, 0.01, 0.17)
+    # ---- ceiling rails and hand straps: yellow band, red ball, black Mickey ring
+    for s in (-1, 1):
+        _cyl(bm("pole"), 0.018, x_in1 - x_in0 - 0.4, _T((x_in0 + x_in1) / 2, s * 0.72, c - 0.12) @ _R(math.pi / 2, "Y"), 8)
+        xs = b0 + 0.3
+        while xs < b1 - 0.2:
+            _cube(bm("strap"), xs, s * 0.72, c - 0.3, 0.03, 0.012, 0.32)
+            _sphere(bm("ball"), 0.035, _T(xs, s * 0.72, c - 0.47), 6, 4)
+            Mr = _T(xs, s * 0.72, c - 0.6) @ _R(math.pi / 2, "X")
+            _torus(bm("ring"), 0.085, 0.012, Mr, 10, 3)
+            for ex in (-0.075, 0.075):
+                _torus(bm("ring"), 0.042, 0.01, _T(xs + ex, s * 0.72, c - 0.52) @ _R(math.pi / 2, "X"), 6, 3)
+            xs += 0.62
+    # ---- head car: glass cab partition, driver's desk with screens, observation sofa (magenta with yellow dots)
+    if head:
+        xp = x_in1
+        _cube(bm("glass"), xp, 0, (f + c) / 2, 0.015, 2.6, c - f)
+        for yy in (-1.3, -0.45, 0.45, 1.3):
+            _cube(bm("rubber"), xp, yy, (f + c) / 2, 0.06, 0.06, c - f)
+        _cube(bm("rubber"), xp, 0, f + 1.1, 0.06, 2.7, 0.05)
+        for i in range(int((L - 0.4 - xp) / tile) + 1):
+            for j in range(ny):
+                xa, ya = xp + i * tile, -1.4 + j * (2.8 / ny)
+                xb = min(xa + tile, L - 0.6)
+                if xb > xa:
+                    _cube(bm("floor_a" if (i + j) % 2 == 0 else "floor_b"), (xa + xb) / 2, ya + 1.4 / ny, f - 0.01, xb - xa, 2.8 / ny, 0.02)
+        _cube(bm("rubber"), L - 1.55, 0.55, f + 0.45, 0.8, 1.0, 0.9)            # driver's desk
+        Md = _T(L - 1.35, 0.55, f + 0.98) @ _R(-0.5, "Y")
+        _cube(bm("lcd"), 0, 0, 0, 0.5, 0.9, 0.04, Md)
+        for yy in (0.33, 0.77):
+            _cube(bm("screen"), L - 1.42, yy, f + 1.02, 0.02, 0.3, 0.18)
+        _cube(bm("rubber"), L - 2.35, 1.25, f + 0.9, 0.3, 0.3, 1.8)             # tall switch panel
+        _cube(bm("magenta"), L - 2.5, -0.95, f + 0.25, 1.4, 0.8, 0.5)           # observation sofa
+        _cube(bm("magenta"), L - 2.5, -1.3, f + 0.7, 1.4, 0.18, 0.5)
+        for k in range(10):
+            _cyl(bm("dots"), 0.05 + rnd.random() * 0.04, 0.01, _T(L - 3.1 + rnd.random() * 1.2, -1.205, f + 0.55 + rnd.random() * 0.3) @ _R(math.pi / 2, "X"), 12)
+    _flush(P, name, body)
     return body
 
 
+def gangway(name, M):
+    """Bellows between two cars: a slightly smaller open tube with ribs."""
+    g = car_body(name, SPEC["gap"] + 0.04, False)
+    g.scale = (1.0, 0.94, 0.94)
+    g.data.materials.append(M["bellows"]); g.data.materials.append(M["bellows"])
+    return g
+
+
+def materials(scheme="blue"):
+    return {"paint": paint_material(scheme),
+            "cabin": material("cabin", (0.93, 0.92, 0.88), 0.5),
+            "floor_a": material("floor_a", (0.80, 0.74, 0.60), 0.6), "floor_b": material("floor_b", (0.55, 0.52, 0.45), 0.6),
+            "ceiling": material("ceiling", (0.95, 0.95, 0.93), 0.6, emit=0.3), "light": material("light", (1.0, 0.98, 0.92), 0.3, emit=5.0),
+            "seat": material("seat", (0.04, 0.04, 0.045), 0.8), "seat_back": material("seat_back", (0.72, 0.05, 0.04), 0.7),
+            "dots": material("dots", (0.96, 0.78, 0.14), 0.6), "magenta": material("magenta", (0.80, 0.07, 0.32), 0.7),
+            "pole": material("pole", (0.93, 0.93, 0.92), 0.3), "ball": material("ball", (0.85, 0.08, 0.04), 0.3),
+            "strap": material("strap", (0.96, 0.74, 0.05), 0.6), "ring": material("ring", (0.02, 0.02, 0.02), 0.25),
+            "red_wall": material("red_wall", (0.70, 0.07, 0.05), 0.6), "partition": material("partition", (0.93, 0.93, 0.95), 0.2, alpha=0.55),
+            "lcd": material("lcd", (0.03, 0.03, 0.035), 0.4), "screen": material("screen", (0.25, 0.65, 0.95), 0.3, emit=2.0),
+            "steel": material("steel", (0.78, 0.80, 0.82), 0.3, 0.9), "vent": material("vent", (0.45, 0.47, 0.50), 0.5, 0.4),
+            "dark": material("dark", (0.14, 0.15, 0.17), 0.6, 0.3), "rubber": material("rubber", (0.03, 0.03, 0.03), 0.8),
+            "roof": material("roof_unit", (0.84, 0.85, 0.87), 0.6),
+            "glass": material("glass", (0.10, 0.14, 0.18), 0.03, 0.1, alpha=0.35), "lamp": material("lamp", (1.0, 0.98, 0.9), 0.3, emit=6.0),
+            "bellows": material("bellows", (0.23, 0.24, 0.26), 0.85)}
+
+
 def build(cars="head", scheme="blue"):
-    M = {"paint": paint_material(scheme), "floor": material("floor", (0.85, 0.71, 0.25), 0.7),
-         "ceil": material("ceiling", (0.96, 0.94, 0.89), 0.7, emit=0.4), "seat": material("seat", (0.23, 0.23, 0.25), 0.8),
-         "dark": material("dark", (0.14, 0.15, 0.17), 0.6, 0.3), "roof": material("roof_unit", (0.84, 0.85, 0.87), 0.6),
-         "glass": material("glass", (0.06, 0.10, 0.14), 0.05, 0.1, alpha=0.5), "lamp": material("lamp", (1.0, 0.98, 0.9), 0.3, emit=6.0)}
+    M = materials(scheme)
     if cars == "head":
         return [build_car("Head", SPEC["head_len"], True, M)]
     out, x = [], 0.0
@@ -245,6 +505,8 @@ def build(cars="head", scheme="blue"):
         else:
             o.location.x = x
         out.append(o)
+        if i < len(lens) - 1:                   # bellows to the next car
+            g = gangway(f"Gang{i}", M); g.location.x = x + L - 0.02; out.append(g)
         x += L + SPEC["gap"]
     return out
 

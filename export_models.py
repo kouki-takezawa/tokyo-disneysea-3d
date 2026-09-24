@@ -191,6 +191,53 @@ def part_volcano():
     return [VM.build(col=col)]
 
 
+def part_tdl_station():
+    import ds_tdl_station as ST
+    importlib.reload(ST)
+    return ST.export_objects(merged)
+
+
+def part_train():
+    """Resort Line cars for the mock (they replace the JS-built trains): a head car (TRH), a middle car (TRM) and a
+    gangway (TRG), each an empty with one mesh per material under it ("TRH_glass", "TRM_seat_back", ...). Car-local
+    metres as train_model.js: x along the car (nose at +x), beam top = 0, glTF Y up. Materials go into the file
+    (plain colours); the mock paints *_paint with each train's colour band and makes *_glass see-through."""
+    import train_blender as TB
+    importlib.reload(TB)
+    S, M = TB.SPEC, TB.materials("blue")
+    col = bpy.data.collections.new("Export"); bpy.context.scene.collection.children.link(col)
+    out = []
+
+    def group(key, objs):
+        root = bpy.data.objects.new(key, None); col.objects.link(root); out.append(root)
+        dg = bpy.context.evaluated_depsgraph_get()
+        acc = {}
+        for o in objs:
+            ev = o.evaluated_get(dg); me = ev.to_mesh(); me.transform(o.matrix_world)
+            mats = [m for m in me.materials] or [None]
+            src = bmesh.new(); src.from_mesh(me); ev.to_mesh_clear()
+            for idx in sorted({f.material_index for f in src.faces}):
+                mat = mats[min(idx, len(mats) - 1)]
+                k = "paint" if (mat is None or mat.name.startswith("paint")) else mat.name
+                b = src.copy()
+                bmesh.ops.delete(b, geom=[f for f in b.faces if f.material_index != idx], context="FACES")
+                tmp = bpy.data.meshes.new("tmp"); b.to_mesh(tmp); b.free()
+                acc.setdefault(k, [bmesh.new(), mat])[0].from_mesh(tmp); bpy.data.meshes.remove(tmp)
+            src.free()
+        for k, (b, mat) in acc.items():
+            me = bpy.data.meshes.new(f"{key}_{k}"); b.to_mesh(me); b.free()
+            for p in me.polygons:
+                p.material_index = 0
+            if mat is not None:
+                me.materials.append(mat)
+            ob = bpy.data.objects.new(f"{key}_{k}", me); col.objects.link(ob); ob.parent = root; out.append(ob)
+    for key, L, head in (("TRH", S["head_len"], True), ("TRM", S["mid_len"], False)):
+        body = TB.build_car(key + "_car", L, head, M)
+        group(key, [body] + [o for o in body.children if not o.hide_render])   # not the window cutters
+    group("TRG", [TB.gangway("TRG_car", M)])
+    return out
+
+
 def render_checks(part, samples):
     """Cycles check renders of a part (before its materials are flattened for glTF)."""
     import ds_aquasphere as AQ
@@ -263,8 +310,9 @@ def main():
             (ROOT / "output" / "disneysea" / part).mkdir(parents=True, exist_ok=True)
             render_checks(part, args.samples)
             continue
-        objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano}[part]()
-        export(objs, OUT / f"{part}.glb", materials=(part not in ("water",)))
+        objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano,
+                "tdl_station": part_tdl_station, "train": part_train}[part]()
+        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_station")))
 
 
 if __name__ == "__main__":

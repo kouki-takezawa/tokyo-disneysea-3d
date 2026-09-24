@@ -407,7 +407,8 @@ def height_for_way(w):
 # ---------------------------------------------------------------- entrance / station layer
 # The Disney Resort Line station sits on the viaduct just outside the park boundary, above the entrance
 # plaza; the ticket gates (barrier=toll_booth "パークエントランス・…") line up to its west and south.
-STATION_PLATFORM_Z = 8.0   # platform height above the promenade datum (estimate; OSM has only layer=2)
+STATION_PLATFORM_Z = 5.5   # platform height above the ground at the station (the mock adds the DEM there, -0.29 m): the
+                           # Resort Line car floor, 1 m above the beam top at 4.21 m on the datum (ds_disneyland.RESORT_LINE_Z)
 GATE_BOOTH_H = 1.2         # height of a gate booth (estimate)
 
 

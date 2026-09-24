@@ -386,7 +386,6 @@ body.coarse .hud.tc{top:auto;bottom:176px}
   </div>
 </main>
 
-<script id="train-model">__TRAIN_MODEL__</script>
 <script id="data" type="application/json">__DATA__</script>
 <script id="ext-water">
 /* Extension hook for the water tab (ds_water.py). Define window.TDS_EXT = { water2d(api){...}, water3d(api){...} } here.
@@ -560,7 +559,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["trains", "電車(リゾートライン・京葉線)"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["trains", "電車(リゾートライン・京葉線)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -768,12 +767,12 @@ function findSpot(x, y) {   // nearest dry point in the park outside buildings (
 }
 
 /* ---------- Resort Line: two trains running round the loop ---------- */
-// The timetable is plain JS (it also drives the markers on the plan); the 3D bodies come from train_model.js.
+// The timetable is plain JS (it also drives the markers on the plan); the 3D cars are Blender models (models/train.json).
 // Both trains follow the same pattern half a lap apart: dwell at a station, speed up, run, slow down, stop.
 const RL = (() => {
   if (!MH || !MH.loop || !MH.loop.length) return null;
   const V = 35 / 3.6, ACC = 0.9, DWELL = 20;           // m/s (35 km/h; the line runs at up to 50), m/s², s
-  const TL = 2 * 15.05 + 4 * 13.70 + 5 * 0.55;         // train length (train_model.js: 6 cars and the gaps)
+  const TL = 2 * 15.05 + 4 * 13.70 + 5 * 0.55;         // train length (6 cars and the gaps: train_blender SPEC)
   const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   // chain the loop's ways into one closed line
   const rest = MH.loop.map(l => l.map(p => [p[0], p[1]]));
@@ -1484,6 +1483,17 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   PZ_Trunk: { color: 0x4a3828, roughness: 1 }, PZ_Canopy: { color: 0x3c6a2e, roughness: 1, flatShading: true },
   PZ_Lines: { color: 0xecebe6, roughness: 0.7 },
   VO_Rock: { vertexColors: true, roughness: 0.95 },
+  // 東京ディズニーランド・ステーション (ds_tdl_station.py): one mesh per Blender material
+  ST_cream: { color: 0xd8caa6, roughness: 0.8 }, ST_trim: { color: 0xd9d2bf, roughness: 0.8 }, ST_stone: { color: 0xa9a69f, roughness: 0.85 },
+  ST_brick: { color: 0x7e3b29, roughness: 0.9 }, ST_copper: { color: 0x5b8c80, roughness: 0.85 }, ST_slate: { color: 0x323c4a, roughness: 0.5 },
+  ST_gold: { color: 0xc9a24a, roughness: 0.35, metalness: 0.8 }, ST_tile: { color: 0xa5634b, roughness: 0.7 }, ST_iron: { color: 0x1c211f, roughness: 0.5, metalness: 0.5 },
+  ST_white: { color: 0xdedfda, roughness: 0.7 }, ST_black: { color: 0x121212, roughness: 0.6 }, ST_concrete: { color: 0xa8a7a2, roughness: 0.9 },
+  ST_awning: { color: 0x7d1a1a, roughness: 0.8 }, ST_mural: { color: 0x3d5c62, roughness: 0.8 }, ST_sign: { color: 0x1e3636, roughness: 0.6 },
+  ST_gate: { color: 0x74777d, roughness: 0.45, metalness: 0.4 }, ST_gate_panel: { color: 0x16704f, roughness: 0.5 }, ST_banner: { color: 0x165a40, roughness: 0.9 },
+  ST_yellow: { color: 0xd9a114, roughness: 0.7 }, ST_escalator: { color: 0x9a9da3, roughness: 0.35, metalness: 0.7 }, ST_dark_glass: { color: 0xdcebf0, roughness: 0.05, transparent: true, opacity: 0.25, depthWrite: false },
+  ST_glass: { color: 0xcfe3ea, roughness: 0.05, transparent: true, opacity: 0.22, depthWrite: false },
+  ST_amber: { color: 0xe3b456, roughness: 0.2, transparent: true, opacity: 0.75 },
+  ST_lamp: { color: 0xfff3d6, emissive: 0xffe2a8, emissiveIntensity: 0.9 },
 };
 function makeSkyEnv(T, renderer) {
   const sc = new T.Scene();
@@ -1843,8 +1853,8 @@ async function init3D() {
   if (D.entrance) {   // station platforms and track on the viaduct, gate booths on the plaza
     const E = D.entrance, zs = (heightAt(E.station.x, E.station.y) ?? 0) + E.station.z;
     E.station.platforms.forEach(r => prism("entrance", r, zs - 0.4, zs));
-    E.rail.forEach(l => { line("entrance", l, zs + 0.9); line("entrance", l, zs + 0.2);
-      for (let i = 0; i < l.length; i += 3) seg("entrance", [...V(l[i][0], l[i][1], gz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], zs + 0.2)]); });
+    E.rail.forEach(l => { line("entrance", l, zs - 1.0); line("entrance", l, zs - 1.9);   // the beam: its top 1 m under the car floor (= platform)
+      for (let i = 0; i < l.length; i += 3) seg("entrance", [...V(l[i][0], l[i][1], gz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], zs - 1.9)]); });
     E.walks.forEach(l => lineZ("entrance", l, l.map(([x, y]) => gz(x, y))));
     for (const row of E.gates) {
       const p = row.pts, a = p[0], b = p[p.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
@@ -1874,8 +1884,10 @@ async function init3D() {
       for (let i = 0; i < l.length; i += 4) seg("mhline", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.loop_z)]); });
     MH.jr.forEach(l => { line("mhjr", l, MH.jr_z + 1); line("mhjr", l, MH.jr_z);
       for (let i = 0; i < l.length; i += 3) seg("mhjr", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.jr_z)]); });
-    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : MH.loop_z; prism("mhline", r, z - 0.4, z); });
-    MH.places.forEach(p => p.r.forEach(r => prism(p.k === "station" ? "mhline" : "mhplace", r, p.z || 0, (p.z || 0) + p.h)));
+    // platforms: JR at its viaduct; the Resort Line's at the car floor (1 m above the beam top)
+    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : MH.loop_z + 1.9; prism("mhline", r, z - 0.4, z); });
+    // station buildings get their own key, so a Blender station model can replace its box only
+    MH.places.forEach(p => p.r.forEach(r => prism(p.k === "station" ? "mhstation" : "mhplace", r, p.z || 0, (p.z || 0) + p.h)));
     MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
   }
   // 100 m grid under the park
@@ -1888,13 +1900,13 @@ async function init3D() {
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
     dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"],
-    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhwalk: "maihama" };
+    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhwalk: "maihama" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
     dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx",
-    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhwalk: "--mh" };
+    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhwalk: "--mh" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
@@ -2320,15 +2332,12 @@ async function init3D() {
   });
   addEventListener("resize", () => { mmS = null; });
   three.dolly = f => { const d = cam.position.clone().sub(ctl.target).multiplyScalar(f); cam.position.copy(ctl.target).add(d); ctl.update(); };
-  /* ---------- Resort Line trains (train_model.js): posed car by car on the loop every frame ---------- */
-  // Each car follows the track (heading from its two bogies). Near the camera a car is the detailed model
-  // (cabin seen through the windows); farther away, and always in lite mode, it is the simple shell.
-  // No collision: the walker passes through them.
-  const TRAIN_NEAR = 170;   // m from the camera to a car's middle
+  /* ---------- Resort Line trains (Blender-built cars): posed car by car on the loop every frame ---------- */
+  // Each car follows the track (heading from its two bogies). No collision: the walker passes through them.
   // 3D: the solid trains follow the 3Dモデル toggle; the 電車 layer draws them as outlines where the model is off
   // (or on top of it with 枠線も重ねて表示), like the other parts
   const trainsSolid = () => mdl.trains !== false, trainsWire = () => !!on.trains && (!trainsSolid() || !!mdl.overlay);
-  const beamTop = MH ? MH.loop_z + 0.9 : 0;   // the beam drawn by the 舞浜駅・周辺 layer (estimated 8 m viaduct + 0.9 m beam)
+  const beamTop = MH ? MH.loop_z + 0.9 : 0;   // the beam drawn by the 舞浜駅・周辺 layer: top at 4.21 m, as in the Blender station
 
   /* ---------- camera that follows a train (俯瞰) ---------- */
   // The camera starts behind the train, a little to the right and above, then keeps its offset from the
@@ -2374,26 +2383,82 @@ async function init3D() {
     ctl.target.copy(fTgt); cam.position.copy(fTgt).add(fOff); ctl.update();
   }
 
-  // train_model.js is inlined in the page by export_mock.py (window.TrainModel); if building the trains fails,
-  // say why instead of silently showing no trains (the plan markers and the follow camera still work)
-  if (RL) Promise.resolve().then(() => {
-    if (!window.TrainModel) throw new Error("TrainModel がありません");
+  // Resort Line cars built in Blender (models/train.json, export_models.py --parts train): a head car TRH, a middle
+  // car TRM and a gangway TRG, each a group of meshes named <car>_<material>; car-local metres like the old JS model
+  // (x along the car, nose at +x, y up, beam top = 0). Every train clones them per car; TR*_paint gets that train's
+  // colour band in the shader (the same wavy-band formula as before) and its inner skin is the cream cabin wall.
+  // Lite mode hides the cabins. If loading fails, say why (the plan markers and the follow camera still work).
+  const TRAIN_COLS = { blue: [0x2f7fd6, 0x9cc9f2], yellow: [0xf2b51c, 0xfbe18a] };
+  const TRAIN_PAINT = `{
+    vec3 white = vec3(0.93, 0.94, 0.95), silver = vec3(0.66, 0.69, 0.72), c = white;
+    bool sideF = abs(vLN.z) > abs(vLN.x); float u = sideF ? vLP.x : vLP.z, y = vLP.y;
+    float wv = sin(u * 1.7) * 0.10 + sin(u * 0.83 + 1.0) * 0.05;       // wavy top edge of the colour band
+    float yA = 1.45 + wv, yB = yA + 0.2 + wv * 0.5;
+    if (y < 0.55) c = silver; else if (y < yA) c = uA; else if (y < yB) c = uB;
+    if (KIND == 1 && vLN.x > 0.9 && y >= 1.0 && y < 2.05) c = uA;         // nose below the windscreen
+    if (sideF) {
+      for (int k = 0; k < 2; k++) { float dx = k == 0 ? 1.95 : (KIND == 0 ? CL - 1.95 : CL - 5.6);
+        if (abs(vLP.x - dx) < 0.012 && y > 0.95 && y < 3.15) c = vec3(0.10);               // door leaf seam
+        if (abs(abs(vLP.x - dx) - 0.78) < 0.02 && y > 0.95 && y < 3.15) c = vec3(0.16); }  // door frame
+    }
+    if (dot(vLN.zy, vec2(vLP.z, vLP.y - 1.5)) < 0.0) c = vec3(0.95, 0.92, 0.84);           // inner skin = cabin wall
+    diffuseColor.rgb = c * 0.78;  // the page has no tone mapping: full white would burn out under its lights
+  }`;
+  function trainPaint(U, L, head) {
+    const m = new T.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.34, metalness: 0.05, clearcoat: 0.7, clearcoatRoughness: 0.15,
+      side: T.DoubleSide, envMap: three.skyEnv || null, envMapIntensity: 0.5 });
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uA = U.a; sh.uniforms.uB = U.b;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vLP; varying vec3 vLN;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvLP = position; vLN = normal;");
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>\nvarying vec3 vLP; varying vec3 vLN; uniform vec3 uA; uniform vec3 uB;\nconst float CL = ${L.toFixed(3)}; const int KIND = ${head ? 1 : 0};`)
+        .replace("#include <color_fragment>", "#include <color_fragment>\n" + TRAIN_PAINT)
+        // the white body reads bright even in shade in the photos (sky light): lift the unlit side a little
+        .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * 0.28;");
+    };
+    m.customProgramCacheKey = () => "trpaint" + (head ? 1 : 0);
+    return m;
+  }
+  if (RL) (async () => {
+    if (!D.train) throw new Error("models/train.json がありません");
+    if (!T.GLTFLoader) await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js");
     addLights(T, scene);
-    const TM = window.TrainModel.create(T, { linear: true, envMap: three.skyEnv });
+    const gltf = await new Promise((ok, bad) => new T.GLTFLoader().load(D.train, ok, undefined, bad));
+    const proto = { head: gltf.scene.getObjectByName("TRH"), mid: gltf.scene.getObjectByName("TRM"), gang: gltf.scene.getObjectByName("TRG") };
+    if (!proto.head || !proto.mid || !proto.gang) throw new Error("train.json に車両がありません");
+    // the cabin (drawn only near the camera, never in lite mode); the glTF colours are linear and the page shows
+    // values as stored, so each material is brought back to sRGB once (the clones share them)
+    const INSIDE = new Set(["floor_a", "floor_b", "ceiling", "light", "seat", "seat_back", "dots", "magenta", "pole", "ball", "strap", "ring",
+      "red_wall", "partition", "lcd", "screen"]);
+    const fixed = new Set(), fixMat = m => { if (!m || fixed.has(m)) return m; fixed.add(m);
+      m.color && m.color.convertLinearToSRGB(); m.emissive && m.emissive.convertLinearToSRGB(); m.side = T.DoubleSide;
+      if (m.transparent) m.depthWrite = false; if (m.envMap === null && three.skyEnv) m.envMap = three.skyEnv; return m; };
+    const TRAIN_NEAR = 150;   // m: cars nearer than this show their cabin
+    const lens = [15.05, 13.70, 13.70, 13.70, 13.70, 15.05], GAP = 0.55, cars = []; let x = -RL.TL / 2;
+    lens.forEach((L, i) => { cars.push({ start: x, L, head: i === 0 || i === lens.length - 1 }); x += L + GAP; });
+    const kindOf = m => m.name.slice(4).replace(/_\d+$/, "");   // "TRH_paint" -> "paint"
     three.trains = RL.trains.map(tr => {
-      const U = TM.uniforms(tr.scheme), grp = new T.Group();
-      grp.name = `resort-line-${tr.scheme}`; scene.add(grp);
-      const simple = TM.buildTrain(U, { simple: true }); grp.add(simple.group);
-      // outline version for the 電車 layer (shown when the 3D model is off, like the other layers' wireframes)
-      const wire = TM.buildTrain(U, { simple: true }), lm = new T.LineBasicMaterial({ color: tr.col });
-      wire.group.traverse(m => { if (!m.isMesh) return;
-        if (m.geometry.type === "SphereGeometry") { m.visible = false; return; }
-        const e = new T.LineSegments(new T.EdgesGeometry(m.geometry, 25), lm);
-        e.position.copy(m.position); e.rotation.copy(m.rotation); e.scale.copy(m.scale); m.parent.add(e);
-        m.visible = false; });
-      wire.group.name = `resort-line-${tr.scheme}-wire`; scene.add(wire.group);
-      return { tr, U, grp, simple, wire, detail: null, near: [] };
+      const [ca, cb] = TRAIN_COLS[tr.scheme] || TRAIN_COLS.blue, U = { a: { value: new T.Color(ca) }, b: { value: new T.Color(cb) } };
+      const paint = { true: trainPaint(U, 15.05, true), false: trainPaint(U, 13.70, false) }, lm = new T.LineBasicMaterial({ color: tr.col });
+      const grp = new T.Group(), wg = new T.Group(); grp.name = `resort-line-${tr.scheme}`; wg.name = grp.name + "-wire"; scene.add(grp, wg);
+      const inside = [], slots = [], wslots = [];
+      cars.forEach(({ L, head }, i) => {
+        const car = (head ? proto.head : proto.mid).clone(true), wcar = new T.Group();
+        const cin = [];
+        car.traverse(m => { if (!m.isMesh) return; const k = kindOf(m);
+          m.material = k === "paint" ? paint[head] : fixMat(m.material);
+          if (INSIDE.has(k)) cin.push(m);
+          if (k === "paint") wcar.add(new T.LineSegments(new T.EdgesGeometry(m.geometry, 25), lm)); });
+        if (i === 0) { car.rotation.y = Math.PI; car.position.x = L; wcar.rotation.y = Math.PI; wcar.position.x = L; }
+        const slot = new T.Group(), ws = new T.Group(); slot.add(car); ws.add(wcar); grp.add(slot); wg.add(ws); slots.push(slot); wslots.push(ws);
+        slot.userData.inside = cin; slot.userData.near = null; inside.push(...cin);
+      });
+      const gangways = [], wgang = [];
+      cars.slice(0, -1).forEach(() => { const g = proto.gang.clone(true); g.traverse(m => { if (m.isMesh) m.material = fixMat(m.material); }); grp.add(g); gangways.push(g);
+        const w = new T.Group(); g.traverse(m => { if (m.isMesh) w.add(new T.LineSegments(new T.EdgesGeometry(m.geometry, 25), lm)); }); wg.add(w); wgang.push(w); });
+      return { tr, grp, cars, slots, gangways, inside, wire: { group: wg, cars, slots: wslots, gangways: wgang } };
     });
+    window.TDS_TRAIN3D = three.trains;   // for checking in the console
     $("md-trains").disabled = false; $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
       const a = RL.at(s), b = RL.at(s + len), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6, ux = dx / L, uy = dy / L;
@@ -2411,25 +2476,15 @@ async function init3D() {
         const c = RL.state(o.tr, t).s;
         if (wire) pose(o.wire, c);
         if (!solid) continue;
-        let anyNear = false;
-        o.near = o.simple.cars.map(k => {
-          const [x, y] = RL.at(c + k.start + k.L / 2), dz = beamTop * ex - cam.position.y;
-          const n = !lite && Math.hypot(x - cam.position.x, -y - cam.position.z, dz) < TRAIN_NEAR;
-          anyNear ||= n; return n;
-        });
-        if (anyNear && !o.detail) { o.detail = TM.buildTrain(o.U, { merge: true }); o.grp.add(o.detail.group); }
-        pose(o.simple, c);
-        o.simple.slots.forEach((sl, i) => sl.visible = !o.near[i]);
-        o.simple.gangways.forEach((g, i) => g.visible = !(o.near[i] && o.near[i + 1]));
-        if (o.detail) {
-          if (anyNear) pose(o.detail, c);
-          o.detail.slots.forEach((sl, i) => sl.visible = o.near[i]);
-          o.detail.gangways.forEach((g, i) => g.visible = o.near[i] && o.near[i + 1]);
+        pose(o, c);
+        for (const sl of o.slots) {   // cabins only near the camera (and never in lite mode)
+          const n = !lite && Math.hypot(sl.position.x - cam.position.x, sl.position.z - cam.position.z, sl.position.y - cam.position.y) < TRAIN_NEAR;
+          if (sl.userData.near !== n) { sl.userData.near = n; sl.userData.inside.forEach(m => m.visible = n); }
         }
       }
     };
     three.visibility();
-  }).catch(e => { console.error("Resort Line trains:", e); toast(`電車の3Dモデルを作れませんでした(${e && e.message || e})`, 8000); });
+  })().catch(e => { console.error("Resort Line trains:", e); toast(`電車の3Dモデルを読み込めませんでした(${e && e.message || e})`, 8000); });
 
   /* ---------- 3D bodies for MOV: JR Keiyo Line trains (E233-5000 look, simple shapes) ---------- */
   // Local axes of a car: x along it (front at +x, centred), y up from the rail top, z sideways. They follow the

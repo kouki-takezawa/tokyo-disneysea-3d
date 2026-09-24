@@ -28,7 +28,7 @@ for name, mod in (("bpy", MagicMock()), ("bmesh", MagicMock()), ("mathutils", ma
 
 results = []
 MODULES = ["ds_core", "ds_terrain", "ds_buildings", "ds_landmarks", "ds_aquasphere", "ds_plaza", "ds_volcano_model",
-           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender", "disneyland_blender"]
+           "disneysea_water_blender", "export_models", "disneysea_draft", "train_blender", "disneyland_blender", "ds_tdl_station"]
 for m in MODULES:
     try:
         importlib.import_module(m)
@@ -50,6 +50,7 @@ CALLS = [
     ("disneyland_blender.summary()", lambda: sys.modules["disneyland_blender"].summary()),
     ("train_blender.SPEC == train_model.js S", lambda: train_spec_matches()),
     ("train_blender.sections(head)", lambda: len(sys.modules["train_blender"].sections(15.05, True))),
+    ("ds_tdl_station.to_local(station node)", lambda: tuple(round(v, 1) for v in sys.modules["ds_tdl_station"].to_local(-581.44, 1020.43))),
 ]
 
 
