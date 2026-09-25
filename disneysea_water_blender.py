@@ -266,8 +266,10 @@ def build_water(W, M, C):
                 islands.append((isl, []))
     main_holes = []
     for b in bodies:
-        cx, cy = C.poly_centroid(b["ring"])
-        home = next((h for isl, h in islands if C.point_in_poly(cx, cy, isl)), None)
+        # a body lies on an island when its outline's points are inside it (not its centre: the centre of a ring-shaped
+        # body such as a castle moat falls on its own island)
+        probe = b["ring"][:: max(1, len(b["ring"]) // 4)][:4]
+        home = next((h for isl, h in islands if all(C.point_in_poly(x, y, isl) for x, y in probe)), None)
         (home if home is not None else main_holes).append(b["ring"])
 
     cut_slab("Ground", C.PARK, main_holes, M["ground"], col_g, C)

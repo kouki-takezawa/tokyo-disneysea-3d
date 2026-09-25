@@ -17,6 +17,7 @@
 !/export_models.py
 !/train_blender.py
 !/disneyland_blender.py
+!/tdl_water_blender.py
 
 !/plateau_data/
 /plateau_data/*
@@ -25,6 +26,7 @@
 !/plateau_data/disneyland_levels.json
 !/plateau_data/disneysea_levels.json
 !/plateau_data/disneysea_water.json
+!/plateau_data/disneyland_water.json
 !/plateau_data/disneysea_volcano.json
 !/plateau_data/disneysea_plaza.json
 !/plateau_data/gsi_dem5a/

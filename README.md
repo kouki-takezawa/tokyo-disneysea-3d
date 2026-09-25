@@ -51,6 +51,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
 | 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
 | シンデレラ城(ユーザーが選んだ参考モデル TurboSquid 1439041 の 360° 画像 72 枚と静止画 39 枚から、同じ形に) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_cinderella.py` |
+| ランドの水面(水域 35 か所の水位・水深・岸の種類。アメリカ河・ジャングルクルーズの川・シンデレラ城の堀。シーと同じ作り方) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_water.py`, `tdl_water_blender.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -79,6 +80,7 @@ python fetch_disneyland.py         # ランド・舞浜駅の OSM → plateau_da
 python ds_levels.py                # シーの階段・高低差 → disneysea_levels.json(raw が必要)
 python ds_disneyland.py --levels   # ランドの階段・高低差 → disneyland_levels.json(raw が必要)
 python ds_water.py / ds_volcano.py / ds_plaza.py   # 水面・火山・プラザの元データ
+python ds_tdl_water.py                              # ランドの水面の元データ(plateau_data/disneyland_water.json)
 python ds_aquasphere.py --textures # 地球儀のテクスチャ
 python ds_tdl_ground.py            # エントランス広場の地面 → models/tdl_ground.json(Blender なし。shapely 2.1 以上)
 python ds_tdl_hotel_ground.py      # ホテル周辺の道 → models/tdl_hotel_ground.json(同上)
@@ -97,6 +99,7 @@ python ds_tdl_land_ground.py       # ランド全体の地面 → models/tdl_lan
 ```
 blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16        # 下書き全体
 blender -b --python disneysea_water_blender.py -- --cams harbor,caldera         # 水面
+blender -b --python tdl_water_blender.py -- --cams rivers,moat,jungle,tom        # ランドの水面
 blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
 blender -b --python export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
 blender -b --python export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
@@ -390,6 +393,7 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 - **比べ方**: 回転画像と同じ角度のカメラを置いてレンダーし(`--tt` にコマ番号。コマ k の方位は +X から -5°×(k-31)、見下ろし 14°、距離 400 m、96.7 mm)、並べたり重ねたりして直した。正面の静止画(s06)と同じカメラ `CAM_ref_s06` もある。
 - **形**: 前庭の島(角を落とした下の広場とコンパス、白い付け柱と扉 2 つの舞台、左右の曲がったスロープ、左の白いアーチと金の手すり、右の丸いバルコニーへ回り込むスロープと 3 つのアーチ、金の縁の青い旗 8 本)、アーチ橋、城の島(灰色の石の土台と円塔、正面の門・バルコニー・二連のアーチ・時計の破風、段になったピンクの本館、天守と金の尖塔 51 m)、T 字の裏のテラス、池と島の下に浮かぶ岩。
 - **大きさ**: 正面の門の開口を高さ 3 m・幅 2.5 m とした(ユーザーの指示)。裏の出口も同じ大きさ。尖塔の先は 51 m。
+- **配置(2026-09-25 にユーザーの指示で直した)**: 正面はワールドバザール(OSM の Main Street、ways 629990046 と 119893380)の軸の方向、+X から 114.9°(北北西)を向く。石の土台の真ん中を、OSM の城の外形(way 217727348)の重心 (-385.4, 594.0) に置く。Main Street の軸はこの重心から 2.5 m。高さは、下の広場の前の縁がハブの地面(DEM)と同じになるようにした。
 - **ユーザーの確認で直したところ**: 城と前庭の配置、正面の中央(門まわり・装飾)、階段ではなくスロープ(しかも曲がっている)、正面から見た横幅、横から見た段の形、裏の出口の大きさ。
 - **参考との違い**: 門の脇の塔の円錐屋根が少し太い、本館の壁は参考より平らな面が多い。
 - モック用は約 18 万三角形。金の部品は、モックに環境マップがないので金属感を弱めて表示する。池と島の下の岩は地面より下なので、モックではほぼ見えない。
@@ -547,6 +551,21 @@ Type C の写真(Wikimedia Commons。一覧は `docs/train/spec.md`)と、跨座
 
 - **桟橋** 3 か所: 板張りの床と杭。
 - Blender では、水を閉じた体積として作っている(屈折 + 吸収 + さざ波のバンプ)。地面はブーリアンで水の形をくり抜く。カメラは `top aerial harbor caldera american rock lost_river fantasy`。
+
+### ランドの水面(`ds_tdl_water.py` → `tdl_water_blender.py`)
+
+シーの水面と同じ作り方。データの形も同じなので、Blender ではシーの `disneysea_water_blender.build_water` がそのまま作る(材質・水の体積・水底・岸の種類・桟橋)。違うのはデータと地面の外形(ランドの園の境界 way 1282875870)だけ。
+
+- **水域 35 か所**: OSM の `natural=water`(マルチポリゴンと閉じた線)のうち、真ん中が園の中にあるもの。ランドのデータにはシーの港(relation 3531413)も入っているが、園の外なので除く。重なりは大きい方を優先して削り、隣り合う水域の間には 0.25 m の陸を残す(辺が重なると、地面をくり抜くブーリアンが空になるため)。
+- **種類と水位**(推定): アメリカ河とジャングルクルーズの川は川(余裕高 1.0 m・水深 2.2 m)、シンデレラ城の堀(ハブを囲む輪の形)は堀(1.3 m・1.5 m)、150 m² を超えるほかの水面は水路(0.7 m・1.2 m)、小さいものは池(0.35 m・0.6 m)、噴水(0.25 m・0.3 m)。水位は岸の地面(DEM)から余裕高を引いた値。
+- **岸の種類**: 陸側 2.5 m の地点で判定(建物・岩場・砂浜・植栽の土手・それ以外は石積みの護岸)。植栽の土手 約 3.6 km、護岸 約 1.5 km、建物 約 0.6 km、岩場 約 0.4 km、砂浜 約 0.2 km。
+- **Blender の場面**: 水のほか、ランドの下書き(`disneyland_blender.py`)の建物・緑地・木・ウエスタンリバー鉄道を置く(下書きの平らな地面と水の板は使わない)。カメラは `rivers moat moat_top jungle tom aerial top`。
+- **共通の直し**: 輪の形の水域(城の堀)は、真ん中の点が自分の島の上に来る。そのため、島の上の池と取り違えて、島の地面を丸ごとくり抜いていた。島の上かどうかを外形の点で判定するように `disneysea_water_blender.py` を直した(シーでも同じ誤りが 2 か所あり、これで直った。モックのシーの水面は地面を含まないので変わらない)。
+| アメリカ河(上から) | シンデレラ城の堀(ハブを囲む) |
+|---|---|
+| ![アメリカ河](docs/water_tdl/tdl_water_tom.jpg) | ![堀](docs/water_tdl/tdl_water_moat_top.jpg) |
+
+- **モックへの反映はまだ**(ユーザーの確認待ち)。ランド全体の地面のモデルにも水面があるので、反映するときはどちらかにそろえる。
 
 ## 公開(Vercel)
 
