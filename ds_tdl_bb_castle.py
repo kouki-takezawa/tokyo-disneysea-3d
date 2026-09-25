@@ -64,6 +64,7 @@ COURT_Z = 2.0                  # the courtyard and palace stand on a platform: a
 GATE_SZ = 0.70                 # the gatehouse is lower than first drawn (its cornice level with the wings' balustrade)
 PALACE_SZ = 1.15               # the photos show the palace about twice the gatehouse: its heights x 1.15 (keep top ~37 m)
 PALACE_DY = -6.0               # the palace stands 5 m closer than drawn (the courtyard is shallow in the photos)
+WEB = False                    # export_objects(): no lead cames (hundreds of thousands of tiny boxes)
 GROUND_DATUM = 0.0              # set from the DEM by export_objects()
 rnd = random.Random(11)
 
@@ -282,7 +283,7 @@ def window(P, M, u, z0, w, h, kind="pointed", frame=0.14, glass="glass", sill=Tr
         poly_prism(P, "cream", M, [(u0 - frame - 0.08, z0 - 0.14), (u1 + frame + 0.08, z0 - 0.14), (u1 + frame + 0.08, z0), (u0 - frame - 0.08, z0)], 0.0, 0.16)
         for sg in (-1, 1):                                          # little brackets under the sill
             cube(P, "cream", M, u + sg * w * 0.35 - 0.05, u + sg * w * 0.35 + 0.05, 0.0, 0.12, z0 - 0.34, z0 - 0.14)
-    if w >= 0.55 and h >= 1.0:
+    if w >= 0.55 and h >= 1.0 and not WEB:
         top_z = spring if kind != "rect" else z0 + h
         cube(P, "cream", M, u - 0.025, u + 0.025, 0.0, 0.06, z0, top_z + (w * 0.4 if kind != "rect" else 0))   # mullion
         cube(P, "cream", M, u0, u1, 0.0, 0.06, z0 + (top_z - z0) * 0.62, z0 + (top_z - z0) * 0.62 + 0.05)      # transom
@@ -871,6 +872,49 @@ CAMS = {
     "aerial": ((55.0, -50.0, 55.0), (0.0, 15.0, 8.0), 30),
     "rose": ((-7.8, 9.3, 1.7), (-9.0, 10.5, 1.5), 50),
 }
+
+
+def export_objects(merged):
+    """For the mock: the castle in the DisneySea frame (gate at the OSM point, turned by ANG), heights on the datum,
+    one mesh per material ("BC_<material>") with plain colours / image textures glTF can carry."""
+    global WEB
+    WEB = True
+    build(context=False)
+    import ds_tracks
+    h = ds_tracks.make_ground(ds_tracks.data())
+    gz = h(*GATE)
+    B.root.location = (GATE[0], GATE[1], gz); B.root.rotation_euler = (0, 0, math.radians(ANG))
+    bpy.context.view_layer.update()
+    for mat in bpy.data.materials:                       # keep image textures, flatten procedural colour chains
+        if not mat.node_tree:
+            continue
+        b = mat.node_tree.nodes.get("Principled BSDF")
+        if not b:
+            continue
+        for inp in ("Base Color", "Normal", "Roughness"):
+            for l in list(b.inputs[inp].links):
+                if l.from_node.type != "TEX_IMAGE":
+                    mat.node_tree.links.remove(l)
+        if not b.inputs["Base Color"].links:
+            b.inputs["Base Color"].default_value = mat.diffuse_color
+    for img in bpy.data.images:
+        if img.size[0] > 512:
+            img.scale(512, 512)
+    groups = {}
+    for o in B.col.objects:
+        if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith("CAM_"):
+            continue
+        mats = [m for m in (o.data.materials if o.data else []) if m]
+        if mats:
+            groups.setdefault(mats[0].name, []).append((o, 0.0))
+    out = bpy.data.collections.new("Export"); bpy.context.scene.collection.children.link(out)
+    res = []
+    for k, parts in sorted(groups.items()):
+        ob = merged("BC_" + k[3:], parts, out)
+        ob.data.materials.clear(); ob.data.materials.append(bpy.data.materials[k])
+        res.append(ob)
+    print(f"[bb] export ground {gz:.2f} m")
+    return res
 
 
 def main():

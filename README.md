@@ -45,7 +45,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 屋根だけの構造物を屋根の板に・樹林を木の記号に | 済(モック。屋根は Blender の下書きも) | `ds_core.py`, `ds_buildings.py`, `mock_template.html` |
 | 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・ミッキーの花壇。参考動画・写真・OSM から) | 済(Blender で作り、ユーザーの確認後にモックの 3D モデルに) | `ds_tdl_entrance.py` |
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
-| 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・本館と円塔・天守、写真と Web の情報から) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_bb_castle.py` |
+| 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -92,6 +92,7 @@ blender -b --python disneysea_water_blender.py -- --cams harbor,caldera         
 blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
 blender -b --python export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
 blender -b --python export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
+blender -b --python export_models.py -- --parts bb_castle                        # 美女と野獣の城
 blender -b --python export_models.py -- --parts tracks                           # 線路(リゾートライン・京葉線)
 blender -b --python ds_tracks.py -- --samples 24                                 # 線路の確認レンダーと .blend
 blender -b --python ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
@@ -224,6 +225,7 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | 東京ディズニーランド・ステーション | 舞浜駅・周辺(駅の箱を置き換え) | `output/disneysea/models/tdl_station.json` |
 | 東京ディズニーランドのエントランス(ゲート・ワールドバザールの入口・花壇) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/tdl_entrance.json` |
 | 線路(リゾートライン・京葉線) | 舞浜駅・周辺(線路とホームの枠線を置き換え) | `output/disneysea/models/tracks.json` |
+| 美女と野獣の城 | ディズニーランド(枠線はそのまま) | `output/disneysea/models/bb_castle.json`(石と屋根の画像 3 枚) |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
 
 - パネルの「3Dモデル」欄で、モデルごとに表示を切り替えられる(「すべてオン / オフ」あり)。チェックを外すと、そのモデルに置き換えられていた枠線が出る。「枠線も重ねて表示」で同時に見られる。モデルの表示はレイヤーとは独立で、レイヤーを全部オフにすればモデルだけを表示できる。設定はブラウザの localStorage(`tds-layers` `tds-models` `tds-ui`)に保存する。
@@ -301,6 +303,23 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | ![ゲート](docs/entrance/entrance_gate_in.jpg) | ![看板](docs/entrance/entrance_wb_sign.jpg) |
 | **ミッキーの花壇(真上)** | **モックでの表示** |
 | ![花壇](docs/entrance/entrance_flowerbed_plan.jpg) | ![モック](docs/entrance/mock_entrance.jpg) |
+
+### 美女と野獣の城(`ds_tdl_bb_castle.py`)
+
+- **資料**: Web の画像検索で集めた写真 401 枚(重複を除いた外観 約 150 枚。見て参考にしただけで、リポジトリには入れていない)、Wikimedia Commons、日本語版 Wikipedia などの記事、OSM(城の点、行列の橋、アトラクションの建物)。参考動画(同じ投稿者の通常の動画 1 本)はバラのショートフィルムなので、ガラスのドームのバラを中庭に置いた。ショート動画は参考にしない(ユーザーの指示)。
+- **作り方**: 写真と同じ視点から Blender でレンダーして並べて比べ、比率を合わせた(9 回)。ユーザーの確認で 2 回直した(写真 100 枚規模で作り直し、開いた扉・レンガ調の壁・窓枠と装飾)。
+- **形**: 岩の谷にかかる橋(ブロンズのガーゴイルが支える街灯)、門(開いた扉と奥の階段、ライオン像のくぼみ、ライオンの顔の浮き彫り、ピンクの角錐屋根の塔)、低く長い両翼(ガーゴイルの並ぶ手すり、緑青のドーム)、2 m 高い中庭(アーチの回廊、紋章の円)、大階段とライオン像、左右の太い円塔、段が積み重なる本館(どの段にも軒・手すり・急なピンクの屋根・装飾の多い屋根窓)、その上にそびえる細い天守と円塔、横と裏の岩山と滝。
+- **細部**: 窓は縦横の桟・ひし形の鉛の格子(Blender のみ)・アーチの上の縁取りと要石・窓台の持ち送り。隅石、軒下の持ち送りの列、段の角の小尖塔、屋根の棟の鉄の飾り。
+- **質感**: 石を積んだ壁(紫・灰・ピンクの石の混ざり)、土台の大きな暗い石、ピンクの丸い瓦は、`make_textures()` で描いた画像(`plateau_data/bb_castle/`。Blender には PIL がないので普通の Python で作る)。
+- **推定**: 寸法はすべて写真から。公表の高さは約 30 m だが、写真の見え方に合わせると天守の頂上は橋から約 43 m になり、写真の比率を優先した。
+- モック用は鉛の格子を外して約 16 万三角形。Blender の色と画像をそのまま使う。
+- カメラ: `CAM_bridge` `CAM_front` `CAM_courtyard` `CAM_village` `CAM_keep` `CAM_aerial` `CAM_rose`。
+
+| 橋から | 中庭 |
+|---|---|
+| ![橋から](docs/bb_castle/bb_bridge.jpg) | ![中庭](docs/bb_castle/bb_courtyard.jpg) |
+| **斜め前** | **モックでの表示** |
+| ![斜め前](docs/bb_castle/bb_front.jpg) | ![モック](docs/bb_castle/mock_bb.jpg) |
 
 ### 線路(`ds_tracks.py`)
 
