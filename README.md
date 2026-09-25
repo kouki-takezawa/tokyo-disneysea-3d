@@ -51,7 +51,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
 | 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
 | シンデレラ城(ユーザーが選んだ参考モデル TurboSquid 1439041 の 360° 画像 72 枚と静止画 39 枚から、同じ形に) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_cinderella.py` |
-| ランドの水面(水域 35 か所の水位・水深・岸の種類。アメリカ河・ジャングルクルーズの川・シンデレラ城の堀。シーと同じ作り方) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_water.py`, `tdl_water_blender.py` |
+| ランドの水面(水域 35 か所の水位・水深・岸の種類。アメリカ河・ジャングルクルーズの川・シンデレラ城の堀。シーと同じ作り方) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_water.py`, `tdl_water_blender.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -243,6 +243,7 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | 線路(リゾートライン・京葉線) | 舞浜駅・周辺(線路とホームの枠線を置き換え) | `output/disneysea/models/tracks.json` |
 | 美女と野獣の城 | ディズニーランド(枠線はそのまま) | `output/disneysea/models/bb_castle.json`(石と屋根の画像 3 枚) |
 | シンデレラ城(城・前庭・橋・裏のテラス・池) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/cinderella.json`(石・ピンクの壁・屋根の画像 3 枚) |
+| ランドの水面(水面・水底・護岸・笠石・岩場・砂浜・土手) | ディズニーランド(ランドの水面の枠線を置き換え) | `output/disneysea/models/tdl_water.json` |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
 
 - パネルの「3Dモデル」欄で、モデルごとに表示を切り替えられる(「すべてオン / オフ」あり)。チェックを外すと、そのモデルに置き換えられていた枠線が出る。「枠線も重ねて表示」で同時に見られる。モデルの表示はレイヤーとは独立で、レイヤーを全部オフにすればモデルだけを表示できる。設定はブラウザの localStorage(`tds-layers` `tds-models` `tds-ui`)に保存する。
@@ -565,7 +566,12 @@ Type C の写真(Wikimedia Commons。一覧は `docs/train/spec.md`)と、跨座
 |---|---|
 | ![アメリカ河](docs/water_tdl/tdl_water_tom.jpg) | ![堀](docs/water_tdl/tdl_water_moat_top.jpg) |
 
-- **モックへの反映はまだ**(ユーザーの確認待ち)。ランド全体の地面のモデルにも水面があるので、反映するときはどちらかにそろえる。
+| モックでの表示(アメリカ河) |
+|---|
+| ![モック](docs/water_tdl/mock_tdl_water.jpg) |
+
+- **モック**: `export_models.py --parts tdl_water` で書き出す(約 1.2 MB)。シーの水面と同じ `WS_*` のメッシュ名なので、同じ水面(さざ波)と岸の材質になる。表示すると、ランドの水面の枠線は消える。ランド全体の地面(`ds_ground.py`)は、このモデルがあれば自分の水面を作らず、その外形をくり抜く。
+- 水面の高さは、岸の地面(DEM)から余裕高を引いた推定値。
 
 ## 公開(Vercel)
 
