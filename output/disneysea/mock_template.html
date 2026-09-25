@@ -2,6 +2,8 @@
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#F8FAF8">
 <title>ディズニーパーク3Dモデル</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,18 +20,7 @@
   --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
 }
-@media (prefers-color-scheme: dark){
-  :root{
-    color-scheme:dark;
-    --paper:#0D1A24; --sheet:#112230; --ink:#D6E3EA; --muted:#8599A6; --rule:#22384A; --grid:#172C3B;
-    --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
-    --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
-    --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
-    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8; --lot:#A7B0B6;
-    --focus:#D6E3EA;
-    --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
-  }
-}
+:root{color-scheme:light}
 *,*::before,*::after{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-size:14px;line-height:1.6;
@@ -420,7 +411,6 @@ const BASIS = { dem_shore: "岸の標高 − 余裕高", linked: "港と同じ�
 const st = document.createElement("style");
 st.textContent = `
 :root{--sh-quay:#3E4A52;--sh-bldg:#7A3E8E;--sh-rock:#A0612C;--sh-beach:#B58E12;--sh-bank:#3F8A3A;--sh-portal:#B03A7A}
-@media (prefers-color-scheme: dark){:root{--sh-quay:#D5DEE4;--sh-bldg:#C39BD3;--sh-rock:#E0A26A;--sh-beach:#E8CD6A;--sh-bank:#86CC7C;--sh-portal:#F08CC0}}
 .wx ul{list-style:none;margin:0;padding:0;display:grid;gap:3px}
 .wx li{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:8px;font-size:13px}
 .wx li i{display:block;height:0;border-top:3px solid currentColor}
@@ -2810,8 +2800,6 @@ addEventListener("keydown", e => {
 
 /* ---------- theme / resize / start ---------- */
 new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
-const retheme = () => { redraw(); if (three.ready) { three.colors(); three.mmReset(); } };
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", retheme);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
 {
