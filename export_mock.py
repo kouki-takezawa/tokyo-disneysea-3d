@@ -235,6 +235,7 @@ def main():
               ("tdl_entrance", "disneyland", []),                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
+              ("tdl_land_ground", "disneyland", []),                        # ds_tdl_land_ground.py: the ground of the whole park and its car parks (plain Python)
               ("tracks", "maihama", ["mhline", "mhjr"]),
               ("bb_castle", "disneyland", []),
               ("cinderella", "disneyland", [])]                              # ds_tdl_cinderella.py: シンデレラ城                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct

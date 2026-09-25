@@ -10,7 +10,7 @@
   --water:#2C76A6; --water-tint:rgba(44,118,166,.09); --green:#4E8A45; --tree:#2F6B34; --rock:#8C6547;
   --path:#9AA59F; --rail:#445058; --priority:#C8432B; --land:#6A5A48;
   --p0:#B8731F; --p1:#9A553A; --p2:#56646D; --p3:#2F8585; --p4:#8458AB; --p5:#B99212; --p6:#5F8531; --p7:#BC4E86;
-  --l0:#B04A5A; --l1:#2E8B57; --l2:#A0522D; --l3:#6B8E23; --l4:#7B5EA7; --l5:#C98304; --l6:#2F6FB0; --l7:#8A9499; --mh:#0B7285;
+  --l0:#B04A5A; --l1:#2E8B57; --l2:#A0522D; --l3:#6B8E23; --l4:#7B5EA7; --l5:#C98304; --l6:#2F6FB0; --l7:#8A9499; --mh:#0B7285; --lot:#6E7479;
   --focus:#1E2A30;
   --st-dem:#1F7A60; --st-link:#2C5FA8; --st-len:#B7791F; --st-unk:#D2362B; --contour:#CDBB98; --contour-idx:#A8926A; --wall:#7C7168; --bridge:#1E2A30; --gate:#0B7285;
   --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",system-ui,sans-serif;
@@ -23,7 +23,7 @@
     --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
     --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
     --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
-    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8;
+    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8; --lot:#A7B0B6;
     --focus:#D6E3EA;
     --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
   }
@@ -34,7 +34,7 @@
   --water:#5CB0E2; --water-tint:rgba(92,176,226,.10); --green:#7DBA6E; --tree:#5E9E5A; --rock:#C69A78;
   --path:#5E7483; --rail:#A9B8C2; --priority:#F2785C; --land:#B9A58C;
   --p0:#E3A254; --p1:#D98C6C; --p2:#9EAEB8; --p3:#6CC4C2; --p4:#B993DC; --p5:#E4C65A; --p6:#9DC46B; --p7:#E88DBA;
-    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8;
+    --l0:#E48A98; --l1:#6CCB95; --l2:#D9926A; --l3:#A9C86A; --l4:#B69BE0; --l5:#F0B84A; --l6:#79AEEA; --l7:#9DA8AE; --mh:#66D9E8; --lot:#A7B0B6;
   --focus:#D6E3EA;
   --st-dem:#5FCBAF; --st-link:#7FA9EE; --st-len:#E8B45A; --st-unk:#FF6F5E; --contour:#4A4234; --contour-idx:#76684E; --wall:#A89C90; --bridge:#D6E3EA; --gate:#66D9E8;
 }
@@ -534,7 +534,7 @@ const LAYERS = [
   ["green","緑地","--green",0], ["trees","樹林","--tree",1], ["rock","岩場","--rock",0],
   ["paths","園路","--path",0], ["stairs","階段","--st-dem",0], ["bridges","橋・高架通路","--bridge",0], ["tunnels","トンネル・屋内","--muted",1],
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
-  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["trains","電車(リゾートライン・京葉線)","--mh",0], ["labels","ラベル","--muted",0],
+  ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["parking","駐車場","--lot",0], ["trains","電車(リゾートライン・京葉線)","--mh",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
 try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
@@ -560,6 +560,7 @@ $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
 const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["trains", "電車(リゾートライン・京葉線)"]];
+MODELS.splice(MODELS.findIndex(([k]) => k === "tdl_hotel_ground") + 1, 0, ["tdl_land_ground", "ランド全体の地面"]);   // ds_tdl_land_ground.py
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -929,6 +930,7 @@ const SEARCH = (() => {
     (DL.pois || []).forEach(p => put(p.n, "ディズニーランド ・ " + (DL.lands[p.p] || DL.lands[DL.lands.length - 1]).ja, p.x, p.y, 5e5, `--l${p.p}`)); }
   if (MH) { MH.stations.forEach(st => put(st.k === "jr" ? "舞浜駅(JR 京葉線)" : st.n, "駅", st.x, st.y, 1e8, "--mh"));
     MH.places.forEach(p => { if (!p.n) return; const [x0, y0, x1, y1] = bboxOf(p.r); put(p.n, "舞浜駅・周辺", (x0 + x1) / 2, (y0 + y1) / 2, area(p.r[0]), "--muted"); }); }
+  (D.parking || []).forEach(p => { if (!p.n) return; const [x0, y0, x1, y1] = bboxOf(p.r); put(p.n + (p.n.includes("駐車場") ? "" : "(駐車場)"), "駐車場", (x0 + x1) / 2, (y0 + y1) / 2, p.a, "--lot"); });
   D.paths.forEach(p => { if (p.s && p.s.n) { const [x, y] = alongAt(p.l, polyLen(p.l) / 2); put(p.s.n + "(階段)", "ディズニーシー", x, y, 1, "--st-dem", { sea: 1 }); } });
   if (D.aquasphere) put("アクアスフィア", "ディズニーシー・プラザ", D.aquasphere.cx, D.aquasphere.cy, 1e9, "--water", { sea: 1 });
   return [...by.values()];
@@ -1098,6 +1100,7 @@ function redraw() {
     ctx.globalAlpha = 1;
   }
   if (on.maihama) drawMaihama(lw);
+  if (on.parking) drawParking(lw);
   if (on.disneyland) drawDisneyland(lw);
   // park boundary
   ctx.globalAlpha = 1;
@@ -1298,6 +1301,18 @@ function drawDisneyland(lw) {   // each part also follows its feature layer (建
   }
   strokeRings(DL.construction.map(c => c.r), css("--l6"), Math.max(1, lw * 1.2), [6, 4]);   // construction sites
   strokeRings([DL.park], css("--ink"), Math.max(1.2, lw * 1.6));
+  ctx.restore();
+}
+// car parks round Tokyo Disneyland (ds_disneyland.py): surface lots filled, multi-storey car parks hatched darker, names
+function drawParking(lw) {
+  if (!D.parking) return;
+  const c = css("--lot");
+  ctx.save(); ctx.setLineDash([]);
+  for (const p of D.parking) {
+    ctx.beginPath(); p.r.forEach(r => ring(r)); ctx.fillStyle = c; ctx.globalAlpha = p.k === "multi" ? 0.32 : 0.16; ctx.fill("evenodd"); ctx.globalAlpha = 1;
+    ctx.strokeStyle = c; ctx.lineWidth = Math.max(0.8, lw * (p.k === "multi" ? 1.4 : 1)); if (p.p) ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (on.labels && sc > 0.3) D.parking.forEach(p => { if (!p.n) return; const b = bboxOf(p.r); label(p.n, X((b[0] + b[2]) / 2), Y((b[1] + b[3]) / 2), c, 10.5, 600); });
   ctx.restore();
 }
 // Maihama: JR Keiyo line and Maihama Station, the Resort Line loop with its stations, Ikspiari, hotels, walkways
@@ -1508,6 +1523,11 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   TH_road: { color: 0x40444a, roughness: 0.95 }, TH_path: { color: 0x958b7d, roughness: 0.9 }, TH_plaza: { color: 0x8d6459, roughness: 0.9 },
   TH_curb: { color: 0xc9bb9f, roughness: 0.8 }, TH_soil: { color: 0x4d6b38, roughness: 1 }, TH_edge: { color: 0x7a746b, roughness: 0.9 },
   TH_floor: { color: 0xa39e90, roughness: 0.85 },
+  // ランド全体の地面 (ds_tdl_land_ground.py): meshes TL_<kind>
+  TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
+  TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
+  TL_rock: { color: 0x9a7456, roughness: 1 }, TL_earth: { color: 0x9c8466, roughness: 1 }, TL_bank: { color: 0x7d7568, roughness: 0.9 },
+  TL_edge: { color: 0x7a746b, roughness: 0.9 }, TL_water: { color: 0x3a6f86, roughness: 0.25, metalness: 0.1 },
   // 線路 (ds_tracks.py): meshes TK_<material>
   ST_beam: { color: 0x9a978f, roughness: 0.9 }, ST_pier: { color: 0xa9a69e, roughness: 0.9 }, ST_viaduct: { color: 0x8f8e89, roughness: 0.9 },
   ST_steel: { color: 0x8d9196, roughness: 0.4, metalness: 0.6 }, ST_rail: { color: 0x6e6a66, roughness: 0.35, metalness: 0.7 },
@@ -1921,6 +1941,7 @@ async function init3D() {
     MH.places.forEach(p => p.r.forEach(r => prism(p.k === "station" ? "mhstation" : "mhplace", r, p.z || 0, (p.z || 0) + p.h)));
     MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
   }
+  (D.parking || []).forEach(p => p.r.forEach(r => p.k === "multi" ? prism("lot", r, p.z || 0, (p.z || 0) + (p.h || 15)) : ringH("lot", r, 0.08)));
   // 100 m grid under the park
   for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
   for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
@@ -1931,13 +1952,13 @@ async function init3D() {
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
     dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"],
-    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhwalk: "maihama" };
+    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
     dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx",
-    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhwalk: "--mh" };
+    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));

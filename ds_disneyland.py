@@ -29,6 +29,8 @@ JR_Z = 10.0                        # Keiyo Line viaduct height above the promena
 # ground along the loop is -3.2 .. -0.1 m, so the beam runs about 4.3 .. 7.4 m above it. Car floors are 1 m above the beam.
 RESORT_LINE_Z = 3.31
 NAME_HEIGHT = {"シンデレラ城": 51.0}
+PARKING_REACH = 150.0              # car parks (amenity=parking) whose outline comes within this of the park outline (駐車場 layer)
+MULTI_STOREY_H = 15.0              # multi-storey car parks without a height tag (estimate)
 
 LANDS = [   # (key, 日本語, name substrings of POIs / buildings that identify the land)
     ("world_bazaar", "ワールドバザール", (
@@ -112,6 +114,17 @@ def outer_rings(rel):
         if len(cur) >= 4:
             rings.append(_clean_ring(cur))
     return rings
+
+
+def _seg_dist(q, ring):
+    """Distance from the point q to the closed ring (its edges)."""
+    best = float("inf")
+    for (ax, ay), (bx, by) in zip(ring, ring[1:] + ring[:1]):
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 == 0 else max(0.0, min(1.0, ((q[0] - ax) * dx + (q[1] - ay) * dy) / L2))
+        best = min(best, math.hypot(q[0] - ax - t * dx, q[1] - ay - t * dy))
+    return best
 
 
 def land_of_name(name):
@@ -327,7 +340,28 @@ def build(datum):
     maihama = {"station": {"n": "舞浜駅(JR 京葉線)", "x": round(sx, 1), "y": round(sy, 1)}, "jr_station": jr_station, "gate": {"n": "東京ディズニーランド メインエントランス", "x": round(gate[0], 1), "y": round(gate[1], 1)},
                "jr": jr, "jr_z": JR_Z, "loop": loop, "loop_z": RESORT_LINE_Z, "stations": stations, "platforms": platforms,
                "places": places, "walks": walks}
-    return {"disneyland": disneyland, "maihama": maihama}
+    # car parks round Tokyo Disneyland (駐車場 layer): surface lots and multi-storey car parks within PARKING_REACH m of the park
+    parking = []
+    def add_lot(tags, rings):
+        rings = [r for r in rings if len(r) >= 3]
+        if not rings: return
+        cx, cy = poly_centroid(rings[0])
+        if tds and point_in_poly(cx, cy, tds): return
+        if not in_tdl(cx, cy) and min(_seg_dist(q, park) for q in rings[0]) > PARKING_REACH: return
+        kind = "multi" if tags.get("parking") == "multi-storey" or "building" in tags else "under" if tags.get("parking") == "underground" else "surface"
+        lot = {"n": tags.get("name", ""), "k": kind, "r": [R(r) for r in rings], "z": z_of(cx, cy), "a": round(poly_area(rings[0]))}
+        if kind == "multi":
+            try: lot["h"] = round(float(str(tags.get("height")).split(";")[0].replace("m", "")), 1)
+            except ValueError:
+                try: lot["h"] = round(float(tags["building:levels"]) * 3.0, 1)
+                except (KeyError, ValueError): lot["h"] = MULTI_STOREY_H
+        if tags.get("access") in ("private", "no"): lot["p"] = 1
+        parking.append(lot)
+    for w in DATA["ways"]:
+        if w["closed"] and w["tags"].get("amenity") == "parking": add_lot(w["tags"], [ring_of(w)])
+    for r in DATA["relations"]:
+        if r["tags"].get("amenity") == "parking": add_lot(r["tags"], outer_rings(r))
+    return {"disneyland": disneyland, "maihama": maihama, "parking": parking}
 
 
 if __name__ == "__main__":
