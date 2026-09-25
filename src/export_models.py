@@ -1,7 +1,7 @@
 """Export Blender-built parts as GLB for the outline mock's 3D view (Blender 5.2).
 
-  blender -b --python export_models.py -- --parts water,aquasphere
-  python export_mock.py        # picks up output/disneysea/models/*.json (D.models)
+  blender -b --python src/export_models.py -- --parts water,aquasphere
+  python src/export_mock.py        # picks up output/disneysea/models/*.json (D.models)
 
 Each GLB is in the mock's coordinates: local metres, heights relative to the
 DEM datum (the Blender scenes use a flat promenade = 0, so every part is
@@ -23,8 +23,8 @@ mock's V(x, y, z) = [x, z, -y].
 """
 import sys, math, json, argparse, pathlib, importlib
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import bpy, bmesh
 from mathutils import Matrix
 

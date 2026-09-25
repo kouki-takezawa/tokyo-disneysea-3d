@@ -1,7 +1,7 @@
 """美女と野獣の城 (Tokyo Disneyland, New Fantasyland, opened 2020-09-28) -- Blender 5.2.
 
-  blender -b --python ds_tdl_bb_castle.py -- --samples 32          # renders + output/disneyland/bb_castle/bb_castle.blend
-  blender -b --python ds_tdl_bb_castle.py -- --cams none
+  blender -b --python src/ds_tdl_bb_castle.py -- --samples 32          # renders + output/disneyland/bb_castle/bb_castle.blend
+  blender -b --python src/ds_tdl_bb_castle.py -- --cams none
   python -c "import ds_tdl_bb_castle as b; b.make_textures()"      # repaint the textures (plain Python: Blender has no PIL)
 
 Sources (looked at only; nothing copied into the repository):
@@ -57,8 +57,8 @@ try:
 except ImportError:
     bpy = bmesh = Vector = Matrix = noise = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 from ds_tdl_station import (B, box, prism, bm_box, bm_lathe, bm_prism, obj_bm, array_mod, radial_array, T, R, seg_arc,
                             _principled, _mottle, _bump, text)

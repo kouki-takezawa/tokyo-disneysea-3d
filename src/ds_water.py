@@ -2,7 +2,7 @@
 and shoreline type, written to plateau_data/disneysea_water.json (plain
 Python + OpenCV; Blender reads only the JSON, see disneysea_water_blender.py).
 
-  python ds_water.py            # builds the JSON and prints a summary
+  python src/ds_water.py            # builds the JSON and prints a summary
 
 Sources
   shapes   OSM natural=water (ways + multipolygons), same selection as
@@ -27,8 +27,8 @@ Sources
            stone quay wall.
 """
 import json, math, pathlib, sys
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import ds_core as C
 import ds_terrain as T
@@ -82,13 +82,9 @@ def trace_caldera():
     c = cv2.approxPolyDP(c, 1.2 * ph.sx, True)[:, 0, :]   # ~1.2 m tolerance
     ring = [ph.to_m(float(a), float(b)) for a, b in c]
     ring = [(round(x, 2), round(y, 2)) for x, y in ring]
-    if _signed_area(ring) < 0:
+    if C.signed_area(ring) < 0:
         ring.reverse()
     return ring
-
-
-def _signed_area(r):
-    return sum(r[i - 1][0] * r[i][1] - r[i][0] * r[i - 1][1] for i in range(len(r))) / 2
 
 
 def _land_polys():
@@ -242,10 +238,10 @@ def build():
     shores, out_bodies = [], []
     for bi, b in enumerate(bodies):
         ring = C._clean_ring(b["ring"])
-        if _signed_area(ring) < 0:
+        if C.signed_area(ring) < 0:
             ring = ring[::-1]
         inners = [C._clean_ring(i) for i in b["inners"]]
-        inners = [i[::-1] if _signed_area(i) > 0 else i for i in inners]   # islands clockwise
+        inners = [i[::-1] if C.signed_area(i) > 0 else i for i in inners]   # islands clockwise
         t = names.get(b["id"], {})
         cx, cy = C.poly_centroid(ring)
         port = C.nearest_port(cx, cy, ring)

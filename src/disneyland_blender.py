@@ -1,8 +1,8 @@
 """Tokyo Disneyland + the Maihama station area -- draft (blocking) scene for Blender 5.2, like disneysea_draft.py.
 
-  blender -b --python disneyland_blender.py -- --cams aerial,castle,maihama --samples 16 --percent 50
-  blender -b --python disneyland_blender.py -- --render none              # build + save .blend only
-  python disneyland_blender.py --summary                                   # no Blender: what would be built
+  blender -b --python src/disneyland_blender.py -- --cams aerial,castle,maihama --samples 16 --percent 50
+  blender -b --python src/disneyland_blender.py -- --render none              # build + save .blend only
+  python src/disneyland_blender.py --summary                                   # no Blender: what would be built
 
 NOT YET RUN IN BLENDER (written on a machine without it; tools/blender_smoke.py imports it with a stub bpy and runs
 summary()). Data: ds_disneyland.build() -- the same lists the mock draws (plateau_data/disneyland_osm.json, GSI DEM5A),
@@ -15,8 +15,8 @@ Before modelling any part in detail, follow the reference videos listed in the R
 """
 import sys, math, time, argparse, pathlib, json
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 OUT = ROOT / "output" / "disneyland"
 LAND_RGB = [(0.69, 0.29, 0.35), (0.18, 0.55, 0.34), (0.63, 0.32, 0.18), (0.42, 0.56, 0.14), (0.48, 0.37, 0.65),
@@ -160,7 +160,7 @@ def main():
         return
     import bpy
     from mathutils import Vector
-    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(ROOT / "src"))
     import disneysea_draft as DD                # same world / render / camera helpers as the DisneySea draft
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()

@@ -30,7 +30,7 @@ def build_prometheus():
     summit 51 m on the south rim, ~20 m rim around the caldera lagoon, lagoon and caldera paths left open.
     The flat draft has no plateau, so the mesh uses h (rock above the plateau). Falls back to the old cone."""
     import json, pathlib
-    f = pathlib.Path(__file__).resolve().parent / "plateau_data" / "disneysea_volcano.json"
+    f = pathlib.Path(__file__).resolve().parent.parent / "plateau_data" / "disneysea_volcano.json"
     if f.exists():
         r = json.loads(f.read_text(encoding="utf-8"))
         nx, ny, st, x0, y0 = r["nx"], r["ny"], r["step"], r["x0"], r["y0"]

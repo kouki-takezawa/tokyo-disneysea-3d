@@ -1,8 +1,8 @@
 """Tokyo Disneyland - water pass for Blender 5.2, made the same way as the DisneySea one (disneysea_water_blender.py).
 
-  python ds_tdl_water.py                                          # 1) water model -> plateau_data/disneyland_water.json
-  blender -b --python tdl_water_blender.py -- --cams rivers,moat --samples 48
-  blender -b --python tdl_water_blender.py -- --render none      # build + save the .blend only
+  python src/ds_tdl_water.py                                          # 1) water model -> plateau_data/disneyland_water.json
+  blender -b --python src/tdl_water_blender.py -- --cams rivers,moat --samples 48
+  blender -b --python src/tdl_water_blender.py -- --render none      # build + save the .blend only
 
 The water itself is built by disneysea_water_blender.build_water (the same materials, water volumes, beds, shores by
 type, piers); only the data and the ground outline are the Land's:
@@ -16,8 +16,8 @@ levels are in the JSON for the mock.
 """
 import sys, math, json, time, argparse, pathlib, importlib, types
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import bpy
 

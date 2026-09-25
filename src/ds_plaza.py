@@ -1,6 +1,6 @@
 """DisneySea Plaza: the ground around the AquaSphere (plan in plain Python, build in Blender 5.2).
 
-  python ds_plaza.py        # -> plateau_data/disneysea_plaza.json (plan) + summary
+  python src/ds_plaza.py        # -> plateau_data/disneysea_plaza.json (plan) + summary
 
 OSM relation 3297581 (highway=pedestrian, "ディズニーシー・プラザ") is the round plaza + west
 arcade; the MiraCosta courtyards around it are paved too (everything open inside the park);
@@ -16,8 +16,8 @@ globe the whole relation is modelled:
 Heights: flat at the AquaSphere ground (SPEC ground_rel, relative to the DEM datum).
 """
 import json, math, pathlib, random, sys
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import ds_core as C
 import ds_aquasphere as AQ

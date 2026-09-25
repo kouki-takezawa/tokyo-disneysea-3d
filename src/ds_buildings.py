@@ -13,7 +13,7 @@ from ds_core import (DATA, get_collection, flat_material, extrude_footprint, ext
                       poly_centroid, ring_inside, in_park, PORT_COLOR, DETAIL_PRIORITY,
                       LANDMARK_SKIP, LANDMARK_SKIP_IDS)
 
-REPORT = pathlib.Path(__file__).parent / "output" / "detail_priority_todo.txt"
+REPORT = pathlib.Path(__file__).resolve().parent.parent / "output" / "detail_priority_todo.txt"
 
 
 def _is_priority(name):

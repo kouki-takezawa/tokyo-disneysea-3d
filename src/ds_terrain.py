@@ -73,7 +73,7 @@ def _plan_water():
 
 
 import json as _json, pathlib as _pl
-WATER_JSON = _pl.Path(__file__).resolve().parent / "plateau_data" / "disneysea_water.json"
+WATER_JSON = _pl.Path(__file__).resolve().parent.parent / "plateau_data" / "disneysea_water.json"
 
 
 def plan_water():

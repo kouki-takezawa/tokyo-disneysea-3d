@@ -2,8 +2,8 @@
 
 シーのデータ(disneysea_osm.json)とは別ファイルに保存する。取り直してもシー側の処理は変わらない。
 
-  python fetch_disneyland.py            # plateau_data/disneyland_osm.json
-  python fetch_disneyland.py --refetch  # OSM を取り直す
+  python src/fetch_disneyland.py            # plateau_data/disneyland_osm.json
+  python src/fetch_disneyland.py --refetch  # OSM を取り直す
 
 座標はシーと同じ(原点 35.6267N 139.8851E, +X 東, +Y 北, m)。
 標高はシーと同じ DEM5A のタイル(plateau_data/gsi_dem5a/)がランドと舞浜駅まで覆っているので、それを使う。
@@ -12,7 +12,7 @@ import json, sys, pathlib
 from fetch_disneysea import overpass, to_xy
 
 BBOX = (35.6270, 139.8730, 35.6392, 139.8935)   # S, W, N, E (ランド + 舞浜駅 + イクスピアリ・ホテル)
-PD = pathlib.Path(__file__).with_name("plateau_data")
+PD = pathlib.Path(__file__).resolve().parent.parent / "plateau_data"
 OUT = PD / "disneyland_osm.json"
 RAW = PD / "disneyland_osm_raw.json"
 

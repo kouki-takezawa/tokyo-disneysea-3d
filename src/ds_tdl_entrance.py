@@ -1,7 +1,7 @@
 """東京ディズニーランドのエントランス -- main entrance gates, the World Bazaar entrance and the plaza (Blender 5.2).
 
-  blender -b --python ds_tdl_entrance.py -- --cams gate_in,gate_out,gates_arc,wb_porch,wb_sign,flowerbed,aerial --samples 32
-  blender -b --python ds_tdl_entrance.py -- --cams none         # build + save the .blend only
+  blender -b --python src/ds_tdl_entrance.py -- --cams gate_in,gate_out,gates_arc,wb_porch,wb_sign,flowerbed,aerial --samples 32
+  blender -b --python src/ds_tdl_entrance.py -- --cams none         # build + save the .blend only
   then open output/disneyland/entrance/tdl_entrance.blend (cameras CAM_*)
 
 Reference videos (README; WALT., the same creator as the station video): 「Blenderでディズニーエントランスをモデリング」
@@ -40,8 +40,8 @@ try:
 except ImportError:
     bpy = bmesh = Vector = Matrix = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, arc_curve, bend, T, R,
                             seg_arc, arch_opening, arch_band, ring_sector, cutter, curve_obj, scroll_pts, column_bm,

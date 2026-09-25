@@ -3,7 +3,7 @@ level, depth and shoreline type, written to plateau_data/disneyland_water.json (
 JSON, see tdl_water_blender.py). The JSON has the same layout as disneysea_water.json, so the DisneySea Blender
 builder (disneysea_water_blender.build_water) makes the Land's water too.
 
-  python ds_tdl_water.py            # builds the JSON and prints a summary
+  python src/ds_tdl_water.py            # builds the JSON and prints a summary
 
 Sources
   shapes   OSM natural=water (multipolygon relations and closed ways) whose middle is inside the park
@@ -20,15 +20,14 @@ Sources
            estimates (no survey), like the DisneySea ones.
 """
 import json, math, pathlib, sys
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import ds_levels as LV
-from ds_core import point_in_poly, poly_area, poly_centroid, _clean_ring
+from ds_core import point_in_poly, poly_area, poly_centroid, _clean_ring, closed_rings, signed_area as _signed_area
 
 OUT = ROOT / "plateau_data" / "disneyland_water.json"
-DATA = json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))
-WAYS = {w["id"]: w for w in DATA["ways"]}
+from ds_disneyland import DATA, WAYS
 PARK_WAY = 1282875870                   # 東京ディズニーランド (tourism=theme_park)
 PARK = _clean_ring(WAYS[PARK_WAY]["pts"])
 RIVERS_OF_AMERICA = "R1125423"
@@ -47,29 +46,9 @@ PROFILE = {
 }
 
 
-def _signed_area(r):
-    return sum(r[i - 1][0] * r[i][1] - r[i][0] * r[i - 1][1] for i in range(len(r))) / 2
-
-
 def assemble(way_ids):
     """Chain member ways into closed rings."""
-    segs = [list(map(tuple, WAYS[i]["pts"])) for i in way_ids if i in WAYS]
-    out = []
-    while segs:
-        r = segs.pop(0)
-        changed = True
-        while changed and r[0] != r[-1]:
-            changed = False
-            for s in segs:
-                if s[0] == r[-1]: r += s[1:]
-                elif s[-1] == r[-1]: r += s[::-1][1:]
-                elif s[-1] == r[0]: r = s + r[1:]
-                elif s[0] == r[0]: r = s[::-1] + r[1:]
-                else: continue
-                segs.remove(s); changed = True; break
-        if r[0] == r[-1] and len(r) >= 4:
-            out.append(_clean_ring(r))
-    return out
+    return [_clean_ring(r) for r in closed_rings(WAYS, way_ids)]
 
 
 def multipolygons(pred):

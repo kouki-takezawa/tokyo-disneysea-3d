@@ -1,8 +1,8 @@
 """東京ディズニーランドのエントランス広場の地面 -- the ground in front of and behind the main entrance gates
 (plain Python: shapely + numpy, Blender is not needed; no trees).
 
-  python ds_tdl_ground.py            # -> output/disneysea/models/tdl_ground.json (glTF, buffer embedded) + a summary
-  python export_mock.py              # rebuilds the page; D.models picks the file up ("tdl_ground", layer ディズニーランド)
+  python src/ds_tdl_ground.py            # -> output/disneysea/models/tdl_ground.json (glTF, buffer embedded) + a summary
+  python src/export_mock.py              # rebuilds the page; D.models picks the file up ("tdl_ground", layer ディズニーランド)
 
 What is modelled (OSM, plateau_data/disneyland_osm.json):
   paving   relation 17641752 (highway=pedestrian, "東京ディズニーランド メインエントランス"): the fan-shaped plaza between the gates
@@ -28,8 +28,8 @@ import shapely
 from shapely.geometry import Polygon, Point, box
 from shapely.ops import unary_union
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_levels as LV
 import ds_disneyland as DL
 

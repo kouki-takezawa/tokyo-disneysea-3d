@@ -14,15 +14,15 @@ the rock). So the massif is modelled ON that plateau as a ring around the lagoon
            clear (3 m / 1.5 m), so guests' routes inside the caldera are not buried
   edges    rock tapers into the plateau edge over 6 m (steep faces to the harbour)
 
-  python ds_volcano.py   -> plateau_data/disneysea_volcano.json (2 m grid, heights
+  python src/ds_volcano.py   -> plateau_data/disneysea_volcano.json (2 m grid, heights
                             relative to the promenade datum) + summary
 """
 import json, math, pathlib, sys
 import numpy as np
 import cv2
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_levels as LV
 
 OUT = ROOT / "plateau_data" / "disneysea_volcano.json"

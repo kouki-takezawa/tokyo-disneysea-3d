@@ -1,7 +1,7 @@
 """Tokyo DisneySea - water pass for Blender 5.2.
 
-  python ds_water.py                                            # 1) water model -> JSON
-  blender -b --python disneysea_water_blender.py -- --cams harbor,caldera --samples 48
+  python src/ds_water.py                                            # 1) water model -> JSON
+  blender -b --python src/disneysea_water_blender.py -- --cams harbor,caldera --samples 48
 
 Builds the draft scene (buildings, landmarks, greenery, paths, railway from the
 ds_* modules) but replaces the draft's flat ground + water slabs with the
@@ -18,8 +18,8 @@ DEM-based absolute levels are in the JSON for the mock.
 """
 import sys, math, json, time, random, argparse, pathlib, importlib
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import bpy, bmesh
 from mathutils import Vector
