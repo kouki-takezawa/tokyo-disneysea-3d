@@ -24,6 +24,13 @@ Sources (looked at only; nothing copied into the repository):
     (retaining wall with pilasters and dark double doors, gold arches, tall gold banner poles with blue and gold
     pennants), the island edged with rocks and grass in the moat.
 
+  * TURNTABLE (the user, 2026-09-25): TurboSquid 1439041 "Disneyland Cinderella Castle", the same 3d_molier model,
+    two 72-frame 360-degree turntables and 39 stills (looked at only). They fixed the layout: the forecourt on its own
+    island in front joined to the gate by a short arch bridge, its lower plaza D-shaped round the compass; the castle
+    on a round grass island; a T-shaped rear terrace; the castle slimmer in plan than first built (PLAN_S) with
+    stepped crenellated pink tiers instead of one long roof. Checked with cameras matching the turntable frames
+    (turntable, ref_front, ref_rear, ref_side).
+
 Frame: local metres, origin = the middle of the gate at the ground on the south front; +X east, +Y north (through
 the castle). No rotation from the DisneySea frame. Ground 0 (DEM added on export).
 
@@ -82,8 +89,8 @@ def make_textures():
         a = (a + rng.normal(0, rough, (N, N, 1))).clip(0, 255).astype(np.uint8)
         Image.fromarray(a).filter(ImageFilter.GaussianBlur(0.6)).save(TEX_DIR / fn, quality=90)
 
-    ashlar("stone.jpg", 0.5, (0.6, 1.3), [(178, 180, 186), (166, 168, 176), (190, 192, 198), (156, 158, 166), (200, 200, 206),
-                                         (170, 172, 178), (148, 150, 158)], (214, 214, 218), 6.0, 3)
+    ashlar("stone.jpg", 0.5, (0.6, 1.3), [(206, 208, 212), (198, 200, 206), (214, 216, 220), (190, 192, 198), (220, 220, 224),
+                                         (202, 204, 208), (186, 188, 194)], (226, 226, 230), 4.0, 3)
     ashlar("cream.jpg", 0.45, (0.9, 1.6), [(238, 204, 210), (232, 196, 204), (242, 212, 218), (228, 192, 200)], (222, 190, 198), 3.0, 4)
     im = Image.new("RGB", (N, N), (30, 44, 74)); d = ImageDraw.Draw(im)
     tw, th = 0.22 * px, 0.17 * px
@@ -113,7 +120,7 @@ def materials():
     P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
     if not (TEX_DIR / "stone.jpg").exists():
         make_textures()
-    M["stone"] = image_material("cc_stone", "stone.jpg", 0.85, 0.5, (0.62, 0.63, 0.66))    # light grey (reference)
+    M["stone"] = image_material("cc_stone", "stone.jpg", 0.85, 0.5, (0.74, 0.75, 0.78))    # light grey (reference)
     M["cream"] = image_material("cc_cream", "cream.jpg", 0.55, 0.15, (0.88, 0.74, 0.77))    # pale pink upper castle
     M["lilac"] = M["cream"]                                 # (the shared helpers call the wall material "lilac")
     M["roof"] = image_material("cc_slate", "slate.jpg", 0.4, 0.4, (0.14, 0.36, 0.66))
@@ -411,7 +418,7 @@ def build_base(P):
             corbel_turret(P, x_, v, Hb - 0.2, 0.75, 1.3)
     # the rear terrace (reference): a wide cross-shaped paved deck behind the castle over the moat, its sides a
     # stone wall with white pilasters standing in the water, pierced balustrades with gold finials on the posts
-    outline = [(-22.0, 33.5), (26.0, 33.5), (26.0, 46.0), (12.0, 46.0), (12.0, 66.0), (-8.0, 66.0), (-8.0, 46.0), (-22.0, 46.0)]
+    outline = [(-14.0, 33.5), (19.0, 33.5), (19.0, 42.0), (9.5, 42.0), (9.5, 57.0), (-4.5, 57.0), (-4.5, 42.0), (-14.0, 42.0)]
     bm_prism(P["paving"], outline, -0.05, 0.02, "xy")
     bm_prism(P["stone"], outline, -1.6, -0.05, "xy")
     edges = list(zip(outline[1:] + outline[:1], outline[2:] + outline[:2]))[:-1]
@@ -429,9 +436,8 @@ def build_base(P):
             gold_cross(P, q.x, q.y, 1.35, 0.5) if int(k_) % 8 == 0 else lathe(P, "gold", [(0, 1.35), (0.16, 1.35), (0.2, 1.6), (0.08, 1.85), (0, 1.95)], 8, T(q.x, q.y, 0))
             cube(P, "trim", Mb, k_ - 0.3, k_ + 0.3, -0.05, 0.1, -1.6, -0.05)      # the white pilasters in the water
             k_ += 4.0
-    for x_ in (-4.0, 4.0):                                                      # the stair down to the water at the end
-        for k in range(6):
-            cube(P, "trim", I, x_ - 1.6, x_ + 1.6, 66.0 + k * 0.4, 66.4 + k * 0.4, -1.6, -0.05 - k * 0.26)
+    for k in range(6):                                                          # the stair down to the water at the end
+        cube(P, "trim", I, -0.5, 5.5, 57.0 + k * 0.4, 57.4 + k * 0.4, -1.6, -0.05 - k * 0.26)
     # outside stair up the east side to the hall entrance (about 7 m), cream balustrade
     for k in range(24):
         z = 0.3 * (k + 1)
@@ -493,8 +499,17 @@ def build_palace(P):
         for k in range(max(1, int(L / 2.6))):
             BC.window(P, M, (k + 0.5) * L / max(1, int(L / 2.6)), zb + 10.4, 0.6, 1.6, "pointed", 0.1)
         pierced_balustrade(P, M @ Matrix.Translation((0, 0.3, 0)), 0.0, L, zb + 0.2, 0.9)
-    BC.hip_roof(P, -4.1, 8.6, 3.8, 26.2, 25.8, 4.2)
-    gold_hip(P, -4.1, 8.6, 3.8, 26.2, 25.8, 4.2)
+    # stepped pink tiers with crenellated terraces (reference), not one long roof
+    crenels(P, -4.1, 8.6, 3.8, 26.2, 25.8, "cream", 0.9, 0.9)
+    cube(P, "cream", I, -2.2, 7.4, 8.0, 22.5, 25.8, 30.6)
+    for (M_, L_) in BC.side_frames(-2.2, 7.4, 8.0, 22.5):
+        for k in range(max(1, int(L_ / 2.2))):
+            BC.window(P, M_, (k + 0.5) * L_ / max(1, int(L_ / 2.2)), 26.8, 0.55, 2.2, "pointed", 0.08)
+    crenels(P, -2.4, 7.6, 7.8, 22.7, 30.6, "cream", 0.8, 0.85)
+    cube(P, "cream", I, 0.2, 7.2, 12.0, 19.0, 30.6, 33.8)
+    crenels(P, 0.0, 7.4, 11.8, 19.2, 33.8, "cream", 0.7, 0.8)
+    for (x_, y_) in ((-4.1, 3.8), (8.6, 3.8), (-4.1, 26.2), (8.6, 26.2), (-2.4, 22.7), (7.6, 22.7)):
+        pinnacle(P, x_, y_, 26.7, 2.2, 0.18)
     # the clock gable over the frontispiece: cream tracery front, the clock (15.2 m), steep blue gable roof (top 20.9)
     Mf = face(0, 2.0, 0)
     cube(P, "cream", I, -2.7, 2.7, 2.0, 7.0, 13.2, 15.6)
@@ -517,7 +532,7 @@ def build_palace(P):
             t = (k + 0.5) / 6
             pinnacle(P, sg * 3.0 * (1 - t), 1.45, 15.4 + 5.5 * t, 0.5, 0.08, "trim")
     # the upper palace gable (top 32.9) with the big tracery dormer (the red-framed windows of the drawing, 25.8 .. 28.4)
-    gable_roof(P, -3.0, 2.2, 4.0, 24.0, 25.8, 32.9, along="y", ends=(False, True))
+    gable_roof(P, -3.0, 2.2, 4.0, 11.0, 25.8, 32.9, along="y", ends=(False, True))
     bm_ = P["roof"]                                                             # the slate front of the upper gable
     v_ = [bm_.verts.new(p) for p in ((-3.0, 4.0, 25.8), (2.2, 4.0, 25.8), (-0.4, 4.0, 32.9))]
     bm_.faces.new(v_)
@@ -571,7 +586,7 @@ def build_palace(P):
         BC.window(P, M, 0.0, 33.5, 0.4, 2.2, "pointed", 0.08)
         pinnacle(P, kx + 2.2 * math.cos(t - math.pi / 8), ky + 2.2 * math.sin(t - math.pi / 8), 37.6, 2.2, 0.14)
         pinnacle(P, kx + 2.3 * math.cos(t - math.pi / 8), ky + 2.3 * math.sin(t - math.pi / 8), 27.6, 3.0, 0.16)
-    lathe(P, "gold", [(0, 39.8), (1.4, 39.8), (1.1, 41.0), (0.6, 44.5), (0.3, 47.5), (0.08, 50.2), (0, 51.0)], 8,
+    lathe(P, "gold", [(0, 39.8), (1.4, 39.8), (1.2, 40.6), (0.75, 44.0), (0.4, 47.5), (0.12, 50.6), (0, 51.5)], 8,
           T(kx, ky, 0) @ R(math.pi / 8, "Z"))
     for k in range(8):                                                          # gold crockets up the spire
         t = 2 * math.pi * k / 8
@@ -604,7 +619,8 @@ def build_forecourt(P):
         the gate and along the stage; gold lamps on the posts.
     The castle stands on an island edged with rocks and grass."""
     I = Matrix.Identity(4); Z = 1.6
-    lower = [(-24.0, -22.0), (-20.0, -34.0), (24.0, -34.0), (28.0, -22.0), (28.0, -14.0), (-24.0, -14.0)]
+    lower = [(-22.0, -14.0)] + [(2.0 + 24.0 * math.cos(math.radians(a_)), -17.0 + 19.0 * math.sin(math.radians(a_)))
+                                 for a_ in range(190, 351, 10)] + [(26.0, -14.0)]
     bm_prism(P["paving"], lower, -1.2, -0.95, "xy")
     bm_prism(P["stone"], lower, -1.6, -1.2, "xy")
     lathe(P, "red", [(0, -0.95), (4.2, -0.95), (4.2, -0.93), (0, -0.93)], 48, T(2.0, -25.0, 0))
@@ -619,11 +635,20 @@ def build_forecourt(P):
     for (x0_, y0_), (x1_, y1_) in zip(lower[:-1], lower[1:]):                    # its balustrade and pedestals
         L_ = math.hypot(x1_ - x0_, y1_ - y0_); ang_ = math.atan2(y1_ - y0_, x1_ - x0_)
         Mb = face(x0_, y0_, ang_)
-        if abs(y0_ - y1_) < 0.1 and y0_ < -30:                                   # the front edge: open in the middle
-            pierced_balustrade(P, Mb, 0.0, L_ / 2 - 5.0, -0.95, 1.0); pierced_balustrade(P, Mb, L_ / 2 + 5.0, L_, -0.95, 1.0)
-        else:
-            pierced_balustrade(P, Mb, 0.0, L_, -0.95, 1.0)
-        gold_lamp(P, x0_, y0_, -0.95, 1.0)
+        if abs(x0_ - x1_) < 0.1 and abs(y0_ - y1_) < 0.1:
+            continue
+        pierced_balustrade(P, Mb, 0.0, L_, -0.95, 1.0)
+        gold_lamp(P, x0_, y0_, -0.95, 1.0) if int((x0_ + 100) * 7) % 3 == 0 else None
+    for rr in (6.5, 11.0, 15.5):                                                # the concentric arcs on the paving
+        pts_ = [(2.0 + rr * math.cos(math.radians(a_)), -25.0 + rr * math.sin(math.radians(a_))) for a_ in range(200, 341, 5)]
+        for (xa, ya), (xb, yb) in zip(pts_[:-1], pts_[1:]):
+            L_ = math.hypot(xb - xa, yb - ya)
+            cube(P, "red" if rr < 7 else "stone", Matrix.Translation(((xa + xb) / 2, (ya + yb) / 2, 0)) @ Matrix.Rotation(math.atan2(yb - ya, xb - xa), 4, "Z"),
+                 -L_ / 2, L_ / 2, -0.12, 0.12, -0.95, -0.93)
+    for a_ in (210, 240, 270, 300, 330):                                        # and the radial lines
+        t = math.radians(a_)
+        cube(P, "stone", Matrix.Translation((2.0 + 10.0 * math.cos(t), -25.0 + 10.0 * math.sin(t), 0)) @ Matrix.Rotation(t, 4, "Z"),
+             -5.5, 5.5, -0.12, 0.12, -0.95, -0.93)
     # the upper stage: deck, front retaining wall with pilasters and the dark doors, balustrade
     cube(P, "stone", I, -18.0, 22.0, -14.0, 1.0, -1.6, Z - 0.05)
     cube(P, "paving", I, -17.8, 21.8, -13.8, 1.0, Z - 0.05, Z)
@@ -685,16 +710,50 @@ def build_forecourt(P):
         pennant_pole(P, x_, -12.8, Z, 9.5, 0.0)
     for x_ in (-20.0, 24.0):
         pennant_pole(P, x_, -21.0, -0.95, 9.0, 0.0)
-    cube(P, "water", I, -46.0, 50.0, -44.0, 76.0, -1.3, -1.25)                  # the moat
-    g = random.Random(21)                                                       # the island's edge: rocks and grass
-    edge = [(-19.2, -14.0 + 48.0 * t) for t in [i / 16 for i in range(17)]] + [(23.2, -14.0 + 48.0 * t) for t in [i / 16 for i in range(17)]] + \
-           [(-24.0 + 52.0 * t, -35.0) for t in [i / 14 for i in range(15)]]
+
+
+PLAN_S = 0.72           # the reference model is slimmer: the castle's plan x 0.72 round its centre, heights kept
+PLAN_C = (2.5, 17.0)
+FORE_S = 0.70
+FORE_SY = 0.85          # ... and a little longer front to back (the turntable's side view)           # the forecourt's plan x 0.70 (about as wide as the castle, as in the turntable views)
+GATE_Y = PLAN_C[1] + (1.0 - PLAN_C[1]) * PLAN_S          # the gate after narrowing
+BRIDGE = 6.0
+FORE_DY = GATE_Y - BRIDGE - 1.0                            # the forecourt's back edge (local y 1.0) lands at the bridge
+FORE_DY_RAW = -8.0          # the forecourt island stands 8 m out from the castle, across the water (turntable views)
+
+
+def build_islands(P):
+    """The moat, the round grass island of the castle with rocks on its edge, the forecourt island's rocky edge,
+    the stone arch bridge from the forecourt stage to the gate over the water gap."""
+    I = Matrix.Identity(4)
+    cube(P, "water", I, -52.0, 56.0, -70.0, 70.0, -1.3, -1.25)
+    R_ = 27.0 * PLAN_S
+    lathe(P, "grass", [(0, -1.3), (R_, -1.3), (R_ - 1.0, -0.4), (R_ - 2.5, -0.05), (0, -0.05)], 48, T(2.5, 17.0, 0))   # the castle's island
+    g = random.Random(21)
+    for i in range(46):                                                         # its rocky edge
+        t = 2 * math.pi * i / 46
+        if 4.2 < t < 5.2 or 1.25 < t < 1.9:                                    # (the bridge in front and the terrace behind)
+            continue
+        x_, y_ = 2.5 + (R_ - 0.8) * math.cos(t), 17.0 + (R_ - 0.8) * math.sin(t)
+        BC.boulder_cluster(P, x_, y_, g.uniform(1.3, 2.3), g.uniform(0.4, 1.2) - 1.3, i + 300)
+    # the forecourt island's edge (its outline follows the stage and the D-shaped plaza, shifted by FORE_DY)
+    edge = [(-19.0, -14.0 + 13.0 * t) for t in (0.0, 0.33, 0.66, 1.0)] + [(23.0, -14.0 + 13.0 * t) for t in (0.0, 0.33, 0.66, 1.0)] + \
+           [(2.0 + 25.5 * math.cos(math.radians(a_)), -17.0 + 20.5 * math.sin(math.radians(a_))) for a_ in range(190, 351, 12)]
     for i, (x_, y_) in enumerate(edge):
-        if g.random() < 0.7:
-            BC.boulder_cluster(P, x_ + g.uniform(-0.6, 0.6), y_ + g.uniform(-0.6, 0.6), g.uniform(1.2, 2.2), g.uniform(0.4, 1.1) - 1.3, i + 200)
+        x_, y_ = 2.0 + (x_ - 2.0) * FORE_S, 1.0 + FORE_DY + (y_ - 1.0) * FORE_SY
+        BC.boulder_cluster(P, x_ + g.uniform(-0.4, 0.4), y_ + g.uniform(-0.4, 0.4), g.uniform(1.0, 1.7), g.uniform(0.4, 1.0) - 1.3, i + 200)
         if g.random() < 0.6:
-            cube(P, "grass", I, x_ - 1.3, x_ + 1.3, y_ - 0.8, y_ + 0.8, -1.3, -1.02)
-    cube(P, "grass", I, -19.5, 23.5, 1.0, 33.5, -1.3, -0.05)
+            cube(P, "grass", I, x_ - 1.1, x_ + 1.1, y_ - 0.7, y_ + 0.7, -1.3, -1.02)
+    # the bridge from the stage (at the gate level) over the gap to the gate: deck, balustrades, an arch below
+    Z = 1.6
+    cube(P, "stone", I, -2.6, 2.6, GATE_Y - BRIDGE, GATE_Y + 0.5, -1.3, Z - 0.05)
+    cube(P, "paving", I, -2.4, 2.4, GATE_Y - BRIDGE, GATE_Y + 0.5, Z - 0.05, Z)
+    cutter_pts = [(-3.0, -1.3), (3.0, -1.3)] + pointed(-3.0, 3.0, -0.2)[1:-1]
+    poly_prism(P, "water", face(0, FORE_DY + 4.0, 0), [(x, z) for x, z in cutter_pts], -0.05, 0.05) if False else None
+    for sx in (-1, 1):
+        pierced_balustrade(P, face(sx * 2.5, GATE_Y - BRIDGE if sx < 0 else GATE_Y, math.pi / 2 if sx < 0 else -math.pi / 2), 0.0, BRIDGE, Z, 1.0, 0.9)
+    for sx in (-1, 1):                                                          # the arch under the bridge, both faces
+        poly_prism(P, "trim", face(sx * 2.62, 0, math.pi / 2), [(x + GATE_Y - BRIDGE / 2, z) for x, z in arch_ring(0.0, 3.2, -0.3, 0.35)], -0.05, 0.05)
 
 
 def build(context=True):
@@ -707,12 +766,22 @@ def build(context=True):
     BC.WEB = WEB
     t0 = time.time()
     P = Parts()
-    for name, fn in (("base", build_base), ("towers", build_towers), ("palace", build_palace), ("forecourt", build_forecourt)):
+    for name, fn in (("base", build_base), ("towers", build_towers), ("palace", build_palace), ("forecourt", build_forecourt),
+                     ("islands", build_islands)):
         fn(P)
+        if name in ("base", "towers", "palace"):
+            Mp = Matrix.Translation((PLAN_C[0], PLAN_C[1], 0)) @ Matrix.Diagonal((PLAN_S, PLAN_S, 1.0, 1.0)) @ Matrix.Translation((-PLAN_C[0], -PLAN_C[1], 0))
+        elif name == "forecourt":
+            Mp = Matrix.Translation((2.0, 1.0 + FORE_DY, 0)) @ Matrix.Diagonal((FORE_S, FORE_SY, 1.0, 1.0)) @ Matrix.Translation((-2.0, -1.0, 0))
+        else:
+            Mp = None
         for k, bm in list(P.items()):
             if bm.verts:
-                obj_bm(f"CC_{name}_{k}", bm, k)
+                if Mp is not None:
+                    bmesh.ops.transform(bm, matrix=Mp, verts=bm.verts)
+                o = obj_bm(f"CC_{name}_{k}", bm, k)
         P.clear()
+
     objs = [o for o in B.col.objects if o.type == "MESH" and o.data.materials and o.data.materials[0].name in ("cc_stone", "cc_cream", "cc_slate", "cc_paving")]
     for o in bpy.context.view_layer.objects:
         o.select_set(False)
@@ -732,7 +801,11 @@ def build(context=True):
 
 CAMS = {
     "front": ((2.5, -150.0, 2.0), (2.5, 10.0, 24.0), 60),
-    "stage": ((2.0, -58.0, 5.0), (2.0, -6.0, 9.0), 30),          # the reference's front view of the stage         # from across the plaza, long lens (the photos' view)
+    "stage": ((2.0, -66.0, 6.0), (2.0, -12.0, 9.0), 30),
+    "turntable": ((-120.0, -118.0, 62.0), (2.0, 6.0, 12.0), 50),   # the reference turntable's three-quarter view
+    "ref_front": ((2.0, -150.0, 38.0), (2.0, 5.0, 14.0), 55),      # the turntable's front frame
+    "ref_rear": ((2.0, 170.0, 40.0), (2.0, 20.0, 14.0), 55),       # the turntable's rear frame
+    "ref_side": ((-170.0, 2.0, 30.0), (2.0, 8.0, 14.0), 50),       # the turntable's side frame          # the reference's front view of the stage         # from across the plaza, long lens (the photos' view)
     "front_close": ((0.0, -40.0, 1.7), (0.0, 5.0, 15.0), 26),
     "rear": ((-18.0, 58.0, 1.7), (2.0, 20.0, 18.0), 22),
     "bridge": ((2.0, 64.0, 1.7), (2.0, 20.0, 14.0), 24),         # the reference's bridge view          # the Fantasyland side: the gothic arch, the stair
