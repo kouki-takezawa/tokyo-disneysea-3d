@@ -11,8 +11,16 @@ What is modelled (OSM, plateau_data/disneyland_osm.json), within REACH m of the 
            the fine paths inside the gardens (the ovals with radial and ring paths) 1.8 m.
   plazas   highway=pedestrian areas and the relation for ミッキー＆フレンズ・スクエア (18377374; its inner ring, the round bed with the
            statue, is a planter: curb + green top)  -> pink brick, like the entrance plaza.
-Left out: the hotel and every other building's footprint (roofs on posts stay), water, tunnels / underpasses, bridges (the
-  Gateway walkway), covered ways, stairs (the terrain carries them), the public road 浦安市道幹線7号 (tertiary), the parking aisles of
+  fill     the promenade between the hotel and the station and the ground round the station (OSM draws it as lines only): the faces
+           enclosed by the OSM linework (roads, footways, fences, building / garden / water outlines, the Resort Line beam) inside
+           FILL_BOX, less what is already built. Faces that are gardens / lawns / flower beds become planters (curb + green top);
+           within FILL_ROAD_W / 2 of a service road it is asphalt, the rest pink brick (as the photo: the road past the station is grey,
+           the walkways either side are brick). Only whole faces (never cut by the box).
+  station  the passages through the station (the 7 short footways with tunnel / covered / layer=-1 inside its footprint; OSM
+           calls them tunnels, they are the "中道" under and between the station's wings)  -> pale stone, 4 m, and a stone floor
+           under the whole footprint, at the Blender station's ground (-1.79 m) so there is never a blank under it.
+Left out: the hotel and every other building's footprint (roofs on posts stay), water, tunnels / underpasses (except the station's),
+  bridges (the Gateway walkway), covered ways (except the station's), stairs (the terrain carries them), the public road 浦安市道幹線7号 (tertiary), the parking aisles of
   the big car parks farther out, and the entrance plaza (ds_tdl_ground.py builds it: its area is cut out here).
 Heights: the same terrain as the entrance plaza (GSI DEM5A on the mock's datum, smoothed), so the two meet. Under the buildings
   the DEM is not ground (the hotel's footprint is a flat -0.8 m fill), so those nodes are filled from the ground round them.
@@ -27,7 +35,8 @@ import sys, math, pathlib
 
 import numpy as np
 from shapely.geometry import Polygon, LineString, Point
-from shapely.ops import unary_union
+from shapely.geometry import box
+from shapely.ops import unary_union, polygonize
 
 ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -42,7 +51,12 @@ REACH = 60.0                                   # a way counts when at least half
 CLIP = 85.0                                    # ... and is cut at this distance
 W_SERVICE, W_ONEWAY, W_AISLE, W_FOOT, W_GARDEN = 6.0, 4.5, 5.5, 3.0, 1.8
 BUILDING_MARGIN = 4.0                          # the terrain under the buildings (+ this margin) is filled from the ground round them
-NAMES = ("TH_road", "TH_path", "TH_plaza", "TH_curb", "TH_soil", "TH_edge")
+FILL_BOX = (-650.0, 990.0, -500.0, 1080.0)     # the promenade between the hotel and the station (local m: x0, y0, x1, y1)
+STATION_REL = 17744015                         # 東京ディズニーランド・ステーション
+STATION_GROUND = -1.79                         # the Blender station's floor (ds_tdl_station.FRAME["ground_datum"])
+W_STATION_PATH = 4.0
+FILL_ROAD_W = 12.0                             # the carriageway in the fill: this wide along the service road (the photo: two lanes + bays)
+NAMES = ("TH_road", "TH_path", "TH_plaza", "TH_curb", "TH_soil", "TH_edge", "TH_floor")
 
 
 def _width(t, in_garden=False):
@@ -114,14 +128,53 @@ def plan():
     z_plaza = z_plaza.difference(pl_all)
     z_path = z_path.difference(pl_all)
     z_road = z_road.difference(pl_all)
+    # the station: its passages and a floor under the footprint (the Blender model stands on it)
+    station = unary_union([Polygon(o).buffer(0) for o in DL.outer_rings(rels[STATION_REL])])
+    st_paths = unary_union([LineString(w["pts"]).buffer(W_STATION_PATH / 2, cap_style=2, join_style=1) for w in DL.DATA["ways"]
+                            if w["tags"].get("highway") == "footway" and not _on_ground(w["tags"]) and w["tags"].get("bridge") in (None, "no")
+                            and LineString(w["pts"]).within(station.buffer(1.0))])
+    z_station = st_paths.intersection(station.buffer(3.0))
+    # the fill: faces of the OSM linework between the hotel and the station
+    fb = box(*FILL_BOX)
+    lines = []
+    for w in DL.DATA["ways"]:
+        t = w["tags"]
+        if len(w["pts"]) < 2 or not LineString(w["pts"]).intersects(fb):
+            continue
+        if (t.get("highway") in ("footway", "service", "pedestrian", "steps") or "building" in t or "barrier" in t
+                or t.get("railway") == "monorail" or t.get("leisure") in ("garden", "park")
+                or t.get("landuse") in ("grass", "forest", "flowerbed", "meadow") or t.get("natural") in ("water", "wood", "scrub", "grassland")):
+            lines.append(LineString(w["pts"]))
+    lines.append(fb.exterior)
+    faces = [f for f in polygonize(unary_union(lines)) if fb.contains(f.representative_point()) and f.area > 1.0]
+    greens = unary_union([Polygon(w["pts"]).buffer(0) for w in DL.DATA["ways"] if w["closed"] and len(w["pts"]) >= 4 and (
+        w["tags"].get("leisure") in ("garden", "park") or w["tags"].get("landuse") in ("grass", "forest", "flowerbed", "meadow")
+        or w["tags"].get("natural") in ("wood", "scrub", "grassland")) and Polygon(w["pts"]).intersects(fb)])
+    lanes = unary_union([LineString(w["pts"]) for w in DL.DATA["ways"] if w["tags"].get("highway") == "service" and _on_ground(w["tags"])
+                         and LineString(w["pts"]).intersects(fb)]).buffer(FILL_ROAD_W / 2, cap_style=2)
+    built = unary_union([blocked, z_road, z_plaza, z_path, pl_all, station])
+    fill_road, fill_plaza, fill_green = [], [], []
+    for f in faces:
+        rest = f.difference(built)
+        if rest.area < 1.0:
+            continue
+        if f.intersection(greens).area > 0.5 * f.area:
+            fill_green += [p for p in G._polys(rest) if p.area > G.MIN_PLANTER]
+        else:                                                      # the carriageway along a service road, brick beside it
+            fill_road.append(rest.intersection(lanes))
+            fill_plaza.append(rest.difference(lanes))
+    z_road = unary_union([z_road] + fill_road)
+    z_plaza = unary_union([z_plaza] + fill_plaza)
+    planters = planters + fill_green
     keep = lambda g: unary_union([p for p in G._polys(g) if p.area > 0.6])         # drop slivers
-    return dict(road=keep(z_road), path=keep(z_path), plaza=keep(z_plaza), planters=planters, hotel=hotel, void=solid.buffer(BUILDING_MARGIN))
+    return dict(road=keep(z_road), path=keep(z_path), plaza=keep(z_plaza), planters=planters, hotel=hotel, void=solid.buffer(BUILDING_MARGIN),
+                station=station, station_path=keep(z_station))
 
 
 def build():
     P = plan()
     zones = [("TH_road", P["road"]), ("TH_path", P["path"]), ("TH_plaza", P["plaza"])]
-    T = G.Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds, void=P["void"])
+    T = G.Terrain(unary_union([g for _, g in zones] + P["planters"] + [P["station"]]).bounds, void=P["void"])
     meshes = {n: G.Mesh(n) for n in NAMES}
     pl_lines = unary_union([q.exterior for q in P["planters"]]) if P["planters"] else None
     for name, g in zones:
@@ -129,6 +182,16 @@ def build():
             G.add_zone(meshes, T, name, g, edge="TH_edge", avoid=pl_lines)
     for q in P["planters"]:
         G.add_planter(meshes, T, q, curb="TH_curb", soil="TH_soil")
+    # the station: a flat floor at the Blender station's ground under the footprint, the passages 2 cm above it
+    flat = G.Terrain.__new__(G.Terrain)
+    flat.z = lambda x, y, dz=0.0: np.full(np.shape(x), STATION_GROUND + dz, float)
+    flat.grad = lambda x, y: (np.zeros(np.shape(x)), np.zeros(np.shape(y)))
+    G.add_zone(meshes, flat, "TH_floor", P["station"], edge="TH_edge")
+    lifted = G.Terrain.__new__(G.Terrain)
+    lifted.z = lambda x, y: np.full(np.shape(x), STATION_GROUND + 0.02, float)
+    lifted.grad = flat.grad
+    for poly in G._polys(P["station_path"]):
+        G.top_surface(meshes["TH_path"], lifted, poly)
     return P, T, meshes
 
 
