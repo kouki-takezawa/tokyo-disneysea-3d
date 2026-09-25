@@ -64,6 +64,13 @@ LOWER_Z = 0.8      # the forecourt's lower plaza (about 3.5 m above the water)
 TEX_DIR = ROOT / "plateau_data" / "cc_castle"
 TEX_M = 4.0
 GATE = (-388.6, 578.2)
+# placement in the park (the user's check: the front faces World Bazaar, not south). OSM: the castle footprint
+# (way 217727348) has its area centroid at (-385.4, 594.0); Main Street (ways 629990046, 119893380) runs from the
+# entrance to the castle along -65.2 deg, and its axis passes 2.5 m from that centroid. So the front looks up
+# Main Street, 114.9 deg from +X (north-north-west), and the middle of the castle's base sits on the centroid.
+FACE_DEG = 114.9
+CENTRE_OSM = (-385.4, 594.0)
+CENTRE_LOCAL = (2.5, 17.2)        # the middle of the stone base in the model (x -9.9 .. 14.9, y 5.5 .. 28.9)
 WEB = False
 
 
@@ -1094,13 +1101,19 @@ def main():
 
 
 def export_objects(merged):
-    """For the mock: gate at the OSM point, heights on the DEM datum, one mesh per material ("CC_<material>")."""
+    """For the mock: the base's middle on the OSM footprint, turned so the front faces Main Street (FACE_DEG), heights
+    on the DEM datum, one mesh per material ("CC_<material>")."""
     global WEB
     WEB = True
     build(context=False)
     import ds_tracks
-    h = ds_tracks.make_ground(ds_tracks.data()); gz = h(*GATE)
-    B.root.location = (GATE[0], GATE[1], gz)
+    h = ds_tracks.make_ground(ds_tracks.data())
+    th = math.radians(FACE_DEG + 90.0)                 # local -Y (the front) -> FACE_DEG
+    c_, s_ = math.cos(th), math.sin(th); lx, ly = CENTRE_LOCAL
+    gx, gy = CENTRE_OSM[0] - (c_ * lx - s_ * ly), CENTRE_OSM[1] - (s_ * lx + c_ * ly)
+    fx, fy = GX, STAGE_F - 15.5                         # the lower plaza's front edge meets the hub's ground
+    gz = h(gx + c_ * fx - s_ * fy, gy + s_ * fx + c_ * fy) - LOWER_Z
+    B.root.location = (gx, gy, gz); B.root.rotation_euler = (0, 0, th)
     bpy.context.view_layer.update()
     for mat in bpy.data.materials:
         if not mat.node_tree:
