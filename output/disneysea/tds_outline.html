@@ -2308,6 +2308,26 @@ async function init3D() {
 
   // Woody (fan-made model from kouki-takezawa/enoden-walk: rigged, idle / walk / run / sprint / jump baked; Draco-compressed)
   const woody = { mixer: null, act: {}, obj: null, face: Math.PI, w: { idle: 1, walk: 0, run: 0 }, loading: false };
+  const woodyPatterns = {};
+  function woodyPattern(kind) {   // yellow plaid for the shirt, white with black patches for the vest; repeated over the UVs
+    if (woodyPatterns[kind]) return woodyPatterns[kind];
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d");
+    if (kind === "plaid") {
+      g.fillStyle = "#eab83c"; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = "rgba(214,150,40,.55)"; for (let i = 0; i < 256; i += 64) { g.fillRect(i + 20, 0, 18, 256); g.fillRect(0, i + 20, 256, 18); }
+      g.fillStyle = "rgba(165,70,35,.85)"; for (let i = 0; i < 256; i += 64) { g.fillRect(i + 4, 0, 3, 256); g.fillRect(0, i + 4, 256, 3); }
+      g.fillStyle = "rgba(120,60,20,.35)"; for (let i = 0; i < 256; i += 32) { g.fillRect(i + 44, 0, 1, 256); g.fillRect(0, i + 44, 256, 1); }
+    } else {
+      g.fillStyle = "#f2efe6"; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = "#1e1c1a";
+      const blob = (x, y, r) => { g.beginPath(); for (let k = 0; k <= 12; k++) { const a = k / 12 * 6.2832, rr = r * (0.75 + 0.35 * Math.sin(a * 3 + x)); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.8); } g.fill(); };
+      for (const [x, y, r] of [[40, 50, 30], [150, 30, 22], [210, 120, 34], [90, 150, 26], [30, 215, 20], [170, 220, 28], [250, 20, 16], [120, 90, 12]])
+        for (const dx of [-256, 0, 256]) for (const dy of [-256, 0, 256]) blob(x + dx, y + dy, r);   // wrapped so the tile repeats seamlessly
+    }
+    const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(kind === "plaid" ? 6 : 3, kind === "plaid" ? 6 : 3);
+    t.flipY = false; return (woodyPatterns[kind] = t);
+  }
   async function loadWoody() {
     if (woody.loading) return; woody.loading = true;
     const base = "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/";
@@ -2324,7 +2344,11 @@ async function init3D() {
         if (o.name.startsWith("Rig")) o.position.set(0, 0, 0);   // the armature keeps its Blender scene offset: stand on the origin
         if (o.isMesh) {
           o.frustumCulled = false;
-          const mat = o.material; if (mat && mat.map) { mat.map.encoding = T.LinearEncoding; mat.needsUpdate = true; }   // the page shows colours as stored
+          const mat = o.material; if (!mat) return;
+          // the model's shirt and vest bakes do not line up with its UVs (they come out black, in any three.js): draw tiling ones here
+          const pat = /Shirt|Collar/.test(mat.name) ? woodyPattern("plaid") : /Vest$/.test(mat.name) ? woodyPattern("cow") : null;
+          if (pat) { mat.map = pat; mat.color.set(0xffffff); }
+          if (mat.map) { mat.map.encoding = T.LinearEncoding; mat.needsUpdate = true; }   // the page shows colours as stored
         }
       });
       const bb = new T.Box3().setFromObject(m), h = bb.max.y - bb.min.y;
