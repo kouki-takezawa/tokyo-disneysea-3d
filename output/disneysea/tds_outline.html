@@ -379,7 +379,7 @@ body.intro .introfx{opacity:1}
           <dl class="keys">
             <dt>1 / 2 / 3</dt><dd>表示のプリセット(モデルのみ / 枠線+モデル / 枠線のみ)</dd>
             <dt>W A S D・矢印</dt><dd>散歩で歩く(Shift で走る)</dd>
-            <dt>クリック</dt><dd>散歩でマウス視点に切り替え(Esc で解除)</dd>
+            <dt>ドラッグ</dt><dd>散歩で見回す(キャラクターの向きは変わらない)</dd>
             <dt>V</dt><dd>散歩の一人称 / 三人称</dd>
             <dt>H</dt><dd>写真モード(操作部品を隠す)</dd>
             <dt>Esc</dt><dd>散歩から俯瞰へ戻る ・ 電車を追うのをやめる</dd>
@@ -451,7 +451,7 @@ body.intro .introfx{opacity:1}
     <div class="hud bl only-walk" id="walkHud">
       <div class="walkhud glass">
         <span><span class="only-mouse">身長 170 cm ・ 目の高さ 1.58 m ・ </span><span id="walkMode">一人称</span> ・ 足元 <span class="mono" id="walkZ">—</span><span class="only-mouse">(園路基準) ・ <span class="mono" id="walkPos">—</span></span></span>
-        <span class="k only-mouse">画面をクリックでマウス視点(Esc で解除) ・ W A S D / 矢印で移動 ・ Shift で走る ・ V 視点 ・ H 写真 ・ Esc で俯瞰へ</span>
+        <span class="k only-mouse">ドラッグで見回す ・ W A S D / 矢印で移動 ・ Shift で走る ・ V 視点 ・ H 写真 ・ Esc で俯瞰へ</span>
       </div>
     </div>
     <div class="hud br only-plan only-mouse"><span class="coord glass mono" id="coord">— </span></div>
@@ -2380,11 +2380,11 @@ async function init3D() {
     }
     if (woody.act.walk) woody.act.walk.timeScale = mv ? WALK * mv.mag / 1.25 : 1;   // the baked cycles are made for 1.25 / 2.9 m/s
     if (woody.act.run) woody.act.run.timeScale = mv ? RUN * mv.mag / 2.9 : 1;
-    if (mv) {   // turn toward the direction of travel (relative to the view)
-      let d = Math.atan2(mv.s, -mv.f) - woody.face; d = Math.atan2(Math.sin(d), Math.cos(d));
+    if (mv) {   // turn toward the direction of travel (in the world: turning the camera alone does not turn him)
+      let d = wk.yaw + Math.atan2(mv.s, -mv.f) - woody.face; d = Math.atan2(Math.sin(d), Math.cos(d));
       woody.face += Math.max(-8 * dt, Math.min(8 * dt, d));
-      woody.obj.rotation.y = woody.face;
     }
+    woody.obj.rotation.y = woody.face;
     woody.mixer.update(dt);
   };
 
@@ -2460,7 +2460,8 @@ async function init3D() {
     if (!wk.first) $("aim").hidden = true;
   }
   function placeCamera() {
-    person.position.set(wk.x, wk.y, wk.z); person.rotation.y = wk.yaw;
+    person.position.set(wk.x, wk.y, wk.z); person.rotation.y = 0;
+    stand.rotation.y = woody.face - Math.PI;   // the box figure looks along -Z, Woody along +Z
     cam.rotation.order = "YXZ";
     if (wk.first) {
       cam.position.set(wk.x, wk.y + EYE, wk.z);
@@ -2509,23 +2510,30 @@ async function init3D() {
   three.walkEnter = (x, y, yaw, pitch, anim = false, first) => {
     loadWoody();
     buildGrid();
-    const AQ = D.aquasphere;
-    if (x == null) { const a = Math.PI / 8; x = AQ.cx + 22 * Math.cos(a); y = AQ.cy + 22 * Math.sin(a); yaw = Math.atan2(Math.cos(a), -Math.sin(a)); pitch = 0.12; }
+    if (x == null) [x, y, yaw, pitch] = walkStart();
     const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     wk.x = x; wk.z = -y;
     const hits = modelHits(wk.x, wk.z);
     wk.y = groundAt(wk.x, wk.z, (heightAt(wk.x, -wk.z) ?? 0) + 1) ?? (hits.length ? Math.max(...hits) : 0);   // not on a tree top
     wk.yaw = yaw ?? 0; wk.pitch = pitch ?? -0.05;
     if (first != null) wk.first = first;
+    woody.face = wk.yaw + Math.PI;   // start facing the way the camera looks
     ctl.enabled = false; three.walking = true;
     cam.fov = 60; cam.near = 0.1; cam.far = 4000;
     setView(); placeCamera(); cam.updateProjectionMatrix();
     if (anim) tweenFrom(p0, q0, f0, 1500);
   };
+  // the start: on the entrance plaza, 40 m from Tokyo Disneyland's main entrance toward the Tokyo Disneyland Hotel, facing the gate
+  function walkStart() {
+    const g = MH?.gate, h = MH?.places.find(p => p.n === "東京ディズニーランドホテル");
+    if (!g || !h) { const AQ = D.aquasphere, a = Math.PI / 8; return [AQ.cx + 22 * Math.cos(a), AQ.cy + 22 * Math.sin(a), Math.atan2(Math.cos(a), -Math.sin(a)), 0.12]; }
+    const [hx, hy] = h.r[0].reduce((s, q) => [s[0] + q[0] / h.r[0].length, s[1] + q[1] / h.r[0].length], [0, 0]);
+    const L = Math.hypot(hx - g.x, hy - g.y), x = g.x + (hx - g.x) / L * 40, y = g.y + (hy - g.y) / L * 40;
+    return [x, y, Math.atan2(-(g.x - x), (g.y - y)), 0.05];   // yaw: the camera looks along (-sin, -cos) in (x, -y)
+  }
   three.walkTo = (x, y) => { const [sx, sy] = findSpot(x, y); three.walkEnter(sx, sy, wk.yaw, wk.pitch); };
   three.walkExit = (anim = false) => {
     three.walking = false; wk.keys.clear(); drag = null; person.visible = false; $("aim").hidden = true;
-    if (document.pointerLockElement === cvs) document.exitPointerLock();
     const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     cam.fov = 38; cam.updateProjectionMatrix();
     ctl.target.set(wk.x, wk.y, wk.z);
@@ -2561,38 +2569,27 @@ async function init3D() {
   window.TDS_WALK_STATE = () => ({ x: wk.x, y: -wk.z, z: wk.y, yaw: wk.yaw });
   $("walkView").onclick = () => { wk.first = !wk.first; setView(); placeCamera(); };
 
-  // looking around: mouse = pointer lock after a click (drag until it engages), touch = drag
+  // looking around: drag with the mouse or a finger (the camera only: the character keeps its heading)
   const cvs = renderer.domElement;
-  let drag = null, unlockAt = 0;
+  let drag = null;
   const look = (dx, dy) => { wk.yaw -= dx; wk.pitch = Math.max(-1.3, Math.min(1.3, wk.pitch - dy)); placeCamera(); };
-  document.addEventListener("pointerlockchange", () => {
-    if (document.pointerLockElement === cvs) toast("マウスで見回せます(Esc で解除)");
-    else unlockAt = performance.now();
-  });
   cvs.addEventListener("pointerdown", e => {
     if (!three.walking || three.anim) return;
     drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
     try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
-    if (e.pointerType === "mouse" && !coarse && document.pointerLockElement !== cvs && cvs.requestPointerLock) {
-      try { cvs.requestPointerLock()?.catch?.(() => {}); } catch (err) {}
-    }
   });
   cvs.addEventListener("pointermove", e => {
-    if (!three.walking || !drag || e.pointerId !== drag.id || document.pointerLockElement === cvs) return;
+    if (!three.walking || !drag || e.pointerId !== drag.id) return;
     look((e.clientX - drag.x) * 0.004, (e.clientY - drag.y) * 0.004);
     drag.x = e.clientX; drag.y = e.clientY;
   });
   const endDrag = () => { drag = null; };
   cvs.addEventListener("pointerup", endDrag); cvs.addEventListener("pointercancel", endDrag);
-  document.addEventListener("mousemove", e => { if (three.walking && document.pointerLockElement === cvs) look(e.movementX * 0.0022, e.movementY * 0.0022); });
 
   const MOVE_KEYS = new Set(["KeyW", "ArrowUp", "KeyS", "ArrowDown", "KeyA", "ArrowLeft", "KeyD", "ArrowRight", "ShiftLeft", "ShiftRight"]);
   addEventListener("keydown", e => {
     if (!three.walking || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === "Escape") {   // the first Esc only releases the mouse
-      if (document.pointerLockElement === cvs || performance.now() - unlockAt < 600) return;
-      show("orbit"); return;
-    }
+    if (e.code === "Escape") { show("orbit"); return; }
     if (e.code === "KeyV") { $("walkView").click(); return; }
     if (MOVE_KEYS.has(e.code)) { wk.keys.add(e.code); e.preventDefault(); }
   });
@@ -2998,7 +2995,7 @@ async function show(next, opts = {}) {
     }
     if (first) three.begin(opening);
   }
-  if (next === "walk" && prev !== "walk") toast(coarse ? "左のスティックで移動、画面をドラッグして見回せます" : "画面をクリックすると、マウスで見回せます", 3500);
+  if (next === "walk" && prev !== "walk") toast(coarse ? "左のスティックで移動、画面をドラッグして見回せます" : "ドラッグで見回せます(W A S D / 矢印で移動)", 3500);
   if (narrow() && next === "walk") setPanel(false);
 }
 $("tab-3d").onclick = () => show("orbit");
