@@ -111,10 +111,11 @@ def glb_to_json(path):
     return out
 
 
-def part_water():
-    import ds_core as C
+def part_water(W=None, C=None):
     import disneysea_water_blender as WB
-    W = json.loads(WB.WATER_JSON.read_text(encoding="utf-8"))
+    if C is None:
+        import ds_core as C
+    W = W or json.loads(WB.WATER_JSON.read_text(encoding="utf-8"))
     M = WB.materials()
     WB.build_water(W, M, C)
     bodies = {b["id"]: b for b in W["bodies"]}
@@ -148,6 +149,15 @@ def part_water():
             top_faces_only(m)
         outs.append(m)
     return outs
+
+
+def part_tdl_water():
+    """Tokyo Disneyland's water (ds_tdl_water.py -> tdl_water_blender.py): the DisneySea builder on the Land's JSON, the
+    same WS_* meshes (the mock gives them the same water and shore materials)."""
+    import tdl_water_blender as TW
+    importlib.reload(TW)
+    W = json.loads(TW.WATER_JSON.read_text(encoding="utf-8"))
+    return part_water(W, TW.core_for_land(W))
 
 
 def part_aquasphere():
@@ -335,8 +345,8 @@ def main():
             render_checks(part, args.samples)
             continue
         objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano,
-                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tracks": part_tracks, "bb_castle": part_bb_castle, "cinderella": part_cinderella, "train": part_train}[part]()
-        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_station", "tdl_entrance", "tracks")))
+                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tracks": part_tracks, "bb_castle": part_bb_castle, "cinderella": part_cinderella, "tdl_water": part_tdl_water, "train": part_train}[part]()
+        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_water", "tdl_station", "tdl_entrance", "tracks")))
 
 
 if __name__ == "__main__":
