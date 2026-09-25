@@ -39,6 +39,12 @@ bronze grotesque lamp posts on the bridge, the boulder outcrops with waterfalls 
 Proportions were matched by rendering from the photos' viewpoints and comparing side by side (gate cornice : keep top
 about 0.3 from the bridge).
 
+SIZE (2026-09-25, the user's ruler): the gate door leaves are 3.0 m; everything is scaled uniformly from them (scale()).
+Checked against the photos with the door as the unit: gate wall to the cornice about 1.8 doors (5.4 m), the lion
+niches a little lower than the door (the first build had the door and niches ~1.6x too tall: fixed), the palace
+door about 5 m, the gatehouse ridge 10.6 m, the wings' balustrade 13.5 m, the keep's crenellations about 37.5 m and
+its spire tip 42.6 m above the gate. The public figure "about 30 m" is lower: the photos with the door as the unit
+give the taller keep, so the door ruler was kept (the user's choice).
 ESTIMATES: every size. The public figure is "about 30 m"; matching the photos needs the keep top about 43 m above the
 bridge (the courtyard stands 2 m higher, the palace is scaled x1.15 in height), so the photo proportions were kept.
 The plan behind the gate (the aerial photo predates the castle), window and statue counts, rock shapes are estimates.
@@ -64,6 +70,8 @@ COURT_Z = 2.0                  # the courtyard and palace stand on a platform: a
 GATE_SZ = 0.70                 # the gatehouse is lower than first drawn (its cornice level with the wings' balustrade)
 PALACE_SZ = 1.15               # the photos show the palace about twice the gatehouse: its heights x 1.15 (keep top ~37 m)
 PALACE_DY = -6.0               # the palace stands 5 m closer than drawn (the courtyard is shallow in the photos)
+DOOR_H = 3.0                   # the user's ruler (2026-09-25): the front (gate) door leaves are 3 m high
+DOOR_LOCAL = 5.0               # their height as drawn (before GATE_SZ); SCALE shrinks the whole castle to match
 WEB = False                    # export_objects(): no lead cames (hundreds of thousands of tiny boxes)
 GROUND_DATUM = 0.0              # set from the DEM by export_objects()
 rnd = random.Random(11)
@@ -72,6 +80,10 @@ rnd = random.Random(11)
 # ================================================================ painted textures (so the blockwork shows in every view)
 TEX_DIR = ROOT / "plateau_data" / "bb_castle"
 TEX_M = 4.0                     # one texture tile covers 4 x 4 m (cube-projected UVs, see uv_project())
+
+
+def scale():
+    return DOOR_H / (DOOR_LOCAL * GATE_SZ)
 
 
 def make_textures():
@@ -153,7 +165,7 @@ def uv_project(objs):
     bpy.context.view_layer.objects.active = objs[0]
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.uv.cube_project(cube_size=TEX_M, correct_aspect=False, scale_to_bounds=False)
+    bpy.ops.uv.cube_project(cube_size=TEX_M / scale(), correct_aspect=False, scale_to_bounds=False)   # true-size blocks after scaling
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
@@ -675,13 +687,13 @@ def build_gatehouse(P):
     # the curved bastion wall either side of the gate (battered base course, dressed top)
     for a, b in ((-7.0, -1.75), (1.75, 7.0)):                                                # the body, with the passage open
         cube(P, "lilac", I, a, b, 0.0, 6.0, 0.0, 9.0)
-    cube(P, "lilac", I, -1.75, 1.75, 0.0, 6.0, 7.2, 9.0)
-    cube(P, "trim", I, -1.75, 1.75, 0.3, 6.0, 7.05, 7.2)                                       # the passage ceiling
+    cube(P, "lilac", I, -1.75, 1.75, 0.0, 6.0, 5.2, 9.0)
+    cube(P, "trim", I, -1.75, 1.75, 0.3, 6.0, 5.05, 5.2)                                       # the passage ceiling
     cube(P, "base", I, -7.2, -1.75, -0.25, 6.2, 0.0, 1.4)
     cube(P, "base", I, 1.75, 7.2, -0.25, 6.2, 0.0, 1.4)
     cube(P, "cream", I, -7.3, 7.3, -0.35, 6.3, 8.6, 9.1)
     # the three pointed openings: the door in the middle, the lion niches either side (statue inside, lamp in front)
-    for u, w, spring, deep in ((0.0, 3.4, 5.2, True), (-4.2, 2.2, 3.8, False), (4.2, 2.2, 3.8, False)):
+    for u, w, spring, deep in ((0.0, 3.4, 2.4, True), (-4.2, 2.2, 2.6, False), (4.2, 2.2, 2.6, False)):
         if deep:                                                # the gate: a moulded ring, the passage open behind it
             poly_prism(P, "cream", M, arch_ring(u, w, spring, 0.45), -0.05, 0.35)
             poly_prism(P, "trim", M, arch_ring(u, w + 0.9, spring + 0.1, 0.2), -0.15, -0.05)
@@ -693,11 +705,11 @@ def build_gatehouse(P):
             poly_prism(P, "glass", M, [(u - w / 2, 1.2), (u + w / 2, 1.2)] + pointed(u - w / 2, u + w / 2, spring)[1:-1], 0.35, 0.36)
         if deep:
             for sg in (-1, 1):                                  # the door leaves stand open against the reveals
-                cube(P, "wood", M, sg * 1.7 - 0.12, sg * 1.7 + 0.12, 0.4, 1.9, 0.0, 5.6)
+                cube(P, "wood", M, sg * 1.7 - 0.12, sg * 1.7 + 0.12, 0.4, 1.9, 0.0, 5.0)
         else:
             lion(P, M @ Matrix.Translation((0, 0.95, 0)), u, 1.2, 0.95)
     # lion-head relief with a crest over the door; a string course; small windows above the niches
-    lathe(P, "statue", [(0, 0), (0.6, 0), (0.66, 0.22), (0.5, 0.5), (0, 0.55)], 14, M @ T(0, 0.35, 8.0) @ R(-math.pi / 2, "X"))
+    lathe(P, "statue", [(0, 0), (0.6, 0), (0.66, 0.22), (0.5, 0.5), (0, 0.55)], 14, M @ T(0, 0.35, 6.4) @ R(-math.pi / 2, "X"))
     poly_prism(P, "cream", M, [(-1.2, 7.4), (1.2, 7.4), (1.0, 8.6), (0.0, 9.0), (-1.0, 8.6)], -0.2, 0.25)
     cube(P, "cream", M, -7.2, 7.2, -0.3, 0.05, 5.6, 5.85)
     for u in (-4.2, 4.2):
@@ -853,6 +865,10 @@ def build(context=True):
     for name, fn in (("bridge", build_bridge), ("gatehouse", build_gatehouse), ("wings", build_wings),
                      ("courtyard", build_courtyard), ("palace", build_palace), ("rocks", build_rocks)):
         fn(P); P.flush(name, PALACE_DY if name == "palace" else 0.0)
+    SCALE = scale()
+    B.root.scale = (SCALE, SCALE, SCALE)                # uniform: the photos' proportions stay, the door sets the size
+    bpy.context.view_layer.update()
+    print(f"[bb] scale {SCALE:.3f} (door {DOOR_H} m)")
     uv_project([o for o in B.col.objects if o.type == "MESH" and o.data.materials and
                 o.data.materials[0].name in ("bb_lilac", "bb_base", "bb_roof", "bb_paving", "bb_rock")])
     if context:
@@ -932,7 +948,8 @@ def main():
     for n, (loc, tgt, lens) in CAMS.items():
         cam = bpy.data.cameras.new("CAM_" + n); cam.lens = lens; cam.clip_start = 0.05; cam.clip_end = 3000
         co = bpy.data.objects.new("CAM_" + n, cam); B.col.objects.link(co)
-        co.location = loc; co.rotation_euler = (Vector(tgt) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        loc, tgt = Vector(loc) * scale(), Vector(tgt) * scale()
+        co.location = loc; co.rotation_euler = (tgt - loc).to_track_quat("-Z", "Y").to_euler()
         cams[n] = co
     bpy.context.scene.camera = cams["bridge"]
     ST.frame_view()
