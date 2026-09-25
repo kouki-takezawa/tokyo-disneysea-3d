@@ -2308,6 +2308,8 @@ async function init3D() {
 
   // Woody (fan-made model from kouki-takezawa/enoden-walk: rigged, idle / walk / run / sprint / jump baked; Draco-compressed)
   const woody = { mixer: null, act: {}, obj: null, face: Math.PI, w: { idle: 1, walk: 0, run: 0 }, loading: false };
+  const WOODY_FLAT = { Skin: 0xd99f7b, Jeans: 0x425477, Boots: 0x674226, Hair: 0x663217, Bandana: 0xbf3b42, Badge: 0xcaa44f,
+    PullRing: 0xe2e1dc, VestTrim: 0x3a2a20 };   // (face, eyes, mouth, brows, eyelids and hat keep their bakes: those line up)
   const woodyPatterns = {};
   function woodyPattern(kind) {   // yellow plaid for the shirt, white with black patches for the vest; repeated over the UVs
     if (woodyPatterns[kind]) return woodyPatterns[kind];
@@ -2347,7 +2349,9 @@ async function init3D() {
           const mat = o.material; if (!mat) return;
           // the model's shirt and vest bakes do not line up with its UVs (they come out black, in any three.js): draw tiling ones here
           const pat = /Shirt|Collar/.test(mat.name) ? woodyPattern("plaid") : /Vest$/.test(mat.name) ? woodyPattern("cow") : null;
+          const flat = WOODY_FLAT[mat.name.replace(/^W_Woody_/, "")];   // parts whose bakes miss their UVs as well: the bake's own average colour
           if (pat) { mat.map = pat; mat.color.set(0xffffff); }
+          else if (flat) { mat.map = null; mat.color.set(flat); }
           if (mat.map) { mat.map.encoding = T.LinearEncoding; mat.needsUpdate = true; }   // the page shows colours as stored
         }
       });
