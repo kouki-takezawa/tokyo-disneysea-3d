@@ -559,7 +559,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["trains", "電車(リゾートライン・京葉線)"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["trains", "電車(リゾートライン・京葉線)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -1689,11 +1689,14 @@ async function loadModels(T, scene, root) {
         }
         else if (o.material) {
           o.material.side = T.DoubleSide;
-          if (o.name.startsWith("BC_") && !o.material.userData.srgb) {   // the castle keeps its glTF materials: linear -> shown as stored
+          if ((o.name.startsWith("BC_") || o.name.startsWith("CC_")) && !o.material.userData.srgb) {   // the castles keep their glTF materials: linear -> shown as stored
             o.material.userData.srgb = true;
             if (!o.material.map) o.material.color.convertLinearToSRGB();
             if (o.material.emissive) o.material.emissive.convertLinearToSRGB();
-            if (o.name === "BC_rock") o.material.color.multiplyScalar(0.62);
+            if (o.name === "BC_rock" || o.name === "CC_rock") o.material.color.multiplyScalar(0.62);
+            if (o.name === "CC_water") { o.material.transparent = true; o.material.opacity = 0.55; o.material.depthWrite = false; }
+            if (o.name === "CC_glass") { o.material.transparent = true; o.material.opacity = 0.6; }
+            if (o.name === "CC_gold" || o.name === "CC_iron") { o.material.metalness = 0.25; o.material.roughness = 0.4; }   // no environment map: metal would go black
             if (o.name === "BC_glass" || o.name === "BC_bell") { o.material.transparent = true; o.material.opacity = 0.35; o.material.depthWrite = false; }
           }
           // the page renders in linear output (line colours come straight from CSS): show textures as stored

@@ -215,6 +215,12 @@ def part_bb_castle():
     return BC.export_objects(merged)
 
 
+def part_cinderella():
+    import ds_tdl_station, ds_tdl_cinderella as CC
+    importlib.reload(ds_tdl_station); importlib.reload(CC)
+    return CC.export_objects(merged)
+
+
 def part_train():
     """Resort Line cars for the mock (they replace the JS-built trains): a head car (TRH), a middle car (TRM) and a
     gangway (TRG), each an empty with one mesh per material under it ("TRH_glass", "TRM_seat_back", ...). Car-local
@@ -329,7 +335,7 @@ def main():
             render_checks(part, args.samples)
             continue
         objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano,
-                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tracks": part_tracks, "bb_castle": part_bb_castle, "train": part_train}[part]()
+                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tracks": part_tracks, "bb_castle": part_bb_castle, "cinderella": part_cinderella, "train": part_train}[part]()
         export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_station", "tdl_entrance", "tracks")))
 
 

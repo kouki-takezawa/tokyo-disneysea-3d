@@ -48,7 +48,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 東京ディズニーランドホテル周辺の道(車道・園路・歩行者広場・ホテルと駅の間・駅の中の通路。ホテルの建物の場所は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_hotel_ground.py` |
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
 | 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
-| シンデレラ城(WED の正面立面図・写真 約 250 枚・Sketchfab の参考モデル・OSM から) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_cinderella.py` |
+| シンデレラ城(ユーザーが選んだ参考モデル TurboSquid 1439041 の 360° 画像 72 枚と静止画 39 枚から、同じ形に) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_cinderella.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -98,6 +98,8 @@ blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  
 blender -b --python export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
 blender -b --python export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
 blender -b --python export_models.py -- --parts bb_castle                        # 美女と野獣の城
+blender -b --python export_models.py -- --parts cinderella                       # シンデレラ城
+blender -b --python ds_tdl_cinderella.py -- --tt 1,13,25,37,49,61 --quick        # シンデレラ城: 参考の 360° 画像と同じ角度のレンダー
 blender -b --python export_models.py -- --parts tracks                           # 線路(リゾートライン・京葉線)
 blender -b --python ds_tracks.py -- --samples 24                                 # 線路の確認レンダーと .blend
 blender -b --python ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
@@ -233,6 +235,7 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | ホテル周辺の道(車道・園路・歩行者広場) | 舞浜駅・周辺(枠線はそのまま) | `output/disneysea/models/tdl_hotel_ground.json` |
 | 線路(リゾートライン・京葉線) | 舞浜駅・周辺(線路とホームの枠線を置き換え) | `output/disneysea/models/tracks.json` |
 | 美女と野獣の城 | ディズニーランド(枠線はそのまま) | `output/disneysea/models/bb_castle.json`(石と屋根の画像 3 枚) |
+| シンデレラ城(城・前庭・橋・裏のテラス・池) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/cinderella.json`(石・ピンクの壁・屋根の画像 3 枚) |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
 
 - パネルの「3Dモデル」欄で、モデルごとに表示を切り替えられる(「すべてオン / オフ」あり)。チェックを外すと、そのモデルに置き換えられていた枠線が出る。「枠線も重ねて表示」で同時に見られる。モデルの表示はレイヤーとは独立で、レイヤーを全部オフにすればモデルだけを表示できる。設定はブラウザの localStorage(`tds-layers` `tds-models` `tds-ui`)に保存する。
@@ -360,6 +363,22 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | ![橋から](docs/bb_castle/bb_bridge.jpg) | ![中庭](docs/bb_castle/bb_courtyard.jpg) |
 | **斜め前** | **モックでの表示** |
 | ![斜め前](docs/bb_castle/bb_front.jpg) | ![モック](docs/bb_castle/mock_bb.jpg) |
+
+### シンデレラ城(`ds_tdl_cinderella.py`)
+
+- **参考**: ユーザーが選んだ 3D モデル(TurboSquid 1439041 / free3d 6339、同じモデル)と「全く同じもの」を作る方針(個人利用)。360° 回転画像 72 枚(5° ごと)と静止画 39 枚を見て比べた。リポジトリには入れていない。
+- **比べ方**: 回転画像と同じ角度のカメラを置いてレンダーし(`--tt` にコマ番号。コマ k の方位は +X から -5°×(k-31)、見下ろし 14°、距離 400 m、96.7 mm)、並べたり重ねたりして直した。正面の静止画(s06)と同じカメラ `CAM_ref_s06` もある。
+- **形**: 前庭の島(角を落とした下の広場とコンパス、白い付け柱と扉 2 つの舞台、左右の曲がったスロープ、左の白いアーチと金の手すり、右の丸いバルコニーへ回り込むスロープと 3 つのアーチ、金の縁の青い旗 8 本)、アーチ橋、城の島(灰色の石の土台と円塔、正面の門・バルコニー・二連のアーチ・時計の破風、段になったピンクの本館、天守と金の尖塔 51 m)、T 字の裏のテラス、池と島の下に浮かぶ岩。
+- **大きさ**: 正面の門の開口を高さ 3 m・幅 2.5 m とした(ユーザーの指示)。裏の出口も同じ大きさ。尖塔の先は 51 m。
+- **ユーザーの確認で直したところ**: 城と前庭の配置、正面の中央(門まわり・装飾)、階段ではなくスロープ(しかも曲がっている)、正面から見た横幅、横から見た段の形、裏の出口の大きさ。
+- **参考との違い**: 門の脇の塔の円錐屋根が少し太い、本館の壁は参考より平らな面が多い。
+- モック用は約 18 万三角形。金の部品は、モックに環境マップがないので金属感を弱めて表示する。池と島の下の岩は地面より下なので、モックではほぼ見えない。
+
+| 正面(Blender) | モックでの表示 |
+|---|---|
+| ![正面](docs/cinderella/cc_front.jpg) | ![モック](docs/cinderella/mock_cc.jpg) |
+
+参考の正面の静止画(上)と Blender のレンダー(下): ![比較](docs/cinderella/compare_front.jpg)
 
 ### 線路(`ds_tracks.py`)
 

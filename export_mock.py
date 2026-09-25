@@ -236,7 +236,8 @@ def main():
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tracks", "maihama", ["mhline", "mhjr"]),
-              ("bb_castle", "disneyland", [])]                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
+              ("bb_castle", "disneyland", []),
+              ("cinderella", "disneyland", [])]                              # ds_tdl_cinderella.py: シンデレラ城                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
     mdir = ROOT / "output" / "disneysea" / "models"
     out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
