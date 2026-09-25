@@ -14,7 +14,8 @@ What is modelled (OSM, plateau_data/disneyland_osm.json):
            (ds_tdl_entrance.BED, radius 17 m) are the old flowerbed drawn in OSM: the model has its own bed there, so they are skipped.
 Heights: the GSI DEM5A (ds_levels.dem, the mock's datum 5.29 m = 0), smoothed over ~5 m. Under the Blender entrance model (built on a flat 0
   plane: gates, flowerbed, white paving lines) the ground is flat at -0.03 m, blended into the DEM from FLAT_R0 to FLAT_R1 metres
-  from the gates' centre. Farther out it follows the DEM: it falls 2.4 m to the west and 2 m to the station, as the DEM does.
+  from the gates' centre. Next to the Resort Line station it is level with the station's floor (-1.79 m) within 4 m and
+  blends back by 22 m. Farther out it follows the DEM: it falls 2.4 m to the west and 2 m to the station, as the DEM does.
 Mesh: the paving is cut into CELL m cells (the height grid) and each piece is triangulated (constrained Delaunay), so the surface
   follows the terrain and the pieces meet exactly on the cell edges. A 0.15 m skirt hangs from the free edges.
 ESTIMATES: the colours (aerial photo, washed out), the curb height and width, the skirt, the gate floor. The photo predates the
@@ -41,6 +42,7 @@ CELL = 4.0                                    # height grid = cutting cells (m)
 BLUR = 1.2                                    # DEM smoothing (cells)
 CURB_H, CURB_W, SOIL_DROP, SKIRT = 0.30, 0.35, 0.06, 0.15
 MIN_PLANTER = 2.0                             # m2
+STATION_REL, STATION_GROUND = 17744015, -1.79   # the Resort Line station: the ground meets its floor (ds_tdl_station.FRAME)
 
 
 # ---------------------------------------------------------------- plan
@@ -83,7 +85,9 @@ class Terrain:
     """The DEM on a CELL m grid, smoothed, flat under the entrance model; bilinear between the nodes.
     `void` (a shapely geometry, e.g. the buildings) marks nodes that are not ground: the DEM there can be a hump (the hotel's is
     +6 m over a -0.8 m ground), so they are filled from the ground round them (harmonic fill) before the smoothing."""
-    def __init__(self, bounds, void=None):
+    def __init__(self, bounds, void=None, flats=()):
+        """flats: [(geometry, z, r0, r1)]: the ground is exactly z within r0 m of the geometry, blended into the terrain out to r1 m
+        (a model built on a flat floor, e.g. the Resort Line station at -1.79 m)."""
         datum = json.loads((ROOT / "plateau_data" / "disneysea_levels.json").read_text(encoding="utf-8"))
         LV.DATUM = datum.get("datum_exact", datum["datum_m"])
         minx, miny, maxx, maxy = bounds
@@ -106,6 +110,12 @@ class Terrain:
         t = np.clip((FLAT_R1 - r) / (FLAT_R1 - FLAT_R0), 0, 1)
         w = t * t * (3 - 2 * t)
         self.Z = Z * (1 - w) + FLAT_Z * w
+        for geom, zf, r0, r1 in flats:
+            gx, gy = np.broadcast_to(xs[None, :], Z.shape), np.broadcast_to(ys[:, None], Z.shape)
+            dist = shapely.distance(geom, shapely.points(gx, gy))
+            t = np.clip((r1 - dist) / (r1 - r0), 0, 1)
+            w = t * t * (3 - 2 * t)
+            self.Z = self.Z * (1 - w) + zf * w
         self.ni, self.nj = ni, nj
 
     def _cell(self, x, y):
@@ -239,7 +249,8 @@ def add_planter(meshes, T, q, curb="TG_curb", soil="TG_soil"):
 def build():
     P = plan()
     zones = [("TG_paving", P["out"]), ("TG_slate", P["inn"]), ("TG_gate", P["gate"])]
-    T = Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds)
+    station = unary_union([Polygon(o).buffer(0) for r in DL.DATA["relations"] if r["id"] == STATION_REL for o in DL.outer_rings(r)])
+    T = Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds, flats=[(station, STATION_GROUND, 4.0, 22.0)])
     meshes = {n: Mesh(n) for n in ("TG_paving", "TG_slate", "TG_gate", "TG_curb", "TG_soil", "TG_edge")}
     pl_lines = unary_union([q.exterior for q in P["planters"]])
     for name, g in zones:

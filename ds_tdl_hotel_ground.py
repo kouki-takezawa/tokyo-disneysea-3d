@@ -18,7 +18,9 @@ What is modelled (OSM, plateau_data/disneyland_osm.json), within REACH m of the 
            the walkways either side are brick). Only whole faces (never cut by the box).
   station  the passages through the station (the 7 short footways with tunnel / covered / layer=-1 inside its footprint; OSM
            calls them tunnels, they are the "中道" under and between the station's wings)  -> pale stone, 4 m, and a stone floor
-           under the whole footprint, at the Blender station's ground (-1.79 m) so there is never a blank under it.
+           under the whole footprint, at the Blender station's ground (-1.79 m) so there is never a blank under it. The DEM beside the
+           station is up to 1.5 m lower (-3.3 m on the hotel side), which left an open step at its walls: the ground is level with
+           the floor within STATION_FLAT_R0 m of the station and blends back into the DEM by STATION_FLAT_R1 m.
 Left out: the hotel and every other building's footprint (roofs on posts stay), water, tunnels / underpasses (except the station's),
   bridges (the Gateway walkway), covered ways (except the station's), stairs (the terrain carries them), the public road 浦安市道幹線7号 (tertiary), the parking aisles of
   the big car parks farther out, and the entrance plaza (ds_tdl_ground.py builds it: its area is cut out here).
@@ -55,6 +57,7 @@ FILL_BOX = (-650.0, 990.0, -500.0, 1080.0)     # the promenade between the hotel
 STATION_REL = 17744015                         # 東京ディズニーランド・ステーション
 STATION_GROUND = -1.79                         # the Blender station's floor (ds_tdl_station.FRAME["ground_datum"])
 W_STATION_PATH = 4.0
+STATION_FLAT_R0, STATION_FLAT_R1 = 4.0, 22.0    # the ground meets the station's floor: level within 4 m of it, back to the DEM by 22 m
 FILL_ROAD_W = 12.0                             # the carriageway in the fill: this wide along the service road (the photo: two lanes + bays)
 NAMES = ("TH_road", "TH_path", "TH_plaza", "TH_curb", "TH_soil", "TH_edge", "TH_floor")
 
@@ -174,7 +177,8 @@ def plan():
 def build():
     P = plan()
     zones = [("TH_road", P["road"]), ("TH_path", P["path"]), ("TH_plaza", P["plaza"])]
-    T = G.Terrain(unary_union([g for _, g in zones] + P["planters"] + [P["station"]]).bounds, void=P["void"])
+    T = G.Terrain(unary_union([g for _, g in zones] + P["planters"] + [P["station"]]).bounds, void=P["void"],
+                  flats=[(P["station"], STATION_GROUND, STATION_FLAT_R0, STATION_FLAT_R1)])
     meshes = {n: G.Mesh(n) for n in NAMES}
     pl_lines = unary_union([q.exterior for q in P["planters"]]) if P["planters"] else None
     for name, g in zones:
