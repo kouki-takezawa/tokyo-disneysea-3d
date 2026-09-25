@@ -392,7 +392,6 @@ def build_base(P):
         gold_hip(P, a0, a1, b0, b1, Hb + 0.6, 5.5)
     # the rear (north): the big gothic arch of the passage, rose window, the Fairy Tale Hall stair on the east side
     Mr = face(0, 33.5, math.pi)
-    poly_prism(P, "trim", Mr, [(x, z) for x, z in arch_ring(0.0, 5.5, 5.4, 0.6)], -0.35, 0.05)
     lathe(P, "trim", [(1.0, 0), (1.35, 0), (1.35, 0.25), (1.0, 0.25)], 28, Mr @ T(-5.2, -0.1, 6.6) @ R(math.pi / 2, "X"))
     for (du, dz) in ((0, 0.42), (0, -0.42), (0.42, 0), (-0.42, 0)):              # the quatrefoil window
         lathe(P, "glass", [(0, 0), (0.42, 0), (0.42, 0.05), (0, 0.05)], 16, Mr @ T(-5.2 + du, -0.05, 6.6 + dz) @ R(math.pi / 2, "X"))
@@ -725,26 +724,63 @@ def build_front_centre(P):
             cube(P, "iron", Mf, u - 0.95, u + 0.95, 0.05, 0.08, zz - 0.05, zz + 0.05)
         for sg in (-1, 1):
             lathe(P, "iron", [(0.08, 0), (0.13, 0), (0.13, 0.03), (0.08, 0.03)], 10, Mf @ T(u + sg * 0.3, 0.1, LZ + 1.35) @ R(-math.pi / 2, "X"))
-    # ---- the slopes either side, from the lower plaza up to the stage level, then a flat landing
-    yr = yf + 9.0
+    # ---- the slopes either side: curving (s06, s07, s11, s17), from the lower plaza beside the stage's corner out
+    # along the island's edge and round back to the stage level at the castle end; beside the stage the ground stays
+    # at the lower plaza's level
     for sg in (-1, 1):
-        xa, xb = sorted((G + sg * 7.8, G + sg * 14.5))
-        slope_block(P, "stone", xa, xb, yf, yr, LZ - 0.05, Z - 0.05)
-        slope_block(P, "paving", xa + 0.05, xb - 0.05, yf, yr, LZ, Z, LZ - 0.1)
-        cube(P, "stone", I, xa, xb, yr, yb, -1.6, Z - 0.05)
-        cube(P, "paving", I, xa + 0.05, xb - 0.05, yr, yb, Z - 0.05, Z)
-        xo, xi = (xa + 0.2, xb - 0.2) if sg < 0 else (xb - 0.2, xa + 0.2)
-        bal_line(P, (xo, yf + 0.2, LZ), (xo, yr, Z)); bal_line(P, (xo, yr, Z), (xo, yb, Z))
-        bal_line(P, (xi, yf + 0.2, LZ), (xi, yf + 2.9, LZ + (Z - LZ) * 2.7 / 9.0))    # inner: up to where the stage wall rises over it
-        gold_railing(P, [(xo - sg * 0.35, yf + 0.3), (xo - sg * 0.35, yf + 3.5)], [LZ, LZ + (Z - LZ) * 3.2 / 9.0], 0.8)
-        gold_railing(P, [(xi + sg * 0.35, yf + 0.3), (xi + sg * 0.35, yf + 2.6)], [LZ, LZ + (Z - LZ) * 2.3 / 9.0], 0.8)
-        for (x_, y_) in ((xo, yf + 0.2), (xi, yf + 0.2), (xo, yf + 5.0), (xo, yb)):
-            zr = LZ + (Z - LZ) * min(1.0, (y_ - yf) / 9.0)
-            gold_lamp(P, x_, y_, zr + 1.1, 0.8)
-        # banners on the slopes: a pair near the inner edge, one at the outer front corner (reference)
-        for (dx, dy) in ((9.8, 1.2), (10.4, 3.4), (13.6, 0.9)):
-            y_ = yf + dy; zr = LZ + (Z - LZ) * dy / 9.0
-            banner(P, G + sg * dx, y_, zr, 7.2, 4.6, 2.3)
+        xa, xb = sorted((G + sg * 7.8, G + sg * 15.0))
+        cube(P, "stone", I, xa, xb, yf, yb, -1.6, LZ - 0.05)
+        cube(P, "paving", I, xa, xb, yf, yb, LZ - 0.05, LZ)
+        P0 = Vector((G + sg * 9.9, yf - 1.2)); P1 = Vector((G + sg * 14.6, yf + 3.5)); P2 = Vector((G + sg * 11.6, yb - 2.6))
+        N = 24; hw = 1.9
+        cs, ins, outs, zs = [], [], [], []
+        for k in range(N + 1):
+            t = k / N
+            c = (1 - t) ** 2 * P0 + 2 * (1 - t) * t * P1 + t * t * P2
+            d = 2 * (1 - t) * (P1 - P0) + 2 * t * (P2 - P1); d.normalize()
+            n = Vector((-d.y, d.x))
+            e1, e2 = c + n * hw, c - n * hw
+            if abs(e1.x - G) < abs(e2.x - G):
+                ins.append(e1); outs.append(e2)
+            else:
+                ins.append(e2); outs.append(e1)
+            cs.append(c); zs.append(LZ + (Z - LZ) * (3 * t * t - 2 * t ** 3))    # easing in at the foot and out at the top
+        for mat, lo in (("stone", LZ - 0.05), ("paving", None)):
+            bm = P[mat]
+            for k in range(N):
+                q = [ins[k], outs[k], outs[k + 1], ins[k + 1]]
+                zz = [zs[k], zs[k], zs[k + 1], zs[k + 1]]
+                if lo is None:
+                    bm.faces.new([bm.verts.new((v.x, v.y, z + 0.02)) for v, z in zip(q, zz)])
+                    continue
+                vt = [bm.verts.new((v.x, v.y, z - 0.03)) for v, z in zip(q, zz)]
+                vb = [bm.verts.new((v.x, v.y, lo)) for v in q]
+                bm.faces.new(vt)
+                bm.faces.new((vb[0], vb[3], vt[3], vt[0])); bm.faces.new((vb[1], vb[2], vt[2], vt[1]))
+                if k == N - 1:
+                    bm.faces.new((vb[3], vb[2], vt[2], vt[3]))
+        # the landing at the top and the walk along the back to the stage
+        la, lb = sorted((ins[N].x, outs[N].x))
+        cube(P, "stone", I, la, lb, min(ins[N].y, outs[N].y), yb, LZ - 0.05, Z - 0.05)
+        cube(P, "paving", I, la, lb, min(ins[N].y, outs[N].y), yb, Z - 0.05, Z)
+        wa, wb = sorted((G + sg * 7.8, ins[N].x))
+        cube(P, "stone", I, wa, wb, yb - 1.6, yb, LZ - 0.05, Z - 0.05)
+        cube(P, "paving", I, wa, wb, yb - 1.6, yb, Z - 0.05, Z)
+        # white balustrades along both curving edges, gold railings on the lower part, lamps on the newels
+        for edge in (ins, outs):
+            for k in range(0, N, 2):
+                a, b = edge[k], edge[k + 2]
+                bal_line(P, (a.x, a.y, zs[k]), (b.x, b.y, zs[k + 2]), 1.0, 0.42, newels=(k % 6 == 0))
+            gr = [e + (c - e).normalized() * 0.35 for e, c in zip(edge[:8], cs[:8])]
+            gold_railing(P, [(v.x, v.y) for v in gr], zs[:8], 0.8)
+            gold_lamp(P, edge[0].x, edge[0].y, zs[0] + 1.1, 0.8)
+        bal_line(P, (outs[N].x, outs[N].y, Z), (outs[N].x, yb, Z))
+        gold_lamp(P, outs[N // 2].x, outs[N // 2].y, zs[N // 2] + 1.1, 0.8)
+        gold_lamp(P, outs[N].x, outs[N].y, Z + 1.1, 0.8)
+        # banners on the slopes: a pair along the inner edge, one at the outer foot (reference)
+        for k, edge in ((2, ins), (5, ins), (6, outs)):
+            v = edge[k] + (cs[k] - edge[k]).normalized() * 0.6
+            banner(P, v.x, v.y, zs[k], 7.2, 4.6, 2.3)
     # ---- the gate frontispiece
     yg = GATE_F; Mg = face(G, yg, 0)
     ow, sp, rise = 1.25, Z + 2.2, 0.8                                            # the opening: 2.5 m wide, 3.0 m high
@@ -800,6 +836,13 @@ def build_front_centre(P):
     bm_ = P["roof"]
     v_ = [bm_.verts.new(p) for p in ((G - 3.0, yg + 0.05, H - 0.1), (G + 3.0, yg + 0.05, H - 0.1), (G, yg + 0.05, Z + 13.2))]
     bm_.faces.new(v_)
+    # the rear exit: the same opening and mouldings as the front entrance, in a stone screen closing the passage end
+    Mr = face(G, PLAN_C[1] + (33.5 - PLAN_C[1]) * PLAN_S, math.pi)
+    poly_prism(P, "stone", Mr, [(-2.9, 0.0), (-ow, 0.0)] + tudor(-ow, ow, sp, rise) + [(ow, 0.0), (2.9, 0.0), (2.9, Z + 5.6), (-2.9, Z + 5.6)], -0.6, 0.02)
+    for (w0, w1) in ((0.75, 0.95), (0.0, 0.3)):
+        ring = ([(-ow - w1, Z)] + tudor(-ow - w1, ow + w1, sp, rise + w1) + [(ow + w1, Z), (ow + w0, Z)]
+                + tudor(-ow - w0, ow + w0, sp, rise + w0)[::-1] + [(-ow - w0, Z)])
+        poly_prism(P, "trim", Mr, ring, 0.0, 0.14)
     # ---- banners either side of the gate
     for sg in (-1, 1):
         banner(P, G + sg * 2.2, yg - 1.3, Z, 6.6, 4.7, 2.1)
@@ -978,6 +1021,8 @@ CAMS = {
     "ref_rear": ((2.0, 170.0, 40.0), (2.0, 20.0, 14.0), 55),       # the turntable's rear frame
     "ref_side": ((-170.0, 2.0, 30.0), (2.0, 8.0, 14.0), 50),       # the turntable's side frame          # the reference's front view of the stage         # from across the plaza, long lens (the photos' view)
     "ref_s06": ((GX, -128.0, 14.5), (GX, -13.3, 9.3), 84.0),      # the reference still of the front (s06)
+    "rear_gate": ((GX, 80.0, 14.0), (GX, 29.0, 7.0), 45),        # the rear exit (same size as the front)
+    "fore_top": ((GX - 30.0, -40.0, 45.0), (GX, -8.0, 2.0), 30),   # the forecourt from above-left (the curving slopes)
     "front_close": ((0.0, -40.0, 1.7), (0.0, 5.0, 15.0), 26),
     "rear": ((-18.0, 58.0, 1.7), (2.0, 20.0, 18.0), 22),
     "bridge": ((2.0, 64.0, 1.7), (2.0, 20.0, 14.0), 24),         # the reference's bridge view          # the Fantasyland side: the gothic arch, the stair
