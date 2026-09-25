@@ -145,6 +145,13 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .runbtn{position:absolute;right:22px;bottom:50px;width:74px;height:74px;border-radius:50%;z-index:6;font:inherit;font-size:13px;font-weight:700;
   border:2px solid rgba(30,42,48,.30);background:rgba(30,42,48,.10);color:var(--ink);touch-action:none}
 .runbtn[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.ridebtn{position:absolute;left:50%;bottom:calc(34px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:7;font:inherit;font-size:14px;
+  font-weight:700;padding:11px 22px;border-radius:24px;border:0;background:#1f6fb8;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25);cursor:pointer;
+  touch-action:manipulation;white-space:nowrap}
+.ridebtn:disabled{background:color-mix(in srgb,var(--sheet) 88%,transparent);color:var(--muted);box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:default;
+  border:1px solid var(--rule)}
+.ridebtn.off{background:#c0392b}
+body.photo .ridebtn{display:none!important}
 .toast{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:8;pointer-events:none;
   background:var(--ink);color:var(--paper);font-size:12.5px;padding:6px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.2);white-space:nowrap}
 
@@ -448,6 +455,7 @@ body.intro .introfx{opacity:1}
     <div class="hud br only-3d" id="mmWrap"><canvas id="minimap" class="glass" aria-label="ミニマップ(押した場所へ移動)"></canvas></div>
     <div class="joy only-walk only-touch" id="joy" aria-label="移動スティック"><i></i></div>
     <button class="runbtn only-walk only-touch" id="runBtn" aria-pressed="false">走る</button>
+    <button class="ridebtn only-walk" id="btnRide" hidden></button>
     <div class="introfx" aria-hidden="true"></div>
     <div class="letterbox" aria-hidden="true"><i></i><i></i></div>
     <div class="intrologo" id="introLogo" role="button" aria-label="DISNEY ADVENTURE ・ タップしてはじめる" hidden>
@@ -2444,6 +2452,7 @@ async function init3D() {
   const HEADINGS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
   function setView() { person.visible = three.walking; }
   function placeCamera() {
+    if (ride) return three.rideTick();
     person.position.set(wk.x, wk.y, wk.z); person.rotation.y = 0;
     stand.rotation.y = woody.face - Math.PI;   // the box figure looks along -Z, Woody along +Z
     // orbit round the character (drag: direction and elevation; wheel / pinch: distance); come closer if terrain would hide the camera
@@ -2509,6 +2518,7 @@ async function init3D() {
   three.walkTo = (x, y) => { const [sx, sy] = findSpot(x, y); three.walkEnter(sx, sy, wk.yaw, wk.pitch); };
   three.walkExit = (anim = false) => {
     three.walking = false; wk.keys.clear(); drag = null; pinch = null; pts.clear(); person.visible = false;
+    ride = null; $("btnRide").hidden = true;
     const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     cam.fov = 38; cam.updateProjectionMatrix();
     ctl.target.set(wk.x, wk.y, wk.z);
@@ -2577,7 +2587,7 @@ async function init3D() {
   addEventListener("keyup", e => wk.keys.delete(e.code));
   addEventListener("blur", () => wk.keys.clear());
   three.walkTick = dt => {
-    if (three.walkDirty) {   // models loaded or toggled: re-seat the feet on what is there now
+    if (three.walkDirty && !ride) {   // models loaded or toggled: re-seat the feet on what is there now
       three.walkDirty = false; buildGrid();
       const g = groundAt(wk.x, wk.z, Math.max(wk.y, heightAt(wk.x, -wk.z) ?? 0) + 1);
       if (g != null && g !== wk.y) { wk.y = g; placeCamera(); }
@@ -2591,6 +2601,7 @@ async function init3D() {
     wk.move = { f: f / len, s: s / len, mag, run: running };
     const sp = (running ? RUN : WALK) * Math.min(dt, 0.25) * mag / len;
     const dx = (-Math.sin(wk.yaw) * f + Math.cos(wk.yaw) * s) * sp, dz = (-Math.cos(wk.yaw) * f - Math.sin(wk.yaw) * s) * sp;
+    if (ride) { rideMove(dx, dz); return; }
     const wasIn = inBuilding(wk.x, wk.z);
     const tryMove = (nx, nz) => {
       if (!wasIn && inBuilding(nx, nz)) return false;
@@ -2600,6 +2611,95 @@ async function init3D() {
     };
     tryMove(wk.x + dx, wk.z + dz) || tryMove(wk.x + dx, wk.z) || tryMove(wk.x, wk.z + dz);
     placeCamera();
+  };
+
+  /* ---------- riding the Resort Line from Tokyo Disneyland Station ---------- */
+  // In a train Woody walks in the train's own frame: u m along it from its middle (+ = the way it runs), v m across
+  // (+ = its left), on the cabin floor (1.0 m above the beam top). Every frame, after the trains are placed, that is
+  // turned into the world through the car he is in, so he rides along and sees out of the windows.
+  const RIDE_ST = "東京ディズニーランド・ステーション", CAR_FLOOR = 1.0, AISLE = 0.62, NEAR_ST = 60;
+  let ride = null;
+  const rideSt = RL && MH ? MH.stations.find(st => st.n === RIDE_ST) : null;
+  const ridePlat = (() => {   // the platform strip beside the train at that station: its middle and its long axis
+    if (!rideSt) return null;
+    const r = MH.platforms.map(r => ({ r, c: r.reduce((a, q) => [a[0] + q[0] / r.length, a[1] + q[1] / r.length], [0, 0]) }))
+      .sort((a, b) => Math.hypot(a.c[0] - rideSt.x, a.c[1] - rideSt.y) - Math.hypot(b.c[0] - rideSt.x, b.c[1] - rideSt.y))[0];
+    return r ? r.c : [rideSt.x, rideSt.y];
+  })();
+  function carAt(o, u) {   // the car (index) whose body holds u; in a gap, the nearer car
+    let best = 0, bd = Infinity;
+    o.cars.forEach((k, i) => { const d = u < k.start ? k.start - u : u > k.start + k.L ? u - k.start - k.L : 0; if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  function trainPoint(o, u, v, h, out) {   // train frame -> world (three: x east, y up, z south)
+    const i = carAt(o, u), k = o.cars[i], sl = o.slots[i], th = sl.rotation.y, x = u - k.start;
+    out.set(sl.position.x + x * Math.cos(th) + v * Math.sin(th), sl.position.y + h, sl.position.z - x * Math.sin(th) + v * Math.cos(th));
+    return th;
+  }
+  const rideP = new T.Vector3();
+  function nextArrival() {   // seconds until a train stands at the station (0 = one is there now), and which
+    const t0 = RL.now();
+    for (let dt = 0; dt <= RL.P; dt += dt < 30 ? 1 : 3) for (const o of three.trains || []) if (RL.state(o.tr, t0 + dt).stop === RIDE_ST) return [dt, o];
+    return [Infinity, null];
+  }
+  const rideBtn = $("btnRide");
+  function updateRideBtn() {
+    if (!three.walking || !rideSt || !three.trains) { rideBtn.hidden = true; return; }
+    if (ride) { rideBtn.hidden = false; rideBtn.disabled = false; rideBtn.classList.add("off"); rideBtn.textContent = `降りる(${ride.o.tr.ja}の電車)`; return; }
+    rideBtn.classList.remove("off");
+    const near = Math.hypot(wk.x - rideSt.x, -wk.z - rideSt.y) < NEAR_ST;
+    if (!near) { rideBtn.hidden = true; return; }
+    const [dt, o] = nextArrival();
+    rideBtn.hidden = false;
+    if (dt === 0) { rideBtn.disabled = false; rideBtn.textContent = `電車に乗る(${o.tr.ja})`; rideBtn.dataset.train = o.tr.id; }
+    else { rideBtn.disabled = true; rideBtn.textContent = dt === Infinity ? "電車が来ません" : `次の電車まで あと ${Math.ceil(dt)} 秒`; }
+  }
+  setInterval(updateRideBtn, 400);
+  function board(o) {
+    const k = o.cars[2], u = k.start + k.L / 2;   // the middle of the third car (the train's middle is a gangway)
+    ride = { o, u, v: 0.25, th: null, dist: wk.dist };
+    const th = trainPoint(o, u, 0, 0, rideP);
+    wk.yaw = Math.atan2(-Math.cos(th), Math.sin(th)) + 1.2;   // turned from the way it runs toward the windows: the view goes by outside
+    woody.face = wk.yaw + Math.PI; wk.dist = Math.min(wk.dist, 2.4); wk.pitch = 0.1;
+    ride.th = th; three.rideTick(); updateRideBtn();
+    toast(`${o.tr.ja}の電車に乗りました。車内を歩けます(「降りる」で ${RIDE_ST.replace("・ステーション", "駅")} のホームへ)`, 4200);
+  }
+  function alight() {
+    wk.dist = ride.dist; ride = null;
+    const [x, y] = ridePlat;
+    wk.x = x; wk.z = -y;
+    wk.y = groundAt(wk.x, wk.z, beamTop + CAR_FLOOR + 0.3) ?? beamTop + CAR_FLOOR;
+    placeCamera(); updateRideBtn();
+    toast(`${RIDE_ST}のホームに降りました`);
+  }
+  rideBtn.onclick = () => {
+    if (ride) return alight();
+    const o = (three.trains || []).find(o => String(o.tr.id) === rideBtn.dataset.train);
+    if (o && RL.state(o.tr, RL.now()).stop === RIDE_ST) board(o); else updateRideBtn();
+  };
+  // walking inside: the input moves (u, v); the aisle and the train's ends bound it
+  function rideMove(dx, dz) {
+    const th = ride.th, du = dx * Math.cos(th) - dz * Math.sin(th), dv = dx * Math.sin(th) + dz * Math.cos(th);
+    const half = RL.TL / 2 - 2.6;   // the cabs at both ends are shut off
+    ride.u = Math.max(-half, Math.min(half, ride.u + du)); ride.v = Math.max(-AISLE, Math.min(AISLE, ride.v + dv));
+  }
+  // after the trains are placed: Woody and the camera ride with the car he is in (the view turns with the train)
+  three.rideTick = () => {
+    if (!ride || !three.walking) return;
+    const o = ride.o, th = trainPoint(o, ride.u, ride.v, CAR_FLOOR, rideP);
+    if (ride.th != null) { let d = th - ride.th; d = Math.atan2(Math.sin(d), Math.cos(d)); wk.yaw += d; woody.face += d; }
+    ride.th = th;
+    wk.x = rideP.x; wk.y = rideP.y; wk.z = rideP.z;
+    person.position.set(wk.x, wk.y, wk.z); person.rotation.y = 0; stand.rotation.y = woody.face - Math.PI;
+    // the camera stays in the cabin: behind him along the view, clamped to the aisle, the ends and below the ceiling
+    const el = Math.max(0.05, Math.min(0.6, 0.3 - wk.pitch)), back = Math.min(wk.dist, 2.6);
+    const cx = Math.sin(wk.yaw) * Math.cos(el) * back, cz = Math.cos(wk.yaw) * Math.cos(el) * back;
+    const cu = ride.u + cx * Math.cos(th) - cz * Math.sin(th), cv = ride.v + cx * Math.sin(th) + cz * Math.cos(th);
+    const half = RL.TL / 2 - 1.2, ch = Math.min(2.05, 1.45 + Math.sin(el) * back);
+    trainPoint(o, Math.max(-half, Math.min(half, cu)), Math.max(-1.15, Math.min(1.15, cv)), CAR_FLOOR + ch, cam.position);
+    cam.lookAt(wk.x, wk.y + 1.35, wk.z);
+    const deg = ((-wk.yaw * 180 / Math.PI) % 360 + 360) % 360;
+    $("compass").textContent = `${HEADINGS[Math.round(deg / 45) % 8]} ${deg.toFixed(0).padStart(3, "0")}°`;
   };
 
   // minimap: static park drawing cached per size/theme, marker redrawn a few times a second; press = move there
@@ -2892,6 +2992,7 @@ async function init3D() {
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
     try { three.trainTick?.(); }
     catch (e) { three.trainTick = null; console.error("Resort Line trains:", e); toast(`電車の3Dモデルを動かせませんでした(${e && e.message || e})`, 8000); }
+    if (three.walking) three.rideTick?.();
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
   })();
