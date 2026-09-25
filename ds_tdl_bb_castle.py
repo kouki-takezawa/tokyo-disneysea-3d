@@ -2,6 +2,7 @@
 
   blender -b --python ds_tdl_bb_castle.py -- --samples 32          # renders + output/disneyland/bb_castle/bb_castle.blend
   blender -b --python ds_tdl_bb_castle.py -- --cams none
+  python -c "import ds_tdl_bb_castle as b; b.make_textures()"      # repaint the textures (plain Python: Blender has no PIL)
 
 Sources (looked at only; nothing copied into the repository):
   * Reference video (README): WALT.「美女と野獣 - blender short film」(CIx4qyGuVLY, the only non-Shorts one): it
@@ -67,6 +68,94 @@ GROUND_DATUM = 0.0              # set from the DEM by export_objects()
 rnd = random.Random(11)
 
 
+# ================================================================ painted textures (so the blockwork shows in every view)
+TEX_DIR = ROOT / "plateau_data" / "bb_castle"
+TEX_M = 4.0                     # one texture tile covers 4 x 4 m (cube-projected UVs, see uv_project())
+
+
+def make_textures():
+    """Paint the castle's surfaces as images (photos looked at, nothing copied): coursed ashlar in mixed lilac / grey /
+    rose shades with thin light joints; the darker rusticated base; rose fish-scale / plain roof tiles."""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter
+    TEX_DIR.mkdir(parents=True, exist_ok=True)
+    g = random.Random(5); N = 1024; px = N / TEX_M
+
+    def ashlar(fn, course, lengths, palette, joint, rough, seed_noise):
+        im = Image.new("RGB", (N, N), joint); d = ImageDraw.Draw(im)
+        y = 0.0; row = 0
+        while y < TEX_M - 1e-6:
+            h = course
+            x = -g.uniform(0, lengths[1])
+            while x < TEX_M:
+                L = g.uniform(*lengths)
+                c = palette[g.randrange(len(palette))]
+                k = g.uniform(0.9, 1.08)
+                col = tuple(max(0, min(255, int(v * k))) for v in c)
+                x0, x1 = x * px, (x + L) * px; y0, y1 = y * px, (y + h) * px
+                d.rectangle([x0 + 1.5, y0 + 1.5, x1 - 1.5, y1 - 1.5], fill=col)
+                if x1 > N:                                             # wrap horizontally (tileable)
+                    d.rectangle([x0 - N + 1.5, y0 + 1.5, x1 - N - 1.5, y1 - 1.5], fill=col)
+                x += L
+            y += h; row += 1
+        a = np.asarray(im).astype(np.float32)
+        rng = np.random.default_rng(seed_noise)
+        n = rng.normal(0, rough, (N // 8, N // 8, 1)).repeat(8, 0).repeat(8, 1)
+        n = np.asarray(Image.fromarray(((n[:, :, 0] + 40) * 3).clip(0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))).astype(np.float32)[:, :, None] / 3 - 40
+        fine = rng.normal(0, rough * 0.6, (N, N, 1))
+        a = (a + n + fine).clip(0, 255).astype(np.uint8)
+        Image.fromarray(a).save(TEX_DIR / fn, quality=90)
+
+    ashlar("stone.jpg", 0.42, (0.55, 1.25),
+           [(172, 160, 192), (162, 152, 186), (184, 170, 198), (152, 146, 170), (190, 168, 186), (168, 158, 180), (146, 138, 166)],
+           (196, 188, 200), 7.0, 1)
+    ashlar("base.jpg", 0.62, (0.9, 1.6),
+           [(104, 98, 132), (96, 90, 124), (112, 104, 138), (90, 86, 112), (118, 108, 136)], (70, 66, 86), 12.0, 2)
+    # roof: staggered rounded tiles (fish-scale) in rose shades with dark gaps
+    im = Image.new("RGB", (N, N), (70, 26, 34)); d = ImageDraw.Draw(im)
+    tw, th = 0.28 * px, 0.22 * px
+    for r in range(int(N / th) + 2):
+        off = (r % 2) * tw / 2
+        for c in range(int(N / tw) + 2):
+            x0 = c * tw - off; y0 = r * th
+            base = [(178, 78, 90), (166, 70, 82), (186, 88, 98), (158, 66, 78), (172, 84, 96)][g.randrange(5)]
+            d.rounded_rectangle([x0 + 1, y0 + 1, x0 + tw - 1, y0 + th * 1.35], radius=tw * 0.45, fill=base)
+            d.line([x0 + 3, y0 + th * 1.3, x0 + tw - 3, y0 + th * 1.3], fill=tuple(int(v * 0.72) for v in base), width=2)
+    im.save(TEX_DIR / "roof.jpg", quality=90)
+
+
+def image_material(name, fn, rough=0.8, bump=0.35):
+    mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
+    if mat.node_tree is None:
+        mat.use_nodes = True
+    nt = mat.node_tree; b = nt.nodes.get("Principled BSDF")
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(str(TEX_DIR / fn), check_existing=True)
+    nt.links.new(tex.outputs["Color"], b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = rough
+    bw = nt.nodes.new("ShaderNodeRGBToBW"); nt.links.new(tex.outputs["Color"], bw.inputs[0])
+    _bump(nt, b, bw.outputs[0], bump, 0.01)
+    px = tex.image.pixels[:4] if tex.image.size[0] else (0.6, 0.55, 0.65, 1)
+    mat.diffuse_color = (0.55, 0.52, 0.64, 1)
+    return mat
+
+
+def uv_project(objs):
+    """Cube-project UVs in world metres (1 UV unit = TEX_M m) on every textured object, in one multi-object edit."""
+    objs = [o for o in objs if o.type == "MESH"]
+    if not objs:
+        return
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.cube_project(cube_size=TEX_M, correct_aspect=False, scale_to_bounds=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
 # ================================================================ materials
 def materials():
     M = ST.materials()
@@ -82,10 +171,12 @@ def materials():
         nt.links.new(ST._wall_uv(nt), br.inputs["Vector"]); nt.links.new(br.outputs["Color"], b.inputs["Base Color"])
         _bump(nt, b, br.outputs["Fac"], -0.3, 0.01)
         return mat
-    M["lilac"] = stone("bb_lilac", (0.40, 0.36, 0.49), (0.36, 0.33, 0.45))          # lilac-grey (photos, daylight)
-    M["base"] = stone("bb_base", (0.28, 0.26, 0.37), (0.25, 0.23, 0.34), 1.2, 0.6)
+    if not (TEX_DIR / "stone.jpg").exists():
+        make_textures()
+    M["lilac"] = image_material("bb_lilac", "stone.jpg")                 # coursed ashlar, mixed lilac / grey / rose (photos)
+    M["base"] = image_material("bb_base", "base.jpg", 0.85, 0.6)       # rusticated base course
     mat, nt, b = _principled("bb_cream", (0.70, 0.57, 0.38), 0.55); _mottle(nt, b, (0.70, 0.57, 0.38), 6, 0.88, 0.05); M["cream"] = mat
-    M["roof"] = ST.mat_tiles("bb_roof", (0.50, 0.14, 0.18), (0.44, 0.12, 0.16), 0.32, (0.32, 0.10, 0.13))
+    M["roof"] = image_material("bb_roof", "roof.jpg", 0.55, 0.5)
     M["dome"] = P("bb_dome", (0.40, 0.55, 0.50), 0.5, Metallic=0.4)
     M["gold"] = P("bb_gold", (0.86, 0.66, 0.28), 0.25, Metallic=1.0)
     M["glass"] = P("bb_glass", (0.10, 0.12, 0.20), 0.08, Coat_Weight=1.0)
@@ -189,6 +280,52 @@ def window(P, M, u, z0, w, h, kind="pointed", frame=0.14, glass="glass", sill=Tr
             pass
     if sill:
         poly_prism(P, "cream", M, [(u0 - frame - 0.08, z0 - 0.14), (u1 + frame + 0.08, z0 - 0.14), (u1 + frame + 0.08, z0), (u0 - frame - 0.08, z0)], 0.0, 0.16)
+        for sg in (-1, 1):                                          # little brackets under the sill
+            cube(P, "cream", M, u + sg * w * 0.35 - 0.05, u + sg * w * 0.35 + 0.05, 0.0, 0.12, z0 - 0.34, z0 - 0.14)
+    if w >= 0.55 and h >= 1.0:
+        top_z = spring if kind != "rect" else z0 + h
+        cube(P, "cream", M, u - 0.025, u + 0.025, 0.0, 0.06, z0, top_z + (w * 0.4 if kind != "rect" else 0))   # mullion
+        cube(P, "cream", M, u0, u1, 0.0, 0.06, z0 + (top_z - z0) * 0.62, z0 + (top_z - z0) * 0.62 + 0.05)      # transom
+        step = 0.16                                                  # diamond leading (lead cames) over the glass
+        for sgn in (1, -1):
+            c = u0 - (top_z - z0)
+            while c < u1 + (top_z - z0):
+                pts = []
+                for t in (0.0, 1.0):
+                    zz = z0 + t * (top_z - z0); uu = c + sgn * t * (top_z - z0)
+                    pts.append((uu, zz))
+                (ua, za), (ub, zb) = pts
+                if sgn < 0:
+                    ua, ub = ua + (top_z - z0), ub + (top_z - z0)
+                # clip to the rectangle u0..u1
+                if max(ua, ub) > u0 and min(ua, ub) < u1:
+                    t0 = 0.0 if u0 <= ua <= u1 else ((u0 if ua < u0 else u1) - ua) / (ub - ua)
+                    t1 = 1.0 if u0 <= ub <= u1 else ((u0 if ub < u0 else u1) - ua) / (ub - ua)
+                    t0, t1 = max(0.0, min(t0, t1)), min(1.0, max(t0, t1))
+                    if t1 - t0 > 0.02:
+                        a_ = (ua + (ub - ua) * t0, za + (zb - za) * t0); b_ = (ua + (ub - ua) * t1, za + (zb - za) * t1)
+                        L_ = math.hypot(b_[0] - a_[0], b_[1] - a_[1]); ang = math.atan2(b_[1] - a_[1], b_[0] - a_[0])
+                        Mm = M @ Matrix.Translation(((a_[0] + b_[0]) / 2, 0.035, (a_[1] + b_[1]) / 2)) @ Matrix.Rotation(-ang, 4, "Y")
+                        cube(P, "iron", Mm, -L_ / 2, L_ / 2, -0.004, 0.004, -0.006, 0.006)
+                c += step
+    if kind in ("pointed", "round") and h >= 1.0:
+        hood = (pointed if kind == "pointed" else round_top)(u0 - frame - 0.12, u1 + frame + 0.12, spring)
+        inner = (pointed if kind == "pointed" else round_top)(u0 - frame, u1 + frame, spring)
+        band = hood + inner[::-1]
+        try:
+            poly_prism(P, "cream", M, band, 0.0, 0.14)                      # hood moulding
+        except ValueError:
+            pass
+        for sg in (-1, 1):                                                   # label stops
+            cube(P, "cream", M, u + sg * (w / 2 + frame + 0.06) - 0.08, u + sg * (w / 2 + frame + 0.06) + 0.08, 0.0, 0.16, spring - 0.14, spring + 0.02)
+        apex = max(zz for _, zz in hood)
+        poly_prism(P, "cream", M, [(u - 0.1, apex - 0.28), (u + 0.1, apex - 0.28), (u + 0.14, apex + 0.08), (u - 0.14, apex + 0.08)], 0.0, 0.18)   # keystone
+
+
+def arch_ring(u, w, spring, width):
+    """A U-shaped arch surround (sides + arch) with the opening left open: outer outline then the inner one back."""
+    uo0, uo1, ui0, ui1 = u - w / 2 - width, u + w / 2 + width, u - w / 2, u + w / 2
+    return ([(uo1, 0.0)] + pointed(uo0, uo1, spring) + [(uo0, 0.0), (ui0, 0.0)] + pointed(ui0, ui1, spring)[::-1] + [(ui1, 0.0)])
 
 
 def cone_roof(P, x, y, z, r, h, segs=24, finial=True, mat="roof", flare=0.12):
@@ -235,6 +372,8 @@ def hip_roof(P, x0, x1, y0, y1, ze, ridge_h, mat="roof"):
         for q in ((b_, c, r1, r0), (e, a, r0, r1), (a, b_, r0), (c, e, r1)):
             bm.faces.new(q)
     cube(P, "cream", Matrix.Identity(4), x0 - 0.15, x1 + 0.15, y0 - 0.15, y1 + 0.15, ze - 0.35, ze)   # cornice
+    if abs(ra[0] - rb[0]) + abs(ra[1] - rb[1]) > 0.5:
+        cresting(P, ra[0], ra[1], rb[0], rb[1], ze + ridge_h, 0.4, 0.5)
 
 
 def dormer(P, M, u, z0, w=1.4, h=2.2, roof=True):
@@ -492,6 +631,21 @@ def stage(P, x0, x1, y0, y1, z0, z1, rows, sides=(0, 1, 2, 3), spacing=2.1, kind
     cube(P, "lilac", Matrix.Identity(4), x0, x1, y0, y1, z0, z1)
     cube(P, "cream", Matrix.Identity(4), x0 - 0.25, x1 + 0.25, y0 - 0.25, y1 + 0.25, z1 - 0.45, z1)
     cube(P, "cream", Matrix.Identity(4), x0 - 0.12, x1 + 0.12, y0 - 0.12, y1 + 0.12, z1 - 0.75, z1 - 0.45)
+    for (cx, cy) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):          # quoins: alternating long / short blocks
+        k = 0; zq = z0
+        while zq < z1 - 0.9:
+            L = 0.7 if k % 2 == 0 else 0.45
+            sx = 1 if cx == x0 else -1; sy = 1 if cy == y0 else -1
+            cube(P, "cream", Matrix.Identity(4), min(cx, cx + sx * L), max(cx, cx + sx * L), min(cy, cy - sy * 0.06), max(cy, cy - sy * 0.06), zq, zq + 0.4)
+            cube(P, "cream", Matrix.Identity(4), min(cx, cx - sx * 0.06), max(cx, cx - sx * 0.06), min(cy, cy + sy * (1.15 - L)), max(cy, cy + sy * (1.15 - L)), zq, zq + 0.4)
+            zq += 0.44; k += 1
+    for M_, L_ in side_frames(x0, x1, y0, y1):                        # corbel table under the cornice
+        k = 0.25
+        while k < L_ - 0.2:
+            cube(P, "cream", M_, k - 0.08, k + 0.08, 0.0, 0.2, z1 - 1.05, z1 - 0.75)
+            k += 0.55
+    for (cx, cy) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):          # corner pinnacles
+        lathe(P, "cream", [(0, 0), (0.22, 0), (0.22, 0.5), (0.12, 0.7), (0.14, 1.0), (0.04, 1.6), (0, 1.65)], 8, T(cx, cy, z1 + (0.85 if balus else 0.0)))
     for i, (M, L) in enumerate(side_frames(x0, x1, y0, y1)):
         if i not in sides:
             continue
@@ -527,7 +681,13 @@ def build_gatehouse(P):
     cube(P, "cream", I, -7.3, 7.3, -0.35, 6.3, 8.6, 9.1)
     # the three pointed openings: the door in the middle, the lion niches either side (statue inside, lamp in front)
     for u, w, spring, deep in ((0.0, 3.4, 5.2, True), (-4.2, 2.2, 3.8, False), (4.2, 2.2, 3.8, False)):
-        poly_prism(P, "cream", M, [(u - w / 2 - 0.4, 0.0), (u + w / 2 + 0.4, 0.0)] + pointed(u - w / 2 - 0.4, u + w / 2 + 0.4, spring)[1:-1], -0.05, 0.35)
+        if deep:                                                # the gate: a moulded ring, the passage open behind it
+            poly_prism(P, "cream", M, arch_ring(u, w, spring, 0.45), -0.05, 0.35)
+            poly_prism(P, "trim", M, arch_ring(u, w + 0.9, spring + 0.1, 0.2), -0.15, -0.05)
+            for k_ in range(9):                                 # voussoirs: joints across the ring
+                t = math.pi * (k_ + 0.5) / 9
+        else:
+            poly_prism(P, "cream", M, [(u - w / 2 - 0.4, 0.0), (u + w / 2 + 0.4, 0.0)] + pointed(u - w / 2 - 0.4, u + w / 2 + 0.4, spring)[1:-1], -0.05, 0.35)
         if not deep:
             poly_prism(P, "glass", M, [(u - w / 2, 1.2), (u + w / 2, 1.2)] + pointed(u - w / 2, u + w / 2, spring)[1:-1], 0.35, 0.36)
         if deep:
@@ -575,7 +735,7 @@ def build_palace(P):
     cube(P, "cream", I, -8.3, 8.3, 21.2, 34.3, 2.6, 2.85)
     M = face(0, 21.5, 0)
     # the door: pedimented surround, winged gargoyles on the entablature, lions on pedestals either side
-    poly_prism(P, "cream", M, [(-2.3, 1.8), (2.3, 1.8)] + pointed(-2.3, 2.3, 4.6)[1:-1], -0.05, 0.4)
+    poly_prism(P, "cream", M, [(x, z + 1.8) for x, z in arch_ring(0.0, 3.0, 2.8, 0.8)], -0.05, 0.4)
     poly_prism(P, "wood", M, [(-1.5, 1.8), (1.5, 1.8)] + pointed(-1.5, 1.5, 4.4)[1:-1], 0.4, 0.46)
     for zz in (2.6, 3.6, 4.6):
         cube(P, "iron", M, -1.4, 1.4, 0.46, 0.49, zz, zz + 0.08)
@@ -692,6 +852,8 @@ def build(context=True):
     for name, fn in (("bridge", build_bridge), ("gatehouse", build_gatehouse), ("wings", build_wings),
                      ("courtyard", build_courtyard), ("palace", build_palace), ("rocks", build_rocks)):
         fn(P); P.flush(name, PALACE_DY if name == "palace" else 0.0)
+    uv_project([o for o in B.col.objects if o.type == "MESH" and o.data.materials and
+                o.data.materials[0].name in ("bb_lilac", "bb_base", "bb_roof", "bb_paving", "bb_rock")])
     if context:
         ctx = bpy.data.collections.new("Context"); sc.collection.children.link(ctx)
         old = B.col; B.col = ctx
@@ -735,6 +897,7 @@ def main():
             for sp in area.spaces:
                 if sp.type == "VIEW_3D":
                     sp.region_3d.view_location = (0.0, 12.0, 10.0); sp.region_3d.view_distance = 85.0
+                    sp.shading.color_type = "TEXTURE"                  # the blockwork and tiles show in Solid view too
     bpy.ops.wm.save_as_mainfile(filepath=str((OUT / "bb_castle.blend").resolve()))
     print("[bb] saved", OUT / "bb_castle.blend")
     which = [c for c in a.cams.split(",") if c and c != "none"]

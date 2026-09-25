@@ -30,6 +30,8 @@
 !/plateau_data/gsi_dem5a/
 # AquaSphere globe textures (from NOAA ETOPO by a one-off script, not regenerable yet)
 !/plateau_data/globe/
+# Beauty and the Beast castle textures (painted by ds_tdl_bb_castle.make_textures(), plain Python + PIL)
+!/plateau_data/bb_castle/
 
 !/output/
 /output/*
