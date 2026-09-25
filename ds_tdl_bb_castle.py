@@ -30,8 +30,17 @@ Colours: lilac-grey stone, cream trim, rose-pink roof tiles, copper-green dome, 
 
 Frame: local metres, origin = the gate (OSM (-622.0, 497.1)); +Y into the castle (towards the south-west), +X to the
 right of a guest facing the castle. Ground 0 (the DEM here: see GROUND_DATUM).
-ESTIMATES: every size (scaled from the photos with the 4 m bridge and the 30 m height), the plan behind the gate
-(the aerial photo predates the castle), the number of windows and statues, the rock shapes.
+v2 (2026-09-25, the user asked for ~100 photos): 401 web photos gathered through Bing image search (looked at only,
+not stored in the repository), about 150 of the exterior after removing near-duplicates. From them: the stacked
+"wedding cake" palace (tiers with cornices, balustrades, steep rose mansards and baroque cream dormers), the slim keep
+rising far above the tiers, the gatehouse's lion niches, the raised courtyard reached by a stair inside the gate, the
+bronze grotesque lamp posts on the bridge, the boulder outcrops with waterfalls round the side and back.
+Proportions were matched by rendering from the photos' viewpoints and comparing side by side (gate cornice : keep top
+about 0.3 from the bridge).
+
+ESTIMATES: every size. The public figure is "about 30 m"; matching the photos needs the keep top about 43 m above the
+bridge (the courtyard stands 2 m higher, the palace is scaled x1.15 in height), so the photo proportions were kept.
+The plan behind the gate (the aerial photo predates the castle), window and statue counts, rock shapes are estimates.
 """
 import sys, math, argparse, pathlib, time, random
 
@@ -50,6 +59,10 @@ from ds_tdl_station import (B, box, prism, bm_box, bm_lathe, bm_prism, obj_bm, a
 OUT = ROOT / "output" / "disneyland" / "bb_castle"
 GATE = (-622.0, 497.1)
 ANG = 152.1                     # the local X axis in the plan (deg): the castle faces NE, towards the bridge
+COURT_Z = 2.0                  # the courtyard and palace stand on a platform: a stair climbs inside the gate (photos)
+GATE_SZ = 0.70                 # the gatehouse is lower than first drawn (its cornice level with the wings' balustrade)
+PALACE_SZ = 1.15               # the photos show the palace about twice the gatehouse: its heights x 1.15 (keep top ~37 m)
+PALACE_DY = -6.0               # the palace stands 5 m closer than drawn (the courtyard is shallow in the photos)
 GROUND_DATUM = 0.0              # set from the DEM by export_objects()
 rnd = random.Random(11)
 
@@ -69,10 +82,10 @@ def materials():
         nt.links.new(ST._wall_uv(nt), br.inputs["Vector"]); nt.links.new(br.outputs["Color"], b.inputs["Base Color"])
         _bump(nt, b, br.outputs["Fac"], -0.3, 0.01)
         return mat
-    M["lilac"] = stone("bb_lilac", (0.50, 0.45, 0.58), (0.46, 0.42, 0.55))          # lilac-grey (photos, daylight)
-    M["base"] = stone("bb_base", (0.33, 0.31, 0.43), (0.30, 0.28, 0.40), 1.2, 0.6)
-    mat, nt, b = _principled("bb_cream", (0.78, 0.68, 0.52), 0.6); _mottle(nt, b, (0.78, 0.68, 0.52), 6, 0.9, 0.05); M["cream"] = mat
-    M["roof"] = ST.mat_tiles("bb_roof", (0.62, 0.22, 0.30), (0.55, 0.19, 0.27), 0.32, (0.40, 0.15, 0.20))
+    M["lilac"] = stone("bb_lilac", (0.40, 0.36, 0.49), (0.36, 0.33, 0.45))          # lilac-grey (photos, daylight)
+    M["base"] = stone("bb_base", (0.28, 0.26, 0.37), (0.25, 0.23, 0.34), 1.2, 0.6)
+    mat, nt, b = _principled("bb_cream", (0.70, 0.57, 0.38), 0.55); _mottle(nt, b, (0.70, 0.57, 0.38), 6, 0.88, 0.05); M["cream"] = mat
+    M["roof"] = ST.mat_tiles("bb_roof", (0.50, 0.14, 0.18), (0.44, 0.12, 0.16), 0.32, (0.32, 0.10, 0.13))
     M["dome"] = P("bb_dome", (0.40, 0.55, 0.50), 0.5, Metallic=0.4)
     M["gold"] = P("bb_gold", (0.86, 0.66, 0.28), 0.25, Metallic=1.0)
     M["glass"] = P("bb_glass", (0.10, 0.12, 0.20), 0.08, Coat_Weight=1.0)
@@ -81,8 +94,8 @@ def materials():
     M["iron"] = P("bb_iron", (0.05, 0.05, 0.06), 0.4, Metallic=0.7)
     M["statue"] = P("bb_statue", (0.72, 0.69, 0.64), 0.7)
     M["paving"] = ST.mat_tiles("bb_paving", (0.46, 0.46, 0.49), (0.40, 0.41, 0.45), 0.6, (0.30, 0.30, 0.32))
-    mat, nt, b = _principled("bb_rock", (0.30, 0.30, 0.28), 0.9); _mottle(nt, b, (0.30, 0.30, 0.28), 1.5, 0.65, 0.4); M["rock"] = mat
-    M["water"] = P("bb_water", (0.85, 0.92, 0.95), 0.1, Transmission_Weight=0.5)
+    mat, nt, b = _principled("bb_rock", (0.46, 0.40, 0.33), 0.9); _mottle(nt, b, (0.46, 0.40, 0.33), 1.4, 0.55, 0.6); M["rock"] = mat
+    M["water"] = P("bb_water", (0.92, 0.95, 0.97), 0.3, Emission_Color=(0.9, 0.95, 1.0, 1), Emission_Strength=0.15)
     M["lamp"] = P("bb_lamp", (1.0, 0.85, 0.55), 0.3, Emission_Color=(1.0, 0.8, 0.45, 1), Emission_Strength=3.0)
     M["rose"] = P("bb_rose", (0.75, 0.05, 0.2), 0.4, Emission_Color=(0.9, 0.1, 0.3, 1), Emission_Strength=1.0)
     M["bell"] = ST.clear_glass("bb_bell", (0.9, 0.95, 1.0), 0.25)
@@ -97,10 +110,17 @@ class Parts(dict):
         self[k] = bmesh.new()
         return self[k]
 
-    def flush(self, prefix):
+    def flush(self, prefix, dy=0.0):
         for k, bm in list(self.items()):
             if bm.verts:
-                o = obj_bm(f"BB_{prefix}_{k}", bm, k, smooth=(k == "rock"))
+                o = obj_bm(f"BB_{prefix}_{k}", bm, k)
+                o.location.y += dy
+                if prefix == "palace":
+                    o.scale.z = PALACE_SZ
+                if prefix in ("palace", "courtyard"):
+                    o.location.z += COURT_Z
+                if prefix == "gatehouse":
+                    o.scale.z = GATE_SZ
         self.clear()
 
 
@@ -265,64 +285,6 @@ def lamp_post(P, x, y, h=4.2):
 
 
 # ================================================================ the castle, front to back
-def build_bridge(P):
-    M = Matrix.Identity(4)
-    cube(P, "paving", M, -2.3, 2.3, -26.0, -0.5, -0.6, 0.0)                      # deck
-    for s in (-1, 1):
-        cube(P, "lilac", M, s * 2.3 - 0.35, s * 2.3 + 0.35, -26.0, -0.5, -0.6, 0.95)   # parapets
-        cube(P, "cream", M, s * 2.3 - 0.45, s * 2.3 + 0.45, -26.0, -0.5, 0.95, 1.12)
-        for yy in (-24.5, -16.0, -7.5):                                         # piers with lamps on gargoyle plinths
-            cube(P, "lilac", M, s * 2.3 - 0.55, s * 2.3 + 0.55, yy - 0.55, yy + 0.55, -0.6, 1.4)
-            cube(P, "cream", M, s * 2.3 - 0.62, s * 2.3 + 0.62, yy - 0.62, yy + 0.62, 1.4, 1.55)
-            lamp_post(P, s * 2.3, yy, 3.4)
-    for s in (-1, 1):                                                          # tall twin-lantern posts at the gate
-        x, y, h = s * 3.4, -2.2, 6.0
-        lathe(P, "iron", [(0, 0), (0.3, 0), (0.3, 0.5), (0.12, 0.8), (0.09, h), (0, h + 0.1)], 10, T(x, y, 0))
-        for sg in (-1, 1):
-            cube(P, "iron", T(x, y, 0), min(0, sg * 0.9), max(0, sg * 0.9), -0.04, 0.04, h - 0.6, h - 0.52)
-            lathe(P, "lamp", [(0, 0), (0.16, 0.05), (0.2, 0.45), (0.08, 0.6), (0, 0.62)], 8, T(x + sg * 0.9, y, h - 1.25))
-            lathe(P, "iron", [(0, 0.6), (0.24, 0.6), (0.05, 0.85), (0, 0.9)], 8, T(x + sg * 0.9, y, h - 1.25))
-    for k in range(3):                                                         # arches under the deck, over the chasm
-        y0, y1 = -24.0 + k * 8.0, -17.0 + k * 8.0
-        pts, _ = seg_arc((y0 + y1) / 2, -4.0, y1 - y0, 1.8, 14)
-        poly_prism(P, "lilac", face(-2.3, 0, math.pi / 2) @ Matrix.Rotation(0, 4, "Z"), [(-(y1), -0.6), (-(y0), -0.6), (-y0, -4.0)] + [(-u, z) for u, z in pts[::-1]] + [(-y1, -4.0)], 0.0, 4.6)
-
-
-def build_gatehouse(P):
-    M = face(0, 0, 0)                                      # the front face (y = 0), outward = -y
-    # body: x -6.5..6.5, y 0..6, to 9.5 m, a lower base course
-    cube(P, "lilac", Matrix.Identity(4), -6.5, 6.5, 0.0, 6.0, 0.0, 9.5)
-    cube(P, "base", Matrix.Identity(4), -6.7, 6.7, -0.2, 6.2, 0.0, 1.2)
-    cube(P, "cream", Matrix.Identity(4), -6.8, 6.8, -0.3, 6.3, 9.2, 9.6)
-    # the central pointed arch: frame, deep reveal (dark), the wooden door set back, voussoirs, lion-head relief
-    arch = [(-1.8, 0.0), (1.8, 0.0)] + pointed(-1.8, 1.8, 3.4)[1:-1]
-    poly_prism(P, "glass", M, arch, -0.02, 0.01)
-    outer = [(-2.3, 0.0), (2.3, 0.0)] + pointed(-2.3, 2.3, 3.4)[1:-1]
-    poly_prism(P, "cream", M, outer, 0.01, 0.35)
-    poly_prism(P, "wood", M, [(-1.5, 0.0), (1.5, 0.0)] + pointed(-1.5, 1.5, 3.3)[1:-1], 0.36, 0.42)
-    for zz in (0.8, 1.6, 2.4, 3.2):                        # iron straps and studs on the door
-        cube(P, "iron", M, -1.4, 1.4, 0.42, 0.45, zz, zz + 0.07)
-    lathe(P, "statue", [(0, 0), (0.55, 0), (0.6, 0.2), (0.45, 0.45), (0, 0.5)], 12, M @ T(0, 0.35, 6.1) @ R(-math.pi / 2, "X"))
-    for s in (-1, 1):                                      # side niches with the lions
-        u = s * 4.3
-        poly_prism(P, "cream", M, [(u - 1.2, 0.0), (u + 1.2, 0.0)] + pointed(u - 1.2, u + 1.2, 2.6)[1:-1], 0.0, 0.3)
-        poly_prism(P, "glass", M, [(u - 0.9, 0.3), (u + 0.9, 0.3)] + pointed(u - 0.9, u + 0.9, 2.5)[1:-1], 0.3, 0.31)
-        lion(P, M @ Matrix.Translation((0, 0.9, 0)), u, 0.0, 1.0)
-        window(P, M, u, 5.6, 0.8, 1.6, "pointed")
-    # dormer in the middle above the arch, a pink hip roof behind it
-    hip_roof(P, -6.5, 6.5, 0.0, 6.0, 9.5, 3.4)
-    dormer(P, M @ Matrix.Translation((0, 0.3, 0)), 0.0, 9.6, 2.2, 2.9)
-    # the two corner towers (square below, round top, steep cones)
-    for s in (-1, 1):
-        x = s * 6.8
-        cube(P, "lilac", Matrix.Identity(4), x - 1.7, x + 1.7, -0.6, 2.8, 0.0, 11.0)
-        cube(P, "cream", Matrix.Identity(4), x - 1.9, x + 1.9, -0.8, 3.0, 10.7, 11.2)
-        for k in range(8):                                 # corbels under the cornice
-            cube(P, "cream", Matrix.Identity(4), x - 1.6 + k * 0.45, x - 1.4 + k * 0.45, -0.8, -0.6, 10.2, 10.7)
-        window(P, face(x, -0.6, 0), 0.0, 7.2, 0.8, 1.8, "pointed")
-        cone_roof(P, x, 1.1, 11.2, 2.15, 6.2)
-
-
 def build_wings(P):
     """Long low wings left and right of the gatehouse, stepping back; balustrade with gargoyles; the dome on the left."""
     for s in (-1, 1):
@@ -371,13 +333,18 @@ def build_wings(P):
 
 def build_courtyard(P):
     I = Matrix.Identity(4)
-    cube(P, "paving", I, -14.0, 14.0, 6.0, 21.0, -0.02, 0.0)
-    lathe(P, "base", [(0, 0), (3.0, 0), (3.0, 0.012), (0, 0.012)], 48, T(-2.0, 12.5, 0))
-    lathe(P, "paving", [(0, 0.012), (2.6, 0.012), (2.6, 0.02), (0, 0.02)], 48, T(-2.0, 12.5, 0))
+    cube(P, "lilac", I, -14.0, 14.0, 6.0, 44.0, -COURT_Z, 0.0)                              # the raised platform
+    cube(P, "base", I, -14.2, 14.2, 5.8, 44.2, -COURT_Z, -COURT_Z + 1.2)
+    for k in range(14):                                                                     # the stair inside the gate
+        y0 = -0.2 + k * 0.45
+        cube(P, "base", I, -1.9, 1.9, y0, 6.2, -COURT_Z, -COURT_Z + (k + 1) * COURT_Z / 14)
+    cube(P, "paving", I, -14.0, 14.0, 6.0, 17.0, -0.02, 0.0)
+    lathe(P, "base", [(0, 0), (2.4, 0), (2.4, 0.012), (0, 0.012)], 48, T(0.0, 8.0, 0))       # the monogram medallion
+    lathe(P, "paving", [(0, 0.012), (2.0, 0.012), (2.0, 0.02), (0, 0.02)], 48, T(0.0, 8.0, 0))
     # arcade of round arches on columns along the left (x = -12), with a roof behind
-    cube(P, "lilac", I, -14.0, -11.6, 6.0, 21.0, 0.0, 5.2)
+    cube(P, "lilac", I, -14.0, -11.6, 6.0, 17.0, 0.0, 5.2)
     M = face(-11.6, 6.0, math.pi / 2)                       # face towards +x (inside the courtyard)
-    for k in range(5):
+    for k in range(4):
         u = 1.5 + k * 2.9
         poly_prism(P, "glass", M, [(u - 1.2, 0.0), (u + 1.2, 0.0)] + round_top(u - 1.2, u + 1.2, 2.6)[1:-1], -0.02, 0.01)
         poly_prism(P, "cream", M, [(u - 1.45, 0.0), (u - 1.2, 0.0)] + [(u - 1.2, 2.6), (u - 1.45, 2.6)], 0.0, 0.4)
@@ -386,114 +353,59 @@ def build_courtyard(P):
         ring = pointed(u - 1.45, u + 1.45, 2.6)
         poly_prism(P, "cream", M, [(u - 1.45, 2.6)] + round_top(u - 1.45, u + 1.45, 2.6)[1:-1] + [(u + 1.45, 2.6), (u + 1.2, 2.6)]
                    + round_top(u - 1.2, u + 1.2, 2.6)[-2:0:-1] + [(u - 1.2, 2.6)], 0.0, 0.35)
-    balustrade(P, M, 0.0, 15.0, 5.2, 0.8)
-    for x, y in ((-8.5, 9.0), (5.5, 9.0), (-8.5, 18.0), (7.5, 17.0)):
+    balustrade(P, M, 0.0, 11.0, 5.2, 0.8)
+    for x, y in ((-8.5, 8.0), (5.5, 8.0), (-9.5, 13.5), (9.5, 12.5)):
         lamp_post(P, x, y, 4.0)
     # the right side of the courtyard: a plain wall with blind arches
-    cube(P, "lilac", I, 12.0, 14.0, 6.0, 21.0, 0.0, 6.5)
-    Mr = face(12.0, 21.0, -math.pi / 2)
-    for k in range(4):
+    cube(P, "lilac", I, 12.0, 14.0, 6.0, 17.0, 0.0, 6.5)
+    Mr = face(12.0, 17.0, -math.pi / 2)
+    for k in range(3):
         poly_prism(P, "cream", Mr, [(1.5 + k * 3.5 - 1.1, 0.8), (1.5 + k * 3.5 + 1.1, 0.8)] + pointed(1.5 + k * 3.5 - 1.1, 1.5 + k * 3.5 + 1.1, 3.0)[1:-1], 0.0, 0.1)
     # the enchanted rose (the reference film) on a pedestal by the stair, under a glass bell
-    lathe(P, "cream", [(0, 0), (0.45, 0), (0.45, 0.2), (0.2, 0.35), (0.16, 0.95), (0.4, 1.05), (0.4, 1.15), (0, 1.15)], 16, T(-2.0, 12.5, 0))
-    lathe(P, "gold", [(0, 1.15), (0.34, 1.15), (0.34, 1.22), (0, 1.22)], 20, T(-2.0, 12.5, 0))
-    lathe(P, "bell", [(0.3, 1.22), (0.3, 1.75)] + [(0.3 * math.cos(math.pi / 2 * k / 6), 1.75 + 0.3 * math.sin(math.pi / 2 * k / 6)) for k in range(1, 7)], 20, T(-2.0, 12.5, 0))
-    lathe(P, "grass", [(0, 1.22), (0.012, 1.22), (0.01, 1.6), (0, 1.6)], 6, T(-2.0, 12.5, 0))
-    lathe(P, "rose", [(0, 1.55), (0.07, 1.6), (0.09, 1.68), (0.05, 1.74), (0, 1.73)], 12, T(-2.0, 12.5, 0))
+    lathe(P, "cream", [(0, 0), (0.45, 0), (0.45, 0.2), (0.2, 0.35), (0.16, 0.95), (0.4, 1.05), (0.4, 1.15), (0, 1.15)], 16, T(-9.0, 10.5, 0))
+    lathe(P, "gold", [(0, 1.15), (0.34, 1.15), (0.34, 1.22), (0, 1.22)], 20, T(-9.0, 10.5, 0))
+    lathe(P, "bell", [(0.3, 1.22), (0.3, 1.75)] + [(0.3 * math.cos(math.pi / 2 * k / 6), 1.75 + 0.3 * math.sin(math.pi / 2 * k / 6)) for k in range(1, 7)], 20, T(-9.0, 10.5, 0))
+    lathe(P, "grass", [(0, 1.22), (0.012, 1.22), (0.01, 1.6), (0, 1.6)], 6, T(-9.0, 10.5, 0))
+    lathe(P, "rose", [(0, 1.55), (0.07, 1.6), (0.09, 1.68), (0.05, 1.74), (0, 1.73)], 12, T(-9.0, 10.5, 0))
 
 
-def build_palace(P):
-    I = Matrix.Identity(4)
-    # the grand stair up to the palace door (platform at 1.8 m), lions on its cheeks
-    for k in range(10):
-        cube(P, "base", I, -4.5 + k * 0.08, 4.5 - k * 0.08, 16.0 + k * 0.4, 21.0, 0.0, 0.18 * (k + 1))
-    for s in (-1, 1):
-        cube(P, "cream", I, s * 4.7 - 0.45, s * 4.7 + 0.45, 16.0, 21.0, 0.0, 1.0)
-        lion(P, face(0, 16.3, 0), s * 4.7, 1.0, 1.05)
-    # main body: x -12..12, y 21..34, to 15.5 m; darker base
-    cube(P, "lilac", I, -12.0, 12.0, 21.0, 34.0, 0.0, 15.5)
-    cube(P, "base", I, -12.2, 12.2, 20.8, 34.2, 0.0, 2.2)
-    cube(P, "cream", I, -12.3, 12.3, 20.7, 34.3, 2.2, 2.45)
-    M = face(0, 21.0, 0)
-    poly_prism(P, "cream", M, [(-1.9, 1.8), (1.9, 1.8)] + pointed(-1.9, 1.9, 5.0)[1:-1], 0.0, 0.35)
-    poly_prism(P, "wood", M, [(-1.4, 1.8), (1.4, 1.8)] + pointed(-1.4, 1.4, 4.9)[1:-1], 0.35, 0.42)
-    poly_prism(P, "cream", M, [(-2.4, 7.0), (2.4, 7.0), (0, 8.4)], 0.0, 0.4)           # pediment over the door, a shield
-    lathe(P, "gold", [(0, 0), (0.45, 0), (0.45, 0.08), (0, 0.1)], 6, M @ T(0, 0.42, 7.5) @ R(-math.pi / 2, "X"))
-    for u in (-7.0, -4.5, 4.5, 7.0):
-        window(P, M, u, 3.4, 0.9, 2.6, "pointed")
-        window(P, M, u, 8.8, 0.9, 2.4, "pointed", glass="stained")
-    for u in (-2.2, 2.2):
-        window(P, M, u, 9.0, 0.8, 2.2, "pointed", glass="stained")
-    balustrade(P, M @ Matrix.Translation((0, 0.6, 0)), -9.0, 9.0, 12.2, 0.9)          # balcony
-    cube(P, "cream", M, -9.2, 9.2, 0.0, 0.8, 11.9, 12.2)
-    window(P, M, 0.0, 12.6, 1.2, 2.4, "round")
-    hip_roof(P, -12.3, 12.3, 20.7, 34.3, 15.5, 6.5)
-    for u in (-8.0, -4.0, 4.0, 8.0):
-        dormer(P, M @ Matrix.Translation((0, 0.9, 0)), u, 15.8, 1.3, 2.1)
-    # the two big round towers at the front corners
-    for s in (-1, 1):
-        round_tower(P, s * 11.0, 22.5, 3.4, 15.0, 7.2, base=2.4, win_rows=((4.0, 2.4), (9.5, 2.4)), n_win=6,
-                    a0=math.pi * (0.9 if s < 0 else -0.35), a1=math.pi * (1.65 if s < 0 else 0.1) + (0 if s < 0 else math.pi * 0.0))
-    # side towers further back (smaller)
-    for s in (-1, 1):
-        round_tower(P, s * 12.8, 32.0, 2.3, 18.0, 5.6, base=2.2, win_rows=((6.0, 1.8), (12.0, 1.8)), n_win=4)
-    # the upper stage: x -6.5..6.5, y 25..33, from the roof to 23 m, balconies and dormers, a steep roof
-    cube(P, "lilac", I, -6.5, 6.5, 25.0, 33.0, 15.0, 23.0)
-    cube(P, "cream", I, -6.7, 6.7, 24.8, 33.2, 22.7, 23.1)
-    Mu = face(0, 25.0, 0)
-    for u in (-4.0, 0.0, 4.0):
-        window(P, Mu, u, 17.0, 0.9, 2.2, "pointed")
-    balustrade(P, Mu @ Matrix.Translation((0, 0.5, 0)), -6.0, 6.0, 19.8, 0.8)
-    cube(P, "cream", Mu, -6.2, 6.2, 0.0, 0.6, 19.5, 19.8)
-    hip_roof(P, -6.7, 6.7, 24.8, 33.2, 23.0, 5.2)
-    dormer(P, Mu @ Matrix.Translation((0, 1.2, 0)), 0.0, 23.2, 1.5, 2.4)
-    for s in (-1, 1):                                        # pinnacles on the corners of the upper stage
-        for yy in (25.0, 33.0):
-            lathe(P, "cream", [(0, 0), (0.35, 0), (0.35, 1.2), (0.2, 1.4), (0.25, 2.0), (0.05, 3.2), (0, 3.3)], 8, T(s * 6.5, yy, 23.0))
-            lathe(P, "gold", [(0, 0), (0.06, 0), (0.03, 0.5), (0, 0.55)], 6, T(s * 6.5, yy, 26.3))
-    for x, y in ((-9.0, 30.0), (9.5, 28.0), (-3.0, 33.5)):   # chimneys
-        cube(P, "lilac", I, x - 0.5, x + 0.5, y - 0.5, y + 0.5, 15.5, 22.5)
-        cube(P, "cream", I, x - 0.65, x + 0.65, y - 0.65, y + 0.65, 22.5, 22.9)
-    # the keep: square tower to 30 m with a machicolated crenellated top, and its slim round turret with a spire
-    kx, ky = 1.5, 31.0
-    cube(P, "lilac", I, kx - 2.3, kx + 2.3, ky - 2.3, ky + 2.3, 15.0, 28.3)
-    for k in range(10):                                      # machicolation corbels on the front and back
-        for yy, sg in ((ky - 2.3, -1), (ky + 2.3, 1)):
-            cube(P, "cream", I, kx - 2.2 + k * 0.47, kx - 2.0 + k * 0.47, yy + sg * 0.0, yy + sg * 0.35, 27.6, 28.3) if sg > 0 else \
-                cube(P, "cream", I, kx - 2.2 + k * 0.47, kx - 2.0 + k * 0.47, yy - 0.35, yy, 27.6, 28.3)
-    cube(P, "cream", I, kx - 2.7, kx + 2.7, ky - 2.7, ky + 2.7, 28.3, 28.7)
-    cube(P, "lilac", I, kx - 2.6, kx + 2.6, ky - 2.6, ky + 2.6, 28.7, 29.6)
-    for i in range(6):                                       # merlons
-        for yy in (ky - 2.6, ky + 2.2):
-            cube(P, "lilac", I, kx - 2.6 + i * 0.95, kx - 2.1 + i * 0.95, yy, yy + 0.4, 29.6, 30.4)
-        for xx in (kx - 2.6, kx + 2.2):
-            cube(P, "lilac", I, xx, xx + 0.4, ky - 2.6 + i * 0.95, ky - 2.1 + i * 0.95, 29.6, 30.4)
-    Mk = face(kx, ky - 2.3, 0)
-    for zz in (17.5, 21.5, 25.0):
-        window(P, Mk, 0.0, zz, 0.7, 1.7, "pointed")
-    tx, ty = kx + 2.6, ky - 2.4                              # the turret on the keep's front-right corner
-    lathe(P, "cream", [(0, 22.0), (0.6, 22.0), (1.2, 23.5), (0, 23.5)], 20, T(tx, ty, 0))
-    lathe(P, "lilac", [(0, 23.5), (1.15, 23.5), (1.15, 30.5), (0, 30.5)], 20, T(tx, ty, 0))
-    window(P, face(tx, ty - 1.15, 0), 0.0, 27.5, 0.5, 1.2, "pointed")
-    cone_roof(P, tx, ty, 30.5, 1.4, 4.2)
-    # a second slender round tower with a spire (left-back), and small spires round the roofs
-    round_tower(P, -4.8, 33.5, 1.4, 25.5, 5.0, base=15.0, win_rows=((21.0, 1.4),), n_win=3, corbel=True)
-    for x, y, z, r, h in ((-9.5, 24.0, 15.5, 0.8, 4.5), (9.0, 33.5, 15.5, 0.8, 4.5), (-12.0, 33.8, 15.5, 0.6, 3.5)):
-        lathe(P, "lilac", [(0, z - 2.0), (r, z - 2.0), (r, z + 1.0), (0, z + 1.0)], 16, T(x, y, 0))
-        cone_roof(P, x, y, z + 1.0, r + 0.2, h)
-    # gold statues on the front gable and gargoyles on the palace roof corners
-    for s in (-1, 1):
-        gargoyle(P, face(0, 20.7, 0), s * 12.0, 15.6, 1.0)
+def boulder_cluster(P, x, y, r, h, seed):
+    """A heap of angular boulders standing on the ground, filling a mound of radius r and height |h| (h < 0: sunk):
+    each block is a low-poly sphere squashed into a stratified slab whose bottom sits on the ground."""
+    g = random.Random(seed * 7 + 3)
+    n = max(3, int(r * r * 0.8))
+    for k in range(n):
+        a_ = g.uniform(0, 2 * math.pi); d = r * math.sqrt(g.random()) * 0.9
+        bx, by = x + d * math.cos(a_), y + d * math.sin(a_)
+        top = max(0.8, abs(h) * (1 - (d / r) ** 2) ** 0.6 * g.uniform(0.75, 1.1))
+        br = g.uniform(1.0, 2.0) * max(0.6, min(1.0, r / 3.0))
+        base = (h if h < 0 else 0.0) - 0.3
+        bm = P["rock"]
+        res = bmesh.ops.create_icosphere(bm, subdivisions=2, radius=1.0)
+        sd = Vector((seed * 3.1 + k, k * 1.7, seed * 0.9))
+        rot = Matrix.Rotation(g.uniform(0, 3.14), 3, "Z")
+        sx, sy = g.uniform(1.1, 1.7), g.uniform(0.9, 1.3)
+        tilt = g.uniform(-0.12, 0.12)
+        for v in res["verts"]:
+            n_ = v.co.copy()
+            f = 1.0 + 0.25 * noise.noise(n_ * 1.5 + sd)
+            xy = Vector((n_.x * sx * f, n_.y * sy * f, 0.0))
+            z = ((n_.z + 1.0) / 2.0) ** 0.7                          # 0 .. 1 from the ground up (rounded shoulders)
+            z = round(z * 4.0) / 4.0 * 0.5 + z * 0.5                 # stratified ledges
+            p_ = rot @ (xy * br)
+            v.co = Vector((bx + p_.x, by + p_.y, base + z * (top - base) + tilt * p_.x))
 
 
 def build_rocks(P):
     """Rock masses round the chasm under the bridge and at the castle's foot (noise-displaced blobs)."""
     # (x, y, radius, height): low jagged rocks either side of the bridge (below the deck near it, taller further out),
     # the tall crag with the waterfall on the right, rocks at the feet of the wings
-    blobs = [(-7.5, -20.0, 3.5, 2.5), (-8.0, -12.0, 3.0, 1.5), (-9.5, -4.5, 3.2, 3.0), (-15.0, -15.0, 4.5, 4.0), (-14.0, -6.0, 3.5, 5.5),
-             (7.5, -21.0, 3.2, 3.0), (8.0, -13.5, 2.8, 1.8), (13.5, -18.0, 4.0, 6.5), (14.0, -9.0, 4.2, 8.0), (10.0, -3.5, 3.0, 4.0),
+    blobs = [(-7.5, -20.0, 3.5, 0.2), (-8.0, -12.0, 3.0, -0.4), (-9.5, -4.5, 3.2, 1.0), (-15.0, -15.0, 4.5, 1.5), (-14.0, -6.0, 3.5, 2.0),
+             (7.5, -21.0, 3.2, 0.3), (8.0, -13.5, 2.8, -0.3), (13.5, -18.0, 4.0, 2.5), (14.0, -8.0, 4.2, 7.5), (10.0, -3.5, 3.0, 5.5),
              (-4.0, -16.0, 2.6, -1.2), (4.0, -10.0, 2.6, -1.2), (-24.0, -1.0, 3.5, 2.5), (25.0, 0.0, 3.5, 3.0)]
     for i, (x, y, r, h) in enumerate(blobs):
+        boulder_cluster(P, x, y, r, h, i)
+        continue
         bm = P["rock"]
         res = bmesh.ops.create_icosphere(bm, subdivisions=4, radius=1.0)
         seed = Vector((i * 3.1, i * 1.7, i * 0.9))
@@ -503,9 +415,269 @@ def build_rocks(P):
             spike = 1.0 + 0.6 * max(0.0, noise.noise(Vector((n.x * 2.2, n.y * 2.2, 0)) + seed))   # jagged crests
             z = max(n.z, -0.25)
             v.co = Vector((x + n.x * r * d, y + n.y * r * d * 0.85, z * abs(h) * d * spike + (h if h < 0 else 0)))
+    # the outcrop the palace stands on, seen from the village: big rocks round its right side and back
+    for i, (x, y, r, h) in enumerate([(19.0, 12.0, 6.0, 9.0), (21.0, 24.0, 6.5, 12.0), (17.0, 36.0, 6.0, 10.0), (6.0, 41.0, 7.0, 8.0),
+                                       (-8.0, 40.0, 6.5, 9.5), (-19.0, 32.0, 6.0, 7.0), (-21.0, 20.0, 5.0, 5.0), (26.0, 4.0, 5.0, 6.0)]):
+        boulder_cluster(P, x, y, r, h, i)
+        continue
+        bm = P["rock"]
+        res = bmesh.ops.create_icosphere(bm, subdivisions=4, radius=1.0)
+        seed = Vector((i * 5.3 + 40, i * 2.1, i * 1.3))
+        for v in res["verts"]:
+            n = v.co.copy()
+            d = 1.0 + 0.32 * noise.noise(n * 1.2 + seed) + 0.14 * noise.noise(n * 3.2 + seed) + 0.05 * noise.noise(n * 8.0 + seed)
+            spike = 1.0 + 0.5 * max(0.0, noise.noise(Vector((n.x * 2.0, n.y * 2.0, 0)) + seed))
+            v.co = Vector((x + n.x * r * d, y + n.y * r * d, max(n.z, -0.25) * h * d * spike))
+    for x, y, z0, z1 in ((26.0, 18.0, 0.0, 6.0), (26.5, 30.0, 0.0, 7.0), (-24.5, 26.0, 0.0, 4.0)):   # waterfalls down the rocks
+        cube(P, "water", Matrix.Identity(4), x - 0.08, x + 0.08, y - 0.9, y + 0.9, z0, z1)
     # the chasm floor and a mist-white cascade on the right (the waterfall at the bridge)
     cube(P, "rock", Matrix.Identity(4), -6.0, 6.0, -26.0, -1.0, -4.5, -4.0)
-    cube(P, "water", Matrix.Identity(4), 6.2, 7.2, -13.0, -11.0, -4.0, 4.5)
+    cube(P, "water", Matrix.Identity(4), 10.6, 10.9, -10.5, -6.5, -4.0, 6.0)                 # the cascade off the crag
+
+
+# ================================================================ v2 parts (from ~100 photos): tiers, dormers, turrets
+def side_frames(x0, x1, y0, y1):
+    """Face frames of a rectangular block, each with its length: front (-y), right (+x), back (+y), left (-x)."""
+    return [(face(x0, y0, 0.0), x1 - x0), (face(x1, y0, math.pi / 2), y1 - y0),
+            (face(x1, y1, math.pi), x1 - x0), (face(x0, y1, -math.pi / 2), y1 - y0)]
+
+
+def pyramid(P, x, y, z, half, h, mat="roof", finial=True):
+    """Steep square roof (a 4-sided cone turned 45 deg) with a cream band under it and a finial."""
+    lathe(P, mat, [(0.0, z), (half * 1.414 + 0.15, z), (half * 1.3, z + h * 0.07), (0.05, z + h), (0.0, z + h)], 4, T(x, y, 0) @ R(math.pi / 4, "Z"))
+    cube(P, "cream", Matrix.Identity(4), x - half - 0.15, x + half + 0.15, y - half - 0.15, y + half + 0.15, z - 0.4, z)
+    if finial:
+        lathe(P, "gold", [(0, z + h), (0.07, z + h), (0.04, z + h + 0.4), (0.09, z + h + 0.5), (0.015, z + h + 1.2), (0, z + h + 1.25)], 8, T(x, y, 0))
+
+
+def ornate_dormer(P, M, u, z0, w=1.6, h=2.6):
+    """Baroque dormer (the castle's many cream dormers): pilasters, round-headed window, scrolled sides,
+    a broken segmental pediment with a cartouche and a finial."""
+    cube(P, "cream", M, u - w / 2, u + w / 2, -0.8, 0.05, z0, z0 + h)                         # body
+    window(P, M @ Matrix.Translation((0, 0.06, 0)), u, z0 + 0.35, w * 0.5, h * 0.62, "round", 0.08, sill=False)
+    for s in (-1, 1):
+        cube(P, "cream", M, u + s * w / 2 - (0.18 if s > 0 else 0), u + s * w / 2 + (0.18 if s < 0 else 0) * 0 + (0.0 if s > 0 else 0.18), 0.05, 0.2, z0, z0 + h)
+        sc = [(u + s * (w / 2 + 0.05), z0 + 0.1)] + [(u + s * (w / 2 + 0.05 + 0.45 * math.sin(math.pi * k / 8)), z0 + 0.1 + 0.9 * (1 - math.cos(math.pi * k / 8)) / 2 * 2) for k in range(1, 9)]
+        pts = sc + [(u + s * (w / 2 + 0.05), z0 + 1.9)]
+        poly_prism(P, "cream", M, pts if s > 0 else pts[::-1], -0.6, 0.0)                         # side scroll
+    arc, _ = seg_arc(u, z0 + h, w + 0.5, 0.55, 14)
+    band = [(x, z) for x, z in arc] + [(x, z - 0.22) for x, z in arc[::-1]]
+    left, right = band[: len(band) // 2], band[len(band) // 2:]
+    poly_prism(P, "cream", M, [p for i, p in enumerate(arc) if i < 6] + [(x, z - 0.22) for i, (x, z) in reversed(list(enumerate(arc))) if i < 6], -0.8, 0.15)
+    poly_prism(P, "cream", M, [p for i, p in enumerate(arc) if i > 7] + [(x, z - 0.22) for i, (x, z) in reversed(list(enumerate(arc))) if i > 7], -0.8, 0.15)
+    lathe(P, "cream", [(0, 0), (0.28, 0), (0.28, 0.1), (0, 0.12)], 10, M @ T(u, 0.16, z0 + h + 0.2) @ R(-math.pi / 2, "X"))   # cartouche
+    lathe(P, "gold", [(0, 0), (0.1, 0), (0.07, 0.3), (0.12, 0.4), (0.02, 0.9), (0, 0.95)], 8, M @ T(u, -0.2, z0 + h + 0.45))
+    cube(P, "roof", M, u - w / 2 - 0.1, u + w / 2 + 0.1, -2.2, -0.8, z0 + h - 0.2, z0 + h + 0.25)      # its little roof going back
+
+
+def bartizan(P, x, y, z, r=0.9, h=3.2, roof=3.2):
+    """Corbelled corner turret: a cone of corbels, a short round body with a slit window, a steep cone roof."""
+    lathe(P, "cream", [(0.0, z - 1.6), (0.25, z - 1.6), (r + 0.1, z - 0.1), (r + 0.1, z), (0.0, z)], 20, T(x, y, 0))
+    lathe(P, "lilac", [(0.0, z), (r, z), (r, z + h), (0.0, z + h)], 20, T(x, y, 0))
+    lathe(P, "cream", [(0.0, z + h - 0.3), (r + 0.12, z + h - 0.3), (r + 0.12, z + h), (0.0, z + h)], 20, T(x, y, 0))
+    cone_roof(P, x, y, z + h, r + 0.2, roof, 20)
+
+
+def cresting(P, x0, y0, x1, y1, z, step=0.35, h=0.55):
+    """Iron cresting along a ridge: spikes with a small ball, one every `step`."""
+    L = math.hypot(x1 - x0, y1 - y0); n = max(1, int(L / step))
+    for k in range(n + 1):
+        t = k / n; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        lathe(P, "iron", [(0, 0), (0.025, 0), (0.015, h * 0.6), (0.05, h * 0.68), (0.012, h), (0, h)], 5, T(x, y, z))
+    cube(P, "iron", Matrix.Identity(4), min(x0, x1) - 0.02, max(x0, x1) + 0.02, min(y0, y1) - 0.02, max(y0, y1) + 0.02, z, z + 0.06)
+
+
+def stage(P, x0, x1, y0, y1, z0, z1, rows, sides=(0, 1, 2, 3), spacing=2.1, kind="round", balus=True, glass="glass"):
+    """One tier of the palace: lilac block, windows in rows on its faces, a cream cornice and a balustrade."""
+    cube(P, "lilac", Matrix.Identity(4), x0, x1, y0, y1, z0, z1)
+    cube(P, "cream", Matrix.Identity(4), x0 - 0.25, x1 + 0.25, y0 - 0.25, y1 + 0.25, z1 - 0.45, z1)
+    cube(P, "cream", Matrix.Identity(4), x0 - 0.12, x1 + 0.12, y0 - 0.12, y1 + 0.12, z1 - 0.75, z1 - 0.45)
+    for i, (M, L) in enumerate(side_frames(x0, x1, y0, y1)):
+        if i not in sides:
+            continue
+        n = max(1, int((L - 0.6) / spacing))
+        for zz, hh in rows:
+            for k in range(n):
+                window(P, M, (k + 0.5) * L / n, z0 + zz, 0.72, hh, kind, 0.11, glass=glass)
+        if balus:
+            balustrade(P, M @ Matrix.Translation((0, 0.05, 0)), 0.0, L, z1, 0.85)
+
+
+def gargoyle_lamp(P, x, y, h=5.2):
+    """Bridge lamp post: a crouching bronze grotesque on a cream pier, an iron post, a scrolled arm, a lantern."""
+    cube(P, "cream", Matrix.Identity(4), x - 0.5, x + 0.5, y - 0.5, y + 0.5, 0.0, 1.1)
+    lathe(P, "iron", [(0, 1.1), (0.34, 1.1), (0.4, 1.45), (0.3, 1.9), (0.36, 2.3), (0.22, 2.6), (0, 2.7)], 10, T(x, y, 0))   # the grotesque
+    lathe(P, "iron", [(0, 2.35), (0.16, 2.4), (0.18, 2.6), (0, 2.75)], 8, T(x, y - 0.2, 0))
+    lathe(P, "iron", [(0, 2.6), (0.09, 2.6), (0.07, h), (0.12, h + 0.1), (0, h + 0.25)], 8, T(x, y, 0))
+    cube(P, "iron", Matrix.Identity(4), x - 0.03, x + 0.03, y - 1.0, y, h - 0.35, h - 0.28)
+    lathe(P, "lamp", [(0, 0), (0.18, 0.05), (0.22, 0.5), (0.1, 0.65), (0, 0.66)], 8, T(x, y - 1.0, h - 1.05))
+    lathe(P, "iron", [(0, 0.62), (0.28, 0.62), (0.06, 0.9), (0, 0.95)], 8, T(x, y - 1.0, h - 1.05))
+
+
+# ================================================================ the gatehouse (v2)
+def build_gatehouse(P):
+    I = Matrix.Identity(4); M = face(0, 0, 0)
+    # the curved bastion wall either side of the gate (battered base course, dressed top)
+    for a, b in ((-7.0, -1.75), (1.75, 7.0)):                                                # the body, with the passage open
+        cube(P, "lilac", I, a, b, 0.0, 6.0, 0.0, 9.0)
+    cube(P, "lilac", I, -1.75, 1.75, 0.0, 6.0, 7.2, 9.0)
+    cube(P, "trim", I, -1.75, 1.75, 0.3, 6.0, 7.05, 7.2)                                       # the passage ceiling
+    cube(P, "base", I, -7.2, -1.75, -0.25, 6.2, 0.0, 1.4)
+    cube(P, "base", I, 1.75, 7.2, -0.25, 6.2, 0.0, 1.4)
+    cube(P, "cream", I, -7.3, 7.3, -0.35, 6.3, 8.6, 9.1)
+    # the three pointed openings: the door in the middle, the lion niches either side (statue inside, lamp in front)
+    for u, w, spring, deep in ((0.0, 3.4, 5.2, True), (-4.2, 2.2, 3.8, False), (4.2, 2.2, 3.8, False)):
+        poly_prism(P, "cream", M, [(u - w / 2 - 0.4, 0.0), (u + w / 2 + 0.4, 0.0)] + pointed(u - w / 2 - 0.4, u + w / 2 + 0.4, spring)[1:-1], -0.05, 0.35)
+        if not deep:
+            poly_prism(P, "glass", M, [(u - w / 2, 1.2), (u + w / 2, 1.2)] + pointed(u - w / 2, u + w / 2, spring)[1:-1], 0.35, 0.36)
+        if deep:
+            for sg in (-1, 1):                                  # the door leaves stand open against the reveals
+                cube(P, "wood", M, sg * 1.7 - 0.12, sg * 1.7 + 0.12, 0.4, 1.9, 0.0, 5.6)
+        else:
+            lion(P, M @ Matrix.Translation((0, 0.95, 0)), u, 1.2, 0.95)
+    # lion-head relief with a crest over the door; a string course; small windows above the niches
+    lathe(P, "statue", [(0, 0), (0.6, 0), (0.66, 0.22), (0.5, 0.5), (0, 0.55)], 14, M @ T(0, 0.35, 8.0) @ R(-math.pi / 2, "X"))
+    poly_prism(P, "cream", M, [(-1.2, 7.4), (1.2, 7.4), (1.0, 8.6), (0.0, 9.0), (-1.0, 8.6)], -0.2, 0.25)
+    cube(P, "cream", M, -7.2, 7.2, -0.3, 0.05, 5.6, 5.85)
+    for u in (-4.2, 4.2):
+        window(P, M, u, 6.6, 0.75, 1.7, "pointed")
+    # the steep rose hip roof with the ornate dormer, cresting on the ridge
+    hip_roof(P, -7.3, 7.3, -0.35, 6.3, 9.1, 4.2)
+    ornate_dormer(P, M @ Matrix.Translation((0, 1.2, 0)), 0.0, 9.2, 1.9, 2.9)
+    cresting(P, -3.2, 3.0, 3.2, 3.0, 13.3)
+    # square towers either side with tall rose pyramids; smaller cones at the ends of the gatehouse
+    for s in (-1, 1):
+        x = s * 7.6
+        cube(P, "lilac", I, x - 1.8, x + 1.8, -0.8, 3.0, 0.0, 10.5)
+        cube(P, "base", I, x - 1.95, x + 1.95, -0.95, 3.15, 0.0, 1.5)
+        cube(P, "cream", I, x - 2.0, x + 2.0, -1.0, 3.2, 10.1, 10.6)
+        for k in range(8):                                  # corbel table
+            cube(P, "cream", I, x - 1.75 + k * 0.47, x - 1.5 + k * 0.47, -1.0, -0.8, 9.5, 10.1)
+        window(P, face(x, -0.8, 0), 0.0, 7.0, 0.7, 1.8, "pointed")
+        window(P, face(x, -0.8, 0), 0.0, 3.6, 0.5, 1.3, "pointed")
+        pyramid(P, x, 1.1, 10.6, 2.0, 5.8)
+        ornate_dormer(P, face(x, -0.1, 0), 0.0, 11.5, 0.9, 1.6)
+        bartizan(P, s * 11.2, 1.5, 7.2, 1.0, 3.0, 3.6)
+        gargoyle(P, face(s * 9.4, -0.3, 0), 0.0, 9.1, 0.8)
+
+
+# ================================================================ the palace (v2): round towers + stacked tiers + the keep
+def build_palace(P):
+    I = Matrix.Identity(4)
+    # the grand stair with lion guardians on its cheeks
+    for k in range(9):
+        cube(P, "base", I, -5.2 + k * 0.1, 5.2 - k * 0.1, 15.8 + k * 0.45, 22.0, 0.0, 0.2 * (k + 1))
+    for s in (-1, 1):
+        cube(P, "cream", I, s * 5.5 - 0.5, s * 5.5 + 0.5, 15.8, 22.0, 0.0, 1.1)
+    # tier 0: the courtyard front between the two round towers (to 11.5 m)
+    cube(P, "lilac", I, -8.0, 8.0, 21.5, 34.0, 0.0, 11.5)
+    cube(P, "base", I, -8.2, 8.2, 21.3, 34.2, 0.0, 2.6)
+    cube(P, "cream", I, -8.3, 8.3, 21.2, 34.3, 2.6, 2.85)
+    M = face(0, 21.5, 0)
+    # the door: pedimented surround, winged gargoyles on the entablature, lions on pedestals either side
+    poly_prism(P, "cream", M, [(-2.3, 1.8), (2.3, 1.8)] + pointed(-2.3, 2.3, 4.6)[1:-1], -0.05, 0.4)
+    poly_prism(P, "wood", M, [(-1.5, 1.8), (1.5, 1.8)] + pointed(-1.5, 1.5, 4.4)[1:-1], 0.4, 0.46)
+    for zz in (2.6, 3.6, 4.6):
+        cube(P, "iron", M, -1.4, 1.4, 0.46, 0.49, zz, zz + 0.08)
+    cube(P, "cream", M, -3.3, 3.3, -0.2, 0.9, 6.3, 7.0)                                    # entablature
+    poly_prism(P, "cream", M, [(-2.6, 7.0), (2.6, 7.0), (0.0, 8.3)], -0.25, 0.2)            # pediment
+    lathe(P, "gold", [(0, 0), (0.4, 0), (0.4, 0.08), (0, 0.1)], 6, M @ T(0, 0.22, 7.45) @ R(-math.pi / 2, "X"))
+    for s in (-1, 1):
+        cube(P, "cream", M, s * 2.9 - 0.45, s * 2.9 + 0.45, -0.3, 0.9, 1.8, 6.3)            # pilasters
+        lion(P, M @ Matrix.Translation((0, 1.1, 0)), s * 2.9, 1.8, 1.0)
+        gargoyle(P, M @ Matrix.Translation((0, 0.5, 0)), s * 2.9, 7.0, 1.2)
+        for u in (s * 5.0, s * 6.6):
+            window(P, M, u, 3.6, 0.8, 2.3, "pointed")
+            window(P, M, u, 8.2, 0.75, 2.0, "pointed", glass="stained")
+    cube(P, "cream", I, -8.4, 8.4, 20.9, 34.4, 11.1, 11.6)
+    hip_roof(P, -8.4, 8.4, 20.9, 34.4, 11.6, 4.8)
+    for u in (-4.6, 0.0, 4.6):
+        ornate_dormer(P, M @ Matrix.Translation((0, 1.4, 0)), u, 11.8, 1.5, 2.6)
+    # the two fat round towers at the front corners: rusticated base, corbelled rings, tall windows, cones with dormers
+    for s in (-1, 1):
+        x, y, r = s * 8.2, 23.0, 3.4
+        lathe(P, "base", [(0, 0), (r + 0.3, 0), (r + 0.3, 3.0), (r + 0.1, 3.2), (0, 3.2)], 36, T(x, y, 0))
+        lathe(P, "lilac", [(0, 3.0), (r, 3.0), (r, 13.0), (0, 13.0)], 36, T(x, y, 0))
+        for zr in (3.1, 7.9):                                                                # moulded rings
+            lathe(P, "cream", [(0, zr), (r + 0.35, zr), (r + 0.35, zr + 0.3), (r + 0.15, zr + 0.45), (0, zr + 0.45)], 36, T(x, y, 0))
+        lathe(P, "cream", [(0, 11.8), (r + 0.05, 11.8), (r + 0.5, 12.8), (r + 0.5, 13.2), (0, 13.2)], 36, T(x, y, 0))
+        for k in range(18):                                                                  # corbels
+            t = 2 * math.pi * k / 18
+            cube(P, "cream", face(x + r * math.cos(t), y + r * math.sin(t), t + math.pi / 2), -0.13, 0.13, 0.0, 0.35, 11.3, 11.8)
+        a0, a1 = (math.pi * 0.95, math.pi * 1.75) if s < 0 else (-math.pi * 0.75, math.pi * 0.05)
+        for zz, hh in ((4.2, 2.6), (9.0, 2.2)):
+            for k in range(5):
+                t = a0 + (a1 - a0) * (k + 0.5) / 5
+                window(P, face(x + r * math.cos(t), y + r * math.sin(t), t + math.pi / 2), 0.0, zz, 0.72, hh, "pointed", 0.12)
+        cone_roof(P, x, y, 13.2, r + 0.45, 8.0, 36)
+        t = -math.pi / 2                                                                      # a dormer on the cone, facing the court
+        ornate_dormer(P, face(x + (r - 0.9) * math.cos(t), y + (r - 0.9) * math.sin(t), 0.0), 0.0, 14.0, 1.0, 1.9)
+    # tier 1: the main block behind (to 18.5 m): windows all round, balustrade, rose mansard with dormers
+    stage(P, -7.0, 7.0, 25.0, 34.0, 11.5, 18.5, ((1.6, 2.2), (4.4, 1.8)))
+    hip_roof(P, -7.2, 7.2, 24.8, 34.2, 18.5, 3.4)
+    for u in (-3.5, 3.5):
+        ornate_dormer(P, face(0, 25.6, 0), u, 18.7, 1.3, 2.3)
+    for s in (-1, 1):                                                                        # side pavilions with pyramids
+        x = s * 6.2
+        stage(P, x - 2.2, x + 2.2, 24.0, 28.4, 11.5, 20.5, ((1.6, 2.2), (5.0, 1.8)), sides=(0, 1 if s > 0 else 3), spacing=2.0, balus=False)
+        pyramid(P, x, 26.2, 20.5, 2.25, 7.5)
+        ornate_dormer(P, face(x, 23.9, 0), 0.0, 21.4, 1.0, 1.9)
+    # tier 2: the upper stage (to 23.5 m) with its balcony and the big dormer (the photos' cream centrepiece)
+    stage(P, -4.2, 4.2, 26.0, 33.0, 18.5, 23.5, ((1.5, 2.0),), spacing=1.9)
+    hip_roof(P, -4.4, 4.4, 25.8, 33.2, 23.5, 3.2)
+    ornate_dormer(P, face(0, 26.3, 0), 0.0, 23.7, 1.8, 3.0)
+    cube(P, "cream", I, -3.4, 3.4, 24.9, 26.0, 18.3, 18.6)                                  # balcony slab on corbels
+    balustrade(P, face(0, 24.9, 0), -3.4, 3.4, 18.6, 0.9)
+    # the keep: slim square tower to 30.5 m, machicolations, crenellations, a small spire; its thin round turret
+    kx, ky, k = -1.2, 34.0, 1.65
+    stage(P, kx - k, kx + k, ky - k, ky + k, 18.5, 34.4, ((6.4, 1.5), (8.6, 1.4), (10.4, 1.2)), spacing=1.4, balus=False)
+    for zz in (24.3, 27.8, 31.2):                                                                   # string courses on the shaft
+        cube(P, "cream", I, kx - k - 0.12, kx + k + 0.12, ky - k - 0.12, ky + k + 0.12, zz, zz + 0.22)
+    for i in range(7):
+        for (a, b), (c, d) in (((kx - k + i * 0.5, kx - k + i * 0.5 + 0.22), (ky - k - 0.35, ky - k)), ((kx - k + i * 0.5, kx - k + i * 0.5 + 0.22), (ky + k, ky + k + 0.35))):
+            cube(P, "cream", I, a, b, c, d, 33.9, 34.4)
+    cube(P, "cream", I, kx - k - 0.45, kx + k + 0.45, ky - k - 0.45, ky + k + 0.45, 34.4, 34.8)
+    cube(P, "lilac", I, kx - k - 0.35, kx + k + 0.35, ky - k - 0.35, ky + k + 0.35, 34.8, 35.6)
+    for i in range(4):
+        for yy in (ky - k - 0.35, ky + k - 0.05):
+            cube(P, "lilac", I, kx - k - 0.35 + i * 1.05, kx - k + 0.15 + i * 1.05, yy, yy + 0.4, 35.6, 36.3)
+        for xx in (kx - k - 0.35, kx + k - 0.05):
+            cube(P, "lilac", I, xx, xx + 0.4, ky - k - 0.35 + i * 1.05, ky - k + 0.15 + i * 1.05, 35.6, 36.3)
+    lathe(P, "lilac", [(0, 34.8), (0.75, 34.8), (0.75, 37.2), (0, 37.2)], 16, T(kx + 0.8, ky - 0.8, 0))   # the little turret on its top
+    cone_roof(P, kx + 0.8, ky - 0.8, 37.2, 0.95, 3.2, 16)
+    tx, ty = kx - 3.0, ky - 1.2                                                               # the thin round turret
+    lathe(P, "lilac", [(0, 18.5), (0.95, 18.5), (0.95, 29.0), (0, 29.0)], 20, T(tx, ty, 0))
+    lathe(P, "cream", [(0, 28.6), (1.2, 28.6), (1.2, 29.0), (0, 29.0)], 20, T(tx, ty, 0))
+    window(P, face(tx, ty - 0.95, 0), 0.0, 25.5, 0.45, 1.3, "pointed")
+    cone_roof(P, tx, ty, 29.0, 1.2, 5.6, 20)
+    # a second slender spire tower to the right of the keep, chimneys, bartizans and cresting round the tiers
+    sx_, sy_ = 3.1, 29.0
+    lathe(P, "lilac", [(0, 22.0), (0.85, 22.0), (0.85, 26.5), (0, 26.5)], 16, T(sx_, sy_, 0))
+    cone_roof(P, sx_, sy_, 26.5, 1.05, 4.6, 16)
+    for x, y in ((-5.8, 32.5), (5.8, 32.5), (1.8, 33.5)):
+        cube(P, "lilac", I, x - 0.45, x + 0.45, y - 0.45, y + 0.45, 18.5, 24.5)
+        cube(P, "cream", I, x - 0.6, x + 0.6, y - 0.6, y + 0.6, 24.5, 24.9)
+    for x, y, z in ((-7.2, 34.2, 11.5), (7.2, 34.2, 11.5), (-4.4, 25.8, 18.5), (4.4, 25.8, 18.5)):
+        bartizan(P, x, y, z, 0.75, 2.4, 2.6)
+    cresting(P, -1.4, 29.5, 1.4, 29.5, 21.9)
+    cresting(P, -3.0, 16.3 + 12.0, 3.0, 16.3 + 12.0, 16.4)
+
+
+def build_bridge(P):
+    M = Matrix.Identity(4)
+    cube(P, "paving", M, -2.4, 2.4, -26.0, -0.5, -0.6, 0.0)
+    for s in (-1, 1):
+        cube(P, "lilac", M, s * 2.4 - 0.35, s * 2.4 + 0.35, -26.0, -0.5, -0.6, 1.0)
+        cube(P, "cream", M, s * 2.4 - 0.45, s * 2.4 + 0.45, -26.0, -0.5, 1.0, 1.18)
+        for yy in (-24.0, -18.0, -12.0, -6.0):                                              # square piers with pyramidal caps
+            cube(P, "cream", M, s * 2.4 - 0.62, s * 2.4 + 0.62, yy - 0.62, yy + 0.62, -0.6, 1.5)
+            lathe(P, "cream", [(0, 1.5), (0.95, 1.5), (0.1, 2.1), (0, 2.1)], 4, T(s * 2.4, yy, 0) @ R(math.pi / 4, "Z"))
+        for yy in (-21.0, -9.0, -2.4):
+            gargoyle_lamp(P, s * 3.3, yy, 5.4)
+    for k in range(3):
+        y0, y1 = -24.0 + k * 8.0, -17.0 + k * 8.0
+        pts, _ = seg_arc((y0 + y1) / 2, -4.0, y1 - y0, 1.8, 14)
+        poly_prism(P, "lilac", face(-2.4, 0, math.pi / 2), [(-(y1), -0.6), (-(y0), -0.6), (-y0, -4.0)] + [(-u, z) for u, z in pts[::-1]] + [(-y1, -4.0)], 0.0, 4.8)
 
 
 def build(context=True):
@@ -519,7 +691,7 @@ def build(context=True):
     P = Parts()
     for name, fn in (("bridge", build_bridge), ("gatehouse", build_gatehouse), ("wings", build_wings),
                      ("courtyard", build_courtyard), ("palace", build_palace), ("rocks", build_rocks)):
-        fn(P); P.flush(name)
+        fn(P); P.flush(name, PALACE_DY if name == "palace" else 0.0)
     if context:
         ctx = bpy.data.collections.new("Context"); sc.collection.children.link(ctx)
         old = B.col; B.col = ctx
@@ -529,12 +701,13 @@ def build(context=True):
 
 
 CAMS = {
-    "bridge": ((0.0, -38.0, 1.7), (0.0, 10.0, 12.0), 24),         # the photos from the queue
-    "front": ((-14.0, -48.0, 8.0), (0.0, 10.0, 12.0), 28),
-    "courtyard": ((3.0, 7.0, 1.7), (-1.0, 22.0, 9.0), 16),
+    "bridge": ((0.0, -21.0, 1.6), (0.0, 12.0, 17.5), 19),         # the photos from the queue (wide angle, on the deck)
+    "front": ((-10.0, -40.0, 3.0), (0.0, 12.0, 16.0), 24),
+    "courtyard": ((0.0, 7.2, 3.6), (0.0, 20.0, 15.0), 14),
     "keep": ((22.0, 10.0, 3.0), (2.0, 30.0, 22.0), 24),
+    "village": ((40.0, 58.0, 2.0), (0.0, 22.0, 20.0), 26),         # from the Gaston side, over the rocks
     "aerial": ((55.0, -50.0, 55.0), (0.0, 15.0, 8.0), 30),
-    "rose": ((-0.8, 11.3, 1.7), (-2.0, 12.5, 1.5), 50),
+    "rose": ((-7.8, 9.3, 1.7), (-9.0, 10.5, 1.5), 50),
 }
 
 
