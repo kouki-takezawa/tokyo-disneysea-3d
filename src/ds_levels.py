@@ -103,6 +103,17 @@ def _pip(x, y, poly):
     return c
 
 
+def _pip_many(x, y, poly):
+    """_pip for arrays of points (same arithmetic, so the same answers)."""
+    c = np.zeros(len(x), bool)
+    for i in range(len(poly)):
+        x1, y1 = poly[i]; x2, y2 = poly[i - 1]
+        if y1 == y2:
+            continue
+        c ^= ((y1 > y) != (y2 > y)) & (x < (x2 - x1) * (y - y1) / (y2 - y1) + x1)
+    return c
+
+
 def _length(pts):
     return sum(math.dist(pts[k], pts[k + 1]) for k in range(len(pts) - 1))
 
@@ -350,11 +361,13 @@ def contours(park, interval=1.0, blur=2):
                     pts.append((p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t))
             for k in range(0, len(pts) - 1, 2):
                 (pi1, pj1), (pi2, pj2) = pts[k], pts[k + 1]
-                xa, ya = to_xy(pi1, pj1); xb, yb = to_xy(pi2, pj2)
-                if _pip((xa + xb) / 2, (ya + yb) / 2, park):
-                    segs += [round(xa, 1), round(ya, 1), round(xb, 1), round(yb, 1)]
+                segs.append((*to_xy(pi1, pj1), *to_xy(pi2, pj2)))
         if segs:
-            out[round(lv, 2)] = segs
+            S = np.array(segs)
+            keep = _pip_many((S[:, 0] + S[:, 2]) / 2, (S[:, 1] + S[:, 3]) / 2, park)
+            flat = [round(v, 1) for seg, k in zip(segs, keep) if k for v in seg]
+            if flat:
+                out[round(lv, 2)] = flat
         lv += interval
     return out
 
