@@ -37,6 +37,7 @@
 !/output/disneysea/train_model.js
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
+!/output/disneysea/models/woody.glb
 
 __pycache__/
 *.blend

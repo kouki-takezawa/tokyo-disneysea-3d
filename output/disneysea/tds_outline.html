@@ -2290,21 +2290,75 @@ async function init3D() {
   // Feet follow the Blender models (plaza, volcano, water surface, piers) where there are any, else the DEM.
   // Buildings block; water does not (the person stands on the water surface).
   const HEIGHT = 1.70, EYE = 1.58, STEP = 0.55, WALK = 1.4, RUN = 4.0, CELL = 2;
-  const person = new T.Group();
+  const person = new T.Group(), stand = new T.Group(); person.add(stand);   // stand: the box figure until Woody has loaded
   {
     const skin = new T.MeshStandardMaterial({ color: 0xe0b48c, roughness: 0.8 });
     const shirt = new T.MeshStandardMaterial({ color: 0xd9452b, roughness: 0.7 });
     const pants = new T.MeshStandardMaterial({ color: 0x2b3a55, roughness: 0.8 });
-    const box = (w, h, d, m, x, y, z) => { const o = new T.Mesh(new T.BoxGeometry(w, h, d), m); o.position.set(x, y, z); person.add(o); return o; };
+    const box = (w, h, d, m, x, y, z) => { const o = new T.Mesh(new T.BoxGeometry(w, h, d), m); o.position.set(x, y, z); stand.add(o); return o; };
     box(0.13, 0.80, 0.15, pants, -0.09, 0.40, 0); box(0.13, 0.80, 0.15, pants, 0.09, 0.40, 0);
     box(0.38, 0.60, 0.22, shirt, 0, 1.10, 0);
     box(0.09, 0.62, 0.10, shirt, -0.24, 1.09, 0); box(0.09, 0.62, 0.10, shirt, 0.24, 1.09, 0);
     box(0.08, 0.06, 0.08, skin, 0, 1.43, 0);
     const head = new T.Mesh(new T.SphereGeometry(0.12, 20, 14), skin);
-    head.scale.set(1, 1.08, 1); head.position.set(0, HEIGHT - 0.13, 0); person.add(head);
+    head.scale.set(1, 1.08, 1); head.position.set(0, HEIGHT - 0.13, 0); stand.add(head);
     box(0.10, 0.03, 0.03, new T.MeshStandardMaterial({ color: 0x222222 }), 0, 1.60, -0.115);   // eyes: the facing side (-Z)
   }
   person.visible = false; scene.add(person);
+
+  // Woody (fan-made model from kouki-takezawa/enoden-walk: rigged, idle / walk / run / sprint / jump baked; Draco-compressed)
+  const woody = { mixer: null, act: {}, obj: null, face: Math.PI, w: { idle: 1, walk: 0, run: 0 }, loading: false };
+  async function loadWoody() {
+    if (woody.loading) return; woody.loading = true;
+    const base = "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/";
+    try {
+      if (!T.GLTFLoader) await loadScript(base + "loaders/GLTFLoader.js");
+      if (!T.DRACOLoader) await loadScript(base + "loaders/DRACOLoader.js");
+    } catch (e) { return; }
+    addLights(T, scene);
+    const draco = new T.DRACOLoader(); draco.setDecoderPath(base + "libs/draco/gltf/");
+    const loader = new T.GLTFLoader(); loader.setDRACOLoader(draco);
+    loader.load("models/woody.glb", gltf => {
+      const m = gltf.scene;
+      m.traverse(o => {
+        if (o.name.startsWith("Rig")) o.position.set(0, 0, 0);   // the armature keeps its Blender scene offset: stand on the origin
+        if (o.isMesh) {
+          o.frustumCulled = false;
+          const mat = o.material; if (mat && mat.map) { mat.map.encoding = T.LinearEncoding; mat.needsUpdate = true; }   // the page shows colours as stored
+        }
+      });
+      const bb = new T.Box3().setFromObject(m), h = bb.max.y - bb.min.y;
+      if (h > 0.1) m.scale.setScalar(HEIGHT / h);
+      m.position.y = -bb.min.y * (h > 0.1 ? HEIGHT / h : 1);
+      const holder = new T.Group(); holder.add(m); holder.rotation.y = woody.face;   // the model looks along +Z, the walker along -Z
+      person.add(holder); stand.visible = false;
+      woody.obj = holder;
+      woody.mixer = new T.AnimationMixer(m);
+      for (const clip of gltf.animations) {
+        const a = woody.mixer.clipAction(clip); a.play(); a.setEffectiveWeight(0);
+        woody.act[clip.name.replace(/^Woody_/, "").toLowerCase()] = a;
+      }
+      woody.act.idle?.setEffectiveWeight(1);
+    }, undefined, () => { woody.loading = false; });   // no model: keep the box figure
+  }
+  // blend idle / walk / run by how the walker moves; face the way it goes
+  three.woodyTick = dt => {
+    if (!woody.mixer || !person.visible) return;
+    const mv = wk.move, tgt = { idle: mv ? 0 : 1, walk: mv && !mv.run ? 1 : 0, run: mv && mv.run ? 1 : 0 };
+    const k = Math.min(1, dt * 7);
+    for (const n of ["idle", "walk", "run"]) {
+      woody.w[n] += (tgt[n] - woody.w[n]) * k;
+      const a = woody.act[n]; if (a) a.setEffectiveWeight(woody.w[n]);
+    }
+    if (woody.act.walk) woody.act.walk.timeScale = mv ? WALK * mv.mag / 1.25 : 1;   // the baked cycles are made for 1.25 / 2.9 m/s
+    if (woody.act.run) woody.act.run.timeScale = mv ? RUN * mv.mag / 2.9 : 1;
+    if (mv) {   // turn toward the direction of travel (relative to the view)
+      let d = Math.atan2(mv.s, -mv.f) - woody.face; d = Math.atan2(Math.sin(d), Math.cos(d));
+      woody.face += Math.max(-8 * dt, Math.min(8 * dt, d));
+      woody.obj.rotation.y = woody.face;
+    }
+    woody.mixer.update(dt);
+  };
 
   // walkable triangles of the visible models, bucketed into CELL m squares in plan; lab = what the surface is (aim readout)
   const SURF = [["WS_water", "水面"], ["WS_bed", "水底"], ["WS_quay", "護岸の石積み"], ["WS_coping", "護岸の笠石"], ["WS_wet", "水際の基礎"],
@@ -2367,7 +2421,7 @@ async function init3D() {
   }
   const inBuilding = (x, z) => !!buildingAt(x, -z);
 
-  const wk = { x: 0, y: 0, z: 0, yaw: 0, pitch: -0.05, first: true, keys: new Set() };
+  const wk = { x: 0, y: 0, z: 0, yaw: 0, pitch: -0.05, first: false, keys: new Set(), move: null };
   three.walking = false;
   const HEADINGS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
   function setView() {
@@ -2425,6 +2479,7 @@ async function init3D() {
 
   // start at (x, y) in local metres facing yaw (default: on the plaza 22 m from the AquaSphere, between the east lamps, facing the globe)
   three.walkEnter = (x, y, yaw, pitch, anim = false, first) => {
+    loadWoody();
     buildGrid();
     const AQ = D.aquasphere;
     if (x == null) { const a = Math.PI / 8; x = AQ.cx + 22 * Math.cos(a); y = AQ.cy + 22 * Math.sin(a); yaw = Math.atan2(Math.cos(a), -Math.sin(a)); pitch = 0.12; }
@@ -2525,8 +2580,9 @@ async function init3D() {
     const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0) - joy.y;
     const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0) + joy.x;
     const len = Math.hypot(f, s), mag = Math.min(1, len);
-    if (mag < 0.08) return;
+    if (mag < 0.08) { wk.move = null; return; }
     const running = k.has("ShiftLeft") || k.has("ShiftRight") || joy.run;
+    wk.move = { f: f / len, s: s / len, mag, run: running };
     const sp = (running ? RUN : WALK) * Math.min(dt, 0.25) * mag / len;
     const dx = (-Math.sin(wk.yaw) * f + Math.cos(wk.yaw) * s) * sp, dz = (-Math.cos(wk.yaw) * f - Math.sin(wk.yaw) * s) * sp;
     const wasIn = inBuilding(wk.x, wk.z);
@@ -2868,6 +2924,7 @@ async function init3D() {
     if (!three.active) return;
     if (growing.size) stepGrow(now); else growLast = 0;
     if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
+    if (three.walking) three.woodyTick?.(Math.min(dt, 0.1));
     FX_TIME.value = now / 1000;
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
     try { three.trainTick?.(); }
