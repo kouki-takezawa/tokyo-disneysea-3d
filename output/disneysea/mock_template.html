@@ -1824,8 +1824,8 @@ async function loadModels(T, scene, root, list = D.models) {
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
 const three = { ready: false, active: false };
 // every visit opens on the whole park: the layers rise (RISE_MS), the models grow in one by one and the title shows while the
-// camera circles slowly; a tap flies down to Tokyo Disneyland Station (FLY_MS) and brings back the controls
-const RISE_MS = 2800, FLY_MS = 2600, MODEL_GROW_MS = 900, OPEN_STATION = "tdl_station";
+// camera circles slowly; a tap zooms down onto Tokyo Disneyland Station (ZOOM_MS) and brings back the controls
+const RISE_MS = 2800, ZOOM_MS = 3200, MODEL_GROW_MS = 900, OPEN_STATION = "tdl_station";
 function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
 async function init3D() {
   const host = $("three");
@@ -1961,27 +1961,40 @@ async function init3D() {
       logo.hidden = false; requestAnimationFrame(() => { logo.classList.add("show"); dust.start(); });
     });
   };
-  const endIntro = () => {   // to the station, with the controls back
-    if (!intro) return;
-    intro = null;
-    document.body.classList.remove("intro"); hideLogo();
-    const { t, p } = station(), t0 = ctl.target.clone(), p0 = cam.position.clone();
-    ctl.enabled = false;
-    animate(FLY_MS, k => {
-      ctl.target.lerpVectors(t0, t, k); cam.position.lerpVectors(p0, p, k);
-      cam.position.y += Math.sin(Math.PI * k) * 60; cam.lookAt(ctl.target);
-    }, () => { ctl.enabled = true; ctl.update(); });
+  const endIntro = () => {   // the tap: zoom down onto the station; the controls come back when it lands
+    if (!intro || intro.zoom) return;
+    hideLogo();
+    const { t, p } = station();
+    intro.zoom = { el: 0, t0: intro.t.clone(), p0: cam.position.clone(), t, p, fov0: cam.fov };
   };
-  const stepIntro = now => {   // circling the park slowly under the title
-    const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;
-    cam.position.sub(intro.t).applyAxisAngle(new T.Vector3(0, 1, 0), dt * 0.00005).add(intro.t); cam.lookAt(intro.t);
+  const landIntro = () => {
+    cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix();
+    intro = null; ctl.enabled = true; ctl.update();
+    document.body.classList.remove("intro");
+  };
+  const zoomEase = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  const stepIntro = now => {
+    const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;   // slow frames cannot skip it
+    const z = intro.zoom;
+    if (!z) {   // circling the park slowly under the title
+      cam.position.sub(intro.t).applyAxisAngle(new T.Vector3(0, 1, 0), dt * 0.00005).add(intro.t); cam.lookAt(intro.t);
+      return;
+    }
+    z.el += dt;
+    const k = Math.min(1, z.el / ZOOM_MS), e = zoomEase(k);
+    ctl.target.lerpVectors(z.t0, z.t, Math.min(1, e * 1.35));   // the eye settles on the station first, the camera follows
+    cam.position.lerpVectors(z.p0, z.p, e);
+    cam.position.y += Math.sin(Math.PI * e) * 40;
+    cam.fov = z.fov0 - Math.sin(Math.PI * e) * 8; cam.updateProjectionMatrix();   // a touch of lens zoom on the way in
+    cam.lookAt(ctl.target);
+    if (k >= 1) landIntro();
   };
   document.addEventListener("pointerdown", () => {   // a tap anywhere: down to the station
-    if (!intro) return;
+    if (!intro || intro.zoom) return;
     three.finishGrow(); startModels(); endIntro();
   }, true);
   three.skipIntro = () => {   // walking needs the real heights at once
-    if (intro) { intro = null; document.body.classList.remove("intro"); hideLogo(); ctl.enabled = true; }
+    if (intro) { if (intro.zoom) { cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix(); } intro = null; document.body.classList.remove("intro"); hideLogo(); ctl.enabled = true; }
     if (!modelsStarted) { three.finishGrow(); root.scale.y = 1; startModels(); }
     else three.finishGrow();
   };
