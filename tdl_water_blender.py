@@ -100,6 +100,12 @@ def main():
     WB.setup(args)
     cams = {n: WB.add_camera(n, *v) for n, v in CAMERAS.items()}
     bpy.context.scene.camera = cams["rivers"]
+    for scr in bpy.data.screens:                      # the Land is far from the origin: open the .blend looking at it
+        for area in scr.areas:
+            for sp in area.spaces:
+                if sp.type == "VIEW_3D":
+                    sp.region_3d.view_location = (-330.0, 650.0, 0.0); sp.region_3d.view_distance = 750.0
+                    sp.clip_end = 20000.0; sp.shading.color_type = "MATERIAL"
     OUT.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT / "disneyland_water.blend"))
     print(f"[tdl water] saved {OUT / 'disneyland_water.blend'}")
