@@ -17,14 +17,14 @@ Path network is split at stairs into level components; small components fed by
 a stair are shifted so the stair actually connects (raised terraces / sunken
 landings) while the main promenade stays on the DEM.
 
-  python ds_levels.py          # builds plateau_data/disneysea_levels.json and prints a summary
+  python src/ds_levels.py          # builds plateau_data/disneysea_levels.json and prints a summary
                                # (needs plateau_data/disneysea_osm_raw.json, which is not in git; other scripts
                                #  read the committed JSON through levels() unless given --relevel)
 """
 import json, math, pathlib
 import numpy as np
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 PD = ROOT / "plateau_data"
 LAT0, LON0 = 35.6267, 139.8851
 KX, KY = 111320.0 * math.cos(math.radians(LAT0)), 110574.0
@@ -46,10 +46,11 @@ def _fill(h):
         nan = ~np.isfinite(h)
         if not nan.any():
             break
-        p = np.pad(h, 1, constant_values=np.nan)
-        stack = np.stack([p[:-2, 1:-1], p[2:, 1:-1], p[1:-1, :-2], p[1:-1, 2:]])
-        cnt = np.isfinite(stack).sum(0)
-        s = np.nansum(stack, 0)
+        ok = np.pad(~nan, 1)
+        v = np.pad(np.where(nan, 0.0, h), 1)
+        # same summation order as nansum over (up, down, left, right), so the result is bit-identical
+        s = v[:-2, 1:-1] + v[2:, 1:-1] + v[1:-1, :-2] + v[1:-1, 2:]
+        cnt = ok[:-2, 1:-1].astype(np.int64) + ok[2:, 1:-1] + ok[1:-1, :-2] + ok[1:-1, 2:]
         upd = nan & (cnt > 0)
         h[upd] = s[upd] / cnt[upd]
     return h

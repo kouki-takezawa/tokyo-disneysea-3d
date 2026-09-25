@@ -1,23 +1,19 @@
-"""The ground everywhere the mock covers: Tokyo Disneyland, Tokyo DisneySea and everything outside the parks (plain Python: shapely,
-numpy, OpenCV; Blender is not needed; no trees). The method of ds_tdl_ground.py (the entrance plaza) and ds_tdl_hotel_ground.py
+"""The ground of the two parks: Tokyo Disneyland and Tokyo DisneySea (plain Python: shapely, numpy, OpenCV; Blender is not
+needed; no trees). Nothing is built outside the parks. The method of ds_tdl_ground.py (the entrance plaza) and ds_tdl_hotel_ground.py
 (round the hotel), whose models stay as they are: this fills the rest.
 
-  python ds_ground.py                  # all three zones -> output/disneysea/models/{tdl_land_ground,tds_ground,outer_ground}.json
-  python ds_ground.py tds_ground       # one zone
-  python export_mock.py                # rebuilds the page; D.models picks the files up
+  python src/ds_ground.py                  # both zones -> output/disneysea/models/{tdl_land_ground,tds_ground}.json
+  python src/ds_ground.py tds_ground       # one zone
+  python src/export_mock.py                # rebuilds the page; D.models picks the files up
 
 Zones (ZONES):
   tdl_land_ground  Tokyo Disneyland: the park outline (OSM way 1282875870, with the big car park to the south-west) and the surface
                    car parks next to it (within LOT_REACH m), closed by CLOSE m. 8 m cells.
   tds_ground       Tokyo DisneySea: its park outline (ds_core.PARK). 8 m cells.
-  outer_ground     everything else in the two OSM extracts' boxes (fetch_disneysea.BBOX, fetch_disneyland.BBOX): Maihama Station,
-                   Ikspiari, the hotels, the roads and car parks, the Bayside; the land only: wherever OSM has mapped something,
-                   closed by LAND_CLOSE m (the sea is unmapped; the extracts hold too little of the coastline to use it).
-                   16 m cells (it is big and seen from afar).
   Each zone leaves out the other zones, the entrance plaza (ds_tdl_ground.py) and the ground round the hotel (ds_tdl_hotel_ground.py).
 Models already there: their plan footprint (read from the glTF in output/disneysea/models/, rasterised at FOOT_PX m) is cut out of
   the ground, so nothing is drawn twice: DisneySea's water (with its quays and piers), the plaza, the AquaSphere and the volcano; the
-  Resort Line station; a Land water model (WATER_MODEL_TDL), once it exists.
+  a Land water model (WATER_MODEL_TDL), once it exists.
 What each piece is (OSM, both extracts merged; the first that applies wins):
   (hole)   buildings (not the roofs on posts; not the booths and shelters under SMALL_BUILDING m2): nothing is built there, EXCEPT
            the passages through them: footways / service roads / pedestrian areas tagged tunnel=building_passage or covered=yes, and
@@ -47,8 +43,8 @@ import shapely
 from shapely.geometry import Polygon, LineString, Point, box
 from shapely.ops import unary_union
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_core as C
 import ds_disneyland as DL
 import ds_tdl_ground as G
@@ -64,16 +60,12 @@ ROAD_W = {"service": 5.0, "living_street": 5.0, "track": 4.0, "residential": 7.0
           "trunk_link": 7.0, "motorway": 14.0, "motorway_link": 7.0}
 FOOT_PX = 0.5
 FOOT_SIMPLIFY = 0.6                       # m: the models' footprints (raster outlines) are simplified this much
-LAND_CLOSE = 40.0                         # m: the mapped features are closed by this much to make the land (the sea is unmapped)
 SIMPLIFY = 0.3                            # m: the pieces' outlines are simplified this much (together, as a coverage)
 WATER_MODEL_TDL = "tdl_water"            # a Land water model, when one is made (another tab: ds_tdl_water.py)
 KINDS = ("TL_paving", "TL_road", "TL_parking", "TL_rail", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_ground")
-TDS_BBOX = (35.6195, 139.8765, 35.6340, 139.8935)     # fetch_disneysea.BBOX (S, W, N, E)
-TDL_BBOX = (35.6270, 139.8730, 35.6392, 139.8935)     # fetch_disneyland.BBOX
 ZONES = {
     "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=[]),
     "tds_ground": dict(cell=8.0, tile=64.0, water_models=["water"], cut_models=["water", "plaza", "aquasphere", "volcano"]),
-    "outer_ground": dict(cell=16.0, tile=128.0, water_models=[], cut_models=["tdl_station"], simplify=0.5),
 }
 
 
@@ -89,23 +81,7 @@ class Src:
         self.origin = DL.DATA["origin"]
 
     def rings(self, way_ids):
-        segs = [list(map(tuple, self.ways[i]["pts"])) for i in way_ids if i in self.ways]
-        out = []
-        while segs:
-            cur = segs.pop(0)
-            grown = True
-            while cur[0] != cur[-1] and grown:
-                grown = False
-                for i, s in enumerate(segs):
-                    if s[0] == cur[-1]: cur += s[1:]
-                    elif s[-1] == cur[-1]: cur += s[::-1][1:]
-                    elif s[-1] == cur[0]: cur = s[:-1] + cur
-                    elif s[0] == cur[0]: cur = s[::-1][:-1] + cur
-                    else: continue
-                    segs.pop(i); grown = True; break
-            if len(cur) >= 4 and cur[0] == cur[-1]:
-                out.append(cur)
-        return out
+        return C.closed_rings(self.ways, way_ids)
 
     def mp(self, r):
         outs = [Polygon(o).buffer(0) for o in self.rings([m["way"] for m in r["members"] if m.get("role") == "outer" and "way" in m])]
@@ -221,33 +197,6 @@ def model_footprint(name):
 
 
 # ---------------------------------------------------------------- zone areas
-def local_box(bb):
-    s, w, n, e = bb
-    lat0, lon0 = src().origin
-    kx, ky = 111320.0 * math.cos(math.radians(lat0)), 110574.0
-    return box((w - lon0) * kx, (s - lat0) * ky, (e - lon0) * kx, (n - lat0) * ky)
-
-
-def land(extent):
-    """The land inside `extent`: wherever OSM has mapped something (roads, buildings, paths, green, car parks, railways, water
-    bodies...), closed by LAND_CLOSE m and with its holes filled. The sea has nothing mapped on it (the extracts' single coastline
-    way is too short to cut the bay off)."""
-    skip = lambda t: (t.get("natural") in ("coastline", "bay", "strait") or "boundary" in t or "route" in t or "place" in t
-                      or t.get("route") == "ferry" or t.get("seamark:type"))
-    geoms = []
-    bb = extent.buffer(50)
-    for w in src().ways.values():
-        t = w["tags"]
-        if not t or skip(t) or len(w["pts"]) < 2:
-            continue
-        g = Polygon(w["pts"]).buffer(0) if w["closed"] and len(w["pts"]) >= 4 else LineString(w["pts"])
-        if g.within(bb):
-            geoms.append(g)
-    m = unary_union(geoms).buffer(LAND_CLOSE, join_style=2).buffer(-LAND_CLOSE, join_style=2)
-    filled = unary_union([Polygon(p.exterior) for p in G._polys(m)])
-    return filled.intersection(extent)
-
-
 def zone_regions():
     s = src()
     tdl_park = Polygon(DL.ring_of(DL.WAYS[DL.TDL_PARK_WAY])).buffer(0)
@@ -260,9 +209,7 @@ def zone_regions():
     done = unary_union([E["closed"], HP["road"], HP["path"], HP["plaza"], HP["station"], HP["station_path"]] + HP["planters"])
     tdl = unary_union([tdl_park] + lots).buffer(CLOSE, join_style=2).buffer(-CLOSE, join_style=2).difference(tds_park).difference(done)
     tds = tds_park.difference(done)
-    extent = unary_union([local_box(TDS_BBOX), local_box(TDL_BBOX)])
-    outer = land(extent).difference(tdl).difference(tds).difference(done)
-    return {"tdl_land_ground": tdl, "tds_ground": tds, "outer_ground": outer}, dict(station=HP["station"], done=done)
+    return {"tdl_land_ground": tdl, "tds_ground": tds}, dict(station=HP["station"], done=done)
 
 
 # ---------------------------------------------------------------- plan of one zone
@@ -340,7 +287,7 @@ def plan(zone, region):
     zones["TL_ground"] = unary_union([p for p in G._polys(open_.difference(taken)) if p.area > 0.5])
     # simplify all the pieces together, so their shared edges stay shared (no cracks between them)
     names = [k for k, v in zones.items() if not v.is_empty]
-    simp = shapely.coverage_simplify(np.array([zones[k] for k in names], dtype=object), cfg.get("simplify", SIMPLIFY))
+    simp = shapely.coverage_simplify(np.array([zones[k] for k in names], dtype=object), SIMPLIFY)
     for k, g in zip(names, simp):
         zones[k] = unary_union([q for q in G._polys(g.buffer(0)) if q.area > 0.5])
     return dict(region=region, open=open_, holes=holes, passage=passage, zones=zones, water=water, cut=cut,

@@ -1,8 +1,8 @@
 """Railway structures of the Maihama area: the Disney Resort Line (straddle monorail) and the JR Keiyo Line viaduct
 (Blender 5.2).
 
-  blender -b --python ds_tracks.py -- --cams rl_curve,rl_close,rl_bayside,jr_station,jr_close,jr_aerial,overview --samples 24
-  blender -b --python export_models.py -- --parts tracks      # the mock's model (models/tracks.json)
+  blender -b --python src/ds_tracks.py -- --cams rl_curve,rl_close,rl_bayside,jr_station,jr_close,jr_aerial,overview --samples 24
+  blender -b --python src/export_models.py -- --parts tracks      # the mock's model (models/tracks.json)
 
 Data: the mock's own lines (tds_outline.html: maihama.loop = the Resort Line, maihama.jr = the two Keiyo Line tracks,
 maihama.platforms = the OSM platforms), the DEM grids for the ground under the piers. DisneySea frame metres, heights
@@ -38,8 +38,8 @@ try:
 except ImportError:
     bpy = bmesh = Vector = Matrix = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 from ds_tdl_station import B, obj_bm, bm_box, bm_lathe, bm_prism, T, R, _principled, _mottle, text
 

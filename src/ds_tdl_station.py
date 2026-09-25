@@ -1,7 +1,7 @@
 """東京ディズニーランド・ステーション (Disney Resort Line) -- detailed build for Blender 5.2.
 
-  blender -b --python ds_tdl_station.py -- --cams park,hotel,concourse,platform,stairs,aerial --samples 32
-  blender -b --python ds_tdl_station.py -- --cams none            # build + save the .blend only
+  blender -b --python src/ds_tdl_station.py -- --cams park,hotel,concourse,platform,stairs,aerial --samples 32
+  blender -b --python src/ds_tdl_station.py -- --cams none            # build + save the .blend only
   then open output/disneyland/station/tdl_station.blend in Blender to look around (cameras CAM_*)
 
 Output: output/disneyland/station/tdl_station.blend and station_<cam>.png (local check, not committed).
@@ -50,8 +50,8 @@ try:
 except ImportError:          # FRAME / SPEC / to_local work in plain Python
     bpy = bmesh = Vector = Matrix = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 OUT = ROOT / "output" / "disneyland" / "station"
 
 FRAME = dict(x=-583.08, y=1023.04, ang_deg=24.78, ground_datum=-1.79)

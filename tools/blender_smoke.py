@@ -8,7 +8,7 @@ import sys, types, importlib, traceback, pathlib
 from unittest.mock import MagicMock
 
 REPO = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else pathlib.Path(__file__).resolve().parent.parent).resolve()
-sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "src"))
 sys.argv = [sys.argv[0]]          # scripts parse args after "--"
 
 

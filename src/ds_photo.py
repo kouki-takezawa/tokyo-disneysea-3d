@@ -10,7 +10,7 @@ import math, io, pathlib, urllib.request
 import numpy as np
 from PIL import Image
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 CACHE = ROOT / "plateau_data" / "gsi_photo"
 LAT0, LON0 = 35.6267, 139.8851
 KX, KY = 111320.0 * math.cos(math.radians(LAT0)), 110574.0

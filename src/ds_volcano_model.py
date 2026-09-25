@@ -1,8 +1,8 @@
 """Mount Prometheus as a detailed rock massif (Blender 5.2), from the ds_volcano heightfield.
 
-  python ds_volcano.py                                           # heightfield (plain Python)
-  blender -b --python export_models.py -- --parts volcano         # mock model
-  blender -b --python export_models.py -- --parts volcano --render
+  python src/ds_volcano.py                                           # heightfield (plain Python)
+  blender -b --python src/export_models.py -- --parts volcano         # mock model
+  blender -b --python src/export_models.py -- --parts volcano --render
 
 ds_volcano gives a 2 m grid: the Mysterious Island plateau (~5.3 m above the
 promenade, from the DEM) and the rock ring around the caldera lagoon (summit
@@ -19,7 +19,7 @@ promenade, from the DEM) and the rock ring around the caldera lagoon (summit
 Heights are relative to the DEM datum, like the mock (no lifting needed).
 """
 import json, math, pathlib, random
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "plateau_data" / "disneysea_volcano.json"
 
 STEP = 0.6            # m

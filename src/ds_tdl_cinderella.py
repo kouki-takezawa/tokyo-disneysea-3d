@@ -1,8 +1,8 @@
 """シンデレラ城 (Tokyo Disneyland, opened 1983) -- Blender 5.2.
 
   python -c "import ds_tdl_cinderella as c; c.make_textures()"   # paint the textures once (plain Python + PIL)
-  blender -b --python ds_tdl_cinderella.py -- --samples 32         # renders + output/disneyland/cinderella/cinderella.blend
-  blender -b --python export_models.py -- --parts cinderella        # the mock's model
+  blender -b --python src/ds_tdl_cinderella.py -- --samples 32         # renders + output/disneyland/cinderella/cinderella.blend
+  blender -b --python src/export_models.py -- --parts cinderella        # the mock's model
 
 Sources (looked at only; nothing copied into the repository):
   * The WED Enterprises "SOUTH ELEVATION" drawing for Oriental Land Co. (found through a web image search): the
@@ -49,8 +49,8 @@ try:
 except ImportError:
     bpy = bmesh = Vector = Matrix = noise = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 import ds_tdl_bb_castle as BC
 from ds_tdl_station import B, bm_box, bm_lathe, bm_prism, obj_bm, T, R, seg_arc, _principled, _mottle, _bump

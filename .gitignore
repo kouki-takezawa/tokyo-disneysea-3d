@@ -8,16 +8,7 @@
 !/vercel.json
 !/docs/
 
-!/fetch_disneysea.py
-!/fetch_disneyland.py
-!/disneysea_draft.py
-!/disneysea_water_blender.py
-!/ds_*.py
-!/export_mock.py
-!/export_models.py
-!/train_blender.py
-!/disneyland_blender.py
-!/tdl_water_blender.py
+!/src/
 
 !/plateau_data/
 /plateau_data/*

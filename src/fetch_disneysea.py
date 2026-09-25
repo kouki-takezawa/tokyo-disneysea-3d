@@ -9,7 +9,7 @@ import json, math, sys, time, urllib.request, urllib.parse, pathlib
 
 ORIGIN = (35.6267, 139.8851)          # lat, lon
 BBOX = (35.6195, 139.8765, 35.6340, 139.8935)   # S, W, N, E (園+周辺道路/海)
-OUT = pathlib.Path(__file__).with_name("plateau_data") / "disneysea_osm.json"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "plateau_data" / "disneysea_osm.json"
 RAW = OUT.with_name("disneysea_osm_raw.json")
 MIRRORS = [
     "https://overpass-api.de/api/interpreter",

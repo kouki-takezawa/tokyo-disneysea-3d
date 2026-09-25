@@ -1,8 +1,8 @@
 """Disney Resort Line train in Blender 5.2 -- same shape and numbers as the JS model (output/disneysea/train_model.js).
 
-  blender -b --python train_blender.py -- --out output/disneysea/models/train_head.glb             # one head car
-  blender -b --python train_blender.py -- --cars train --out output/disneysea/models/train.glb      # the 6-car set
-  blender -b --python train_blender.py -- --cars head --scheme purple --render output/train_head.png
+  blender -b --python src/train_blender.py -- --out output/disneysea/models/train_head.glb             # one head car
+  blender -b --python src/train_blender.py -- --cars train --out output/disneysea/models/train.glb      # the 6-car set
+  blender -b --python src/train_blender.py -- --cars head --scheme purple --render output/train_head.png
 
 NOT YET RUN IN BLENDER (written on a machine without it; tools/blender_smoke.py imports it with a stub bpy and checks
 that SPEC matches train_model.js). Local metres, +X = travel direction (nose at +X), Z up (the glTF exporter turns it

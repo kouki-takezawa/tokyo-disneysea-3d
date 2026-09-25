@@ -1,7 +1,7 @@
 """Tokyo DisneySea - draft (blocking) scene builder for Blender 5.2.
 
-  blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16 --percent 50
-  blender -b --python disneysea_draft.py -- --render none          # build + save .blend only
+  blender -b --python src/disneysea_draft.py -- --cams aerial,top --samples 16 --percent 50
+  blender -b --python src/disneysea_draft.py -- --render none          # build + save .blend only
 
 Data: plateau_data/disneysea_osm.json (fetch_disneysea.py). Local metres,
 origin (35.6267, 139.8851) near Mediterranean Harbor, +X east, +Y north.
@@ -11,8 +11,8 @@ ds_landmarks (volcano, AquaSphere, Triton dome, S.S. Columbia).
 """
 import sys, math, time, argparse, pathlib, importlib
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import bpy
 from mathutils import Vector

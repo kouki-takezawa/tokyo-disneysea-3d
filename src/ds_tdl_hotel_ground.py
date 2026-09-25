@@ -1,8 +1,8 @@
 """東京ディズニーランドホテル周辺の道 -- the roads and paths round the Tokyo Disneyland Hotel (plain Python: shapely + numpy,
 Blender is not needed; nothing is built where the hotel stands; no trees). Same method as ds_tdl_ground.py, whose helpers it reuses.
 
-  python ds_tdl_hotel_ground.py      # -> output/disneysea/models/tdl_hotel_ground.json (glTF, buffer embedded) + a summary
-  python export_mock.py              # rebuilds the page; D.models picks the file up ("tdl_hotel_ground", layer 舞浜駅・周辺)
+  python src/ds_tdl_hotel_ground.py      # -> output/disneysea/models/tdl_hotel_ground.json (glTF, buffer embedded) + a summary
+  python src/export_mock.py              # rebuilds the page; D.models picks the file up ("tdl_hotel_ground", layer 舞浜駅・周辺)
 
 What is modelled (OSM, plateau_data/disneyland_osm.json), within REACH m of the hotel (way 218553057) and on the ground:
   roads    highway=service: the hotel's drives, the round-about, the parking aisles beside the hotel  -> asphalt.
@@ -40,8 +40,8 @@ from shapely.geometry import Polygon, LineString, Point
 from shapely.geometry import box
 from shapely.ops import unary_union, polygonize
 
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 import ds_disneyland as DL
 import ds_tdl_ground as G
 

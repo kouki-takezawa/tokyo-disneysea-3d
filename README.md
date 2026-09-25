@@ -46,7 +46,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・ミッキーの花壇。参考動画・写真・OSM から) | 済(Blender で作り、ユーザーの確認後にモックの 3D モデルに) | `ds_tdl_entrance.py` |
 | 東京ディズニーランドのエントランス広場の地面(ゲートの前後の舗装・縁石・植え込み。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_ground.py` |
 | 東京ディズニーランドホテル周辺の道(車道・園路・歩行者広場・ホテルと駅の間・駅の中の通路。ホテルの建物の場所は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_hotel_ground.py` |
-| 地面(ランド全体・シー全体・パーク外すべて。舗装・道路・駐車場・線路敷・芝・林・岩場・工事中。建物と水面の場所は作らず、建物を抜ける通路は作る。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_ground.py` |
+| 地面(ランド全体・シー全体。パークの外は作らない。舗装・道路・駐車場・線路敷・芝・林・岩場・工事中。建物と水面の場所は作らず、建物を抜ける通路は作る。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_ground.py` |
 | ランドの駐車場(レイヤー「駐車場」。平面 39・立体 3) | 済(モックのレイヤー) | `ds_disneyland.py` |
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
 | 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
@@ -65,7 +65,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 
 ```
 pip install -r requirements.txt
-python export_mock.py                  # モックを作り直す → output/disneysea/tds_outline.html
+python src/export_mock.py                  # モックを作り直す → output/disneysea/tds_outline.html
 git add -A && git commit && git push   # push すると Vercel が自動で公開する
 ```
 
@@ -75,16 +75,16 @@ git add -A && git commit && git push   # push すると Vercel が自動で公�
 ### データを取り直す(必要なときだけ)
 
 ```
-python fetch_disneysea.py          # シーの OSM → plateau_data/disneysea_osm.json
-python fetch_disneyland.py         # ランド・舞浜駅の OSM → plateau_data/disneyland_osm.json(シーとは別ファイル)
-python ds_levels.py                # シーの階段・高低差 → disneysea_levels.json(raw が必要)
-python ds_disneyland.py --levels   # ランドの階段・高低差 → disneyland_levels.json(raw が必要)
-python ds_water.py / ds_volcano.py / ds_plaza.py   # 水面・火山・プラザの元データ
-python ds_tdl_water.py                              # ランドの水面の元データ(plateau_data/disneyland_water.json)
-python ds_aquasphere.py --textures # 地球儀のテクスチャ
-python ds_tdl_ground.py            # エントランス広場の地面 → models/tdl_ground.json(Blender なし。shapely 2.1 以上)
-python ds_tdl_hotel_ground.py      # ホテル周辺の道 → models/tdl_hotel_ground.json(同上)
-python ds_ground.py                # ランド・シー・パーク外の地面 → models/{tdl_land_ground,tds_ground,outer_ground}.json(同上。約 5 分。水面・プラザ・火山のモデルを先に)
+python src/fetch_disneysea.py          # シーの OSM → plateau_data/disneysea_osm.json
+python src/fetch_disneyland.py         # ランド・舞浜駅の OSM → plateau_data/disneyland_osm.json(シーとは別ファイル)
+python src/ds_levels.py                # シーの階段・高低差 → disneysea_levels.json(raw が必要)
+python src/ds_disneyland.py --levels   # ランドの階段・高低差 → disneyland_levels.json(raw が必要)
+python src/ds_water.py / src/ds_volcano.py / src/ds_plaza.py   # 水面・火山・プラザの元データ
+python src/ds_tdl_water.py                              # ランドの水面の元データ(plateau_data/disneyland_water.json)
+python src/ds_aquasphere.py --textures # 地球儀のテクスチャ
+python src/ds_tdl_ground.py            # エントランス広場の地面 → models/tdl_ground.json(Blender なし。shapely 2.1 以上)
+python src/ds_tdl_hotel_ground.py      # ホテル周辺の道 → models/tdl_hotel_ground.json(同上)
+python src/ds_ground.py                # ランド・シーの地面 → models/{tdl_land_ground,tds_ground}.json(同上。約 5 分。水面・プラザ・火山のモデルを先に)
 ```
 
 **注意:** OSM は日々更新される。取り直すと、高低差や火山の元データまで変わる(火山の元データは Blender で作った火山モデルの元になっている)。
@@ -97,29 +97,29 @@ python ds_ground.py                # ランド・シー・パーク外の地面 
 3. 使うコマンド(Blender は 5.2。**同時に 1 つだけ**起動する。複数だと落ちたり止まったりした):
 
 ```
-blender -b --python disneysea_draft.py -- --cams aerial,top --samples 16        # 下書き全体
-blender -b --python disneysea_water_blender.py -- --cams harbor,caldera         # 水面
-blender -b --python tdl_water_blender.py -- --cams rivers,moat,jungle,tom        # ランドの水面
-blender -b --python export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
-blender -b --python export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
-blender -b --python export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
-blender -b --python export_models.py -- --parts bb_castle                        # 美女と野獣の城
-blender -b --python export_models.py -- --parts cinderella                       # シンデレラ城
-blender -b --python ds_tdl_cinderella.py -- --tt 1,13,25,37,49,61 --quick        # シンデレラ城: 参考の 360° 画像と同じ角度のレンダー
-blender -b --python export_models.py -- --parts tracks                           # 線路(リゾートライン・京葉線)
-blender -b --python ds_tracks.py -- --samples 24                                 # 線路の確認レンダーと .blend
-blender -b --python ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
-blender -b --python ds_tdl_station.py -- --samples 32                            # 駅の確認レンダーと .blend(電車も停車中)
-blender -b --python export_models.py -- --parts aquasphere --render             # アクアスフィアの確認レンダー
+blender -b --python src/disneysea_draft.py -- --cams aerial,top --samples 16        # 下書き全体
+blender -b --python src/disneysea_water_blender.py -- --cams harbor,caldera         # 水面
+blender -b --python src/tdl_water_blender.py -- --cams rivers,moat,jungle,tom        # ランドの水面
+blender -b --python src/export_models.py -- --parts water,aquasphere,plaza,volcano  # モック用の 3D モデル
+blender -b --python src/export_models.py -- --parts tdl_station,train                # 東京ディズニーランド・ステーションと電車
+blender -b --python src/export_models.py -- --parts tdl_entrance                     # 東京ディズニーランドのエントランス
+blender -b --python src/export_models.py -- --parts bb_castle                        # 美女と野獣の城
+blender -b --python src/export_models.py -- --parts cinderella                       # シンデレラ城
+blender -b --python src/ds_tdl_cinderella.py -- --tt 1,13,25,37,49,61 --quick        # シンデレラ城: 参考の 360° 画像と同じ角度のレンダー
+blender -b --python src/export_models.py -- --parts tracks                           # 線路(リゾートライン・京葉線)
+blender -b --python src/ds_tracks.py -- --samples 24                                 # 線路の確認レンダーと .blend
+blender -b --python src/ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
+blender -b --python src/ds_tdl_station.py -- --samples 32                            # 駅の確認レンダーと .blend(電車も停車中)
+blender -b --python src/export_models.py -- --parts aquasphere --render             # アクアスフィアの確認レンダー
 ```
 
-4. モデルを書き出し直したら、`python export_mock.py` を実行してからコミットする。
+4. モデルを書き出し直したら、`python src/export_mock.py` を実行してからコミットする。
 
 **Blender で最初にやること(2026-09-24 時点で未実行):**
 
 - [ ] `disneysea_draft.py` で下書きを出し直す。トリトンの屋根(`ds_landmarks.build_triton_dome`、`ds_core.TRITON_ROOF`)を屋内ホールの上(中心 -188, -43、軒 15 m・頂点 27.5 m)に移したが、Blender ではまだ確かめていない。
 - [ ] `docs/draft/` の画像を撮り直す。エリアの色分けを 2026-09-24 に直したので、今の画像は古い色分けのまま。
-- [ ] ランド・舞浜駅: `blender -b --python disneyland_blender.py -- --cams aerial,castle,maihama` を動かす(`ds_disneyland.py` のデータから、建物・水面・緑地・木・線路・京葉線の高架・リゾートラインの桁・舞浜駅周辺の建物を組む)。`python disneyland_blender.py --summary` で、Blender なしに中身の数を見られる。
+- [ ] ランド・舞浜駅: `blender -b --python src/disneyland_blender.py -- --cams aerial,castle,maihama` を動かす(`ds_disneyland.py` のデータから、建物・水面・緑地・木・線路・京葉線の高架・リゾートラインの桁・舞浜駅周辺の建物を組む)。`python src/disneyland_blender.py --summary` で、Blender なしに中身の数を見られる。
 - [x] 東京ディズニーランド・ステーション: `ds_tdl_station.py` で作り、ユーザーが Blender で確認して OK(2026-09-24)。モックに反映済み。
 - [x] エントランス: `ds_tdl_entrance.py` で作り、ユーザーが Blender で確認して OK(花壇は 2 回直した: 入場口に向けて傾ける、円形にして真上からミッキーに見えるように)。モックに反映済み(2026-09-24)。
 - [x] 電車: `train_blender.py` を v2 に作り込み(外装・台車・車内・ガラス)、モックの電車をこのモデルに差し替えた(2026-09-24)。汚れのベイクは TODO。
@@ -241,7 +241,6 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | ホテル周辺の道(車道・園路・歩行者広場) | 舞浜駅・周辺(枠線はそのまま) | `output/disneysea/models/tdl_hotel_ground.json` |
 | ランド全体の地面(駐車場からパークの奥まで) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/tdl_land_ground.json` |
 | シー全体の地面 | 園路(枠線はそのまま) | `output/disneysea/models/tds_ground.json` |
-| パーク外の地面 | 舞浜駅・周辺(枠線はそのまま) | `output/disneysea/models/outer_ground.json` |
 | 線路(リゾートライン・京葉線) | 舞浜駅・周辺(線路とホームの枠線を置き換え) | `output/disneysea/models/tracks.json` |
 | 美女と野獣の城 | ディズニーランド(枠線はそのまま) | `output/disneysea/models/bb_castle.json`(石と屋根の画像 3 枚) |
 | シンデレラ城(城・前庭・橋・裏のテラス・池) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/cinderella.json`(石・ピンクの壁・屋根の画像 3 枚) |
@@ -356,24 +355,22 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 |---|
 | ![ホテル周辺の道](docs/entrance/mock_hotel_ground.jpg) |
 
-### 地面(`ds_ground.py`: ランド全体・シー全体・パーク外)と駐車場のレイヤー
+### 地面(`ds_ground.py`: ランド全体・シー全体)と駐車場のレイヤー
 
-モックの範囲すべての地面。エントランス広場・ホテル周辺(`ds_tdl_ground.py` `ds_tdl_hotel_ground.py`)と同じ作り方で、それ以外を埋める(Blender なし、木は作らない)。ゾーンごとに 1 ファイル。
+2 つのパークの中の地面(パークの外、舞浜駅・イクスピアリ・ホテル群・住宅地などの地面は作らない)。エントランス広場・ホテル周辺(`ds_tdl_ground.py` `ds_tdl_hotel_ground.py`)と同じ作り方で、それ以外を埋める(Blender なし、木は作らない)。ゾーンごとに 1 ファイル。
 
 | ゾーン | 範囲 | 格子 | 大きさ |
 |---|---|---|---|
 | `tdl_land_ground`(ランド全体の地面) | ランドの外形(南西の大駐車場を含む)と、30 m 以内の平面駐車場(西のグーフィー・ピノキオ・ティンカーベルなど)。25 m のクロージングですき間も含める | 8 m | 約 6.8 万三角形・3.4 MB |
 | `tds_ground`(シー全体の地面) | シーの外形 | 8 m | 約 7.6 万三角形・3.8 MB |
-| `outer_ground`(パーク外の地面) | 2 つの OSM 抽出範囲(`fetch_disneysea.BBOX` と `fetch_disneyland.BBOX`)のうち陸の部分: 舞浜駅、イクスピアリ、ホテル群、道路と駐車場、ベイサイド、北東の住宅地、運動公園 | 16 m | 約 10.7 万三角形・5.4 MB |
 
-- **陸と海**: 抽出範囲にある海岸線は 1 本(15 点)だけで、湾を切り分けられない。そこで、OSM に何か(道・建物・緑地・駐車場・線路など)が描かれている所を陸とし、40 m のクロージングで囲って穴を埋めたものを陸とした。海には何も作らない。
-- **作らない所**: エントランス広場とホテル周辺(作成済み)。既存モデルの平面形(モデルの glTF の三角形を 0.5 m の画像に描いて輪郭を取る): シーの水面(護岸・桟橋ごと)、プラザ、アクアスフィア、火山、リゾートラインの駅。**水面は作らない**(水面モデルは別に作る。シーの分は済み、ランドの分は別タブで作成中)。OSM の水面(`natural=water` など)は穴として空けておき、地面は岸で止めて、水面モデルの護岸と合うように 0.15 m のふちを付ける。建物の場所(屋根だけの構造物と 50 m² 未満の小屋は除く)も作らない。
+- **作らない所**: エントランス広場とホテル周辺(作成済み)。既存モデルの平面形(モデルの glTF の三角形を 0.5 m の画像に描いて輪郭を取る): シーの水面(護岸・桟橋ごと)、プラザ、アクアスフィア、火山。**水面は作らない**(水面モデルは別に作る。シーの分は済み、ランドの分は別タブで作成中)。OSM の水面(`natural=water` など)は穴として空けておき、地面は岸で止めて、水面モデルの護岸と合うように 0.15 m のふちを付ける。建物の場所(屋根だけの構造物と 50 m² 未満の小屋は除く)も作らない。
 - **建物を抜ける通路**(`tunnel=building_passage`・`covered=yes`、建物の中に収まる地下通路・アーケード)は、幅 4 m の地面を作る(シンデレラ城の下の通路、シーのミラコスタのアーチなど)。
-- **種類**(先に当てはまったもの): 舗装(`highway=pedestrian` の面、園路 3.5 m・歩行者道 8 m)/ 道路(`service` 5 m、住宅道路 7 m、`tertiary` 以上 10〜12 m、幹線・高速 14 m。高架は除く)/ 駐車場 / 線路敷 / 岩場・砂浜 / 芝・庭・運動場 / 林(木は無し)/ 工事中 / その他の地面(多くは舗装や空き地。明るい石の色)。
+- **種類**(先に当てはまったもの): 舗装(`highway=pedestrian` の面、園路 3.5 m・歩行者道 8 m)/ 道路(`service` 5 m、`tertiary` 以上 10〜12 m など。高架は除く)/ 駐車場 / 線路敷 / 岩場・砂浜 / 芝・庭・運動場 / 林(木は無し)/ 工事中 / その他の地面(多くは舗装や空き地。明るい石の色)。
 - **高さ**: DEM5A(約 5 m でならす)。建物と水面の下は DEM が地面ではないので、周りから補間する。エントランスの下は平ら、リゾートラインの駅の周りは駅の床(-1.79 m)、シーのプラザの周りはプラザの面にそろえる。
 - **形の単純化**: 隣り合う面を境界を保ったまま 0.3 m で単純化(`shapely.coverage_simplify`)、既存モデルの平面形は 0.6 m。ふち(スカート)は建物の穴には付けない。
 - **駐車場のレイヤー**(`ds_disneyland.py` → `D.parking`): ランドの外形から 150 m 以内の `amenity=parking` 42 か所(平面 39、立体 3)。地図では灰色の塗り(立体は濃く、関係者用は点線)と名前、俯瞰では地面の枠と立体駐車場の箱(高さはタグ、無ければ推定 15 m)。検索欄で「グーフィー」などの名前で探せる。
-- **推定・未確認**: 幅、色、陸の範囲(南の護岸の外側など、OSM に何も無い所は作っていない)、どの駐車場を含めるか。アトラクションの建物の中の地面は作っていない。
+- **推定・未確認**: 幅、色、どの駐車場を含めるか。アトラクションの建物の中の地面は作っていない。
 - ランドの水面モデル(別タブ)がモックに入ったら、`ds_ground.py` の `WATER_MODEL_TDL` をそのモデルの id に合わせて作り直すと、その平面形でも地面を抜く(今は OSM の水面の形で空けている)。
 
 | モックでの表示(俯瞰、全体) |
@@ -475,7 +472,7 @@ Type C の写真(Wikimedia Commons。一覧は `docs/train/spec.md`)と、跨座
   - 追っている間は「電車を追う」の隣に「2本目へ」(2 本目を追っているときは「1本目へ」)が出て、押すか T キーで、もう一方の電車へカメラが滑らかに移る(離れているほど長く、最大 3 秒)。
   - もう一度「電車を追う」・F・Esc でやめる。散歩・地図・ミニマップ・エリア移動・「全体」でもやめる。
 - **情報**タブに、2 編成の今の状態(停車中の駅・速度・次の駅)を出す。確かめるときは、ブラウザのコンソールで `TDS_TRAINS.setClock(秒, 倍速)` で時計を動かせる(`TDS_TRAINS.state()` で位置)。
-- 3D の車両は `models/train.json`(先頭車 `TRH`・中間車 `TRM`・幌 `TRG`、それぞれ材質ごとのメッシュ)を読み、編成ごとに 6 両を複製する。電車を直したら `blender -b --python export_models.py -- --parts train` と `python export_mock.py` を実行する。読み込めなかったときは、画面に理由を出す(地図の印と「電車を追う」のカメラは、それでも動く)。コンソールの `TDS_TRAIN3D` で 3D の電車を調べられる。
+- 3D の車両は `models/train.json`(先頭車 `TRH`・中間車 `TRM`・幌 `TRG`、それぞれ材質ごとのメッシュ)を読み、編成ごとに 6 両を複製する。電車を直したら `blender -b --python src/export_models.py -- --parts train` と `python src/export_mock.py` を実行する。読み込めなかったときは、画面に理由を出す(地図の印と「電車を追う」のカメラは、それでも動く)。コンソールの `TDS_TRAIN3D` で 3D の電車を調べられる。
 
 | 地図(印と説明) | 俯瞰(駅に停車中) |
 |---|---|
@@ -513,7 +510,7 @@ Type C の写真(Wikimedia Commons。一覧は `docs/train/spec.md`)と、跨座
 
 直径 8 m の地球儀を高さ 2 m の台座に載せ、周りを水盤(半径 11.16 m、縁の高さ 0.40 m)が囲む。石のブロックや街灯の数・配置は推定なので、確認が必要。
 
-- **テクスチャ**: NOAA ETOPO(パブリックドメイン)の地形から `python ds_aquasphere.py --textures` で作る。海は深さに応じて紺から青緑、大陸棚は明るい青緑、陸は風化した石の色で、強めの陰影を付けて彫り込んだように見せる。氷床は白。
+- **テクスチャ**: NOAA ETOPO(パブリックドメイン)の地形から `python src/ds_aquasphere.py --textures` で作る。海は深さに応じて紺から青緑、大陸棚は明るい青緑、陸は風化した石の色で、強めの陰影を付けて彫り込んだように見せる。氷床は白。
 - **浮き彫り**: 海岸で約 4 cm の段差を付け、山は最大約 12 cm まで盛り上げる。
 - **水の膜**: 地球儀の表面を流れ落ちる水を、少し大きい透明な球で表す。縦の筋が入り、地球儀と一緒には回らない。
 - **根元**: ブロンズの受け皿で地球儀を受け、そのふちからあふれた水が白いカーテンになって池へ落ち、泡の輪になる。
@@ -589,7 +586,7 @@ https://tokyo-disneysea-3d.vercel.app で誰でも見られる。GitHub の main
 
 - `vercel.json` が `output/disneysea/` をそのまま配信し、`/` を `tds_outline.html` に向ける。ビルドはない。CI もない。
 - 配信するのは `.gitignore` の許可リストにあるファイルだけ(`tds_outline.html`、`train.html`、`train_model.js`、`models/`。駅と電車のモデルも `models/` に入る)。新しいファイルを足したら許可リストにも足す。
-- **push の前に `python export_mock.py` を実行して、`tds_outline.html` と `models/` をコミットする。**
+- **push の前に `python src/export_mock.py` を実行して、`tds_outline.html` と `models/` をコミットする。**
 - 出典は、画面の下(3D では地図の隅)とパネルの「出典」欄に表示している。
 
 ## 分かっている限界

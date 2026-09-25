@@ -16,7 +16,7 @@ try:  # Blender; the data helpers below also work in plain Python (export_mock.p
 except ImportError:
     bpy = bmesh = Vector = tessellate_polygon = None
 
-ROOT = pathlib.Path(__file__).parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = json.loads((ROOT / "plateau_data" / "disneysea_osm.json").read_text(encoding="utf-8"))
 
 # ---------------------------------------------------------------- shared state (mutate in place)
@@ -300,32 +300,37 @@ def ring_inside(ring, poly):
     return all(point_in_poly(x, y, poly) for x, y in ring[:: max(1, len(ring) // 12)])
 
 
-def assemble_rings(way_ids):
-    """Chain relation member ways into closed rings (members may be split)."""
-    segs = [list(map(tuple, WAYS[i]["pts"])) for i in way_ids if i in WAYS]
+def chain_ways(ways, way_ids):
+    """Chain OSM ways (id -> way) end to end, as relation members are often split. Returns every chain, closed or not."""
+    segs = [list(map(tuple, ways[i]["pts"])) for i in way_ids if i in ways]
     out = []
     while segs:
         r = segs.pop(0)
-        changed = True
-        while changed and r[0] != r[-1]:
-            changed = False
-            for s in segs:
-                if s[0] == r[-1]:
-                    r += s[1:]
-                elif s[-1] == r[-1]:
-                    r += s[::-1][1:]
-                elif s[-1] == r[0]:
-                    r = s + r[1:]
-                elif s[0] == r[0]:
-                    r = s[::-1] + r[1:]
-                else:
-                    continue
-                segs.remove(s)
-                changed = True
-                break
-        if r[0] == r[-1] and len(r) >= 4:
-            out.append(r)
+        grown = True
+        while grown and r[0] != r[-1]:
+            grown = False
+            for i, s in enumerate(segs):
+                if s[0] == r[-1]: r += s[1:]
+                elif s[-1] == r[-1]: r += s[::-1][1:]
+                elif s[-1] == r[0]: r = s[:-1] + r
+                elif s[0] == r[0]: r = s[::-1][:-1] + r
+                else: continue
+                segs.pop(i); grown = True; break
+        out.append(r)
     return out
+
+
+def closed_rings(ways, way_ids):
+    return [r for r in chain_ways(ways, way_ids) if r[0] == r[-1] and len(r) >= 4]
+
+
+def signed_area(r):
+    return sum(r[i - 1][0] * r[i][1] - r[i][0] * r[i - 1][1] for i in range(len(r))) / 2
+
+
+def assemble_rings(way_ids):
+    """Chain relation member ways into closed rings (members may be split)."""
+    return closed_rings(WAYS, way_ids)
 
 
 def multipolygons(tagkey, tagval=None):

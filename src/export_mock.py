@@ -1,7 +1,7 @@
 """Export the DisneySea draft geometry as compact JSON for the outline (枠線) mock page.
 
-  python export_mock.py             (plain Python; Blender is not needed)
-  python export_mock.py --relevel   also recompute stairs / path levels from the raw OSM extracts
+  python src/export_mock.py             (plain Python; Blender is not needed)
+  python src/export_mock.py --relevel   also recompute stairs / path levels from the raw OSM extracts
                                     (plateau_data/*_osm_raw.json, not in git; they are refetched copies,
                                      so relevelling may change the levels and volcano data)
 
@@ -10,8 +10,8 @@ classification) so the mock and the Blender draft always show the same thing.
 Writes output/disneysea/mock_data.json (coords rounded to 0.1 m).
 """
 import sys, json, pathlib
-ROOT = pathlib.Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 
 import ds_core as C
 import ds_terrain as T
@@ -237,7 +237,6 @@ def main():
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)
-              ("outer_ground", "maihama", []),                              # ds_ground.py: the ground outside the parks
               ("tracks", "maihama", ["mhline", "mhjr"]),
               ("bb_castle", "disneyland", []),
               ("cinderella", "disneyland", []),

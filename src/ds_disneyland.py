@@ -5,7 +5,7 @@ refetching it never changes the DisneySea pipeline. Ground heights come from the
 (ds_levels), which already covers Tokyo Disneyland and Maihama Station.
 
   build(datum) -> {"disneyland": {...}, "maihama": {...}}   (local metres, same origin as DisneySea)
-  python ds_disneyland.py --levels   # stairs / path heights / walls -> plateau_data/disneyland_levels.json
+  python src/ds_disneyland.py --levels   # stairs / path heights / walls -> plateau_data/disneyland_levels.json
                                       # (ds_levels.compute on disneyland_osm_raw.json, DisneySea's datum)
 
 Lands: a building belongs to the land of a POI (or named building) inside its footprint, else to the land
@@ -13,9 +13,9 @@ of the nearest such point within POI_REACH m, else to "other" (backstage, parkin
 """
 import json, math, pathlib
 import ds_levels as LV
-from ds_core import point_in_poly, poly_centroid, poly_area, _clean_ring, ROOF_H
+from ds_core import point_in_poly, poly_centroid, poly_area, _clean_ring, chain_ways, ROOF_H
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))
 WAYS = {w["id"]: w for w in DATA["ways"]}
 TDL_PARK_WAY = 1282875870          # 東京ディズニーランド (tourism=theme_park)
@@ -97,23 +97,7 @@ def ring_of(w):
 
 def outer_rings(rel):
     """Outer rings of a multipolygon relation (member ways chained end to end)."""
-    segs = [list(map(tuple, WAYS[m["way"]]["pts"])) for m in rel["members"] if m["role"] == "outer" and m["way"] in WAYS]
-    rings = []
-    while segs:
-        cur = segs.pop(0)
-        grown = True
-        while cur[0] != cur[-1] and grown:
-            grown = False
-            for i, s in enumerate(segs):
-                if s[0] == cur[-1]: cur += s[1:]
-                elif s[-1] == cur[-1]: cur += s[::-1][1:]
-                elif s[-1] == cur[0]: cur = s[:-1] + cur
-                elif s[0] == cur[0]: cur = s[::-1][:-1] + cur
-                else: continue
-                segs.pop(i); grown = True; break
-        if len(cur) >= 4:
-            rings.append(_clean_ring(cur))
-    return rings
+    return [_clean_ring(r) for r in chain_ways(WAYS, [m["way"] for m in rel["members"] if m["role"] == "outer"]) if len(r) >= 4]
 
 
 def _seg_dist(q, ring):

@@ -28,7 +28,7 @@ try:  # SPEC and mock_geometry() also work in plain Python (export_mock.py)
 except ImportError:
     bpy = bmesh = Vector = Matrix = None
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 GLOBE_DIR = ROOT / "plateau_data" / "globe"
 
 SPEC = dict(
@@ -132,7 +132,7 @@ def generate_textures(w=4096):
     Height: the coast is a clean step (continents stand proud like the carved original), mountains
     rise further, the sea floor dips slightly:
       land 0.5 + 0.5 * (0.35 + 0.65 * sqrt(z / 5000)),  ocean 0.5 - 0.1 * (-z / 7000)
-      python ds_aquasphere.py --textures
+      python src/ds_aquasphere.py --textures
     """
     import numpy as np, cv2
 
