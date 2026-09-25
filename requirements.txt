@@ -3,4 +3,4 @@
 numpy>=1.26
 opencv-python-headless>=4.8   # ds_volcano.py, ds_aquasphere.py --textures
 Pillow>=10                     # ds_photo.py
-shapely>=2.0                   # ds_water.py, ds_plaza.py (regenerating the water / plaza plans only)
+shapely>=2.1                   # ds_water.py, ds_plaza.py (regenerating the water / plaza plans only); ds_tdl_ground.py needs 2.1 (constrained_delaunay_triangles)

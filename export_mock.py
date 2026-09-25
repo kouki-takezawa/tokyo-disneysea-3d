@@ -233,6 +233,7 @@ def main():
               ("plaza", "paths", []), ("volcano", "landmarks", ["volc"]),   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
               ("tdl_station", "maihama", ["mhstation"]),                    # ds_tdl_station.py: replaces the station building's box
               ("tdl_entrance", "disneyland", []),                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
+              ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tracks", "maihama", ["mhline", "mhjr"]),
               ("bb_castle", "disneyland", [])]                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
     mdir = ROOT / "output" / "disneysea" / "models"

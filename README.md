@@ -44,6 +44,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 夜のモード・施設の検索 | 済(モック) | `mock_template.html` |
 | 屋根だけの構造物を屋根の板に・樹林を木の記号に | 済(モック。屋根は Blender の下書きも) | `ds_core.py`, `ds_buildings.py`, `mock_template.html` |
 | 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・ミッキーの花壇。参考動画・写真・OSM から) | 済(Blender で作り、ユーザーの確認後にモックの 3D モデルに) | `ds_tdl_entrance.py` |
+| 東京ディズニーランドのエントランス広場の地面(ゲートの前後の舗装・縁石・植え込み。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_ground.py` |
 | 線路(リゾートラインの桁・橋脚・電車線、京葉線の高架・線路・架線・舞浜駅のホーム) | 済(Blender で作り、自分で 3 回見直してからモックに。ユーザーの指示で Blender での確認は省略) | `ds_tracks.py` |
 | 美女と野獣の城(橋・門・両翼とドーム・中庭と回廊・大階段・積み重なる本館と円塔・天守・岩場と滝、写真 約 150 枚から) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_bb_castle.py` |
 | シンデレラ城(WED の正面立面図・写真 約 250 枚・Sketchfab の参考モデル・OSM から) | Blender で作成済み。ユーザーの確認待ち(モックには未反映) | `ds_tdl_cinderella.py` |
@@ -76,6 +77,7 @@ python ds_levels.py                # シーの階段・高低差 → disneysea_l
 python ds_disneyland.py --levels   # ランドの階段・高低差 → disneyland_levels.json(raw が必要)
 python ds_water.py / ds_volcano.py / ds_plaza.py   # 水面・火山・プラザの元データ
 python ds_aquasphere.py --textures # 地球儀のテクスチャ
+python ds_tdl_ground.py            # エントランス広場の地面 → models/tdl_ground.json(Blender なし。shapely 2.1 以上)
 ```
 
 **注意:** OSM は日々更新される。取り直すと、高低差や火山の元データまで変わる(火山の元データは Blender で作った火山モデルの元になっている)。
@@ -225,6 +227,7 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | プロメテウス火山(岩山・台地・カルデラの崖) | ランドマーク(等高線を置き換え) | `output/disneysea/models/volcano.json` |
 | 東京ディズニーランド・ステーション | 舞浜駅・周辺(駅の箱を置き換え) | `output/disneysea/models/tdl_station.json` |
 | 東京ディズニーランドのエントランス(ゲート・ワールドバザールの入口・花壇) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/tdl_entrance.json` |
+| エントランス広場の地面(ゲートの前後の舗装・縁石・植え込み) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/tdl_ground.json` |
 | 線路(リゾートライン・京葉線) | 舞浜駅・周辺(線路とホームの枠線を置き換え) | `output/disneysea/models/tracks.json` |
 | 美女と野獣の城 | ディズニーランド(枠線はそのまま) | `output/disneysea/models/bb_castle.json`(石と屋根の画像 3 枚) |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
@@ -304,6 +307,20 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | ![ゲート](docs/entrance/entrance_gate_in.jpg) | ![看板](docs/entrance/entrance_wb_sign.jpg) |
 | **ミッキーの花壇(真上)** | **モックでの表示** |
 | ![花壇](docs/entrance/entrance_flowerbed_plan.jpg) | ![モック](docs/entrance/mock_entrance.jpg) |
+
+### 東京ディズニーランドのエントランス広場の地面(`ds_tdl_ground.py`)
+
+ゲートの前(駅側の扇形の広場)と後ろ(ミッキーの花壇のある広場)の地面。Blender は使わず、shapely と numpy だけで作って glTF に書き出す(木は作らない)。
+
+- **舗装(OSM)**: relation 17641752(メインエントランスの広場。駅と駐車場の間の扇形、約 2.2 万 m²)を赤茶、relation 17641753(ゲートの内側、ワールドバザールまで、約 5.5 千 m²)を暗い青灰、ゲートの屋根(way 795427065)の下と面のすき間を淡い石にした。色は航空写真から(外側は赤みのある舗装、内側は暗い舗装)。
+- **植え込み**: 2 つの relation の内側の輪 42 か所。高さ 0.30 m・幅 0.35 m の縁石と、その内側の一段低い緑の面。木は無し。ミッキーの花壇の柵(半径 17 m)の中にある輪は、OSM に描かれた旧い花壇なので除いた(モデルが自前の花壇を持っている)。
+- **高さ**: 国土地理院 DEM5A(基準 5.29 m = 0)を 4 m の格子で読み、約 5 m でならした。Blender のエントランスは平ら(0 m)に作ってあるので、ゲートの中心から 75 m 以内は -0.03 m の平らにして、105 m まで DEM につなぐ。それより外は DEM のまま(西と駅側へ 2〜2.4 m 下がる)。
+- **作り方**: 面を格子(4 m)で切り分けて、1 枚ずつ三角形に分ける(制約付き Delaunay)。地形に沿い、切り分けの境で隙間が出ない。自由な縁には厚さ 0.15 m のふちを付けた。約 1 万三角形・500 KB。
+- **推定・未確認**: 色、縁石の寸法、ゲートの床。航空写真は 2023 年のゲート建て替えより前なので、今の舗装の模様と植え込みの中身は写真と照らしていない。舗装の目地の線・タイルの模様は作っていない。
+
+| モックでの表示(俯瞰) |
+|---|
+| ![地面](docs/entrance/mock_ground.jpg) |
 
 ### 美女と野獣の城(`ds_tdl_bb_castle.py`)
 
