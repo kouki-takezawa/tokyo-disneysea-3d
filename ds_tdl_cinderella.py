@@ -58,6 +58,9 @@ from ds_tdl_bb_castle import (Parts, cube, lathe, poly_prism, face, pointed, rou
                               cresting, bartizan, arch_ring)
 
 OUT = ROOT / "output" / "disneyland" / "cinderella"
+ALL_S = 1.0        # plan scale of everything (checked against the turntable: 1.0)
+STAGE_Z = 4.4      # gate floor = bridge = forecourt stage (turntable side frame: about 6.5 m above the water)
+LOWER_Z = 0.8      # the forecourt's lower plaza (about 3.5 m above the water)
 TEX_DIR = ROOT / "plateau_data" / "cc_castle"
 TEX_M = 4.0
 GATE = (-388.6, 578.2)
@@ -131,7 +134,7 @@ def materials():
     M["iron"] = P("cc_iron", (0.05, 0.05, 0.06), 0.4, Metallic=0.7)
     M["wood"] = P("cc_wood", (0.28, 0.15, 0.08), 0.7)
     M["clock"] = P("cc_clock", (0.62, 0.78, 0.86), 0.35)
-    M["water"] = P("cc_water", (0.14, 0.30, 0.30), 0.05, Coat_Weight=1.0)
+    M["water"] = P("cc_water", (0.16, 0.42, 0.62), 0.05, Coat_Weight=1.0, Alpha=0.55)   # clear: the hanging rocks show through
     M["banner_a"] = P("cc_banner_a", (0.30, 0.20, 0.60), 0.8); M["banner_b"] = P("cc_banner_b", (0.85, 0.65, 0.15), 0.8)
     M["paving"] = ST.mat_tiles("cc_paving", (0.66, 0.56, 0.50), (0.60, 0.50, 0.46), 0.6, (0.48, 0.42, 0.38))
     M["red"] = P("cc_red", (0.62, 0.08, 0.10), 0.6)
@@ -145,6 +148,9 @@ def materials():
 
 
 # ================================================================ parts
+CONE_K = 1.4          # the reference's cones are about three times as tall as they are wide
+
+
 def round_tower(P, x, y, r, top, cone_h, base_mat="stone", machi=True, windows=3, a0=-math.pi * 0.9, a1=-math.pi * 0.1, finial=True,
                 z0=0.0, cone_r=None):
     """Stone drum from z0 to top: batter at the foot, arrow slits, a cream corbelled machicolation with small square
@@ -169,7 +175,7 @@ def round_tower(P, x, y, r, top, cone_h, base_mat="stone", machi=True, windows=3
         t = a0 + (a1 - a0) * (k + 0.5) / windows
         M = face(x + r * math.cos(t), y + r * math.sin(t), t + math.pi / 2)
         window(P, M, 0.0, z0 + (top - z0) * 0.45, 0.35, 1.0, "rect", 0.08, sill=False)
-    cone_roof(P, x, y, top, cone_r or (r + 0.45), cone_h, 28, finial=finial)
+    cone_roof(P, x, y, top, cone_r or (r + 0.3), cone_h * CONE_K, 28, finial=finial)
 
 
 def gothic_window(P, M, u, z0, w, h, glass="stained"):
@@ -375,11 +381,9 @@ def build_base(P):
     Hb = 11.5
     for a, b in ((-13.0, -2.15), (2.15, 18.0)):
         cube(P, "stone", I, a, b, 1.0, 33.5, 0.0, Hb)
-    cube(P, "stone", I, -2.15, 2.15, 1.0, 33.5, 9.6, Hb)                       # over the passage
-    cube(P, "trim", I, -2.15, 2.15, 1.0, 33.5, 9.3, 9.6)                        # the passage ceiling
-    cube(P, "paving", I, -2.2, 2.2, -1.0, 20.0, -0.02, 1.6)                 # the passage at the stage level ...
-    for k in range(10):                                                         # ... ramping down to the rear courtyard
-        cube(P, "paving", I, -2.2, 2.2, 20.0 + k * 1.35, 21.35 + k * 1.35, -0.02, 1.6 * (1 - (k + 1) / 10) + 0.02)
+    cube(P, "stone", I, -2.15, 2.15, 1.0, 33.5, STAGE_Z + 5.6, Hb)                      # over the passage
+    cube(P, "trim", I, -2.15, 2.15, 1.0, 33.5, STAGE_Z + 5.3, STAGE_Z + 5.6)                      # the passage ceiling
+    cube(P, "paving", I, -2.2, 2.2, -1.0, 33.6, -0.02, STAGE_Z)             # the passage at the stage level, through to the terrace
     cube(P, "cream", I, -13.2, 18.2, 0.8, 33.7, Hb - 0.35, Hb)                  # string course on top of the base
     crenels(P, -13.1, 18.1, 0.9, 33.6, Hb, "cream", 0.9, 1.0)
     BC.hip_roof(P, -12.6, 17.6, 1.4, 33.1, Hb + 0.1, 2.6)                      # blue slate roofs behind the parapet
@@ -390,12 +394,11 @@ def build_base(P):
     M = face(0, 1.0, 0)
     for a, b in ((-2.75, -2.15), (2.15, 2.75)):
         cube(P, "cream", I, a, b, -0.2, 2.0, 0.0, 13.2)
-    cube(P, "cream", I, -2.75, 2.75, -0.2, 2.0, 9.4, 13.2)
-    poly_prism(P, "trim", M, [(x, z) for x, z in arch_ring(0.0, 4.3, 6.3, 0.45)], -1.3, -1.1)
+    cube(P, "cream", I, -2.75, 2.75, -0.2, 2.0, STAGE_Z + 5.7, 13.2)
+    poly_prism(P, "trim", M, [(x, z) for x, z in arch_ring(0.0, 4.3, STAGE_Z + 3.0, 0.45)], -1.3, -1.1)
     for k in range(9):
-        cube(P, "iron", M, -2.0 + k * 0.5, -1.94 + k * 0.5, -1.0, -0.95, 7.0, 9.0)             # portcullis bars (raised)
-    cube(P, "iron", M, -2.1, 2.1, -1.0, -0.95, 7.2, 7.3); cube(P, "iron", M, -2.1, 2.1, -1.0, -0.95, 8.2, 8.3)
-    window(P, M @ Matrix.Translation((0, -1.25, 0)), 0.0, 10.2, 1.6, 2.4, "pointed", 0.15, glass="stained")
+        cube(P, "iron", M, -2.0 + k * 0.5, -1.94 + k * 0.5, -1.0, -0.95, STAGE_Z + 3.4, STAGE_Z + 5.4)            # portcullis bars (raised)
+    cube(P, "iron", M, -2.1, 2.1, -1.0, -0.95, STAGE_Z + 3.6, STAGE_Z + 3.7); cube(P, "iron", M, -2.1, 2.1, -1.0, -0.95, STAGE_Z + 4.6, STAGE_Z + 4.7)
     for sg in (-1, 1):                                                          # buttress pinnacles of the frontispiece
         cube(P, "trim", M, sg * 2.6 - 0.25, sg * 2.6 + 0.25, -1.5, -1.0, 0.0, 13.6)
         pinnacle(P, sg * 2.6, 1.0 - 1.25, 13.6, 2.6, 0.22)
@@ -418,9 +421,12 @@ def build_base(P):
             corbel_turret(P, x_, v, Hb - 0.2, 0.75, 1.3)
     # the rear terrace (reference): a wide cross-shaped paved deck behind the castle over the moat, its sides a
     # stone wall with white pilasters standing in the water, pierced balustrades with gold finials on the posts
-    outline = [(-14.0, 33.5), (19.0, 33.5), (19.0, 42.0), (9.5, 42.0), (9.5, 57.0), (-4.5, 57.0), (-4.5, 42.0), (-14.0, 42.0)]
-    bm_prism(P["paving"], outline, -0.05, 0.02, "xy")
-    bm_prism(P["stone"], outline, -1.6, -0.05, "xy")
+    cube(P, "trim", I, -14.0, 19.0, 33.4, 57.1, TZ - 0.6, TZ - 0.05) if False else None
+    outline = [(-14.0, 33.5), (19.0, 33.5), (19.0, 42.0), (9.5, 42.0), (9.5, 58.0), (-4.5, 58.0), (-4.5, 42.0), (-14.0, 42.0)]
+    TZ = STAGE_Z
+    bm_prism(P["paving"], outline, TZ - 0.05, TZ + 0.02, "xy")
+    bm_prism(P["stone"], outline, -1.6, TZ - 0.05, "xy")
+    bm_prism(P["trim"], outline, TZ - 0.35, TZ - 0.05, "xy") if False else None
     edges = list(zip(outline[1:] + outline[:1], outline[2:] + outline[:2]))[:-1]
     for (x0_, y0_), (x1_, y1_) in edges:
         L_ = math.hypot(x1_ - x0_, y1_ - y0_)
@@ -428,16 +434,16 @@ def build_base(P):
             continue
         ang_ = math.atan2(y1_ - y0_, x1_ - x0_)
         Mb = face(x0_, y0_, ang_)
-        pierced_balustrade(P, Mb @ Matrix.Translation((0, -0.2, 0)), 0.0, L_, 0.02, 1.0, 0.9)
+        pierced_balustrade(P, Mb @ Matrix.Translation((0, -0.2, 0)), 0.0, L_, TZ + 0.02, 1.0, 0.9)
         k_ = 0.0
         while k_ <= L_ + 1e-6:
             q = Mb @ Vector((k_, -0.2, 0))
-            lathe(P, "trim", [(0, 0), (0.32, 0), (0.32, 1.25), (0.22, 1.35), (0, 1.35)], 10, T(q.x, q.y, 0))
-            gold_cross(P, q.x, q.y, 1.35, 0.5) if int(k_) % 8 == 0 else lathe(P, "gold", [(0, 1.35), (0.16, 1.35), (0.2, 1.6), (0.08, 1.85), (0, 1.95)], 8, T(q.x, q.y, 0))
-            cube(P, "trim", Mb, k_ - 0.3, k_ + 0.3, -0.05, 0.1, -1.6, -0.05)      # the white pilasters in the water
+            lathe(P, "trim", [(0, 0), (0.32, 0), (0.32, 1.25), (0.22, 1.35), (0, 1.35)], 10, T(q.x, q.y, TZ))
+            gold_cross(P, q.x, q.y, TZ + 1.35, 0.5) if int(k_) % 8 == 0 else lathe(P, "gold", [(0, 1.35), (0.16, 1.35), (0.2, 1.6), (0.08, 1.85), (0, 1.95)], 8, T(q.x, q.y, TZ))
+            cube(P, "trim", Mb, k_ - 0.3, k_ + 0.3, -0.05, 0.12, -1.6, TZ - 0.05)      # the white pilasters down to the water
             k_ += 4.0
     for k in range(6):                                                          # the stair down to the water at the end
-        cube(P, "trim", I, -0.5, 5.5, 57.0 + k * 0.4, 57.4 + k * 0.4, -1.6, -0.05 - k * 0.26)
+        cube(P, "trim", I, -0.5, 5.5, 42.0 + k * 0.4, 42.4 + k * 0.4, -1.6, TZ - 0.05 - k * 0.26) if False else None
     # outside stair up the east side to the hall entrance (about 7 m), cream balustrade
     for k in range(24):
         z = 0.3 * (k + 1)
@@ -460,17 +466,17 @@ FRONT_TOWERS = [   # (u, v, r, drum top, cone height): read off the elevation (c
     (-10.6, 1.8, 2.1, 16.2, 7.6), (-5.6, 1.4, 1.95, 16.0, 6.6), (5.3, 1.4, 1.95, 16.3, 5.5), (11.1, 1.6, 1.4, 13.5, 5.4),
     (16.6, 1.9, 1.7, 15.8, 5.7),
 ]
-REAR_TOWERS = [(-11.0, 32.0, 2.4, 17.0, 7.5), (15.8, 31.6, 3.1, 19.0, 9.5), (-12.5, 17.0, 1.8, 15.0, 6.0), (17.8, 12.0, 1.8, 15.5, 6.5)]
+REAR_TOWERS = [(-11.0, 32.0, 1.9, 17.0, 5.0), (15.8, 31.6, 2.1, 18.0, 5.5), (-12.5, 17.0, 1.8, 15.0, 6.0), (17.8, 12.0, 1.8, 15.5, 6.5)]
 
 
 def build_towers(P):
     cols = ["red", "banner_b", "banner_a"]
     for i, (u, v, r, top, ch) in enumerate(FRONT_TOWERS):
         round_tower(P, u, v, r, top, ch)
-        flag(P, u, v, top + ch + 0.9, cols[i % 3])
+        flag(P, u, v, top + ch * CONE_K + 0.9, cols[i % 3])
     for i, (u, v, r, top, ch) in enumerate(REAR_TOWERS):
         round_tower(P, u, v, r, top, ch, a0=0.1, a1=math.pi - 0.1)
-        flag(P, u, v, top + ch + 0.9, cols[(i + 1) % 3])
+        flag(P, u, v, top + ch * CONE_K + 0.9, cols[(i + 1) % 3])
     for (x_, y_) in ((-15.0, 20.0), (19.5, 25.0)):                             # grey crenellated drum towers (reference)
         lathe(P, "stone", [(0, 0), (2.3, 0), (2.1, 1.0), (2.1, 14.0), (2.5, 14.6), (2.5, 15.2), (0, 15.2)], 24, T(x_, y_, 0))
         for k in range(10):
@@ -501,13 +507,11 @@ def build_palace(P):
         pierced_balustrade(P, M @ Matrix.Translation((0, 0.3, 0)), 0.0, L, zb + 0.2, 0.9)
     # stepped pink tiers with crenellated terraces (reference), not one long roof
     crenels(P, -4.1, 8.6, 3.8, 26.2, 25.8, "cream", 0.9, 0.9)
-    cube(P, "cream", I, -2.2, 7.4, 8.0, 22.5, 25.8, 30.6)
-    for (M_, L_) in BC.side_frames(-2.2, 7.4, 8.0, 22.5):
+    cube(P, "cream", I, -1.2, 7.0, 9.0, 21.0, 25.8, 28.4)                      # one low tier: only the keep rises above (turntable)
+    for (M_, L_) in BC.side_frames(-1.2, 7.0, 9.0, 21.0):
         for k in range(max(1, int(L_ / 2.2))):
-            BC.window(P, M_, (k + 0.5) * L_ / max(1, int(L_ / 2.2)), 26.8, 0.55, 2.2, "pointed", 0.08)
-    crenels(P, -2.4, 7.6, 7.8, 22.7, 30.6, "cream", 0.8, 0.85)
-    cube(P, "cream", I, 0.2, 7.2, 12.0, 19.0, 30.6, 33.8)
-    crenels(P, 0.0, 7.4, 11.8, 19.2, 33.8, "cream", 0.7, 0.8)
+            BC.window(P, M_, (k + 0.5) * L_ / max(1, int(L_ / 2.2)), 26.3, 0.5, 1.5, "pointed", 0.08)
+    crenels(P, -1.4, 7.2, 8.8, 21.2, 28.4, "cream", 0.7, 0.85)
     for (x_, y_) in ((-4.1, 3.8), (8.6, 3.8), (-4.1, 26.2), (8.6, 26.2), (-2.4, 22.7), (7.6, 22.7)):
         pinnacle(P, x_, y_, 26.7, 2.2, 0.18)
     # the clock gable over the frontispiece: cream tracery front, the clock (15.2 m), steep blue gable roof (top 20.9)
@@ -532,9 +536,9 @@ def build_palace(P):
             t = (k + 0.5) / 6
             pinnacle(P, sg * 3.0 * (1 - t), 1.45, 15.4 + 5.5 * t, 0.5, 0.08, "trim")
     # the upper palace gable (top 32.9) with the big tracery dormer (the red-framed windows of the drawing, 25.8 .. 28.4)
-    gable_roof(P, -3.0, 2.2, 4.0, 11.0, 25.8, 32.9, along="y", ends=(False, True))
+    gable_roof(P, -3.0, 2.2, 4.0, 11.0, 25.8, 31.0, along="y", ends=(False, True))
     bm_ = P["roof"]                                                             # the slate front of the upper gable
-    v_ = [bm_.verts.new(p) for p in ((-3.0, 4.0, 25.8), (2.2, 4.0, 25.8), (-0.4, 4.0, 32.9))]
+    v_ = [bm_.verts.new(p) for p in ((-3.0, 4.0, 25.8), (2.2, 4.0, 25.8), (-0.4, 4.0, 31.0))]
     bm_.faces.new(v_)
     Md = face(-0.4, 3.6, 0)
     cube(P, "cream", Md, -1.1, 1.1, -0.2, 1.6, 25.8, 29.6)
@@ -565,8 +569,8 @@ def build_palace(P):
                                           (-1.5, 27.8, 21.5, 6.0), (6.5, 27.8, 21.5, 6.0))):
         lathe(P, "cream", [(0, zb), (0.95, zb), (0.95, z_), (1.15, z_ + 0.3), (1.15, z_ + 0.6), (0, z_ + 0.6)], 16, T(x_, y_, 0))
         crenels(P, x_ - 1.1, x_ + 1.1, y_ - 1.1, y_ + 1.1, z_ + 0.6, "trim", 0.6, 0.5) if i % 2 else None
-        cone_roof(P, x_, y_, z_ + 0.6, 1.25, h_, 16)
-        flag(P, x_, y_, z_ + 0.6 + h_ + 0.9, ("banner_a", "red", "banner_b")[i % 3], 1.8, 1.3)
+        cone_roof(P, x_, y_, z_ + 0.6, 1.15, h_ * CONE_K, 16)
+        flag(P, x_, y_, z_ + 0.6 + h_ * CONE_K + 0.9, ("banner_a", "red", "banner_b")[i % 3], 1.8, 1.3)
     for x_ in (-2.0, 0.5, 3.0, 5.5):
         pinnacle(P, x_, 3.8, 25.8, 1.8, 0.14)
     # the keep: square shaft to the gallery (27.2), the gallery ring, the tall upper stage (to 39.8) with pinnacles,
@@ -609,58 +613,64 @@ def build_palace(P):
         flag(P, x_, y_, top + ch + 0.2, "banner_a" if gold else "red", 2.4, 1.8)
 
 
+def sq_pt(cx, cy, ax, ay, deg, n=4.0):
+    """A point on a superellipse: the reference plaza is a rectangle with well-rounded front corners."""
+    c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+    return (cx + ax * math.copysign(abs(c) ** (2 / n), c), cy + ay * math.copysign(abs(s_) ** (2 / n), s_))
+
+
 def build_forecourt(P):
     """The front of the reference, two levels:
       * the lower plaza: a chamfered paved deck over the moat with a red compass rose, gold-topped pedestals and
         pierced balustrades round its edge, ramps up either side;
-      * the upper stage at the gate level (1.6 m): its front a stone retaining wall with white pilasters and two
+      * the upper stage at the gate level (STAGE_Z): its front a stone retaining wall with white pilasters and two
         dark double doors; on the left a gold-railed platform under a gothic arch, on the right a grand curving stair
         rising to a round balcony under three gothic arches; tall gold poles with blue and gold pennants either side of
         the gate and along the stage; gold lamps on the posts.
     The castle stands on an island edged with rocks and grass."""
-    I = Matrix.Identity(4); Z = 1.6
-    lower = [(-22.0, -14.0)] + [(2.0 + 24.0 * math.cos(math.radians(a_)), -17.0 + 19.0 * math.sin(math.radians(a_)))
-                                 for a_ in range(190, 351, 10)] + [(26.0, -14.0)]
-    bm_prism(P["paving"], lower, -1.2, -0.95, "xy")
-    bm_prism(P["stone"], lower, -1.6, -1.2, "xy")
-    lathe(P, "red", [(0, -0.95), (4.2, -0.95), (4.2, -0.93), (0, -0.93)], 48, T(2.0, -25.0, 0))
-    lathe(P, "paving", [(0, -0.93), (3.0, -0.93), (3.0, -0.92), (0, -0.92)], 48, T(2.0, -25.0, 0))
+    I = Matrix.Identity(4); Z = STAGE_Z; LZ = LOWER_Z
+    lower = [(-22.0, -14.0)] + [sq_pt(2.0, -14.0, 24.0, 22.0, a_) for a_ in range(190, 351, 8)] + [(26.0, -14.0)]   # squarish front (turntable)
+    bm_prism(P["paving"], lower, LZ - 0.25, LZ, "xy")
+    bm_prism(P["stone"], lower, -1.6, LZ - 0.25, "xy")
+    lathe(P, "red", [(0, LZ), (4.2, LZ), (4.2, LZ + 0.02), (0, LZ + 0.02)], 48, T(2.0, -25.0, 0))
+    lathe(P, "paving", [(0, LZ + 0.02), (3.0, LZ + 0.02), (3.0, LZ + 0.03), (0, LZ + 0.03)], 48, T(2.0, -25.0, 0))
     for k in range(8):                                                          # the compass star
         t = math.pi / 4 * k; L_ = 4.0 if k % 2 == 0 else 2.6
         poly_prism(P, "red" if k % 2 else "trim", Matrix.Translation((2.0, -25.0, 0)) @ Matrix.Rotation(t, 4, "Z"),
                    [(-0.35, 0.0), (0.35, 0.0), (0.0, L_)], -0.92, -0.9) if False else None
         bm_prism(P["red" if k % 2 else "trim"], [(2.0 + 0.4 * math.cos(t + math.pi / 2), -25.0 + 0.4 * math.sin(t + math.pi / 2)),
                                                  (2.0 + L_ * math.cos(t), -25.0 + L_ * math.sin(t)),
-                                                 (2.0 + 0.4 * math.cos(t - math.pi / 2), -25.0 + 0.4 * math.sin(t - math.pi / 2))], -0.92, -0.9, "xy")
+                                                 (2.0 + 0.4 * math.cos(t - math.pi / 2), -25.0 + 0.4 * math.sin(t - math.pi / 2))], LZ + 0.03, LZ + 0.05, "xy")
     for (x0_, y0_), (x1_, y1_) in zip(lower[:-1], lower[1:]):                    # its balustrade and pedestals
         L_ = math.hypot(x1_ - x0_, y1_ - y0_); ang_ = math.atan2(y1_ - y0_, x1_ - x0_)
         Mb = face(x0_, y0_, ang_)
         if abs(x0_ - x1_) < 0.1 and abs(y0_ - y1_) < 0.1:
             continue
-        pierced_balustrade(P, Mb, 0.0, L_, -0.95, 1.0)
-        gold_lamp(P, x0_, y0_, -0.95, 1.0) if int((x0_ + 100) * 7) % 3 == 0 else None
+        pierced_balustrade(P, Mb, 0.0, L_, LZ, 1.0)
+        gold_lamp(P, x0_, y0_, LZ, 1.0) if int((x0_ + 100) * 7) % 3 == 0 else None
     for rr in (6.5, 11.0, 15.5):                                                # the concentric arcs on the paving
         pts_ = [(2.0 + rr * math.cos(math.radians(a_)), -25.0 + rr * math.sin(math.radians(a_))) for a_ in range(200, 341, 5)]
         for (xa, ya), (xb, yb) in zip(pts_[:-1], pts_[1:]):
             L_ = math.hypot(xb - xa, yb - ya)
             cube(P, "red" if rr < 7 else "stone", Matrix.Translation(((xa + xb) / 2, (ya + yb) / 2, 0)) @ Matrix.Rotation(math.atan2(yb - ya, xb - xa), 4, "Z"),
-                 -L_ / 2, L_ / 2, -0.12, 0.12, -0.95, -0.93)
+                 -L_ / 2, L_ / 2, -0.12, 0.12, LZ, LZ + 0.02)
     for a_ in (210, 240, 270, 300, 330):                                        # and the radial lines
         t = math.radians(a_)
         cube(P, "stone", Matrix.Translation((2.0 + 10.0 * math.cos(t), -25.0 + 10.0 * math.sin(t), 0)) @ Matrix.Rotation(t, 4, "Z"),
-             -5.5, 5.5, -0.12, 0.12, -0.95, -0.93)
+             -5.5, 5.5, -0.12, 0.12, LZ, LZ + 0.02)
     # the upper stage: deck, front retaining wall with pilasters and the dark doors, balustrade
     cube(P, "stone", I, -18.0, 22.0, -14.0, 1.0, -1.6, Z - 0.05)
     cube(P, "paving", I, -17.8, 21.8, -13.8, 1.0, Z - 0.05, Z)
     Mf = face(-18.0, -14.0, 0)
     for u in (0.4, 6.0, 12.0, 16.0, 24.0, 28.0, 34.0, 39.6):
-        cube(P, "trim", Mf, u - 0.5, u + 0.5, -0.25, 0.05, -1.0, Z + 0.1)
+        cube(P, "trim", Mf, u - 0.5, u + 0.5, -0.25, 0.05, LZ, Z + 0.1)
         cube(P, "trim", Mf, u - 0.6, u + 0.6, -0.3, 0.05, Z - 0.1, Z + 0.15)
     for u in (9.0, 31.0):
-        cube(P, "door_dark", Mf, u - 1.3, u + 1.3, -0.1, 0.02, -0.95, Z - 0.3)
-        cube(P, "iron", Mf, u - 0.03, u + 0.03, -0.12, -0.1, -0.95, Z - 0.3)
+        cube(P, "door_dark", Mf, u - 1.3, u + 1.3, -0.1, 0.02, LZ, LZ + 2.6)
+        cube(P, "iron", Mf, u - 0.03, u + 0.03, -0.12, -0.1, LZ, LZ + 2.6)
+        cube(P, "trim", Mf, u - 1.5, u + 1.5, -0.15, 0.05, LZ + 2.6, LZ + 2.9)
         for sg in (-1, 1):
-            lathe(P, "iron", [(0, 0), (0.12, 0), (0.12, 0.03), (0, 0.04)], 10, Mf @ T(u + sg * 0.35, -0.12, 0.3) @ R(math.pi / 2, "X"))
+            lathe(P, "iron", [(0, 0), (0.12, 0), (0.12, 0.03), (0, 0.04)], 10, Mf @ T(u + sg * 0.35, -0.12, LZ + 1.3) @ R(math.pi / 2, "X"))
     for (u0, u1) in ((0.0, 13.2), (26.8, 40.0)):
         pierced_balustrade(P, Mf @ Matrix.Translation((0, 0.3, 0)), u0, u1, Z, 1.0, 0.9)
     for u in (0.0, 13.2, 26.8, 40.0):
@@ -670,13 +680,13 @@ def build_forecourt(P):
         for k in range(14):
             yk = -14.0 + k * 1.05
             cube(P, "paving", I, min(x0_, x0_ + sx * 4.0), max(x0_, x0_ + sx * 4.0), yk - 1.05 - 14.0 * 0 - 1.0 * 0, yk,
-                 -1.6, -0.95 + (Z + 0.95) * (k + 1) / 14) if False else None
+                 -1.6, LZ + (Z - LZ) * (k + 1) / 14) if False else None
     for sx in (-1, 1):
         xa, xb = (-22.0, -18.0) if sx < 0 else (22.0, 26.0)
         for k in range(12):
             y0_ = -14.0 - (k + 1) * 0.66
-            cube(P, "paving", I, xa, xb, y0_, y0_ + 0.66, -1.6, Z - (k + 1) * (Z + 0.95) / 12)
-        pierced_balustrade(P, face(xa if sx < 0 else xb, -22.0, math.pi / 2), 0.0, 8.0, -0.95, 1.0)
+            cube(P, "paving", I, xa, xb, y0_, y0_ + 0.66, -1.6, Z - (k + 1) * (Z - LZ) / 12)
+        pierced_balustrade(P, face(xa if sx < 0 else xb, -22.0, math.pi / 2), 0.0, 8.0, LZ, 1.0)
     # left: the gold-railed platform under a gothic arch
     cube(P, "trim", I, -12.0, -5.0, -10.5, -4.5, Z, Z + 1.2)
     gold_railing(P, [(-12.0, -10.5), (-5.0, -10.5), (-5.0, -4.5)], [Z + 1.2] * 3)
@@ -709,7 +719,7 @@ def build_forecourt(P):
     for x_ in (-16.5, -14.0, 18.0, 20.5):
         pennant_pole(P, x_, -12.8, Z, 9.5, 0.0)
     for x_ in (-20.0, 24.0):
-        pennant_pole(P, x_, -21.0, -0.95, 9.0, 0.0)
+        pennant_pole(P, x_, -21.0, LZ, 9.0, 0.0)
 
 
 PLAN_S = 0.72           # the reference model is slimmer: the castle's plan x 0.72 round its centre, heights kept
@@ -722,11 +732,38 @@ FORE_DY = GATE_Y - BRIDGE - 1.0                            # the forecourt's bac
 FORE_DY_RAW = -8.0          # the forecourt island stands 8 m out from the castle, across the water (turntable views)
 
 
+def floating_rock(P, x, y, rx, ry, depth, seed):
+    """An upside-down craggy rock mass under an island (the reference model floats): a jagged cone from the water
+    down to a blunt point, its rings randomly pushed in and out."""
+    g = random.Random(seed)
+    bm = P["rock"]; n = 16; rings = 7
+    verts = []
+    for j in range(rings):
+        f = j / (rings - 1); z = -1.3 - depth * f
+        sc = (1 - f) ** 0.7 * 0.95 + 0.05
+        ring = []
+        for i in range(n):
+            t = 2 * math.pi * i / n
+            k = sc * g.uniform(0.75, 1.15)
+            ring.append(bm.verts.new((x + rx * k * math.cos(t) + g.uniform(-0.8, 0.8) * f, y + ry * k * math.sin(t) + g.uniform(-0.8, 0.8) * f,
+                                      z + g.uniform(-0.8, 0.8) * (0 < j))))
+        verts.append(ring)
+    for j in range(rings - 1):
+        for i in range(n):
+            a, b = verts[j][i], verts[j][(i + 1) % n]; c, d = verts[j + 1][(i + 1) % n], verts[j + 1][i]
+            bm.faces.new((a, b, c, d))
+    bm.faces.new(verts[-1][::-1]); bm.faces.new(verts[0])
+
+
 def build_islands(P):
     """The moat, the round grass island of the castle with rocks on its edge, the forecourt island's rocky edge,
     the stone arch bridge from the forecourt stage to the gate over the water gap."""
     I = Matrix.Identity(4)
-    cube(P, "water", I, -52.0, 56.0, -70.0, 70.0, -1.3, -1.25)
+    pool = [(2.5 + 30.0 * math.cos(t) * (1 + 0.04 * math.sin(3 * t)), 4.0 + 47.0 * math.sin(t) * (1 + 0.03 * math.cos(5 * t)))
+            for t in [2 * math.pi * k / 72 for k in range(72)]]
+    bm_prism(P["water"], pool, -1.32, -1.25, "xy")                            # the pool the model floats in
+    floating_rock(P, 2.5, 17.0, 10.0, 7.5, 13.0, 7)                             # the rocks hanging under the islands
+    floating_rock(P, 2.0, -16.0, 9.0, 7.0, 12.0, 11)
     R_ = 27.0 * PLAN_S
     lathe(P, "grass", [(0, -1.3), (R_, -1.3), (R_ - 1.0, -0.4), (R_ - 2.5, -0.05), (0, -0.05)], 48, T(2.5, 17.0, 0))   # the castle's island
     g = random.Random(21)
@@ -738,14 +775,14 @@ def build_islands(P):
         BC.boulder_cluster(P, x_, y_, g.uniform(1.3, 2.3), g.uniform(0.4, 1.2) - 1.3, i + 300)
     # the forecourt island's edge (its outline follows the stage and the D-shaped plaza, shifted by FORE_DY)
     edge = [(-19.0, -14.0 + 13.0 * t) for t in (0.0, 0.33, 0.66, 1.0)] + [(23.0, -14.0 + 13.0 * t) for t in (0.0, 0.33, 0.66, 1.0)] + \
-           [(2.0 + 25.5 * math.cos(math.radians(a_)), -17.0 + 20.5 * math.sin(math.radians(a_))) for a_ in range(190, 351, 12)]
+           [sq_pt(2.0, -14.0, 25.5, 23.5, a_) for a_ in range(190, 351, 10)]
     for i, (x_, y_) in enumerate(edge):
         x_, y_ = 2.0 + (x_ - 2.0) * FORE_S, 1.0 + FORE_DY + (y_ - 1.0) * FORE_SY
         BC.boulder_cluster(P, x_ + g.uniform(-0.4, 0.4), y_ + g.uniform(-0.4, 0.4), g.uniform(1.0, 1.7), g.uniform(0.4, 1.0) - 1.3, i + 200)
         if g.random() < 0.6:
             cube(P, "grass", I, x_ - 1.1, x_ + 1.1, y_ - 0.7, y_ + 0.7, -1.3, -1.02)
     # the bridge from the stage (at the gate level) over the gap to the gate: deck, balustrades, an arch below
-    Z = 1.6
+    Z = STAGE_Z
     cube(P, "stone", I, -2.6, 2.6, GATE_Y - BRIDGE, GATE_Y + 0.5, -1.3, Z - 0.05)
     cube(P, "paving", I, -2.4, 2.4, GATE_Y - BRIDGE, GATE_Y + 0.5, Z - 0.05, Z)
     cutter_pts = [(-3.0, -1.3), (3.0, -1.3)] + pointed(-3.0, 3.0, -0.2)[1:-1]
@@ -779,6 +816,7 @@ def build(context=True):
             if bm.verts:
                 if Mp is not None:
                     bmesh.ops.transform(bm, matrix=Mp, verts=bm.verts)
+                bmesh.ops.transform(bm, matrix=Matrix.Diagonal((ALL_S, ALL_S, 1.0, 1.0)), verts=bm.verts)
                 o = obj_bm(f"CC_{name}_{k}", bm, k)
         P.clear()
 
@@ -815,11 +853,24 @@ CAMS = {
 }
 
 
+TT_EL, TT_D, TT_LENS = 14.0, 400.0, 96.7           # elevation (deg), distance (m), lens (mm): 12.9 px/m at 1920 px
+TT_TARGET = (2.5, 2.5, 17.9)                          # image centre: the bridge, 17.5 m above the water
+
+
+def tt_camera(k):
+    az = math.radians(-5.0 * (k - 31))                # frame k of the reference turntable
+    el = math.radians(TT_EL)
+    tx, ty, tz = TT_TARGET
+    loc = (tx + TT_D * math.cos(el) * math.cos(az), ty + TT_D * math.cos(el) * math.sin(az), tz + TT_D * math.sin(el))
+    return loc, TT_TARGET, TT_LENS
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
     ap.add_argument("--cams", default=",".join(CAMS)); ap.add_argument("--samples", type=int, default=32)
     ap.add_argument("--percent", type=int, default=60); ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--tt", default="", help="turntable frames to render like the reference, e.g. 1,13,25,37,49,61")
     a = ap.parse_args(argv)
     OUT.mkdir(parents=True, exist_ok=True)
     build()
@@ -830,6 +881,20 @@ def main():
         co = bpy.data.objects.new("CAM_" + n, cam); B.col.objects.link(co)
         co.location = loc; co.rotation_euler = (Vector(tgt) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
         cams[n] = co
+    for k in [int(v) for v in a.tt.split(",") if v]:
+        loc, tgt, lens = tt_camera(k)
+        cam = bpy.data.cameras.new(f"CAM_tt{k:03d}"); cam.lens = lens; cam.clip_start = 1.0; cam.clip_end = 3000
+        co = bpy.data.objects.new(f"CAM_tt{k:03d}", cam); B.col.objects.link(co)
+        co.location = loc; co.rotation_euler = (Vector(tgt) - Vector(loc)).to_track_quat("-Z", "Y").to_euler()
+        cams[f"tt{k:03d}"] = co
+    if a.tt:
+        sc = bpy.context.scene
+        sc.render.resolution_x, sc.render.resolution_y = 1920, 1038
+        sc.render.film_transparent = True
+        for o in list(bpy.data.objects):
+            if o.name.startswith("CTX_"):
+                o.hide_render = True
+        a.cams = ",".join(f"tt{int(v):03d}" for v in a.tt.split(",") if v)
     bpy.context.scene.camera = cams["front"]
     ST.frame_view()
     for scr in bpy.data.screens:
