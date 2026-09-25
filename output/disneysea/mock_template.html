@@ -1717,8 +1717,8 @@ async function loadModels(T, scene, root) {
   try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
   addLights(T, scene);
   const loader = new T.GLTFLoader();
-  for (const m of D.models) {
-    loader.load(m.src, gltf => {
+  for (const m of D.models) {   // one at a time: parsing them all at once stalls the page
+    await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
         const nm = /^(EN|TK)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance and the tracks share the station's materials
@@ -1756,12 +1756,15 @@ async function loadModels(T, scene, root) {
       root.add(gltf.scene);
       three.models[m.id] = { id: m.id, obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
       three.visibility();
-    }, undefined, () => {});   // model missing: keep the wireframe
+      three.grow(gltf.scene, MODEL_GROW_MS);
+      setTimeout(next, 0);
+    }, undefined, () => next()));   // model missing: keep the wireframe
   }
 }
 
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
 const three = { ready: false, active: false };
+const RISE_MS = 1400, MODEL_GROW_MS = 700;   // on opening 3D: the layers rise out of the ground, then the models grow in one by one
 function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
 async function init3D() {
   const host = $("three");
@@ -1786,7 +1789,25 @@ async function init3D() {
   home();
 
   const V = (x, y, z) => [x, z, -y];   // east, up, south
-  const root = new T.Group(); scene.add(root);
+  const root = new T.Group(); scene.add(root); three.root = root;
+  // growing things (the whole layer group, then each model): scale.y from ~0 to 1 with an ease-out
+  const growing = new Map();
+  const easeOut = k => 1 - Math.pow(1 - k, 3);
+  three.grow = (obj, ms) => {
+    if (reduceMotion || !three.active || mode === "walk") { obj.scale.y = 1; return; }
+    obj.scale.y = 0.001; growing.set(obj, { ms });
+  };
+  let growLast = 0;
+  const stepGrow = now => {
+    const dt = Math.min(50, now - (growLast || now)); growLast = now;   // a slow frame (shader compile, model parse) cannot skip the animation
+    for (const [obj, g] of growing) {
+      g.el = (g.el ?? -dt) + dt;
+      const k = Math.min(1, g.el / g.ms);
+      obj.scale.y = Math.max(0.001, easeOut(k));
+      if (k >= 1) { obj.scale.y = 1; growing.delete(obj); g.done?.(); }
+    }
+  };
+  three.finishGrow = () => { for (const [obj, g] of growing) { obj.scale.y = 1; g.done?.(); } growing.clear(); };
   const groups = {};
   function seg(key, arr) { (groups[key] = groups[key] || []).push(...arr); }
   function prism(key, r, z0, z1) {
@@ -2512,7 +2533,7 @@ async function init3D() {
     three.trains = RL.trains.map(tr => {
       const [ca, cb] = TRAIN_COLS[tr.scheme] || TRAIN_COLS.blue, U = { a: { value: new T.Color(ca) }, b: { value: new T.Color(cb) } };
       const paint = { true: trainPaint(U, 15.05, true), false: trainPaint(U, 13.70, false) }, lm = new T.LineBasicMaterial({ color: tr.col });
-      const grp = new T.Group(), wg = new T.Group(); grp.name = `resort-line-${tr.scheme}`; wg.name = grp.name + "-wire"; scene.add(grp, wg);
+      const grp = new T.Group(), wg = new T.Group(); grp.name = `resort-line-${tr.scheme}`; wg.name = grp.name + "-wire"; three.root.add(grp, wg);
       const inside = [], slots = [], wslots = [];
       cars.forEach(({ L, head }, i) => {
         const car = (head ? proto.head : proto.mid).clone(true), wcar = new T.Group();
@@ -2588,7 +2609,7 @@ async function init3D() {
     const items = MOV.list.map(m => {
       const solid = new T.Group(), wire = new T.Group(); solid.name = `mover-${m.id}`;
       const cars = m.cars.map((L, k) => { const c = build(m, k, L); solid.add(c); const e = edgesOf(c, m.col); wire.add(e); return { c, e }; });
-      scene.add(solid, wire); return { m, solid, wire, cars };
+      three.root.add(solid, wire); return { m, solid, wire, cars };
     });
     if (items.length) $("md-trains").disabled = false;
     return items;
@@ -2612,12 +2633,15 @@ async function init3D() {
   };
 
   three.visibility(); three.resize();
-  if (D.models && D.models.length) loadModels(T, scene, root);
+  const startModels = () => { if (D.models && D.models.length) loadModels(T, scene, root); };
+  if (reduceMotion || mode === "walk") startModels();
+  else { three.grow(root, RISE_MS); growing.get(root).done = startModels; }
   let last = performance.now(), mmLast = 0, aimLast = 0;
   (function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(), dt = (now - last) / 1000; last = now;
     if (!three.active) return;
+    if (growing.size) stepGrow(now); else growLast = 0;
     if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
     FX_TIME.value = now / 1000;
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
@@ -2645,6 +2669,7 @@ async function show(next, opts = {}) {
   if (is3d && !three.ready && !(await init3D())) return;
   if (is3d) three.resize(); else resize();
   if (three.ready) {
+    if (next === "walk") three.finishGrow();   // walking needs the real heights at once
     if (next !== "orbit") three.unfollow();
     if (prev === "walk" && next !== "walk") three.walkExit(next === "orbit" && !opts.instant);
     if (next === "orbit" && prev === "plan" && !opts.keep) three.fromPlan((W / 2 - ox) / sc, (oy - H / 2) / sc, H / sc);
