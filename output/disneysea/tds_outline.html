@@ -602,14 +602,13 @@ const LAYERS = [
   ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["parking","駐車場","--lot",0], ["trains","電車(リゾートライン・京葉線)","--mh",0], ["labels","ラベル","--muted",0],
 ];
 const on = {}; LAYERS.forEach(([k]) => on[k] = true);
-try { const s = JSON.parse(localStorage.getItem("tds-layers") || "null"); if (s) Object.assign(on, s); } catch (e) {}
+try { localStorage.removeItem("tds-layers"); localStorage.removeItem("tds-models"); } catch (e) {}   // older versions kept these; every visit now starts from the defaults
 const layersEl = $("layers");
 LAYERS.forEach(([k, label, color, dash]) => {
   const l = document.createElement("label");
   l.innerHTML = `<input type="checkbox" id="ly-${k}" ${on[k] ? "checked" : ""}><span class="sw${dash ? " dash" : ""}" style="color:var(${color})"></span>${label}`;
   l.querySelector("input").addEventListener("change", e => {
     on[k] = e.target.checked;
-    try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
     redraw(); if (three.ready) three.visibility(); syncPresets();
   });
   layersEl.appendChild(l);
@@ -617,7 +616,6 @@ LAYERS.forEach(([k, label, color, dash]) => {
 
 function setAllLayers(v) {
   LAYERS.forEach(([k]) => { on[k] = v; $("ly-" + k).checked = v; });
-  try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
   redraw(); if (three.ready) three.visibility(); syncPresets();
 }
 $("ly-all-on").addEventListener("click", () => setAllLayers(true));
@@ -632,8 +630,7 @@ const MODELS = [
   ["trains", "電車(リゾートライン・京葉線)"],
 ];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
-try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
-const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
+const saveMdl = () => { if (three.ready) three.visibility(); syncPresets(); };
 MODELS.forEach(([k, label]) => {
   const l = document.createElement("label");
   l.innerHTML = `<input type="checkbox" id="md-${k}" ${mdl[k] ? "checked" : ""} disabled>${label}`;
@@ -666,7 +663,6 @@ function applyPreset(k) {
   LAYERS.forEach(([n]) => { on[n] = ly; $("ly-" + n).checked = ly; });
   MODELS.forEach(([n]) => { mdl[n] = md; $("md-" + n).checked = md; });
   mdl.overlay = ov; $("mdl-overlay").checked = ov;
-  try { localStorage.setItem("tds-layers", JSON.stringify(on)); } catch (err) {}
   saveMdl(); redraw();
   toast(`表示: ${name}${mode === "plan" && k === "model" ? "(3Dモデルは俯瞰・散歩で表示されます)" : ""}`);
 }
@@ -1827,9 +1823,9 @@ async function loadModels(T, scene, root, list = D.models) {
 
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
 const three = { ready: false, active: false };
-// the first 3D view opens close on Tokyo Disneyland Station while the layers rise (RISE_MS), pulls back over the park (PULL_MS)
-// while the models grow in one by one, then shows the title until it is tapped
-const RISE_MS = 2800, PULL_MS = 4200, MODEL_GROW_MS = 900, OPEN_STATION = "tdl_station";
+// every visit opens on the whole park: the layers rise (RISE_MS), the models grow in one by one and the title shows while the
+// camera circles slowly; a tap flies down to Tokyo Disneyland Station (FLY_MS) and brings back the controls
+const RISE_MS = 2800, FLY_MS = 2600, MODEL_GROW_MS = 900, OPEN_STATION = "tdl_station";
 function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
 async function init3D() {
   const host = $("three");
@@ -1926,47 +1922,44 @@ async function init3D() {
     return { start() { cancelAnimationFrame(raf); parts = []; t0 = performance.now(); raf = requestAnimationFrame(frame); },
              stop() { cancelAnimationFrame(raf); parts = []; cx.clearRect(0, 0, cv.width, cv.height); } };
   })();
+  const station = () => {   // the close view of Tokyo Disneyland Station, from the park side
+    const s0 = MH?.stations.find(s => s.n.includes("ディズニーランド・ステーション")) || { x: cxp, y: cyp };
+    const t = new T.Vector3(s0.x, 6, -s0.y), a = Math.atan2(-(cyp - s0.y), cxp - s0.x) - 0.3;
+    return { t, p: new T.Vector3(t.x + Math.cos(a) * 140, 55, t.z + Math.sin(a) * 140) };
+  };
   three.begin = withIntro => {
     toast("");
     if (mode === "walk") { document.body.classList.remove("intro"); root.scale.y = 1; startModels(); return; }
     if (!withIntro) { document.body.classList.remove("intro"); rise(startModels); return; }
-    const st = D.models.find(m => m.id === OPEN_STATION);
-    if (st) loadModels(T, scene, root, [st]);   // the station first: the opening looks at it
-    const s0 = MH?.stations.find(s => s.n.includes("ディズニーランド・ステーション")) || { x: cxp, y: cyp };
-    const t0 = new T.Vector3(s0.x, 6, -s0.y), toPark = new T.Vector2(cxp - s0.x, -(cyp - s0.y)).normalize();
-    intro = { phase: "close", el: 0, last: 0, t0, a0: Math.atan2(toPark.y, toPark.x), t1: ctl.target.clone(), p1: cam.position.clone() };
-    ctl.enabled = false;
-    placeClose(0);
-    rise(() => { if (!intro) return; intro.phase = "pull"; intro.el = 0; intro.pc = cam.position.clone(); startModels(); });
+    intro = { el: 0, last: 0, t: ctl.target.clone() };
+    ctl.enabled = false; cam.lookAt(intro.t);
+    rise(() => {   // up: the models, then the title
+      startModels();
+      if (!intro) return;
+      logo.hidden = false; requestAnimationFrame(() => { logo.classList.add("show"); dust.start(); });
+    });
   };
-  function placeClose(k) {   // circling the station slowly, from the park side
-    const a = intro.a0 - 0.55 + k * 0.5, d = 150 - k * 20;
-    cam.position.set(intro.t0.x + Math.cos(a) * d, 58 - k * 12, intro.t0.z + Math.sin(a) * d); cam.lookAt(intro.t0);
-  }
-  const endIntro = () => {
+  const endIntro = () => {   // to the station, with the controls back
     if (!intro) return;
-    cam.position.copy(intro.p1); ctl.target.copy(intro.t1); cam.lookAt(intro.t1);
-    intro = null; ctl.enabled = true; ctl.update();
+    intro = null;
     document.body.classList.remove("intro"); hideLogo();
-    const after = three.afterOpening; three.afterOpening = null; after?.();
+    const { t, p } = station(), t0 = ctl.target.clone(), p0 = cam.position.clone();
+    ctl.enabled = false;
+    animate(FLY_MS, k => {
+      ctl.target.lerpVectors(t0, t, k); cam.position.lerpVectors(p0, p, k);
+      cam.position.y += Math.sin(Math.PI * k) * 60; cam.lookAt(ctl.target);
+    }, () => { ctl.enabled = true; ctl.update(); });
   };
-  const stepIntro = now => {
-    const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;   // slow frames cannot skip it
-    if (intro.phase === "close") placeClose(Math.min(1, intro.el / RISE_MS));
-    else if (intro.phase === "pull") {
-      const k = Math.min(1, intro.el / PULL_MS), e = ease(k);
-      const t = intro.t0.clone().lerp(intro.t1, e);
-      cam.position.lerpVectors(intro.pc, intro.p1, e); cam.position.y += Math.sin(Math.PI * e) * 120;   // a crane move up and back
-      cam.lookAt(t);
-      if (k >= 1) { intro.phase = "title"; logo.hidden = false; requestAnimationFrame(() => { logo.classList.add("show"); dust.start(); }); }
-    }
+  const stepIntro = now => {   // circling the park slowly under the title
+    const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;
+    cam.position.sub(intro.t).applyAxisAngle(new T.Vector3(0, 1, 0), dt * 0.00005).add(intro.t); cam.lookAt(intro.t);
   };
-  document.addEventListener("pointerdown", () => {   // a tap anywhere: straight to the usual screen
+  document.addEventListener("pointerdown", () => {   // a tap anywhere: down to the station
     if (!intro) return;
     three.finishGrow(); startModels(); endIntro();
   }, true);
   three.skipIntro = () => {   // walking needs the real heights at once
-    if (intro) endIntro();
+    if (intro) { intro = null; document.body.classList.remove("intro"); hideLogo(); ctl.enabled = true; }
     if (!modelsStarted) { three.finishGrow(); root.scale.y = 1; startModels(); }
     else three.finishGrow();
   };
@@ -2831,7 +2824,7 @@ async function show(next, opts = {}) {
   if (opening) { document.body.classList.add("intro"); toast("読み込み中…", 60000); }
   if (first && !(await init3D())) {
     document.body.classList.remove("intro"); toast("");
-    if (opening) { three.afterOpening = null; show("plan"); toast("3D表示用のライブラリを読み込めませんでした。地図で表示しています", 5000); }
+    if (opening) { show("plan"); toast("3D表示用のライブラリを読み込めませんでした。地図で表示しています", 5000); }
     return;
   }
   if (is3d) three.resize(); else resize();
@@ -2995,17 +2988,6 @@ addEventListener("keydown", e => {
 new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
-{
-  const hm = location.hash.match(/^#(map|orbit|walk|3d)(?:\/([-\d.,]+))?$/);
-  const hv = hm && hm[2] ? hm[2].split(",").map(Number) : null;
-  // every visit starts with the opening (3D); tapping it ends there, or at the view the URL carried (map / 3D pose / walk)
-  const toSaved = () => {
-    if (hm && hm[1] === "map") { show("plan"); if (hv && hv.length === 3 && hv.every(isFinite)) { sc = hv[2]; ox = W / 2 - hv[0] * sc; oy = H / 2 + hv[1] * sc; redraw(); } }
-    else if (hm && (hm[1] === "orbit" || hm[1] === "3d") && hv && hv.length === 6 && hv.every(isFinite)) three.setOrbit(hv);
-    else if (hm && hm[1] === "walk") show("walk", hv && hv.length >= 4 && hv.every(isFinite) ? { x: hv[0], y: hv[1], yaw: hv[2], pitch: hv[3], first: hv[4] !== 3, instant: true } : { instant: true });
-  };
-  three.afterOpening = toSaved;
-  show("orbit");
-}
+show("orbit");   // every visit opens with the opening (the view in the URL is only for sharing)
 })();
 </script>
