@@ -206,6 +206,14 @@ body.coarse .search{font-size:16px;padding:9px 10px}
 body.coarse .tip{max-width:min(300px,calc(100% - 16px))}
 body.coarse .pbtn span,body.coarse .keys-sec{display:none}
 .grip{display:none}
+.cloudcover{position:absolute;inset:-10%;z-index:4;pointer-events:none;will-change:opacity,transform;
+  background:radial-gradient(ellipse 38% 30% at 22% 28%,#fff 0 40%,rgba(255,255,255,0) 72%),
+    radial-gradient(ellipse 42% 32% at 74% 22%,#fff 0 38%,rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse 46% 34% at 38% 70%,#fff 0 42%,rgba(255,255,255,0) 74%),
+    radial-gradient(ellipse 40% 30% at 82% 72%,#fdfeff 0 40%,rgba(255,255,255,0) 72%),
+    radial-gradient(ellipse 30% 22% at 55% 48%,#fff 0 45%,rgba(255,255,255,0) 75%),
+    radial-gradient(ellipse 60% 40% at 50% 100%,rgba(190,205,218,.55),rgba(190,205,218,0) 70%),
+    linear-gradient(#d9e3ea,#edf2f6)}
 @media (max-width:760px){
   .pbody{padding-bottom:calc(20px + env(safe-area-inset-bottom))}
   .grip{display:block;flex:none;height:18px;cursor:grab;touch-action:none}
@@ -387,6 +395,7 @@ body.coarse .pbtn span,body.coarse .keys-sec{display:none}
     <div class="aim glass only-walk" id="aim" hidden></div>
     <div class="joy only-walk only-touch" id="joy" aria-label="移動スティック"><i></i></div>
     <button class="runbtn only-walk only-touch" id="runBtn" aria-pressed="false">走る</button>
+    <div class="cloudcover" id="cloudCover" hidden></div>
     <div class="toast" id="toast" role="status" hidden></div>
     <div class="tip" id="tip" hidden></div>
   </div>
@@ -1764,7 +1773,8 @@ async function loadModels(T, scene, root) {
 
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
 const three = { ready: false, active: false };
-const RISE_MS = 1400, MODEL_GROW_MS = 700;   // on opening 3D: the layers rise out of the ground, then the models grow in one by one
+// on opening 3D: down through the clouds (INTRO_MS), the layers rise out of the ground (RISE_MS), then the models grow in one by one
+const INTRO_MS = 6000, RISE_MS = 2800, MODEL_GROW_MS = 900;
 function loadScript(src) { return new Promise((ok, bad) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = bad; document.head.appendChild(s); }); }
 async function init3D() {
   const host = $("three");
@@ -1808,6 +1818,66 @@ async function init3D() {
     }
   };
   three.finishGrow = () => { for (const [obj, g] of growing) { obj.scale.y = 1; g.done?.(); } growing.clear(); };
+
+  // the opening: start above a layer of clouds, sink through it onto the flat park, then let the layers rise
+  let intro = null, modelsStarted = false;
+  const startModels = () => { if (modelsStarted) return; modelsStarted = true; if (D.models && D.models.length) loadModels(T, scene, root); };
+  const rise = () => { three.grow(root, RISE_MS); if (growing.has(root)) growing.get(root).done = startModels; else startModels(); };
+  function cloudTexture() {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d");
+    for (let i = 0; i < 14; i++) {   // a fluffy cluster of soft puffs, flatter at the bottom
+      const a = Math.random() * 6.2832, d = Math.random() * 62, x = 128 + Math.cos(a) * d * 1.25, y = 136 + Math.sin(a) * d * 0.55 - Math.random() * 18;
+      const r = 38 + Math.random() * 34, gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.55, "rgba(250,252,255,0.6)"); gr.addColorStop(1, "rgba(245,248,252,0)");
+      g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    }
+    const t = new T.CanvasTexture(c); t.encoding = T.LinearEncoding; return t;
+  }
+  function makeClouds(center) {
+    const grp = new T.Group(), texs = [cloudTexture(), cloudTexture(), cloudTexture()];
+    for (let i = 0; i < 90; i++) {
+      const m = new T.SpriteMaterial({ map: texs[i % 3], transparent: true, depthWrite: false, opacity: 0.92, fog: false });
+      const sp = new T.Sprite(m), w = 420 + Math.random() * 520;
+      sp.position.set(center.x + (Math.random() - 0.5) * 3600, 1150 + Math.random() * 700, center.z + (Math.random() - 0.5) * 3600);
+      sp.scale.set(w, w * 0.62, 1); grp.add(sp);
+    }
+    return grp;
+  }
+  const cover = $("cloudCover");
+  three.begin = withClouds => {
+    if (reduceMotion || mode === "walk") { cover.hidden = true; root.scale.y = 1; startModels(); return; }
+    if (!withClouds) { cover.hidden = true; rise(); return; }
+    const t1 = ctl.target.clone(), p1 = cam.position.clone();
+    const back = p1.clone().sub(t1).setY(0).normalize();
+    const p0 = t1.clone().add(new T.Vector3(back.x * 260, 3300, back.z * 260));
+    const clouds = makeClouds(t1); scene.add(clouds);
+    ctl.enabled = false; cover.hidden = false;
+    intro = { el: 0, last: 0, t1, p0, p1, clouds };
+  };
+  const endIntro = () => {
+    if (!intro) return;
+    scene.remove(intro.clouds);
+    intro.clouds.traverse(o => { if (o.material) { o.material.map?.dispose(); o.material.dispose(); } });
+    cam.position.copy(intro.p1); cam.lookAt(intro.t1); cover.hidden = true; cover.style.opacity = ""; cover.style.transform = "";
+    intro = null; ctl.enabled = true; ctl.update();
+  };
+  const stepIntro = now => {
+    const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;   // slow frames cannot skip it
+    const k = Math.min(1, intro.el / INTRO_MS), e = ease(k);
+    cam.position.lerpVectors(intro.p0, intro.p1, e); cam.lookAt(intro.t1);
+    const c = Math.min(1, k / 0.38);   // the white cover thins out and swells as we sink into the clouds
+    cover.style.opacity = String(1 - c * c); cover.style.transform = `scale(${1 + c * 0.9})`;
+    if (c >= 1) cover.hidden = true;
+    const fade = k < 0.72 ? 1 : Math.max(0, 1 - (k - 0.72) / 0.22);   // the cloud sprites clear once we are below them
+    intro.clouds.children.forEach(sp => { sp.material.opacity = 0.92 * fade; });
+    if (k >= 1) { endIntro(); rise(); }
+  };
+  three.skipIntro = () => {   // walking needs the real heights at once
+    if (intro) endIntro();
+    if (!modelsStarted) { three.finishGrow(); root.scale.y = 1; startModels(); }
+    else three.finishGrow();
+  };
   const groups = {};
   function seg(key, arr) { (groups[key] = groups[key] || []).push(...arr); }
   function prism(key, r, z0, z1) {
@@ -2633,16 +2703,14 @@ async function init3D() {
   };
 
   three.visibility(); three.resize();
-  const startModels = () => { if (D.models && D.models.length) loadModels(T, scene, root); };
-  if (reduceMotion || mode === "walk") startModels();
-  else { three.grow(root, RISE_MS); growing.get(root).done = startModels; }
+  if (!reduceMotion && mode !== "walk") root.scale.y = 0.001;   // flat until three.begin() (called by show once the camera is placed)
   let last = performance.now(), mmLast = 0, aimLast = 0;
   (function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(), dt = (now - last) / 1000; last = now;
     if (!three.active) return;
     if (growing.size) stepGrow(now); else growLast = 0;
-    if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
+    if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
     FX_TIME.value = now / 1000;
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
     try { three.trainTick?.(); }
@@ -2666,10 +2734,13 @@ async function show(next, opts = {}) {
   cv.hidden = tcv.hidden = is3d; $("three").hidden = !is3d; $("tip").hidden = true;
   if (!is3d) setPhoto(false);
   three.active = is3d;
-  if (is3d && !three.ready && !(await init3D())) return;
+  const first = is3d && !three.ready;
+  const clouds = first && next === "orbit" && !opts.keep && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (clouds) { $("cloudCover").hidden = false; $("cloudCover").style.opacity = "1"; }   // covers the library download too
+  if (first && !(await init3D())) { $("cloudCover").hidden = true; return; }
   if (is3d) three.resize(); else resize();
   if (three.ready) {
-    if (next === "walk") three.finishGrow();   // walking needs the real heights at once
+    if (next === "walk") three.skipIntro();
     if (next !== "orbit") three.unfollow();
     if (prev === "walk" && next !== "walk") three.walkExit(next === "orbit" && !opts.instant);
     if (next === "orbit" && prev === "plan" && !opts.keep) three.fromPlan((W / 2 - ox) / sc, (oy - H / 2) / sc, H / sc);
@@ -2679,6 +2750,7 @@ async function show(next, opts = {}) {
       if (prev === "walk") sc = Math.max(sc, 3);
       ox = W / 2 - x * sc; oy = H / 2 + y * sc; redraw();
     }
+    if (first) three.begin(clouds);
   }
   if (next === "walk" && prev !== "walk") toast(coarse ? "左のスティックで移動、画面をドラッグして見回せます" : "画面をクリックすると、マウスで見回せます", 3500);
   if (narrow() && next === "walk") setPanel(false);
