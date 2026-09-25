@@ -80,8 +80,10 @@ def _polys(g):
 
 # ---------------------------------------------------------------- terrain
 class Terrain:
-    """The DEM on a CELL m grid, smoothed, flat under the entrance model; bilinear between the nodes."""
-    def __init__(self, bounds):
+    """The DEM on a CELL m grid, smoothed, flat under the entrance model; bilinear between the nodes.
+    `void` (a shapely geometry, e.g. the buildings) marks nodes that are not ground: the DEM there can be a hump (the hotel's is
+    +6 m over a -0.8 m ground), so they are filled from the ground round them (harmonic fill) before the smoothing."""
+    def __init__(self, bounds, void=None):
         datum = json.loads((ROOT / "plateau_data" / "disneysea_levels.json").read_text(encoding="utf-8"))
         LV.DATUM = datum.get("datum_exact", datum["datum_m"])
         minx, miny, maxx, maxy = bounds
@@ -91,6 +93,14 @@ class Terrain:
         ys = (self.j0 + np.arange(nj)) * CELL
         Z = np.array([[LV.dem(x, y) for x in xs] for y in ys], dtype=np.float32)      # [j, i]
         import cv2
+        if void is not None and not void.is_empty:
+            hole = shapely.contains_xy(void, np.broadcast_to(xs[None, :], Z.shape), np.broadcast_to(ys[:, None], Z.shape))
+            if hole.any() and not hole.all():
+                Z[hole] = Z[~hole].mean()
+                for _ in range(2000):                                    # Jacobi sweeps: each unknown node -> the mean of its 4 neighbours
+                    Zp = np.pad(Z, 1, mode="edge")
+                    avg = (Zp[:-2, 1:-1] + Zp[2:, 1:-1] + Zp[1:-1, :-2] + Zp[1:-1, 2:]) / 4
+                    Z[hole] = avg[hole]
         Z = cv2.GaussianBlur(Z, (0, 0), BLUR, borderType=cv2.BORDER_REPLICATE).astype(float)
         r = np.hypot(xs[None, :] - GATE_C[0], ys[:, None] - GATE_C[1])
         t = np.clip((FLAT_R1 - r) / (FLAT_R1 - FLAT_R0), 0, 1)
@@ -186,49 +196,57 @@ def free_edges(tris):
     return [(a, b) for (ka, kb), (a, b) in count.items() if (kb, ka) not in count]
 
 
+def add_zone(meshes, T, name, geom, edge="TG_edge", avoid=None):
+    """Paving `geom` at the terrain height into meshes[name], with a skirt (meshes[edge]) on its free edges, except where `avoid`
+    (a line geometry: the outlines of the planters) is within 5 cm."""
+    tris = []
+    for poly in _polys(geom):
+        tris += top_surface(meshes[name], T, poly)
+    for a, b in free_edges(tris):
+        if avoid is not None and avoid.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) < 0.05:
+            continue
+        za, zb = float(T.z(a[0], a[1])), float(T.z(b[0], b[1]))
+        wall(meshes[edge], a, b, za, zb, za - SKIRT, zb - SKIRT)
+
+
+def add_planter(meshes, T, q, curb="TG_curb", soil="TG_soil"):
+    """A planter on the paving: a curb ring (CURB_W wide, CURB_H high) round a top SOIL_DROP lower. `q` is the planter's outline."""
+    q = shapely.geometry.polygon.orient(q, 1.0)
+    q_in = q.buffer(-CURB_W, join_style=2)
+    ring = q.difference(q_in) if not q_in.is_empty else q
+    tris = []
+    for poly in _polys(ring):
+        for c in cdt(poly):
+            z = T.z(c[:, 0], c[:, 1]) + CURB_H
+            dx, dy = T.grad(c[:, 0], c[:, 1])
+            n = np.stack([-dx, -dy, np.ones(3)], 1); n /= np.linalg.norm(n, axis=1, keepdims=True)
+            meshes[curb].add(np.column_stack([c[:, :2], z]), n); tris.append(c)
+    qline = q.exterior
+    for a, b in free_edges(tris):                                     # outer face down to the paving, inner face down to the soil
+        za, zb = float(T.z(a[0], a[1])) + CURB_H, float(T.z(b[0], b[1])) + CURB_H
+        if qline.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) < 0.03:
+            wall(meshes[curb], a, b, za, zb, za - CURB_H - 0.02, zb - CURB_H - 0.02)
+        else:
+            wall(meshes[curb], a, b, za, zb, za - SOIL_DROP, zb - SOIL_DROP)
+    for poly in _polys(q_in):
+        for c in cdt(poly):
+            z = T.z(c[:, 0], c[:, 1]) + CURB_H - SOIL_DROP
+            dx, dy = T.grad(c[:, 0], c[:, 1])
+            n = np.stack([-dx, -dy, np.ones(3)], 1); n /= np.linalg.norm(n, axis=1, keepdims=True)
+            meshes[soil].add(np.column_stack([c[:, :2], z]), n)
+
+
 def build():
     P = plan()
     zones = [("TG_paving", P["out"]), ("TG_slate", P["inn"]), ("TG_gate", P["gate"])]
     T = Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds)
     meshes = {n: Mesh(n) for n in ("TG_paving", "TG_slate", "TG_gate", "TG_curb", "TG_soil", "TG_edge")}
     pl_lines = unary_union([q.exterior for q in P["planters"]])
-    n_free = 0
     for name, g in zones:
-        if g.is_empty:
-            continue
-        tris = []
-        for poly in _polys(g):
-            tris += top_surface(meshes[name], T, poly)
-        for a, b in free_edges(tris):                                     # skirt on the free edges, except where a curb stands
-            if pl_lines.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) < 0.05:
-                continue
-            za, zb = float(T.z(a[0], a[1])), float(T.z(b[0], b[1]))
-            wall(meshes["TG_edge"], a, b, za, zb, za - SKIRT, zb - SKIRT)
-            n_free += 1
+        if not g.is_empty:
+            add_zone(meshes, T, name, g, avoid=pl_lines)
     for q in P["planters"]:
-        q = shapely.geometry.polygon.orient(q, 1.0)
-        q_in = q.buffer(-CURB_W, join_style=2)
-        ring = q.difference(q_in) if not q_in.is_empty else q
-        tris = []
-        for poly in _polys(ring):
-            for c in cdt(poly):
-                z = T.z(c[:, 0], c[:, 1]) + CURB_H
-                dx, dy = T.grad(c[:, 0], c[:, 1])
-                n = np.stack([-dx, -dy, np.ones(3)], 1); n /= np.linalg.norm(n, axis=1, keepdims=True)
-                meshes["TG_curb"].add(np.column_stack([c[:, :2], z]), n); tris.append(c)
-        qline = q.exterior
-        for a, b in free_edges(tris):                                     # outer face down to the paving, inner face down to the soil
-            za, zb = float(T.z(a[0], a[1])) + CURB_H, float(T.z(b[0], b[1])) + CURB_H
-            if qline.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) < 0.03:
-                wall(meshes["TG_curb"], a, b, za, zb, za - CURB_H - 0.02, zb - CURB_H - 0.02)
-            else:
-                wall(meshes["TG_curb"], a, b, za, zb, za - SOIL_DROP, zb - SOIL_DROP)
-        for poly in _polys(q_in):
-            for c in cdt(poly):
-                z = T.z(c[:, 0], c[:, 1]) + CURB_H - SOIL_DROP
-                dx, dy = T.grad(c[:, 0], c[:, 1])
-                n = np.stack([-dx, -dy, np.ones(3)], 1); n /= np.linalg.norm(n, axis=1, keepdims=True)
-                meshes["TG_soil"].add(np.column_stack([c[:, :2], z]), n)
+        add_planter(meshes, T, q)
     return P, T, meshes
 
 

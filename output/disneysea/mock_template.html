@@ -559,7 +559,7 @@ $("ly-all-on").addEventListener("click", () => setAllLayers(true));
 $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
-const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tdl_ground", "エントランス広場の地面"], ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["trains", "電車(リゾートライン・京葉線)"]];
+const MODELS = [["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"], ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"], ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["trains", "電車(リゾートライン・京葉線)"]];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
 try { const s = JSON.parse(localStorage.getItem("tds-models") || "null"); if (s) Object.assign(mdl, s); } catch (e) {}
 const saveMdl = () => { try { localStorage.setItem("tds-models", JSON.stringify(mdl)); } catch (err) {} if (three.ready) three.visibility(); syncPresets(); };
@@ -1504,6 +1504,9 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
   TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
+  // ホテル周辺の道 (ds_tdl_hotel_ground.py): meshes TH_<part>
+  TH_road: { color: 0x40444a, roughness: 0.95 }, TH_path: { color: 0x958b7d, roughness: 0.9 }, TH_plaza: { color: 0x8d6459, roughness: 0.9 },
+  TH_curb: { color: 0xc9bb9f, roughness: 0.8 }, TH_soil: { color: 0x4d6b38, roughness: 1 }, TH_edge: { color: 0x7a746b, roughness: 0.9 },
   // 線路 (ds_tracks.py): meshes TK_<material>
   ST_beam: { color: 0x9a978f, roughness: 0.9 }, ST_pier: { color: 0xa9a69e, roughness: 0.9 }, ST_viaduct: { color: 0x8f8e89, roughness: 0.9 },
   ST_steel: { color: 0x8d9196, roughness: 0.4, metalness: 0.6 }, ST_rail: { color: 0x6e6a66, roughness: 0.35, metalness: 0.7 },
