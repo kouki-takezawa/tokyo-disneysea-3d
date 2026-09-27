@@ -1637,6 +1637,13 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_wbz_awning_white: { color: 0xefece4, roughness: 0.9 }, ST_wbz_awning_blue: { color: 0x3d5a8a, roughness: 0.9 },
   ST_wbz_shingle: { color: 0x59626e, roughness: 0.8 }, ST_wbz_clock: { color: 0xf6f3ea, emissive: 0x77736a, emissiveIntensity: 0.4 },
   ST_wbz_leaf: { color: 0x44702f, roughness: 1, flatShading: true }, ST_wbz_wood: { color: 0x7d5a3c, roughness: 0.9 },
+  // the shops' interiors (ds_tdl_world_bazaar.shop_interior)
+  ST_wbz_floor: { color: 0x7a5234, roughness: 0.8 }, ST_wbz_brass: { color: 0xcc9e4c, roughness: 0.35, metalness: 0.6 },
+  ST_wbz_shopglass: { color: 0xe4f0f4, roughness: 0.05, transparent: true, opacity: 0.12, depthWrite: false },
+  ST_wbz_m_red: { color: 0xc01a20, roughness: 0.7 }, ST_wbz_m_blue: { color: 0x2c5cb4, roughness: 0.7 }, ST_wbz_m_yellow: { color: 0xf5c21e, roughness: 0.7 },
+  ST_wbz_m_pink: { color: 0xf49ab6, roughness: 0.7 }, ST_wbz_m_purple: { color: 0x7a3aa6, roughness: 0.7 }, ST_wbz_m_white: { color: 0xeeece4, roughness: 0.7 },
+  ST_wbz_m_black: { color: 0x121214, roughness: 0.6 }, ST_wbz_m_green: { color: 0x2c8a50, roughness: 0.7 }, ST_wbz_m_orange: { color: 0xf2761e, roughness: 0.7 },
+  ST_wbz_m_brown: { color: 0x734a26, roughness: 0.7 },
   // 東京ディズニーランドホテル (ds_tdl_hotel.py): meshes HO_<material>
   ST_hotel_cream: { color: 0xeedcb4, roughness: 0.75 }, ST_hotel_gold: { color: 0xd9b477, roughness: 0.6 }, ST_hotel_slate: { color: 0x55647c, roughness: 0.55 },
   ST_hotel_gilt: { color: 0xd8aa4c, roughness: 0.35, metalness: 0.6 }, ST_hotel_bronze: { color: 0x7a5530, roughness: 0.4, metalness: 0.5 },
@@ -1815,9 +1822,14 @@ function addLights(T, scene) {   // the solid parts (Blender models, trains) sha
 const modelsAsked = new Set();
 async function loadModels(T, scene, root, list = D.models) {
   list = list.filter(m => !modelsAsked.has(m.id)); list.forEach(m => modelsAsked.add(m.id));
-  if (!T.GLTFLoader) try { await loadScript("https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"); } catch (e) { return; }
+  const LIB = "https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/";
+  try { if (!T.GLTFLoader) await loadScript(LIB + "loaders/GLTFLoader.js"); } catch (e) { return; }
   addLights(T, scene);
   const loader = new T.GLTFLoader();
+  try {   // the models are Draco-compressed (src/compress_models.py): 90 % smaller downloads
+    if (!T.DRACOLoader) await loadScript(LIB + "loaders/DRACOLoader.js");
+    const draco = new T.DRACOLoader(); draco.setDecoderPath(LIB + "libs/draco/gltf/"); loader.setDRACOLoader(draco);
+  } catch (e) { /* no decoder: compressed models fail to load, plain ones still do */ }
   for (const m of list) {   // one at a time: parsing them all at once stalls the page
     await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
@@ -2531,6 +2543,27 @@ async function init3D() {
   three.walking = false;
   const HEADINGS = ["北", "北東", "東", "南東", "南", "南西", "西", "北西"];
   function setView() { person.visible = three.walking; }
+  // the first standing model face (a wall, a shop window) on the line from (x0, y0, z0) to (x1, y1, z1), as a fraction of it (1: none)
+  function camHit(x0, z0, y0, x1, z1, y1) {
+    if (!grid || !grid.walls.length) return 1;
+    const W = grid.walls, dx = x1 - x0, dz = z1 - z0, seen = new Set();
+    let best = 1;
+    const i0 = Math.floor(Math.min(x0, x1) / CELL), i1 = Math.floor(Math.max(x0, x1) / CELL);
+    const j0 = Math.floor(Math.min(z0, z1) / CELL), j1 = Math.floor(Math.max(z0, z1) / CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const l = grid.wcells.get(i * 65536 + j); if (!l) continue;
+      for (const q of l) {
+        if (seen.has(q)) continue; seen.add(q);
+        const o = q * 10, ax = W[o], az = W[o + 1], ex = W[o + 2] - ax, ez = W[o + 3] - az;
+        const den = dx * ez - dz * ex; if (Math.abs(den) < 1e-9) continue;
+        const u = ((ax - x0) * ez - (az - z0) * ex) / den, t = ((ax - x0) * dz - (az - z0) * dx) / den;
+        if (u <= 0.02 || u >= best || t < 0 || t > 1) continue;
+        const y = y0 + (y1 - y0) * u;
+        if (faceSpan(W, o, t, y - 0.15, y + 0.15)) best = u;
+      }
+    }
+    return best;
+  }
   function placeCamera() {
     if (ride) return three.rideTick();
     person.position.set(wk.x, wk.y, wk.z); person.rotation.y = 0;
@@ -2542,6 +2575,11 @@ async function init3D() {
       px = wk.x + Math.sin(wk.yaw) * Math.cos(el) * back; pz = wk.z + Math.cos(wk.yaw) * Math.cos(el) * back; py = hy + Math.sin(el) * back;
       const hs = modelHits(px, pz), top = hs.length ? Math.max(...hs) : (heightAt(px, -pz) ?? 0);
       if (top < py - 0.3) break;
+    }
+    const u = camHit(wk.x, wk.z, hy, px, pz, py);   // a wall between the character and the camera (inside a shop): come in front of it
+    if (u < 1) {
+      back = Math.max(0.45, back * u - 0.3);
+      px = wk.x + Math.sin(wk.yaw) * Math.cos(el) * back; pz = wk.z + Math.cos(wk.yaw) * Math.cos(el) * back; py = hy + Math.sin(el) * back;
     }
     cam.position.set(px, py, pz);
     cam.lookAt(wk.x, hy, wk.z);

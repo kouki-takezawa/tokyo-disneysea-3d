@@ -244,7 +244,9 @@ def main():
               ("cinderella", "disneyland", []),
               ("tdl_water", "disneyland", ["dlwater"])]                     # ds_tdl_water.py + tdl_water_blender.py: ランドの水面 (replaces the Land's water outlines)                              # ds_tdl_cinderella.py: シンデレラ城                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
     mdir = ROOT / "output" / "disneysea" / "models"
-    out["models"] = [{"id": i, "layer": lay, "src": f"models/{i}.json", "hides": hides}   # glTF JSON (the host serves .json, not .glb)
+    import compress_models                                  # Draco copies for the page (models/web/); the plain files stay for the scripts
+    web = compress_models.run([i for i, _, _ in MODELS])
+    out["models"] = [{"id": i, "layer": lay, "src": web.get(i, f"models/{i}.json"), "hides": hides}   # glTF JSON (the host serves .json, not .glb)
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
     if (mdir / "train.json").exists():   # the Resort Line cars (export_models.py --parts train), posed by the page's timetable
         out["train"] = "models/train.json"

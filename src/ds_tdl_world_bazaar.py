@@ -71,6 +71,13 @@ TRIMS = {"white": (0.93, 0.91, 0.85), "cream": (0.90, 0.84, 0.68), "teal": (0.30
          "maroon": (0.42, 0.11, 0.13), "blue": (0.20, 0.30, 0.45)}
 
 
+MERCH_COLORS = {"m_red": (0.75, 0.08, 0.10), "m_blue": (0.12, 0.30, 0.70), "m_yellow": (0.95, 0.75, 0.10),
+                "m_pink": (0.95, 0.55, 0.70), "m_purple": (0.45, 0.20, 0.65), "m_white": (0.93, 0.92, 0.88),
+                "m_black": (0.04, 0.04, 0.05), "m_green": (0.15, 0.55, 0.30), "m_orange": (0.95, 0.45, 0.10),
+                "m_brown": (0.45, 0.28, 0.14)}
+MERCH = ("m_red", "m_blue", "m_yellow", "m_pink", "m_purple", "m_white", "m_green", "m_orange")
+
+
 def wbz_materials(M):
     P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
     for k, c in PALETTE.items():
@@ -90,6 +97,11 @@ def wbz_materials(M):
     M["clock"] = P("st_wbz_clock", (0.96, 0.95, 0.90), 0.3, Emission_Color=(1, 0.97, 0.9, 1), Emission_Strength=0.3)
     mat, nt, b = _principled("st_wbz_leaf", (0.18, 0.36, 0.12), 0.9); _mottle(nt, b, (0.18, 0.36, 0.12), 30.0, 0.6, 0.4); M["leaf"] = mat
     M["wood"] = P("st_wbz_wood", (0.45, 0.30, 0.18), 0.7)
+    M["floor"] = ST.mat_tiles("st_wbz_floor", (0.46, 0.29, 0.16), (0.41, 0.25, 0.14), 0.25, (0.30, 0.20, 0.12))
+    M["shopglass"] = ST.clear_glass("st_wbz_shopglass", (0.90, 0.95, 0.97), 0.12)
+    M["brass"] = P("st_wbz_brass", (0.80, 0.62, 0.30), 0.3, Metallic=0.9)
+    for k, c in MERCH_COLORS.items():                   # merchandise: plush, sweets, clothes, tins, cards
+        M[k] = P(f"st_wbz_{k}", c, 0.55)
     return M
 
 
@@ -231,32 +243,75 @@ def build_roof():
 
 
 # ================================================================ 2. the shops: one front per shop, styles from the photos
-def shop(name, w, st):
-    """One shop in the current frame: x 0..w along the street, the front on y = 0 facing +y (the street), z up."""
+def shop(name, w, st, room=None):
+    """One shop in the current frame: x 0..w along the street, the front on y = 0 facing +y (the street), z up.
+    room = (x0, x1, depth): the part of the ground floor that is a real shop you can see into and walk into (clear
+    windows, an open door, shop_interior); outside it the ground floor is solid behind a lit display backdrop."""
     wall = "brick" if st["wall"] == "brick" else "w_" + st["wall"]; trim = "t_" + st["trim"]
     fl = st["floors"]; gf, fh = 4.2, 3.0
     H = gf + fh * (fl - 1) + 0.3
-    P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display", "door", "iron", "roof", "sign", "flowers", "aw1", "aw2")}
+    P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display", "door", "iron", "roof", "sign", "flowers", "aw1", "aw2",
+                                  "shopglass", "brass", "lamp", "lit")}
+    rng = random.Random(name)
+    if room and room[1] - room[0] < 2.8:
+        room = None
     bm_box(P["wall"], 0, w, -9.0, 0.0, gf, H)                                        # upper floors
-    bm_box(P["wall"], 0, w, -9.0, -0.3, 0.0, gf)                                    # ground floor, set back for the shopfront
+    for a, b_ in (((0, room[0]), (room[1], w)) if room else ((0, w),)):             # ground floor: solid outside the room
+        if b_ - a > 0.01:
+            bm_box(P["wall"], a, b_, -9.0, -0.5, 0.0, gf)
     for x0, x1 in ((0.0, 0.4), (w - 0.4, w)):
-        bm_box(P["trim"], x0, x1, -0.3, 0.12, 0.0, H)                              # corner pilasters
-    # ground floor: bulkhead, display windows with mullions, a door, the fascia with the sign board, a cornice
+        bm_box(P["trim"], x0, x1, -0.3, 0.12, 0.0, H)                              # corner pilasters: base, shaft, capital
+        bm_box(P["trim"], x0 - 0.04, x1 + 0.04, -0.3, 0.18, 0.0, 0.45)
+        bm_box(P["trim"], x0 - 0.05, x1 + 0.05, -0.3, 0.2, gf - 0.55, gf - 0.3)
+    # ground floor: bulkhead, display windows with mullions and a transom, a door, the fascia with the sign board
     dx = {"mid": w / 2, "left": 1.4, "right": w - 1.4}[st["door"]]
-    bm_box(P["door"], dx - 0.7, dx + 0.7, -0.3, -0.2, 0.0, 3.0)
+    if room and not (room[0] + 0.25 <= dx - 0.85 and dx + 0.85 <= room[1] - 0.25):
+        dx = (room[0] + room[1]) / 2                     # the door opens into the room
+    door_open = bool(room) and room[0] + 0.25 <= dx - 0.85 and dx + 0.85 <= room[1] - 0.25
+    if door_open:                                        # two glazed leaves swung in against the reveals
+        for sx in (-1, 1):
+            hx = dx + sx * 0.7
+            bm_box(P["door"], hx - 0.03, hx + 0.03, -1.0, -0.3, 0.0, 2.95)
+            bm_box(P["shopglass"], hx - 0.035, hx + 0.035, -0.9, -0.4, 0.9, 2.7)
+            bm_box(P["brass"], hx - sx * 0.05 - 0.015, hx - sx * 0.05 + 0.015, -0.95, -0.9, 1.0, 1.25)
+        bm_box(P["trim"], dx - 0.7, dx + 0.7, -0.3, 0.0, 0.0, 0.03)                # threshold
+    else:
+        bm_box(P["door"], dx - 0.7, dx + 0.7, -0.3, -0.2, 0.0, 3.0)
+        bm_box(P["brass"], dx - 0.1, dx - 0.04, -0.2, -0.15, 1.0, 1.3)
     bm_box(P["trim"], dx - 0.85, dx + 0.85, -0.3, 0.05, 3.0, 3.15)
     for sx in (-1, 1):
         bm_box(P["trim"], dx + sx * 0.78 - 0.08, dx + sx * 0.78 + 0.08, -0.3, 0.05, 0.0, 3.0)
+        bm_box(P["iron"], dx + sx * 1.05 - 0.03, dx + sx * 1.05 + 0.03, 0.0, 0.25, 2.55, 2.6)   # carriage lamps by the door
+        bm_lathe(P["iron"], [(0, 0), (0.05, 0), (0.1, 0.06), (0.1, 0.32), (0.13, 0.35), (0.03, 0.45), (0, 0.45)], 6, T(dx + sx * 1.05, 0.28, 2.3))
+        globe_lamp_bm(P["lamp"], dx + sx * 1.05, 0.28, 2.48, 0.07)
     for a, b_ in ((0.4, dx - 0.86), (dx + 0.86, w - 0.4)):
         if b_ - a < 0.5:
+            if b_ - a > 0.01:
+                bm_box(P["wall"], a, b_, -0.3, -0.2, 0.0, 3.2)
             continue
         bm_box(P["trim"], a, b_, -0.3, 0.02, 0.0, 0.6)
-        bm_box(P["display"], a, b_, -0.24, -0.2, 0.6, 3.05)
-        bm_box(P["trim"], a, b_, -0.3, 0.04, 3.05, 3.2)
         n = max(1, int((b_ - a) / 1.1))
+        for k in range(n):                                # raised panels on the bulkhead
+            pa = a + (b_ - a) * k / n + 0.08; pb = a + (b_ - a) * (k + 1) / n - 0.08
+            bm_box(P["trim"], pa, pb, 0.02, 0.05, 0.12, 0.48)
+        bm_box(P["shopglass"], a, b_, -0.24, -0.2, 0.6, 3.05)
+        for x_a, x_b in (((a, b_),) if not room else ((a, min(b_, room[0])), (max(a, room[1]), b_))):
+            if x_b - x_a > 0.01:                          # outside the room: a lit display backdrop behind the glass
+                bm_box(P["display"], x_a, x_b, -0.48, -0.46, 0.6, 3.05)
+        bm_box(P["trim"], a, b_, -0.3, 0.04, 3.05, 3.2)
+        bm_box(P["trim"], a, b_, -0.3, -0.18, 2.42, 2.5)                                   # transom bar
         for k in range(1, n):
             x = a + (b_ - a) * k / n
             bm_box(P["trim"], x - 0.04, x + 0.04, -0.3, -0.16, 0.6, 3.05)
+        for k in range(1, 2 * n):                        # transom lights
+            x = a + (b_ - a) * k / (2 * n)
+            bm_box(P["trim"], x - 0.02, x + 0.02, -0.3, -0.18, 2.5, 3.05)
+    # a hanging blade sign on an iron bracket, beside the fascia
+    bx = w - 0.75 if dx < w / 2 else 0.75
+    bm_box(P["iron"], bx - 0.03, bx + 0.03, 0.12, 1.25, 3.62, 3.68)
+    bm_box(P["iron"], bx - 0.02, bx + 0.02, 0.12, 0.16, 3.2, 3.68)
+    bm_box(P["sign"], bx - 0.03, bx + 0.03, 0.35, 1.15, 2.95, 3.55)
+    bm_box(P["brass"], bx - 0.04, bx + 0.04, 0.33, 1.17, 2.93, 2.97); bm_box(P["brass"], bx - 0.04, bx + 0.04, 0.33, 1.17, 3.53, 3.57)
     bm_box(P["trim"], 0.4, w - 0.4, -0.3, 0.14, 3.2, 3.95)                           # fascia
     sl = min(w - 1.4, max(2.0, len(st.get("sign") or "xxxxxxxx") * 0.24))
     bm_box(P["sign"], w / 2 - sl / 2, w / 2 + sl / 2, 0.14, 0.18, 3.32, 3.83)
@@ -280,13 +335,17 @@ def shop(name, w, st):
         for x in xs:
             if oriel and abs(x - w / 2) < 1.3:
                 continue
+            gk = "lit" if rng.random() < 0.22 else "glass"   # a lamp on in some of the rooms upstairs
+            if f == 1 and not st["balcony"] and rng.random() < 0.5:   # a flower box under the window
+                bm_box(P["trim"], x - ww / 2 - 0.1, x + ww / 2 + 0.1, 0.0, 0.32, z0 - 0.42, z0 - 0.22)
+                bm_box(P["flowers"], x - ww / 2 - 0.05, x + ww / 2 + 0.05, 0.03, 0.3, z0 - 0.22, z0 - 0.02)
             if st["win"] == "arch":
                 bm_prism(P["trim"], arch_opening(x - ww / 2 - 0.13, x + ww / 2 + 0.13, z0 - 0.1, z1 - ww / 2, ww / 2 + 0.13, 12), 0.0, 0.08, "xz")
-                bm_prism(P["glass"], arch_opening(x - ww / 2, x + ww / 2, z0, z1 - ww / 2, ww / 2, 12), 0.08, 0.1, "xz")
+                bm_prism(P[gk], arch_opening(x - ww / 2, x + ww / 2, z0, z1 - ww / 2, ww / 2, 12), 0.08, 0.1, "xz")
                 bm_box(P["trim"], x - 0.12, x + 0.12, 0.0, 0.14, z1 + 0.05, z1 + 0.3)
             else:
                 bm_box(P["trim"], x - ww / 2 - 0.13, x + ww / 2 + 0.13, 0.0, 0.08, z0 - 0.1, z1 + 0.1)
-                bm_box(P["glass"], x - ww / 2, x + ww / 2, 0.08, 0.1, z0, z1)
+                bm_box(P[gk], x - ww / 2, x + ww / 2, 0.08, 0.1, z0, z1)
                 bm_box(P["trim"], x - ww / 2 - 0.25, x + ww / 2 + 0.25, 0.0, 0.26, z1 + 0.1, z1 + 0.3)
                 if st["win"] == "pair":
                     bm_box(P["trim"], x - 0.05, x + 0.05, 0.08, 0.12, z0, z1)
@@ -379,7 +438,10 @@ def shop(name, w, st):
         bm_box(P["sign"], w / 2 - 2.3, w / 2 + 2.3, d, d + 0.08, gf + 0.9, gf + 1.8)
         if st.get("porch_sign"):
             text(f"ST_WBZ_{name}_porchsign", st["porch_sign"], 0.48, (w / 2, d + 0.1, gf + 1.33), (math.pi / 2, 0, math.pi), "t_maroon", 0.02)
+    if room:
+        shop_interior(name, st, room, gf, rng)
     mats = {"wall": wall, "trim": trim, "glass": "win_dark", "display": "display", "door": "door", "iron": "iron",
+            "shopglass": "shopglass", "brass": "brass", "lamp": "lamp", "lit": "display",
             "roof": P.pop("_roofmat", None) or st.get("roofmat", "shingle"), "sign": st.get("signmat", "t_maroon"),
             "flowers": "flowers_red", "aw1": st["awning"][0] if st["awning"] else "aw_green",
             "aw2": (st["awning"][1] or "aw_white") if st["awning"] else "aw_white"}
@@ -389,6 +451,146 @@ def shop(name, w, st):
         else:
             bm_.free()
     return H
+
+
+def merch_item(theme, bmk, cx, cy, z, rng):
+    """One piece of merchandise standing on a shelf / table top at z, centred on (cx, cy); returns the width it takes."""
+    col = rng.choice(MERCH)
+    if theme == "plush":                                  # Mickey plush heads (and a few in colour, bows on some)
+        r = rng.uniform(0.1, 0.15); head = "m_black" if rng.random() < 0.6 else col
+        bm_lathe(bmk(head), [(0, -r)] + [(r * math.sin(math.pi * i / 6), -r * math.cos(math.pi * i / 6)) for i in range(1, 6)] + [(0, r)], 8, T(cx, cy, z + r))
+        for s in (-1, 1):
+            e = r * 0.55
+            bm_lathe(bmk(head), [(0, -e), (e * 0.87, -e * 0.5), (e * 0.87, e * 0.5), (0, e)], 8, T(cx + s * r * 0.85, cy, z + r * 1.75))
+        if rng.random() < 0.35:
+            bm_box(bmk("m_red"), cx - r * 0.5, cx + r * 0.5, cy - 0.03, cy + 0.03, z + r * 1.85, z + r * 2.2)
+        return 2.1 * r
+    if theme == "sweets":                                 # candy jars and gift tins
+        if rng.random() < 0.5:
+            bm_lathe(bmk("shopglass"), [(0, 0), (0.08, 0), (0.08, 0.24), (0.05, 0.27), (0, 0.27)], 8, T(cx, cy, z))
+            bm_lathe(bmk(col), [(0, 0), (0.07, 0), (0.07, 0.17), (0, 0.17)], 8, T(cx, cy, z + 0.01))
+            bm_lathe(bmk("brass"), [(0, 0), (0.06, 0), (0.06, 0.03), (0, 0.04)], 8, T(cx, cy, z + 0.27))
+            return 0.17
+        h = rng.uniform(0.1, 0.22)
+        bm_box(bmk(col), cx - 0.1, cx + 0.1, cy - 0.08, cy + 0.08, z, z + h)
+        bm_box(bmk("m_white"), cx - 0.101, cx + 0.101, cy - 0.081, cy + 0.081, z + h * 0.45, z + h * 0.55)
+        return 0.21
+    if theme == "apparel":                                # folded T-shirts, stacked
+        n = rng.randint(2, 5)
+        bm_box(bmk(col), cx - 0.15, cx + 0.15, cy - 0.12, cy + 0.12, z, z + 0.035 * n)
+        return 0.32
+    if theme == "home":                                   # mugs and upright plates
+        if rng.random() < 0.5:
+            bm_lathe(bmk(rng.choice(("m_white", col))), [(0, 0), (0.045, 0), (0.05, 0.1), (0, 0.1)], 8, T(cx, cy, z))
+            return 0.11
+        bm_lathe(bmk(col), [(0, 0), (0.12, 0), (0.12, 0.015), (0, 0.015)], 12, T(cx, cy, z + 0.12) @ R(math.pi / 2, "X"))
+        return 0.05
+    # cards: a row of greeting cards standing in a rack
+    bm_box(bmk(col), cx - 0.06, cx + 0.06, cy - 0.01, cy + 0.01, z, z + 0.17)
+    return 0.14
+
+
+def fill_run(theme, bmk, xa, xb, ya, yb, z, rng):
+    """Merchandise along the long side of a shelf / table top (xa..xb, ya..yb) standing at z."""
+    along_x = (xb - xa) >= (yb - ya)
+    L = (xb - xa) if along_x else (yb - ya)
+    t = 0.05
+    while t < L - 0.12:
+        c = (xa + t, (ya + yb) / 2) if along_x else ((xa + xb) / 2, ya + t)
+        t += merch_item(theme, bmk, c[0], c[1], z, rng) + 0.04
+
+
+def shop_interior(name, st, room, gf, rng):
+    """The shop inside the ground floor (x0..x1, from the front at y = -0.3 back to -depth): walls in the shop's own
+    colour, a plank floor, shelving on the back wall (and a side wall when deep enough), display tables down the
+    middle, a counter with the register, pendant lamps -- and the merchandise of the shop's theme on all of them."""
+    x0, x1, D = room
+    P = {}
+
+    def bmk(k):
+        if k not in P:
+            P[k] = bmesh.new()
+        return P[k]
+    theme = st.get("theme", "plush")
+    wallm = "w_" + (st["wall"] if st["wall"] != "brick" else "cream"); trim = "t_" + st["trim"]
+    top = gf - 0.45
+    bm_box(bmk("floor"), x0, x1, -D, -0.3, 0.0, 0.06)
+    bm_box(bmk(wallm), x0, x0 + 0.15, -D, -0.3, 0.06, top)
+    bm_box(bmk(wallm), x1 - 0.15, x1, -D, -0.3, 0.06, top)
+    bm_box(bmk(wallm), x0, x1, -D - 0.15, -D, 0.0, top)
+    bm_box(bmk("t_white"), x0, x1, -D - 0.15, -0.3, top, top + 0.15)                 # ceiling
+    for a, b_, c0, c1 in ((x0 + 0.15, x1 - 0.15, -D, -D + 0.03), (x0 + 0.15, x0 + 0.18, -D, -0.3), (x1 - 0.18, x1 - 0.15, -D, -0.3)):
+        bm_box(bmk(trim), a, b_, c0, c1, 0.06, 0.2)                                   # skirting
+        bm_box(bmk(trim), a, b_, c0, c1, top - 0.2, top)                              # cornice
+    iw = x1 - x0
+    # shelving on the back wall: uprights, five boards, merchandise on four
+    sy0, sy1 = -D + 0.03, -D + 0.5
+    nu = max(2, int(iw / 1.2) + 1)
+    for k in range(nu):
+        ux = x0 + 0.3 + (iw - 0.6) * k / (nu - 1)
+        bm_box(bmk("wood"), ux - 0.03, ux + 0.03, sy0, sy1, 0.06, 2.35)
+    for zz in (0.3, 0.8, 1.3, 1.8, 2.3):
+        bm_box(bmk("wood"), x0 + 0.3, x1 - 0.3, sy0, sy1, zz, zz + 0.04)
+        if zz < 2.2:
+            fill_run(theme, bmk, x0 + 0.35, x1 - 0.35, sy0 + 0.08, sy1 - 0.08, zz + 0.04, rng)
+    # shelving along the left wall when the room is deep enough
+    if D > 5.0:
+        for zz in (0.5, 1.1, 1.7):
+            bm_box(bmk("wood"), x0 + 0.15, x0 + 0.55, -D + 0.7, -1.2, zz, zz + 0.04)
+            fill_run(theme, bmk, x0 + 0.2, x0 + 0.5, -D + 0.75, -1.25, zz + 0.04, rng)
+        for yy in (-D + 0.7, -1.2):
+            bm_box(bmk("wood"), x0 + 0.15, x0 + 0.55, yy - 0.03, yy + 0.03, 0.06, 2.0)
+    # the counter along the right wall, the register on it
+    cl = min(2.2, D - 2.4)
+    if cl > 0.8:
+        cy0 = -D + 0.9
+        bm_box(bmk("wood"), x1 - 0.85, x1 - 0.25, cy0, cy0 + cl, 0.06, 0.95)
+        bm_box(bmk(trim), x1 - 0.9, x1 - 0.2, cy0 - 0.05, cy0 + cl + 0.05, 0.95, 1.0)
+        bm_box(bmk("m_black"), x1 - 0.7, x1 - 0.4, cy0 + 0.3, cy0 + 0.6, 1.0, 1.12)
+        bm_box(bmk("m_black"), x1 - 0.62, x1 - 0.58, cy0 + 0.35, cy0 + 0.55, 1.12, 1.35)
+        if theme == "sweets":                             # a glass-topped case of sweets on the counter
+            bm_box(bmk("shopglass"), x1 - 0.85, x1 - 0.3, cy0 + 0.8, cy0 + cl - 0.1, 1.0, 1.35)
+            fill_run("sweets", bmk, x1 - 0.8, x1 - 0.35, cy0 + 0.85, cy0 + cl - 0.15, 1.0, rng)
+    # display tables down the middle, with merchandise; a big Mickey plush on the first table of a plush shop
+    tx0, tx1 = x0 + 0.9, x1 - (1.2 if cl > 0.8 else 0.9)
+    nt = max(1, int((tx1 - tx0) / 2.2))
+    ty = -max(1.4, D * 0.45)
+    for k in range(nt):
+        cx = tx0 + (tx1 - tx0) * (k + 0.5) / nt
+        bm_box(bmk("wood"), cx - 0.65, cx + 0.65, ty - 0.4, ty + 0.4, 0.8, 0.85)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                bm_box(bmk("wood"), cx + sx * 0.58 - 0.03, cx + sx * 0.58 + 0.03, ty + sy * 0.33 - 0.03, ty + sy * 0.33 + 0.03, 0.06, 0.8)
+        if theme == "plush" and k == 0:
+            r = 0.3
+            bm_lathe(bmk("m_black"), [(0, -r)] + [(r * math.sin(math.pi * i / 8), -r * math.cos(math.pi * i / 8)) for i in range(1, 8)] + [(0, r)], 12, T(cx, ty, 0.85 + r))
+            for s in (-1, 1):
+                bm_lathe(bmk("m_black"), [(0, -0.17), (0.15, -0.085), (0.15, 0.085), (0, 0.17)], 10, T(cx + s * 0.27, ty, 0.85 + r * 1.75))
+            bm_box(bmk("m_red"), cx - 0.25, cx + 0.25, ty - 0.2, ty + 0.2, 0.85, 0.9)
+            continue
+        fill_run(theme, bmk, cx - 0.6, cx + 0.6, ty - 0.35, ty - 0.02, 0.85, rng)
+        fill_run(theme, bmk, cx - 0.6, cx + 0.6, ty + 0.02, ty + 0.35, 0.85, rng)
+    if theme == "apparel" and D > 3.5:                    # a clothes rail by the window
+        rx0, rx1, ry = x0 + 0.8, min(x0 + 2.4, x1 - 1.3), -1.0
+        if rx1 - rx0 > 0.6:
+            bm_box(bmk("iron"), rx0, rx1, ry - 0.015, ry + 0.015, 1.5, 1.53)
+            for xx in (rx0, rx1):
+                bm_box(bmk("iron"), xx - 0.015, xx + 0.015, ry - 0.015, ry + 0.015, 0.06, 1.53)
+            xx = rx0 + 0.1
+            while xx < rx1 - 0.08:
+                bm_box(bmk(rng.choice(MERCH)), xx - 0.012, xx + 0.012, ry - 0.24, ry + 0.24, 0.85, 1.45); xx += 0.08
+    # pendant lamps
+    n_l = max(1, round(iw / 2.4))
+    for k in range(n_l):
+        lx = x0 + iw * (k + 0.5) / n_l
+        bm_box(bmk("iron"), lx - 0.01, lx + 0.01, -D / 2 - 0.01, -D / 2 + 0.01, top - 0.7, top)
+        bm_lathe(bmk("brass"), [(0, 0), (0.22, 0.0), (0.12, 0.14), (0.02, 0.2), (0, 0.2)], 12, T(lx, -D / 2, top - 0.85))
+        globe_lamp_bm(bmk("lamp"), lx, -D / 2, top - 0.9, 0.1)
+    for k, bm_ in P.items():
+        obj_bm(f"ST_WBZ_{name}_in_{k}", bm_, k, smooth=(k in ("lamp", "m_black")))
+
+
+THEMES = ("plush", "plush", "sweets", "apparel", "home", "cards")
 
 
 def random_style(rng, prev):
@@ -403,20 +605,24 @@ def random_style(rng, prev):
     return dict(wall=wall, trim=trim, floors=2 if roof == "mansard" else rng.choice([2, 3, 3, 3]), roof=roof,
                 win=rng.choice(["rect", "arch", "pair"]), balcony=rng.random() < 0.35, oriel=rng.random() < 0.25,
                 awning=awning, win_awn=rng.random() < 0.3, door=rng.choice(["mid", "left", "right"]),
-                signmat=rng.choice(["t_maroon", "t_dkgreen", "t_blue", "t_teal"]), roofmat=rng.choice(["shingle", "mauve", "t_dkgreen"]))
+                signmat=rng.choice(["t_maroon", "t_dkgreen", "t_blue", "t_teal"]), roofmat=rng.choice(["shingle", "mauve", "t_dkgreen"]),
+                theme=rng.choice(THEMES))
 
 
 # the corner shops from the photos (by front and position: 0 = the first shop from p0, -1 = the last)
 SPECIAL = {
     ("ME1", 0): dict(wall="pink", trim="teal", floors=3, roof="parapet", win="arch", balcony=False, oriel=False, awning=("aw_green", None),
-                     win_awn=True, door="mid", signmat="w_mint", turret=0, porch=True, porch_sign="CONFECTIONERY", sign="WORLD BAZAAR CONFECTIONERY", w=10.0),
+                     win_awn=True, door="mid", signmat="w_mint", turret=0, porch=True, porch_sign="CONFECTIONERY", sign="WORLD BAZAAR CONFECTIONERY", theme="sweets", w=10.0),
     ("MW1", -1): dict(wall="cream", trim="dkgreen", floors=3, roof="pediment", win="arch", balcony=False, oriel=False, awning=None,
-                      win_awn=False, door="mid", signmat="t_dkgreen", turret=1, sign="HOUSE OF GREETINGS", w=10.0),
+                      win_awn=False, door="mid", signmat="t_dkgreen", turret=1, sign="HOUSE OF GREETINGS", theme="cards", w=10.0),
     ("ME2", -1): dict(wall="cream", trim="maroon", floors=3, roof="pediment", win="pair", balcony=False, oriel=True, awning=("aw_green", None),
-                      win_awn=False, door="left", signmat="t_maroon", date="1894", sign="GRAND EMPORIUM", w=9.0),
+                      win_awn=False, door="left", signmat="t_maroon", date="1894", sign="GRAND EMPORIUM", theme="apparel", w=9.0),
     ("MW2", 0): dict(wall="peach", trim="white", floors=2, roof="mansard", win="rect", balcony=True, oriel=False, awning=("aw_red", "aw_white"),
-                     win_awn=False, door="mid", signmat="t_blue", turret=0, sign="MAIN STREET", roofmat="t_dkgreen", w=9.0),
+                     win_awn=False, door="mid", signmat="t_blue", turret=0, sign="MAIN STREET", roofmat="t_dkgreen", theme="home", w=9.0),
 }
+
+
+CORNER = 4.2
 
 
 def build_shops(seed=7):
@@ -440,8 +646,13 @@ def build_shops(seed=7):
                 else:
                     st = random_style(rng, prev); wd = v
                 prev = st["wall"]
+                # the room: CORNER m clear of each end of the front (the next front's shops reach back 9 m from the
+                # corner), only 4 m deep within 9.2 m of an end, 7.5 m elsewhere
+                rx0 = max(0.0, CORNER - x); rx1 = min(wd, L - CORNER - x)
+                near_end = x < 9.2 or x + wd > L - 9.2
+                room = (rx0, rx1, 4.0 if near_end else 7.5) if rx1 - rx0 >= 2.8 else None
                 with frame(f"SHOP_{fid}_{i}", x, 0.0, 0.0):
-                    shop(f"{fid}_{i}", wd, st)
+                    shop(f"{fid}_{i}", wd, st, room)
                 x += wd
 
 
@@ -505,6 +716,8 @@ def cams():
         "wbz_crossing": ((*wbp(5.0, -30.0), 1.7), (*wbp(-14.0, -54.0), 6.0), 18),   # the towers and Center Street
         "wbz_corner": ((*wbp(-3.0, -26.0), 1.7), (*wbp(12.0, -38.0), 5.5), 20),     # the Confectionery corner
         "wbz_back": ((*wbp(0.0, -40.0), 1.6), (*wbp(0.0, WB_BACK), 6.5), 22),        # back towards the entrance
+        "wbz_shopfront": ((*wbp(4.0, -80.0), 1.7), (*wbp(12.0, -87.0), 2.4), 24),   # the shopfronts on the east side
+        "wbz_inside": ((*wbp(13.0, -88.0), 1.6), (*wbp(19.0, -85.0), 1.3), 16),    # inside a shop
         "wbz_aerial": ((*wbp(70.0, -10.0), 75.0), (*wbp(0.0, -58.0), 0.0), 32),
     }
 
