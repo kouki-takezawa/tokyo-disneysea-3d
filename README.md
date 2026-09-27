@@ -44,6 +44,9 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | 施設の検索 | 済(モック) | `mock_template.html` |
 | 屋根だけの構造物を屋根の板に・樹林を木の記号に | 済(モック。屋根は Blender の下書きも) | `ds_core.py`, `ds_buildings.py`, `mock_template.html` |
 | 東京ディズニーランドのエントランス(メインエントランスのゲート・ワールドバザールの入口・ミッキーの花壇。参考動画・写真・OSM から) | 済(Blender で作り、ユーザーの確認後にモックの 3D モデルに) | `ds_tdl_entrance.py` |
+| ワールドバザール(入口をユーザーの写真で採寸し直した。ガラス屋根の通り・約 50 軒のお店・歩いて入れる店内) | 済(モックに反映) | `ds_tdl_entrance.py` 1 節, `ds_tdl_world_bazaar.py` |
+| 東京ディズニーランドホテル(中庭側を写真から。New Grand Wing と奥の棟は簡略) | 済(モックに反映) | `ds_tdl_hotel.py` |
+| モデルの Draco 圧縮(モック用の軽いコピー、約 120 MB → 10 MB) | 済 | `compress_models.py`(`export_mock.py` が呼ぶ) |
 | 東京ディズニーランドのエントランス広場の地面(ゲートの前後の舗装・縁石・植え込み。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_ground.py` |
 | 東京ディズニーランドホテル周辺の道(車道・園路・歩行者広場・ホテルと駅の間・駅の中の通路。ホテルの建物の場所は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_hotel_ground.py` |
 | 地面(ランド全体・シー全体。パークの外は作らない。舗装・道路・駐車場・線路敷・芝・林・岩場・工事中。建物と水面の場所は作らず、建物を抜ける通路は作る。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_ground.py` |
@@ -120,11 +123,15 @@ blender -b --python src/ds_tdl_cinderella.py -- --tt 1,13,25,37,49,61 --quick   
 blender -b --python src/export_models.py -- --parts tracks                           # 線路(リゾートライン・京葉線)
 blender -b --python src/ds_tracks.py -- --samples 24                                 # 線路の確認レンダーと .blend
 blender -b --python src/ds_tdl_entrance.py -- --samples 32                           # エントランスの確認レンダーと .blend
+blender -b --python src/export_models.py -- --parts tdl_world_bazaar                 # ワールドバザール(通り・お店・店内)
+blender -b --python src/ds_tdl_world_bazaar.py -- --cams wbz_street,wbz_shopfront,wbz_inside --samples 32   # 確認レンダーと .blend
+blender -b --python src/export_models.py -- --parts tdl_hotel                        # 東京ディズニーランドホテル
+blender -b --python src/ds_tdl_hotel.py -- --cams court,gates_wide,aerial --samples 32   # ホテルの確認レンダーと .blend
 blender -b --python src/ds_tdl_station.py -- --samples 32                            # 駅の確認レンダーと .blend(電車も停車中)
 blender -b --python src/export_models.py -- --parts aquasphere --render             # アクアスフィアの確認レンダー
 ```
 
-4. モデルを書き出し直したら、`python src/export_mock.py` を実行してからコミットする。
+4. モデルを書き出し直したら、`python src/export_mock.py` を実行してからコミットする。`export_mock.py` は新しくなったモデルの Draco 圧縮版を `models/web/` に作る(Node.js の `npx` が要る。無ければそのモデルだけ圧縮前のファイルを読む)。
 
 **Blender で最初にやること(2026-09-24 時点で未実行):**
 
@@ -260,9 +267,13 @@ OpenStreetMap ─ fetch_*.py ─▶ plateau_data/*_osm.json ─┐
 | シンデレラ城(城・前庭・橋・裏のテラス・池) | ディズニーランド(枠線はそのまま) | `output/disneysea/models/cinderella.json`(石・ピンクの壁・屋根の画像 3 枚) |
 | ランドの水面(水面・水底・護岸・笠石・岩場・砂浜・土手) | ディズニーランド(ランドの水面の枠線を置き換え) | `output/disneysea/models/tdl_water.json` |
 | リゾートラインの電車(先頭車・中間車・幌) | 電車(3D モデルの「電車」で切り替え) | `output/disneysea/models/train.json` |
+| ワールドバザール(ガラス屋根・お店・店内・街路) | ディズニーランド(ガラス屋根の枠線だけを置き換え) | `output/disneysea/models/tdl_world_bazaar.json` |
+| 東京ディズニーランドホテル(本館・塔・中庭・New Grand Wing・奥の棟) | 舞浜駅・周辺(ホテルの箱だけを置き換え) | `output/disneysea/models/tdl_hotel.json` |
 
 - パネルの「3Dモデル」欄で、モデルごとに表示を切り替えられる(「すべてオン / オフ」あり)。チェックを外すと、そのモデルに置き換えられていた枠線が出る。「枠線も重ねて表示」で同時に見られる。モデルの表示はレイヤーとは独立で、レイヤーを全部オフにすればモデルだけを表示できる。設定はブラウザの localStorage(`tds-layers` `tds-models` `tds-ui`)に保存する。
 - `export_models.py` が Blender から glTF に書き出し、それぞれの地面の高さ(DEM 基準)まで持ち上げる。Artifact のホストは `.glb` を配信しないので、バッファを埋め込んだ glTF の JSON にしている。
+- **ページが読むのは Draco 圧縮版**(`models/web/<id>.json`、`compress_models.py`。gltf-transform で圧縮し、バッファを埋め込み直す。画像は元の `models/` のものを指す)。合計 約 120 MB → 約 10 MB。`models/<id>.json`(圧縮前)は残す: `ds_ground.py` と `ds_tdl_hotel.py` がそれを読む。ページは DRACOLoader(three r147、jsDelivr)で読む。
+- 枠線をモデルが置き換えるとき、置き換えるのがレイヤーの一部だけなら、その枠線に専用のキーを付ける(`ds_disneyland.py` の `MODEL_KEYS`(way id → キー)と `PLACE_MODEL_KEYS`(名前 → キー)。ワールドバザールのガラス屋根 `dlwbroof`、ホテルの箱 `mhtdlhotel`)。
 - Blender の手続き型マテリアルは glTF に残らない。そのため、モック側でメッシュ名(`WS_*` `AQ_*` `PZ_*`)ごとに材質を付ける(three.js r147)。
   - **水面**: Blender の水(屈折・吸収・さざ波・空の映り込み)を物理マテリアルで再現する。建物の映り込みはない。
   - **アクアスフィアの噴水**: 地球儀の水の筋、水のカーテン、泡の輪、しぶき、池の同心円の波を、シェーダーで常に流れているように動かす。池は、透過にすると縞が出たので不透明の色にしている。
@@ -336,6 +347,35 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | ![ゲート](docs/entrance/entrance_gate_in.jpg) | ![看板](docs/entrance/entrance_wb_sign.jpg) |
 | **ミッキーの花壇(真上)** | **モックでの表示** |
 | ![花壇](docs/entrance/entrance_flowerbed_plan.jpg) | ![モック](docs/entrance/mock_entrance.jpg) |
+
+### ワールドバザール(`ds_tdl_entrance.py` 1 節 + `ds_tdl_world_bazaar.py`)
+
+- **入口(2026-09-27 作り直し)**: ユーザーの写真で、写っている人を 1.70 m として採寸(柱廊の面で約 25 px/m)。柱廊は 3 区画(3.9 / 4.0 / 3.9 m)、手すりの上端 9.56 m、看板は幅 6 m・高さ 5.2〜6.3 m(文字はアーチに沿う)。細い柱の 2 本組・3 本組、帯の付いた柱身、透かしのアーチ(輪・渦巻き・垂れ飾り)、区画ごとの吊りランタン、左右に低い柱廊。奥にれんがの建物、ガラス屋根の正面の破風、左右のお店。Main Street 側の面はユーザーの 2 枚目の写真から(通り抜けのアーチ 5 つ、窓、ドーマー)。
+- **通り**: OSM のガラス屋根(way 72216847)が通りそのもの: Main Street は幅 24.5 m、入口の建物の裏(WB 座標 y = -8.5)から y = -106.6 まで、Center Street が y = -41〜-64 で交わり、両側は約 18° 折れて x = ±57 まで。切妻のガラス屋根(トラス、城側の端は 3 つの丸いアーチ)、交差点の 4 本の格子の塔。街路(青灰色の車道とテラコッタの歩道)、街灯、時計、木、ベンチ。
+- **お店(約 50 軒)**: 通りの面ごとに幅 5.5〜9.5 m で割り、色・窓・屋根・日よけ・バルコニー・出窓をばらつかせる。写真の角の店(コンフェクショナリー、ハウス・オブ・グリーティング、「1894」のペディメント)は位置を決めて置く。店先: 羽目板の腰壁、欄間、付け柱の柱頭と柱礎、扉の脇のランプ、突き出しの看板、花箱、2 階以上の一部の窓に明かり。
+- **店内(歩いて入れる)**: 1 階は透明なショーウィンドウと、内側に開いたガラス扉の奥に本物の部屋: 板張りの床、店の色の壁、奥の壁と側面の棚、中央の陳列台、レジのあるカウンター、吊り下げ灯。商品はテーマごと(ぬいぐるみのミッキー、瓶と缶のお菓子、畳んだ T シャツとハンガーラック、マグとお皿、グリーティングカード)。通りの角では別の面の店が 9 m 奥まで重なるので、部屋は各面の端から 4.2 m 離し、端から 9.2 m 以内は奥行き 4 m、それ以外は 7.5 m。部屋の外の 1 階は固い箱で、窓の奥は明るい飾りの面。
+- **散歩で入れる**: ランドの建物はモックの歩行判定(`buildingAt`)に使われず、壁はモデルの面で止まるので、開いた扉から店内に入れる。三人称のカメラは、人物との間に壁があるとその手前まで寄る(`camHit`)。
+- **推定**: ガラス屋根の高さ(軒 12.1 m、棟 16.2 m)、店の高さ・幅・意匠、店内の配置と商品。
+
+| 入口(ユーザーの写真と同じ視点) | 通り |
+|---|---|
+| ![入口](docs/world_bazaar/wb_front.jpg) | ![通り](docs/world_bazaar/wb_street.jpg) |
+| **モック: 店先** | **モック: 店内** |
+| ![店先](docs/world_bazaar/mock_shop_front.jpg) | ![店内](docs/world_bazaar/mock_shop_inside.jpg) |
+
+### 東京ディズニーランドホテル(`ds_tdl_hotel.py`)
+
+- **平面**: OSM の way 218553057(1 つの輪郭に本館と New Grand Wing が入っている)。本館の三日月形の正面(点 0〜21、約 101 m)を 1 m で単純化し、壁の区間ごとに直線のベイを並べる(Curve で曲げるとマンサードと手すりが急な角で破れるため)。ローカル座標: 原点は正面の弧長の中点(-573.9, 1171.3)、+x は正面に沿う向き(65.65°)、+y は中庭側。
+- **写真から(2026-09-28、中庭を門の側から見た写真 5 枚)**: 中庭の奥の本館中央棟(3 つの大きなアーチ窓、中央のものが一番高く扇形の桟、2 本組の付け柱、手すりの付いた屋階、八角形のドラムに乗った金のドームとランタン)、扉の前の青いドームの小さなあずまや、左右の高い八角形の塔(11 階、各面にバルコニー、手すりの付いた冠、青いスレートの尖塔と金の飾り)、各階の白い手すりのバルコニー(本館の翼は 8 階)、手前の角の青と紫のヴィクトリア調の棟(出窓・破風・飾り)。中庭: 3 段の円い段と、TDH の組み文字のバラ窓模様の床、金のメダリオンとトピアリーの大きな丸いれんがの植木鉢、曲がった手すり、壺の乗った四角い石の門柱、鉄の門、石の手すり、街灯。
+- **簡略**: New Grand Wing(58 m、OSM の高さ 60 m をここに)と奥の棟・西の翼(30 m)は、写真が無いので実際の輪郭に沿った窓の並びだけの塊。
+- **モックでの高さ**: 中庭は建物の裏より 2〜5 m 高い(DEM)。建物は中庭の高さ(2.3 m)に置いて石の基壇を下の地面まで伸ばし、中庭の物(段・植木鉢・門・あずまや・街灯)はそれぞれの場所の地面(`tdl_hotel_ground.json` の高さ)に置く。中庭の床は、その高さに沿った 1.5 m の格子にする(ホテル周辺の道のモデルには中庭の面が無いため)。
+- **推定**: 階高、塔・ドームの高さ、ベイの数、手前の 2 つの棟の位置と大きさ、門・植木鉢の配置。
+
+| 中庭(写真と同じ視点) | 上から |
+|---|---|
+| ![中庭](docs/hotel/hotel_court.jpg) | ![上から](docs/hotel/hotel_aerial.jpg) |
+| **モック: 中庭** | |
+| ![モック](docs/hotel/mock_hotel.jpg) | |
 
 ### 東京ディズニーランドのエントランス広場の地面(`ds_tdl_ground.py`)
 
@@ -600,7 +640,7 @@ https://tokyo-disneysea-3d.vercel.app で誰でも見られる。GitHub の main
 
 - `vercel.json` が `output/disneysea/` をそのまま配信し、`/` を `tds_outline.html` に向ける。ビルドはない。CI もない。
 - 配信するのは `.gitignore` の許可リストにあるファイルだけ(`tds_outline.html`、`train.html`、`train_model.js`、`models/`。駅と電車のモデルも `models/` に入る)。新しいファイルを足したら許可リストにも足す。
-- **push の前に `python src/export_mock.py` を実行して、`tds_outline.html` と `models/` をコミットする。**
+- **push の前に `python src/export_mock.py` を実行して、`tds_outline.html` と `models/`(`models/web/` の圧縮版も)をコミットする。**
 - 出典は、画面の下(3D では地図の隅)とパネルの「出典」欄に表示している。
 
 ## 分かっている限界
