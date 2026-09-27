@@ -247,7 +247,7 @@ def main():
     import compress_models                                  # Draco copies for the page (models/web/); the plain files stay for the scripts
     web = compress_models.run([i for i, _, _ in MODELS])
     out["models"] = [{"id": i, "layer": lay, "src": web.get(i, f"models/{i}.json"), "hides": hides}   # glTF JSON (the host serves .json, not .glb)
-                     for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
+                     for i, lay, hides in MODELS if (mdir / f"{i}.json").exists() or i in web]
     if (mdir / "train.json").exists():   # the Resort Line cars (export_models.py --parts train), posed by the page's timetable
         out["train"] = "models/train.json"
     if (mdir / "woody.json").exists():   # the walker (woody.py --web-glb, glb_to_json): replaces the box figure in 散歩

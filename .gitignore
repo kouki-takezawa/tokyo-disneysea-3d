@@ -14,6 +14,7 @@
 /plateau_data/*
 !/plateau_data/disneysea_osm.json
 !/plateau_data/disneyland_osm.json
+!/plateau_data/tdl_hotel_plan.json
 !/plateau_data/disneyland_levels.json
 !/plateau_data/disneysea_levels.json
 !/plateau_data/disneysea_water.json
@@ -37,6 +38,9 @@
 !/output/disneysea/train_model.js
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
+# kept only as the Draco copy in models/web/ (src/compress_models.py WEB_ONLY)
+/output/disneysea/models/tdl_hotel.json
+/output/disneysea/models/tdl_world_bazaar.json
 !/output/disneysea/models/woody.glb
 
 __pycache__/

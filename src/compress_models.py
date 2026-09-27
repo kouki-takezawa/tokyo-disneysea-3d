@@ -15,6 +15,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 MODELS = ROOT / "output" / "disneysea" / "models"
 WEB = MODELS / "web"
 SKIP = {"woody"}                                        # the walker is loaded from its own Draco .glb
+# models no script reads back and too big for git uncompressed (tdl_hotel is ~70 MB): only models/web/ is committed
+# (.gitignore); regenerate the plain file with export_models.py before compressing again
+WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar"}
 
 
 def compress(src, dst):
@@ -64,6 +67,9 @@ def run(ids=None, force=False):
                     dst.unlink()
         if dst.exists():
             done[name] = f"models/web/{src.name}"
+    for dst in sorted(WEB.glob("*.json")):                # models kept only compressed in git (WEB_ONLY): no plain file here
+        if dst.stem not in done and (ids is None or dst.stem in ids):
+            done[dst.stem] = f"models/web/{dst.name}"
     return done
 
 
