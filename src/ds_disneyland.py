@@ -22,6 +22,7 @@ TDL_PARK_WAY = 1282875870          # 東京ディズニーランド (tourism=the
 TDS_PARK_WAY = 203538370           # 東京ディズニーシー: its contents are drawn by the DisneySea layers
 MAIHAMA_STATION = "舞浜"
 POI_REACH = 90.0
+MODEL_KEYS = {72216847: "dlwbroof"}   # World Bazaar's glass roof -> ds_tdl_world_bazaar.py
 DEFAULT_H, OTHER_H = 12.0, 10.0    # estimates for untagged buildings (m)
 JR_Z = 10.0                        # Keiyo Line viaduct height above the promenade datum (estimate)
 # Resort Line beam: the mock draws it from RESORT_LINE_Z to RESORT_LINE_Z + 0.9. Its top (4.21 m on the datum) is the
@@ -167,10 +168,10 @@ def build(datum):
         if w["closed"] and (t.get("landuse") == "construction" or "construction" in t) and "building" not in t and in_tdl(*poly_centroid(w["pts"])):
             construction.append((ring_of(w), t.get("name", "建設工事")))
 
-    items = [(w["tags"], [ring_of(w)]) for w in DATA["ways"] if "building" in w["tags"] and w["closed"]]
-    items += [(r["tags"], outer_rings(r)) for r in DATA["relations"] if "building" in r["tags"]]
+    items = [(w["tags"], [ring_of(w)], w["id"]) for w in DATA["ways"] if "building" in w["tags"] and w["closed"]]
+    items += [(r["tags"], outer_rings(r), r["id"]) for r in DATA["relations"] if "building" in r["tags"]]
     buildings, pts_by_land = [], {i: [] for i in range(len(LANDS))}
-    for tags, rings in items:
+    for tags, rings, oid in items:
         rings = [r for r in rings if len(r) >= 3]
         if not rings or not in_tdl(*poly_centroid(rings[0])):
             continue
@@ -184,6 +185,7 @@ def build(datum):
             li = land_of(rings[0])
         b = {"r": [R(r) for r in rings], "h": round(height(tags, li), 1), "p": li, "z": z_of(cx, cy)}
         if tags.get("building") == "roof": b["rf"] = 1   # roof only: open underneath
+        if oid in MODEL_KEYS: b["k"] = MODEL_KEYS[oid]   # replaced by a Blender model (export_mock MODELS hides this key)
         if site is not None: b["c"] = site
         if tags.get("name"): b["n"] = tags["name"]
         buildings.append(b)

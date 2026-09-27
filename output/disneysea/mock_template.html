@@ -300,7 +300,7 @@ body.intro .introfx{opacity:1}
   </div>
   <div class="seg" role="tablist" aria-label="モード">
     <button id="tab-3d" role="tab" aria-selected="false" title="3D で上から見る">俯瞰</button>
-    <button id="tab-walk" role="tab" aria-selected="false" title="身長 170 cm の人になって歩く">散歩</button>
+    <button id="tab-walk" role="tab" aria-selected="false" title="ウッディになって歩く(目の高さ 1.58 m)">散歩</button>
   </div>
   <div class="tools">
     <button class="btn" id="btnShare" title="今の視点の URL を共有">共有</button>
@@ -1621,6 +1621,21 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_flower_purple: { color: 0x6a3f9e, roughness: 1 }, ST_flower_white: { color: 0xeeeee6, roughness: 1 }, ST_flowers_red: { color: 0xc23350, roughness: 1 },
   ST_hedge: { color: 0x2d5a26, roughness: 1 }, ST_grass: { color: 0x4f7d3a, roughness: 1 }, ST_win_dark: { color: 0x1a2229, roughness: 0.2 },
   ST_rail_blue: { color: 0x234f52, roughness: 0.5, metalness: 0.4 }, ST_blue_disc: { color: 0x3350a0, roughness: 0.5 },
+  // ワールドバザール (ds_tdl_entrance.py 1 節 + ds_tdl_world_bazaar.py): EN_* / WZ_* meshes
+  ST_mauve: { color: 0x5e2229, roughness: 0.7 }, ST_hall_iron: { color: 0x3f6e68, roughness: 0.5, metalness: 0.3 },
+  ST_hall_glass: { color: 0xc4e0da, roughness: 0.05, transparent: true, opacity: 0.2, depthWrite: false },
+  ST_wbz_pink: { color: 0xe8b2aa, roughness: 0.8 }, ST_wbz_cream: { color: 0xeed9ac, roughness: 0.8 }, ST_wbz_yellow: { color: 0xf1d48e, roughness: 0.8 },
+  ST_wbz_blue: { color: 0x9fb4c6, roughness: 0.8 }, ST_wbz_mint: { color: 0xb1d2c2, roughness: 0.8 }, ST_wbz_peach: { color: 0xf2c49e, roughness: 0.8 },
+  ST_wbz_sand: { color: 0xe0c89c, roughness: 0.8 }, ST_wbz_sage: { color: 0xa7b89f, roughness: 0.8 }, ST_wbz_lilac: { color: 0xc7bad0, roughness: 0.8 },
+  ST_wbz_stone: { color: 0xe1d9ca, roughness: 0.8 },
+  ST_wbz_trim_white: { color: 0xf1ede1, roughness: 0.7 }, ST_wbz_trim_cream: { color: 0xece0c3, roughness: 0.7 }, ST_wbz_trim_teal: { color: 0x5a9f9b, roughness: 0.7 },
+  ST_wbz_trim_dkgreen: { color: 0x2c5048, roughness: 0.7 }, ST_wbz_trim_maroon: { color: 0x7a2f33, roughness: 0.7 }, ST_wbz_trim_blue: { color: 0x4a5f7a, roughness: 0.7 },
+  ST_wbz_display: { color: 0xead8b4, emissive: 0x6b5330, emissiveIntensity: 0.6, roughness: 0.3 }, ST_wbz_door: { color: 0x4a2a18, roughness: 0.6 },
+  ST_wbz_road: { color: 0x59616c, roughness: 0.9 }, ST_wbz_walk: { color: 0x9e5446, roughness: 0.9 }, ST_wbz_edging: { color: 0xbdb8ae, roughness: 0.85 },
+  ST_wbz_awning_green: { color: 0x245c4a, roughness: 0.9 }, ST_wbz_awning_red: { color: 0xa8303a, roughness: 0.9 },
+  ST_wbz_awning_white: { color: 0xefece4, roughness: 0.9 }, ST_wbz_awning_blue: { color: 0x3d5a8a, roughness: 0.9 },
+  ST_wbz_shingle: { color: 0x59626e, roughness: 0.8 }, ST_wbz_clock: { color: 0xf6f3ea, emissive: 0x77736a, emissiveIntensity: 0.4 },
+  ST_wbz_leaf: { color: 0x44702f, roughness: 1, flatShading: true }, ST_wbz_wood: { color: 0x7d5a3c, roughness: 0.9 },
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
   TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
@@ -1798,7 +1813,7 @@ async function loadModels(T, scene, root, list = D.models) {
     await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
-        const nm = /^(EN|TK)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance and the tracks share the station's materials
+        const nm = /^(EN|TK|WZ)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (o.name.startsWith("WS_water")) { o.material = makeWater(T); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
@@ -2201,7 +2216,7 @@ async function init3D() {
     contours3d(DL.contours, "dlcontours");
     DL.construction.forEach(c => ringG("dlsite", c.r, 0.1));
     DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
-    DL.buildings.forEach(b => b.r.forEach(r => b.rf ? roof3d(`l${b.p}`, r, b.z || 0, b.h) : prism(`l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));
+    DL.buildings.forEach(b => b.r.forEach(r => b.rf ? roof3d(b.k || `l${b.p}`, r, b.z || 0, b.h) : prism(b.k || `l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));   // b.k: its own key (a model replaces it)
   }
   if (MH) {
     const hz = (x, y) => heightAt(x, y) ?? 0;
@@ -2225,13 +2240,13 @@ async function init3D() {
     aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
-    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"],
+    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland",
     mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
-    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx",
+    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {

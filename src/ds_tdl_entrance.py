@@ -1,6 +1,6 @@
 """東京ディズニーランドのエントランス -- main entrance gates, the World Bazaar entrance and the plaza (Blender 5.2).
 
-  blender -b --python src/ds_tdl_entrance.py -- --cams gate_in,gate_out,gates_arc,wb_porch,wb_sign,flowerbed,aerial --samples 32
+  blender -b --python src/ds_tdl_entrance.py -- --cams gate_in,gate_out,gates_arc,wb_photo,wb_front,wb_porch,wb_sign,flowerbed,aerial --samples 32
   blender -b --python src/ds_tdl_entrance.py -- --cams none         # build + save the .blend only
   then open output/disneyland/entrance/tdl_entrance.blend (cameras CAM_*)
 
@@ -19,17 +19,19 @@ Sources (looked at only; nothing copied into the repository):
     bargeboards over a mint lattice, the red "Tokyo Disneyland" oval sign, a medallion), then long arcs of gate bays
     (cream square pillars with mint panels, fretwork, a small gable per bay with a numbered magenta medallion, slate
     roof with iron cresting and finials, green "ENTRANCE" boards, turnstile booths). "Tokyo Disneyland Entrance" (2013,
-    CC BY 2.0): the World Bazaar porch (white columns on panelled pedestals, arches, balustrade, the red sign with the
-    oval "Welcome" board, globe lamps) in front of the red brick facade (cream-framed arched windows, balconies with
-    blue-green rails and flower boxes, the arch into Main Street). The Mickey flowerbed (purple and white).
+    CC BY 2.0) and "Tokyo Disneyland World Bazaar" (2023, Flickr via Commons): the World Bazaar front. The Mickey
+    flowerbed (purple and white).
+  * The user's photo of the World Bazaar entrance (2026-09-27), measured with the people in it taken as 1.70 m:
+    the rebuild of section 1 (sizes there).
   * GSI aerial photo (tools/aerial_overlay.py): the arc and the plaza.
 
 Frame: local metres = the DisneySea frame minus P0 (-530, 915) (the plaza), no rotation; +X east, +Y north, ground 0
 (the DEM here is -0.1 .. 0.07 m on the datum).
 
 ESTIMATES (from photos, scaled with the OSM plan): gate pillars 3.7 m, beams 4.6 m, bay gables 6.1 m, main ridge 7.0 m;
-central pavilion eaves 5.6 m, gable 9.0 m, deck 10.0 m, spires 12.5 m; World Bazaar porch columns 6.6 m, balustrade
-8.4 m, facade cornice 8.4 m (OSM 8.85 m to the parapet), sign 4.4 .. 5.9 m. Bay counts, gate positions, the lattice,
+central pavilion eaves 5.6 m, gable 9.0 m, deck 10.0 m, spires 12.5 m. World Bazaar (measured on the user's photo,
+section 1): portico bays 3.9 / 4.0 / 3.9 m, capitals 6.6 m, balustrade 9.56 m, sign 6.0 m wide at 5.2 .. 6.3 m; the
+depths (portico 4.6 m, the glass hall's gable 4.8 m behind the wall) are from perspective. Bay counts, gate positions, the lattice,
 the flowerbed's grass ring (radius 9 m) and the Mickey face pattern are drawn from the photos, not measured.
 """
 import sys, math, argparse, pathlib, time
@@ -77,6 +79,10 @@ def extra_materials(M):
     M["rail_blue"] = P("st_rail_blue", (0.08, 0.22, 0.24), 0.4, Metallic=0.6)
     M["flowers_red"] = P("st_flowers_red", (0.75, 0.10, 0.20), 0.8)
     M["blue_disc"] = P("st_blue_disc", (0.12, 0.25, 0.55), 0.4)
+    M["mauve"] = P("st_mauve", (0.30, 0.09, 0.13), 0.6)                    # the World Bazaar shops' mansards
+    M["hall_iron"] = P("st_hall_iron", (0.15, 0.30, 0.28), 0.45, Metallic=0.5)
+    M["hall_glass"] = ST.clear_glass("st_hall_glass", (0.70, 0.86, 0.82), 0.35)
+    M["person"] = P("st_person", (0.22, 0.26, 0.36), 0.8)                  # 1.70 m scale figures (check renders only)
     return M
 
 
@@ -164,120 +170,416 @@ def lattice(bm, tri, y0, y1, step=0.45, w=0.035):
             c += step
 
 
-# ================================================================ 1. the World Bazaar entrance (the video's order)
-def build_sign(yf):
-    """Red sign with scrolled ends and a gold frame, "Tokyo Disneyland"; the oval "Welcome" board below; light bulbs
-    round the top with Array + Curve (video); faces +y at yf."""
-    zb, zt, hw, rise = 4.95, 5.55, 3.3, 0.35
-    top, (zc, Rr, half) = seg_arc(0.0, zt, 2 * hw, rise, 32)
+# ================================================================ 1. the World Bazaar entrance (rebuilt 2026-09-27)
+# Measured on the user's photo (people at the centre pedestals taken as 1.70 m -> 25 px/m on the portico face) and
+# checked with Commons photos (the whole front at sunset, the centre bay head-on). Plan from OSM: the shops either
+# side (365357846 / 72216851, 8.85 m) have their fronts on local y = 0 and leave a 24.5 m gap (x = -12.25 .. 12.25)
+# for the entrance building; the Main Street footway starts at y = 4 .. 5.6, the front of the portico.
+# Local frame: +x along the front (left to right seen from the plaza), +y towards the plaza, z up.
+WB_C = dict(front=4.6, ped=1.2, cap=6.6, block=7.95, ent=8.72, rail=9.56)       # centre portico (3 bays of 3.9 / 4.0 m)
+WB_W = dict(front=3.6, ped=1.0, cap=6.1, block=7.35, ent=8.1, rail=8.9)         # wing porticos (lower, set back)
+WB_HALL = dict(w=24.5, y=-4.8, base=8.6, eave=12.1, ridge=16.2, back=-8.5)       # the glass hall's front gable
+WB_BACK = -8.5                                   # the entrance building's Main Street face (the gable stands on its roof)
+
+
+def wb_sign(yf):
+    """The centre bay sign (photo): 6.0 m over the end scrolls, arched top at 6.3 m, straight bottom at 5.2 m, the
+    "Welcome" cartouche 3.05 x 0.85 m below it (4.45 .. 5.3 m), light bulbs round the board (one bulb + Array + Curve,
+    as the video), a globe lamp on each centre column at 4.7 m. Faces +y; its back is at yf."""
+    hw, zb, zs, rise = 2.55, 5.2, 5.62, 0.55
+    top, (zc, Rr, half) = seg_arc(0.0, zs, 2 * hw, rise, 33)
     board = [(-hw, zb), (hw, zb)] + top
-    prism("ST_WB_sign_board", [board], yf, yf + 0.12, "sign_red", "xz")
-    frame_pts = [(-hw - 0.12, zb - 0.1), (hw + 0.12, zb - 0.1)] + [(x * (hw + 0.12) / hw, z + 0.1) for x, z in top]
-    prism("ST_WB_sign_frame", [frame_pts], yf - 0.04, yf + 0.06, "gold", "xz")
-    for s in (-1, 1):                                    # scrolled ends (volutes)
-        P = [(s * (hw + 0.1 + a * 0.9), yf + 0.06, zb + 0.28 + z * 0.9) for a, z in scroll_pts(0.4, 0.3, 0.16, 0.08, 10)]
-        curve_obj(f"ST_WB_sign_scroll{s}", P, "gold", 0.045)
-    text("ST_WB_sign_text", "Tokyo Disneyland", 0.42, (0, yf + 0.13, 5.33), (math.pi / 2, 0, math.pi), "letters", 0.03)
-    bm = bmesh.new(); bm_lathe(bm, [(0, 0), (1.0, 0), (1.0, 0.1), (0, 0.1)], 40, T(0, yf + 0.02, 4.6) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.9, 0.33, 1.0, 1.0)))
-    obj_bm("ST_WB_welcome_board", bm, "sign_red")
-    bm = bmesh.new(); bm_lathe(bm, [(0.93, 0), (1.05, 0), (1.05, 0.12), (0.93, 0.12)], 40, T(0, yf + 0.01, 4.6) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.9, 0.33, 1.0, 1.0)))
-    obj_bm("ST_WB_welcome_rim", bm, "gold")
-    font_italic = "C:/Windows/Fonts/georgiaz.ttf"
-    t = text("ST_WB_welcome_text", "Welcome", 0.3, (0, yf + 0.13, 4.6), (math.pi / 2, 0, math.pi), "letters", 0.02)
-    if pathlib.Path(font_italic).exists():
-        t.data.font = bpy.data.fonts.load(font_italic, check_existing=True)
-    # bulbs: one bulb, Array fitted to the frame's arc, Curve modifier (arc in the xz plane: stood up by rot)
-    arc = arc_curve("ST_WB_bulbarc", Rr + 0.18, math.pi / 2 + half, math.pi / 2 - half, 33, (0, yf + 0.14, zc), (math.pi / 2, 0, 0))
-    bm = bmesh.new(); bm_lathe(bm, [(0, -0.05), (0.05, 0), (0, 0.05)], 8, T(0.05, 0, 0))
+    prism("ST_WB_sign_board", [board], yf + 0.04, yf + 0.14, "sign_red", "xz")
+    rim = [(-hw - 0.07, zb - 0.07), (hw + 0.07, zb - 0.07)] + [(x * (hw + 0.07) / hw, z + 0.07) for x, z in top]
+    prism("ST_WB_sign_rim", [rim], yf, yf + 0.11, "gold", "xz")
+    prism("ST_WB_sign_moulding", [arch_band(-hw - 0.08, hw + 0.08, zs, rise, 0.13, 33, leg=0.3)], yf, yf + 0.16, "trim", "xz")
+    for s in (-1, 1):                                    # the ends curl out and down into scrolls, with a red roundel
+        P = [(s * (hw + 0.55 - a), yf + 0.08, zs - 0.42 + z) for a, z in scroll_pts(0.45, 0.42, 0.14, 0.08, 10)]
+        curve_obj(f"ST_WB_sign_scroll{s}", P, "trim", 0.05)
+        bm = bmesh.new(); bm_lathe(bm, [(0, 0), (0.2, 0), (0.2, 0.1), (0, 0.1)], 24, T(s * (hw + 0.12), yf + 0.04, zb + 0.12) @ R(-math.pi / 2, "X"))
+        obj_bm(f"ST_WB_sign_roundel{s}", bm, "sign_red")
+        bm = bmesh.new(); bm_lathe(bm, [(0.17, 0), (0.25, 0), (0.25, 0.12), (0.17, 0.12)], 24, T(s * (hw + 0.12), yf + 0.03, zb + 0.12) @ R(-math.pi / 2, "X"))
+        obj_bm(f"ST_WB_sign_roundel_rim{s}", bm, "gold")
+    # the lettering follows the arch a little (text -> mesh, then each vertex dropped along a flatter arc)
+    tm = text_mesh("ST_WB_sign_text", "Tokyo Disneyland", 0.56, (0, yf + 0.15, 5.66), (math.pi / 2, 0, math.pi), "letters", 0.03)
+    for v in tm.data.vertices:
+        v.co.y += 0.3 * (math.sqrt(max(Rr * Rr - v.co.x * v.co.x, 0.0)) - Rr)
+    arc = arc_curve("ST_WB_bulbarc", Rr - 0.09, math.pi / 2 + half * 0.97, math.pi / 2 - half * 0.97, 33, (0, yf + 0.15, zc), (math.pi / 2, 0, 0))
+    bm = bmesh.new(); bm_lathe(bm, [(0, -0.035), (0.035, 0), (0, 0.035)], 8, T(0.035, 0, 0))
     bulbs = obj_bm("ST_WB_bulbs", bm, "bulb", smooth=True)
     a = bulbs.modifiers.new("Array", "ARRAY"); a.fit_type = "FIT_CURVE"; a.curve = arc
-    a.use_relative_offset = True; a.relative_offset_displace = (3.0, 0, 0)
+    a.use_relative_offset = True; a.relative_offset_displace = (3.2, 0, 0)
     bend(bulbs, arc)
-    b2 = box("ST_WB_bulbs_low", (-hw + 0.1, -hw + 0.18, yf + 0.13, yf + 0.2, zb - 0.06, zb + 0.02), "bulb")
-    array_mod(b2, 23, (0.29, 0, 0))
-    # the medallion above the sign (gold ring, blue disc)
-    bm = bmesh.new(); bm_lathe(bm, [(0.34, 0), (0.46, 0), (0.46, 0.08), (0.34, 0.08)], 32, T(0, yf + 0.02, 6.25) @ R(-math.pi / 2, "X"))
-    obj_bm("ST_WB_medallion_ring", bm, "gold")
-    bm = bmesh.new(); bm_lathe(bm, [(0, 0), (0.35, 0), (0.35, 0.05), (0, 0.05)], 32, T(0, yf + 0.01, 6.25) @ R(-math.pi / 2, "X"))
-    obj_bm("ST_WB_medallion", bm, "blue_disc")
+    b2 = box("ST_WB_bulbs_low", (-hw + 0.1, -hw + 0.16, yf + 0.14, yf + 0.19, zb + 0.06, zb + 0.12), "bulb")
+    array_mod(b2, 22, (0.235, 0, 0))
+    # the "Welcome" cartouche: a squared oval (superellipse), in front of the board's lower edge
+    def cart(a_, b_, n=64, e=3.0):
+        return [(math.copysign(abs(math.cos(t)) ** (2 / e), math.cos(t)) * a_,
+                 4.87 + math.copysign(abs(math.sin(t)) ** (2 / e), math.sin(t)) * b_) for t in (2 * math.pi * k / n for k in range(n))]
+    prism("ST_WB_welcome_rim", [cart(1.53, 0.43)], yf + 0.14, yf + 0.22, "gold", "xz")
+    prism("ST_WB_welcome_board", [cart(1.45, 0.36)], yf + 0.16, yf + 0.25, "sign_red", "xz")
+    t = text("ST_WB_welcome_text", "Welcome", 0.32, (0, yf + 0.26, 4.86), (math.pi / 2, 0, math.pi), "letters", 0.02)
+    if pathlib.Path("C:/Windows/Fonts/georgiaz.ttf").exists():
+        t.data.font = bpy.data.fonts.load("C:/Windows/Fonts/georgiaz.ttf", check_existing=True)
+    bm, bmi = bmesh.new(), bmesh.new()                  # globe lamps on the centre columns, below the scrolls
+    for s in (-1, 1):
+        globe_lamp_bm(bm, s * 2.2, yf + 0.25, 4.72, 0.2)
+        bm_box(bmi, s * 2.2 - 0.03, s * 2.2 + 0.03, yf - 0.2, yf + 0.25, 4.45, 4.51)
+        bm_lathe(bmi, [(0, 0), (0.07, 0), (0.05, 0.1), (0, 0.1)], 8, T(s * 2.2, yf + 0.25, 4.45))
+    obj_bm("ST_WB_sign_lamps", bm, "lamp", smooth=True); obj_bm("ST_WB_sign_lamp_brackets", bmi, "iron")
 
 
-def fleur(bm, x, y, z, s=0.25):
-    """Fleur-de-lis relief on a pedestal face (three petals + band), facing +y."""
-    pts = []
-    for k in range(25):
-        t = k / 24 * 2 * math.pi
-        r = 0.5 + 0.5 * abs(math.cos(1.5 * t))
-        pts.append((x + s * r * math.sin(t) * 0.6, z + s * (0.2 + r * math.cos(t) * 0.8)))
-    bm_prism(bm, pts, y, y + 0.04, "xz")
-    bm_box(bm, x - s * 0.45, x + s * 0.45, y, y + 0.05, z - s * 0.05, z + s * 0.08)
+def baluster_run(bm_t, bm_b, p0, p1, z0, z1, step=0.24):
+    """Plinth, top rail and turned balusters from p0 to p1 (a run along x or along y)."""
+    (x0, y0), (x1, y1) = p0, p1
+    along_x = abs(y1 - y0) < 1e-6
+    L = abs(x1 - x0) if along_x else abs(y1 - y0)
+    def bx(a0, a1, w, za, zb):
+        if along_x:
+            bm_box(bm_t, min(x0, x1), max(x0, x1), y0 - w, y0 + w, za, zb)
+        else:
+            bm_box(bm_t, x0 - w, x0 + w, min(y0, y1), max(y0, y1), za, zb)
+    bx(0, L, 0.16, z0, z0 + 0.14)
+    bx(0, L, 0.18, z1 - 0.1, z1)
+    h = z1 - 0.1 - (z0 + 0.14)
+    prof = [(0, 0), (0.06, 0), (0.06, 0.06 * h), (0.035, 0.15 * h), (0.075, 0.45 * h), (0.035, 0.85 * h), (0.055, 0.92 * h), (0.055, h), (0, h)]
+    n = int(L / step)
+    for k in range(n):
+        f = (k + 0.5) / n
+        bm_lathe(bm_b, prof, 6, T(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, z0 + 0.14))
+
+
+def wb_portico(name, piers, H, ends=(True, True)):
+    """One portico: piers [(x, kind)] on the front line H["front"] (kind "pair": two slender columns side by side,
+    "cluster": three), panelled pedestals, collared shafts, square panelled blocks, thin arches with fretwork
+    (rings, C-scrolls, pendant drops), entablature, flat roof with a balustrade; ends: returns back to the wall."""
+    yf = H["front"]; ped, cap, blk, ent, rail = H["ped"], H["cap"], H["block"], H["ent"], H["rail"]
+    OFF = {"pair": [(-0.21, 0.0), (0.21, 0.0)], "cluster": [(-0.42, 0.06), (0.0, -0.24), (0.42, 0.06)]}
+    PW = {"pair": (0.6, 0.55, 0.42), "cluster": (0.8, 0.6, 0.55)}              # pedestal half x / half y, block half
+    bmp, bmc, bmr, bmk = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    for x, kind in piers:
+        px, py, pb = PW[kind]
+        bm_box(bmp, x - px - 0.05, x + px + 0.05, yf - py - 0.05, yf + py + 0.05, 0, 0.2)      # pedestal: plinth, die, cap
+        bm_box(bmp, x - px, x + px, yf - py, yf + py, 0.2, ped - 0.14)
+        bm_box(bmp, x - px - 0.05, x + px + 0.05, yf - py - 0.05, yf + py + 0.05, ped - 0.14, ped)
+        bm_box(bmk, x - px + 0.14, x + px - 0.14, yf + py, yf + py + 0.03, 0.36, ped - 0.3)     # raised panel
+        for dx, dy in OFF[kind]:
+            column_bm(bmc, x + dx, yf + dy, ped, cap - ped, 0.14, 12)
+            for f in (0.36, 0.68):                                                              # collars on the shaft
+                bm_lathe(bmr, [(0.12, 0), (0.18, 0.03), (0.18, 0.1), (0.12, 0.13)], 12, T(x + dx, yf + dy, ped + (cap - ped) * f))
+        bm_box(bmp, x - pb - 0.06, x + pb + 0.06, yf - pb - 0.06, yf + pb + 0.06, cap, cap + 0.1)  # abacus, block
+        bm_box(bmp, x - pb, x + pb, yf - pb, yf + pb, cap + 0.1, blk)
+        bm_box(bmk, x - pb + 0.1, x + pb - 0.1, yf + pb, yf + pb + 0.03, cap + 0.3, blk - 0.2)
+    obj_bm(f"ST_WB_{name}_piers", bmp, "trim"); obj_bm(f"ST_WB_{name}_panels", bmk, "trim")
+    obj_bm(f"ST_WB_{name}_columns", bmc, "trim", smooth=True); obj_bm(f"ST_WB_{name}_collars", bmr, "trim", smooth=True)
+    # arches between the blocks (and on the returns, in the yz plane): a thin rib, a ring and a C-scroll at each
+    # springing, two pendant drops under the entablature, a lantern hanging in the middle of the bay
+    spring = cap + 0.35; rise = blk - spring - 0.12
+    bma, bmf, bmd, bml, bmg = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    spans = []
+    for (xa, ka), (xb, kb) in zip(piers[:-1], piers[1:]):
+        spans.append(("x", xa + PW[ka][2], xb - PW[kb][2], yf))
+    for use, (x, kind) in zip(ends, (piers[0], piers[-1])):
+        if use:
+            spans.append(("y", 0.15, yf - PW[kind][2], x))
+    for k, (ax, a0, a1, c) in enumerate(spans):
+        plane = "xz" if ax == "x" else "yz"
+        bm_prism(bma, arch_band(a0, a1, spring, rise, 0.1, 18), c - 0.06, c + 0.06, plane)
+        def P(u, z, off=0.0):                            # (along the span, z) -> xyz
+            return (u, c + off, z) if ax == "x" else (c + off, u, z)
+        for u0, sg in ((a0, 1), (a1, -1)):
+            M = T(*P(u0 + sg * 0.42, blk - 0.33)) @ (R(-math.pi / 2, "X") if ax == "x" else R(math.pi / 2, "Y"))
+            bm_lathe(bmf, [(0.12, -0.02), (0.16, -0.02), (0.16, 0.02), (0.12, 0.02)], 16, M)
+            curve = [P(u0 + sg * a, spring - 0.3 + z) for a, z in scroll_pts(0.5, 0.65, 0.12, 0.08, 10)]
+            curve_obj(f"ST_WB_{name}_scroll{k}_{sg}", curve, "trim", 0.025)
+            bm_lathe(bmd, [(0, 0), (0.05, 0), (0.07, -0.12), (0.03, -0.25), (0, -0.33)], 8, T(*P(u0 + sg * 0.95, blk - 0.02)))
+        if ax == "x":                                    # the bay's lantern
+            m = (a0 + a1) / 2
+            bm_box(bmd, m - 0.015, m + 0.015, yf / 2 - 0.015, yf / 2 + 0.015, blk - 0.75, blk)
+            bm_lathe(bml, [(0, 0), (0.1, 0), (0.17, 0.1), (0.17, 0.4), (0.2, 0.45), (0.05, 0.6), (0, 0.6)], 6, T(m, yf / 2, blk - 1.35))
+            globe_lamp_bm(bmg, m, yf / 2, blk - 1.1, 0.11)
+    obj_bm(f"ST_WB_{name}_arches", bma, "trim"); obj_bm(f"ST_WB_{name}_rings", bmf, "trim")
+    obj_bm(f"ST_WB_{name}_drops", bmd, "trim", smooth=True); obj_bm(f"ST_WB_{name}_lanterns", bml, "iron")
+    obj_bm(f"ST_WB_{name}_lantern_glow", bmg, "lamp", smooth=True)
+    # entablature: architrave, frieze (panels over the piers and between), cornice; returns; roof, ceiling, beams
+    xl = piers[0][0] - PW[piers[0][1]][2] - 0.1; xr = piers[-1][0] + PW[piers[-1][1]][2] + 0.1
+    ent_boxes = [(xl, xr, yf - 0.45, yf + 0.45, blk, blk + 0.22), (xl, xr, yf - 0.4, yf + 0.4, blk + 0.22, ent - 0.22),
+                 (xl - 0.1, xr + 0.1, yf - 0.4, yf + 0.55, ent - 0.22, ent - 0.1), (xl - 0.15, xr + 0.15, yf - 0.4, yf + 0.62, ent - 0.1, ent)]
+    for use, x in zip(ends, (xl, xr)):
+        if use:
+            s = -1 if x == xl else 1
+            ent_boxes += [(min(x, x - s * 0.9), max(x, x - s * 0.9), 0.0, yf, blk, ent - 0.22),
+                          (min(x + s * 0.12, x - s * 0.9), max(x + s * 0.12, x - s * 0.9), 0.0, yf + 0.55, ent - 0.22, ent)]
+    box(f"ST_WB_{name}_entablature", ent_boxes, "trim", 0.015)
+    pnl = [(x - 0.3, x + 0.3, yf + 0.4, yf + 0.43, blk + 0.3, ent - 0.3) for x, _ in piers]
+    for (xa, _), (xb, _) in zip(piers[:-1], piers[1:]):
+        pnl.append((xa + 0.6, xb - 0.6, yf + 0.4, yf + 0.42, blk + 0.3, ent - 0.3))
+    box(f"ST_WB_{name}_frieze", pnl, "cream")
+    box(f"ST_WB_{name}_roof", (xl, xr, 0.0, yf, ent - 0.3, ent - 0.05), "trim")
+    box(f"ST_WB_{name}_ceiling", [(xl, xr, 0.0, yf - 0.4, blk - 0.05, blk)] + [(x - 0.18, x + 0.18, 0.0, yf, blk - 0.32, blk) for x, _ in piers], "trim")
+    box(f"ST_WB_{name}_floor", (xl - 0.3, xr + 0.3, 0.0, yf + 0.8, 0.0, 0.04), "tile")
+    # balustrade on the roof: posts over the piers, runs between them and back along the returns
+    bmt, bmb = bmesh.new(), bmesh.new()
+    yb = yf + 0.2
+    for x, kind in piers:
+        pb = PW[kind][2]
+        bm_box(bmt, x - pb, x + pb, yb - 0.4, yb + 0.4, ent, rail + 0.1)
+        bm_box(bmt, x - pb - 0.07, x + pb + 0.07, yb - 0.47, yb + 0.47, rail + 0.1, rail + 0.2)
+    for (xa, ka), (xb, kb) in zip(piers[:-1], piers[1:]):
+        baluster_run(bmt, bmb, (xa + PW[ka][2], yb), (xb - PW[kb][2], yb), ent, rail)
+    for use, (x, _) in zip(ends, (piers[0], piers[-1])):
+        if use:
+            baluster_run(bmt, bmb, (x, yb - 0.4), (x, 0.3), ent, rail)
+            bm_box(bmt, x - 0.3, x + 0.3, 0.0, 0.6, ent, rail + 0.1)
+    obj_bm(f"ST_WB_{name}_balustrade", bmt, "trim"); obj_bm(f"ST_WB_{name}_balusters", bmb, "trim")
+
+
+def paired_window(bmf, bmp, bmh, x, y, z0, z1, sw):
+    """Two arched lights in one cream surround (outer width sw, sill z0, top z1) and a segmental hood above."""
+    bm_prism(bmf, arch_opening(x - sw / 2, x + sw / 2, z0, z1 - sw * 0.3, sw * 0.3, 16), y, y + 0.1, "xz")
+    lw = sw / 2 - 0.26
+    for dx in (-1, 1):
+        xl = x + dx * (sw / 4 - 0.02)
+        bm_prism(bmp, arch_opening(xl - lw / 2, xl + lw / 2, z0 + 0.14, z1 - 0.14 - lw / 2, lw / 2, 12), y + 0.1, y + 0.12, "xz")
+    bm_prism(bmh, arch_band(x - sw / 2 - 0.12, x + sw / 2 + 0.12, z1 + 0.02, 0.28, 0.16, 16, leg=0.1), y, y + 0.2, "xz")
+    bm_box(bmh, x - 0.1, x + 0.1, y, y + 0.22, z1 + 0.15, z1 + 0.5)                             # keystone
+    bm_box(bmh, x - sw / 2 - 0.12, x + sw / 2 + 0.12, y, y + 0.2, z0 - 0.12, z0)                 # sill
+
+
+def wb_wall():
+    """The entrance building (brick, x = -12.25 .. 12.25, y = -8.5 .. 0, 8.6 m) behind the porticos: arched ground
+    floor (five arches go through to Main Street, as the photo from inside; the outermost are shop doors), a balcony over each
+    arch (corbels, dark green railing, planting), paired arched windows with hoods, brick pilasters behind the piers
+    with cream capitals, coach lamps. Sizes on the wall plane (photo, about 20 px/m there): the centre arch 3.3 m wide
+    with its crown at 3.3 m, balconies 3.5 .. 4.4 m, windows 4.45 .. 6.4 m."""
+    hw = WB_HALL["w"] / 2
+    wall = box("ST_WB_wall", (-hw, hw, WB_BACK, 0.0, 0.0, WB_HALL["base"]), "brick")
+    bays = [(0.0, 3.3, 2.5, 0.8, True)] + [(s * x, w, sp, r, th) for s in (-1, 1)
+                                           for x, w, sp, r, th in ((3.95, 2.7, 2.4, 0.65, True), (8.0, 2.2, 2.3, 0.55, True), (10.85, 1.7, 2.2, 0.45, False))]
+    cutter("ST_WB_cut_through", [arch_opening(x - w / 2, x + w / 2, -0.5, sp, r) for x, w, sp, r, th in bays if th], wall, "xz", (WB_BACK - 0.2, 0.3))
+    cutter("ST_WB_cut_doors", [arch_opening(x - w / 2, x + w / 2, -0.5, sp, r) for x, w, sp, r, th in bays if not th], wall, "xz", (-0.35, 0.3))
+    box("ST_WB_doors", [(x - w / 2, x + w / 2, -0.36, -0.3, 0.0, sp + r) for x, w, sp, r, th in bays if not th], "win_dark")
+    box("ST_WB_passage", [(x - w / 2, x + w / 2, WB_BACK, 0.0, 0.0, 0.03) for x, w, sp, r, th in bays if th], "tile")
+    prism("ST_WB_arch_bands", [arch_band(x - w / 2, x + w / 2, sp, r, 0.22, 16, leg=0.15) for x, w, sp, r, th in bays], 0.0, 0.08, "trim", "xz")
+    box("ST_WB_keystones", [(x - 0.14, x + 0.14, 0.0, 0.12, sp + r - 0.05, sp + r + 0.38) for x, w, sp, r, th in bays], "trim")
+    bms, bmr, bmg, bmfl = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bmf, bmp, bmh = bmesh.new(), bmesh.new(), bmesh.new()
+    for x, w, sp, r, th in bays:
+        bw = min(2.3, w + 0.1)
+        bm_box(bms, x - bw / 2, x + bw / 2, 0.0, 0.66, 3.5, 3.65)                               # slab, moulding, corbels
+        bm_box(bms, x - bw / 2 + 0.08, x + bw / 2 - 0.08, 0.0, 0.58, 3.38, 3.5)
+        for dx in (-1, 1):
+            bm_box(bms, x + dx * (bw / 2 - 0.25) - 0.08, x + dx * (bw / 2 - 0.25) + 0.08, 0.0, 0.5, 3.0, 3.38)
+            bm_box(bmr, x + dx * bw / 2 - 0.04, x + dx * bw / 2 + 0.04, 0.0, 0.66, 3.65, 4.42)
+        bm_box(bmr, x - bw / 2, x + bw / 2, 0.58, 0.66, 4.34, 4.42)                             # railing
+        bm_box(bmr, x - bw / 2, x + bw / 2, 0.58, 0.66, 3.65, 3.72)
+        for k in range(1, int(bw / 0.11)):
+            xx = x - bw / 2 + k * 0.11
+            bm_box(bmr, xx - 0.012, xx + 0.012, 0.6, 0.64, 3.72, 4.34)
+        bm_box(bmg, x - bw / 2 + 0.1, x + bw / 2 - 0.1, 0.12, 0.55, 3.65, 4.15)                 # planting behind it
+        for k in range(int((bw - 0.3) / 0.32)):
+            xx = x - bw / 2 + 0.3 + k * 0.32
+            bm_box(bmfl, xx - 0.09, xx + 0.09, 0.4, 0.62, 4.1, 4.36)
+        paired_window(bmf, bmp, bmh, x, 0.0, 4.45, 6.4, 1.6 if abs(x) < 5 else 1.35)
+    obj_bm("ST_WB_balconies", bms, "trim"); obj_bm("ST_WB_balcony_rails", bmr, "rail_blue")
+    obj_bm("ST_WB_balcony_planting", bmg, "hedge"); obj_bm("ST_WB_balcony_flowers", bmfl, "flowers_red")
+    obj_bm("ST_WB_window_frames", bmf, "trim"); obj_bm("ST_WB_windows", bmp, "win_dark"); obj_bm("ST_WB_window_hoods", bmh, "trim")
+    pil = [s * x for s in (-1, 1) for x in (1.975, 5.9, 9.55, 12.05)]
+    box("ST_WB_pilasters", [(x - 0.32, x + 0.32, 0.0, 0.2, 0.0, 8.0) for x in pil], "brick")
+    box("ST_WB_pilaster_caps", [(x - 0.38, x + 0.38, 0.0, 0.27, 6.3, 7.5) for x in pil] + [(x - 0.38, x + 0.38, 0.0, 0.27, 0.0, 0.5) for x in pil]
+        + [(-hw, hw, 0.0, 0.1, 7.55, 8.0)], "trim", 0.02)
+    bml, bmg2 = bmesh.new(), bmesh.new()                  # coach lamps beside the through arches
+    for x, w, sp, r, th in bays:
+        if not th:
+            continue
+        for dx in (-1, 1):
+            lx = x + dx * (w / 2 + 0.45)
+            bm_box(bml, lx - 0.03, lx + 0.03, 0.0, 0.3, 3.0, 3.06)
+            bm_lathe(bml, [(0, 0), (0.06, 0), (0.12, 0.08), (0.12, 0.34), (0.15, 0.38), (0.03, 0.5), (0, 0.5)], 6, T(lx, 0.3, 2.7))
+            globe_lamp_bm(bmg2, lx, 0.3, 2.92, 0.08)
+    obj_bm("ST_WB_wall_lamps", bml, "iron"); obj_bm("ST_WB_wall_lamp_glow", bmg2, "lamp", smooth=True)
+
+
+def wb_back():
+    """The Main Street side of the entrance building (the user's photo from inside, 2026-09-27; people 1.70 m ->
+    about 26 px/m on it): five arches through (crowns about 3 m), a cream string course at 3.6 m, tall windows upstairs
+    (three in the centre, one then two either side) with cream frames and cornices, cream pilasters, the cornice at
+    7.0 m, a dark mansard to 9.4 m with a gabled dormer in the middle and round-windowed dormers. Faces -y."""
+    yb = WB_BACK; hw = WB_HALL["w"] / 2
+    bays = [(0.0, 3.3, 2.5, 0.8)] + [(s * x, w, sp, r) for s in (-1, 1) for x, w, sp, r in ((3.95, 2.7, 2.4, 0.65), (8.0, 2.2, 2.3, 0.55))]
+    prism("ST_WB_back_arch_bands", [arch_band(x - w / 2, x + w / 2, sp, r, 0.22, 16, leg=0.15) for x, w, sp, r in bays], yb - 0.08, yb, "trim", "xz")
+    box("ST_WB_back_trim", [(x - 0.14, x + 0.14, yb - 0.12, yb, sp + r - 0.05, sp + r + 0.38) for x, w, sp, r in bays]
+        + [(-hw, hw, yb - 0.15, yb, 3.5, 3.75), (-hw, hw, yb - 0.3, yb, 6.8, 7.05), (-hw - 0.1, hw + 0.1, yb - 0.45, yb, 7.05, 7.25)]
+        + [(s * x - 0.3, s * x + 0.3, yb - 0.15, yb, 3.75, 6.8) for s in (-1, 1) for x in (1.9, 5.7, 9.9, 12.0)]
+        + [(-1.9, 1.9, yb - 0.1, yb, 6.55, 6.8)], "trim", 0.02)
+    bmf, bmp = bmesh.new(), bmesh.new()
+    for x in (-1.05, 0.0, 1.05, -3.8, 3.8, -7.3, -8.4, 7.3, 8.4, -11.0, 11.0):
+        bm_box(bmf, x - 0.5, x + 0.5, yb - 0.1, yb, 4.0, 6.1)                     # frame, cornice cap, sill
+        bm_box(bmf, x - 0.6, x + 0.6, yb - 0.25, yb, 6.1, 6.3)
+        bm_box(bmf, x - 0.56, x + 0.56, yb - 0.18, yb, 3.88, 4.0)
+        bm_box(bmp, x - 0.37, x + 0.37, yb - 0.12, yb - 0.1, 4.14, 5.96)
+        bm_box(bmf, x - 0.02, x + 0.02, yb - 0.14, yb - 0.1, 4.14, 5.96)          # glazing bars
+        bm_box(bmf, x - 0.37, x + 0.37, yb - 0.14, yb - 0.1, 5.28, 5.32)
+    # mansard (steep face, flat top up to the gable) and dormers
+    bm = bmesh.new()
+    V = lambda x, y, z: bm.verts.new((x, y, z))
+    a, b_, c, d = V(-hw, yb - 0.3, 7.25), V(hw, yb - 0.3, 7.25), V(hw, yb + 1.3, 9.4), V(-hw, yb + 1.3, 9.4)
+    e, f = V(hw, WB_HALL["y"], 9.4), V(-hw, WB_HALL["y"], 9.4)
+    g, h = V(hw, WB_HALL["y"], 7.25), V(-hw, WB_HALL["y"], 7.25)
+    for q in ((a, b_, c, d), (d, c, e, f), (b_, g, e, c), (a, d, f, h)):
+        bm.faces.new(q)
+    obj_bm("ST_WB_back_mansard", bm, "mauve")
+    bmd = bmesh.new()
+    bm_box(bmd, -1.1, 1.1, yb - 0.2, yb + 1.5, 7.2, 9.3)
+    bm_prism(bmd, [(-1.35, 9.25), (1.35, 9.25), (0, 10.05)], yb - 0.3, yb + 1.5, "xz")
+    bm_box(bmd, -1.35, 1.35, yb - 0.32, yb, 9.2, 9.3)
+    bm_prism(bmp, arch_opening(-0.45, 0.45, 7.6, 8.55, 0.45, 12), yb - 0.23, yb - 0.21, "xz")
+    for s in (-1, 1):
+        for x in (4.4, 8.6):
+            bm_box(bmd, s * x - 0.6, s * x + 0.6, yb, yb + 1.3, 7.2, 8.4)
+            bm_prism(bmd, [(s * x - 0.78, 8.35), (s * x + 0.78, 8.35), (s * x, 9.0)], yb - 0.08, yb + 1.3, "xz")
+            bm_lathe(bmd, [(0.27, 0), (0.38, 0), (0.38, 0.08), (0.27, 0.08)], 20, T(s * x, yb, 7.85) @ R(math.pi / 2, "X"))
+            bm_lathe(bmp, [(0, 0), (0.28, 0), (0.28, 0.02), (0, 0.02)], 20, T(s * x, yb + 0.01, 7.85) @ R(math.pi / 2, "X"))
+    obj_bm("ST_WB_back_window_frames", bmf, "trim"); obj_bm("ST_WB_back_windows", bmp, "win_dark"); obj_bm("ST_WB_back_dormers", bmd, "trim")
+
+
+def wb_hall():
+    """The glass hall over Main Street: its front gable stands on the back of the entrance building (y = -4.8), 24.5 m
+    wide, eaves 12.1 m, ridge 16.2 m (photo: the gable's width equals the OSM gap, so it is ~1.5 times as far as the
+    portico face). Green iron: mullions with round-arched heads, big arches in the lower band, rakes, rafters, purlins."""
+    H = WB_HALL; hw = H["w"] / 2; y0, zb, ze, zr, yb = H["y"], H["base"], H["eave"], H["ridge"], H["back"]
+    zg = lambda x: ze + (zr - ze) * (1 - abs(x) / hw)
+    prism("ST_WB_hall_gable_glass", [[(-hw, zb), (hw, zb), (hw, ze), (0, zr), (-hw, ze)]], y0 - 0.03, y0, "hall_glass", "xz")
+    bm = bmesh.new(); bma = bmesh.new()
+    n = 20; step = 2 * hw / n
+    for k in range(n + 1):
+        x = -hw + k * step
+        bm_box(bm, x - 0.06, x + 0.06, y0, y0 + 0.1, zb, zg(x))
+    for z in (zb, 10.3, ze):
+        bm_box(bm, -hw, hw, y0, y0 + 0.12, z - 0.08, z + 0.08)
+    for k in range(n):
+        xa, xb = -hw + k * step + 0.06, -hw + (k + 1) * step - 0.06
+        bm_prism(bma, arch_band(xa, xb, ze - 0.62, (xb - xa) / 2, 0.06, 10), y0, y0 + 0.08, "xz")
+        top = min(zg(xa), zg(xb))
+        if top - ze > 1.1:                                # lancets under the rakes
+            bm_prism(bma, arch_band(xa, xb, top - 0.75, (xb - xa) / 2, 0.06, 10), y0, y0 + 0.08, "xz")
+            bm_box(bm, xa, xb, y0, y0 + 0.08, top - 0.8, top - 0.72)
+    for cx, r0 in ((0.0, 3.3), (-7.35, 2.45), (7.35, 2.45)):  # the big arches (the centre one with a fan)
+        bm_prism(bma, ring_sector(r0, r0 + 0.16, 0, math.pi, 33, cx, 9.2), y0, y0 + 0.14, "xz")
+        for j in range(1, 6 if cx == 0 else 4):
+            a = math.pi * j / (6 if cx == 0 else 4); ux, uz = math.cos(a), math.sin(a); nx, nz = -uz * 0.04, ux * 0.04
+            bm_prism(bma, [(cx + ux * 0.4 + nx, 9.2 + uz * 0.4 + nz), (cx + ux * r0 + nx, 9.2 + uz * r0 + nz),
+                           (cx + ux * r0 - nx, 9.2 + uz * r0 - nz), (cx + ux * 0.4 - nx, 9.2 + uz * 0.4 - nz)], y0, y0 + 0.1, "xz")
+        bm_prism(bma, ring_sector(0.3, 0.42, 0, math.pi, 17, cx, 9.2), y0, y0 + 0.12, "xz")
+    for s in (-1, 1):                                    # the rakes
+        bm_prism(bm, [(s * (hw + 0.3), ze - 0.15), (0, zr - 0.1), (0, zr + 0.3), (s * (hw + 0.3), ze + 0.25)][::s], y0 - 0.1, y0 + 0.2, "xz")
+    obj_bm("ST_WB_hall_frame", bm, "hall_iron"); obj_bm("ST_WB_hall_tracery", bma, "hall_iron")
+    # roof and side walls
+    bm = bmesh.new()
+    for s in (-1, 1):
+        v = [bm.verts.new(p) for p in ((s * hw, y0, ze), (0, y0, zr), (0, yb, zr), (s * hw, yb, ze))]
+        bm.faces.new(v)
+        v = [bm.verts.new(p) for p in ((s * hw, y0, zb), (s * hw, y0, ze), (s * hw, yb, ze), (s * hw, yb, zb))]
+        bm.faces.new(v)
+    obj_bm("ST_WB_hall_roof_glass", bm, "hall_glass", recalc=False)
+    bm = bmesh.new()
+    chevron = [(-hw - 0.3, ze - 0.05), (0, zr - 0.05), (hw + 0.3, ze - 0.05), (hw + 0.3, ze + 0.2), (0, zr + 0.2), (-hw - 0.3, ze + 0.2)]
+    y = y0 - 3.0
+    while y > yb:
+        bm_prism(bm, chevron, y - 0.08, y + 0.08, "xz")
+        for s in (-1, 1):
+            bm_box(bm, s * hw - 0.08, s * hw + 0.08, y - 0.08, y + 0.08, zb, ze)
+        y -= 3.0
+    for f in (0.0, 0.25, 0.5, 0.75):
+        for s in (-1, 1):
+            x = s * hw * (1 - f); z = ze + (zr - ze) * f
+            bm_box(bm, x - 0.07, x + 0.07, yb, y0, z - 0.02, z + 0.2)
+    bm_box(bm, -0.15, 0.15, yb, y0, zr - 0.05, zr + 0.35)
+    obj_bm("ST_WB_hall_rafters", bm, "hall_iron")
+    bm = bmesh.new()                                      # arched trusses under the roof (the photo from inside)
+    y = WB_BACK - 1.0                                     # (none here since the roof ends at the building: ds_tdl_world_bazaar)
+    while y > yb:
+        bm_prism(bm, arch_band(-hw, hw, zb, zr - 0.6 - zb, 0.3, 33), y - 0.1, y + 0.1, "xz")
+        bm_prism(bm, arch_band(-hw + 0.9, hw - 0.9, zb, zr - 1.5 - zb, 0.12, 33), y - 0.06, y + 0.06, "xz")
+        for s in (-1, 1):
+            bm_box(bm, s * hw - 0.2, s * hw + 0.2, y - 0.2, y + 0.2, zb - 0.6, zb)
+        y -= 6.0
+    obj_bm("ST_WB_hall_trusses", bm, "hall_iron")
+
+
+def wb_shops(s):
+    """The shops either side (OSM 365357846 / 72216851, 8.85 m), x = 12.25 .. 35.5 on side s: cream walls, an arcade
+    in front (y 0 .. 2.8, columns, arches, a balustrade with ball finials on its roof), paired arched windows upstairs,
+    a maroon mansard to 8.85 m with round dormers (photo and the sunset photo)."""
+    X = lambda a, b: (min(s * a, s * b), max(s * a, s * b))
+    x0, x1 = 12.25, 35.5
+    box(f"ST_WB_shop{s}_wall", (*X(x0, x1), -8.0, 0.0, 0.0, 7.0), "cream")
+    box(f"ST_WB_shop{s}_cornice", [(*X(x0, x1), 0.0, 0.1, 6.55, 6.95), (*X(x0, x1), 0.0, 0.3, 6.95, 7.15), (*X(x0, x1), 0.0, 0.4, 7.15, 7.3)], "trim", 0.02)
+    bm = bmesh.new()                                      # mansard: steep front, flat top
+    V = lambda x, y, z: bm.verts.new((s * x, y, z))
+    a, b_, c, d = V(x0, 0.25, 7.3), V(x1, 0.25, 7.3), V(x1, -1.1, 8.85), V(x0, -1.1, 8.85)
+    e, f = V(x1, -8.0, 8.85), V(x0, -8.0, 8.85)
+    g, h = V(x1, -8.0, 7.3), V(x0, -8.0, 7.3)
+    for q in ((a, b_, c, d), (d, c, e, f), (b_, g, e, c), (a, d, f, h)):
+        bm.faces.new(q if s > 0 else q[::-1])
+    obj_bm(f"ST_WB_shop{s}_mansard", bm, "mauve")
+    xs = [13.6 + k * (x1 - 13.6) / 7 for k in range(8)]
+    bmc, bmp, bma, bmd, bmo, bmr = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bmf, bmw, bmh, bmt, bmb = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    for x in xs:
+        bm_box(bmp, s * x - 0.28, s * x + 0.28, 2.52, 3.08, 0.0, 0.55)
+        column_bm(bmc, s * x, 2.8, 0.55, 2.65, 0.12, 12)
+    for xa, xb in zip(xs[:-1], xs[1:]):
+        a0, a1 = sorted((s * (xa + 0.25), s * (xb - 0.25)))
+        bm_prism(bma, arch_band(a0, a1, 3.3, 0.45, 0.1, 14), 2.74, 2.86, "xz")
+        m = s * (xa + xb) / 2
+        bm_box(bmw, m - 1.0, m + 1.0, 0.0, 0.03, 0.3, 3.1)                     # shopfront: frame, glass
+        bm_box(bmo, m - 0.9, m + 0.9, 0.03, 0.06, 0.4, 3.0)
+    for k in (1, 3, 5):                                   # windows upstairs, a dormer over each
+        m = s * (xs[k] + xs[k + 1]) / 2
+        paired_window(bmf, bmo, bmh, m, 0.0, 5.0, 6.35, 1.35)
+        bm_box(bmd, m - 0.7, m + 0.7, -0.6, 0.55, 7.2, 8.3)
+        bm_prism(bmd, [(m - 0.85, 8.25), (m + 0.85, 8.25)] + seg_arc(m, 8.25, 1.7, 0.35, 12)[0], -0.6, 0.62, "xz")
+        bm_lathe(bmd, [(0.3, 0), (0.42, 0), (0.42, 0.08), (0.3, 0.08)], 20, T(m, 0.55, 7.75) @ R(-math.pi / 2, "X"))
+        bm_lathe(bmo, [(0, 0), (0.31, 0), (0.31, 0.02), (0, 0.02)], 20, T(m, 0.54, 7.75) @ R(-math.pi / 2, "X"))
+    ax0, ax1 = sorted((s * (xs[0] - 0.3), s * (xs[-1] + 0.3)))
+    box(f"ST_WB_shop{s}_arcade", [(ax0, ax1, 2.4, 3.2, 3.85, 4.1), (ax0 - 0.08, ax1 + 0.08, 2.35, 3.3, 4.1, 4.35),
+                                  (ax0, ax1, 0.0, 2.8, 4.15, 4.3), (ax0, ax1, 0.0, 2.5, 3.8, 3.85)], "trim", 0.015)
+    box(f"ST_WB_shop{s}_arcade_floor", (ax0, ax1, 0.0, 3.3, 0.0, 0.04), "tile")
+    for x in xs:                                          # balustrade on the arcade roof, ball finials on alternate posts
+        bm_box(bmt, s * x - 0.22, s * x + 0.22, 2.58, 3.02, 4.35, 5.2)
+    for i, x in enumerate(xs):
+        if i % 2 == 0:
+            bm_lathe(bmr, [(0, 0), (0.12, 0), (0.06, 0.08)] + [(0.18 * math.sin(math.pi * j / 8), 0.26 - 0.18 * math.cos(math.pi * j / 8)) for j in range(1, 9)], 12, T(s * x, 2.8, 5.2))
+    for xa, xb in zip(xs[:-1], xs[1:]):
+        baluster_run(bmt, bmb, (s * (xa + 0.22), 2.8), (s * (xb - 0.22), 2.8), 4.35, 5.1)
+    for nm, bm_, mt, sm in (("columns", bmc, "trim", True), ("pedestals", bmp, "trim", False), ("arches", bma, "trim", False),
+                            ("dormers", bmd, "trim", False), ("glass", bmo, "win_dark", False), ("finials", bmr, "trim", True),
+                            ("frames", bmw, "trim", False), ("window_frames", bmf, "trim", False), ("hoods", bmh, "trim", False),
+                            ("balustrade", bmt, "trim", False), ("balusters", bmb, "trim", False)):
+        obj_bm(f"ST_WB_shop{s}_{nm}", bm_, mt, smooth=sm)
+
+
+def wb_people():
+    """1.70 m figures for checking the scale (as in the user's photo); only in the check renders, not in the mock."""
+    bm, bmh = bmesh.new(), bmesh.new()
+    for x, y in ((-2.9, 5.3), (-0.4, 6.8), (1.1, 9.5), (3.0, 5.4), (-8.0, 4.4), (17.0, 3.6), (0.3, 1.2)):
+        bm_lathe(bm, [(0, 0), (0.12, 0), (0.13, 0.8), (0.19, 0.9), (0.21, 1.3), (0.17, 1.45), (0.06, 1.5), (0, 1.5)], 12, T(x, y, 0))
+        globe_lamp_bm(bmh, x, y, 1.595, 0.105)
+    obj_bm("CTX_WB_people", bm, "person", smooth=True); obj_bm("CTX_WB_heads", bmh, "person", smooth=True)
 
 
 def build_world_bazaar():
     with frame("WB_frame", WB["x"], WB["y"], WB["ang"]):
-        build_sign(5.3)                                   # 1. the sign (+ bulbs, medallion) first, as in the video
-        # 2. pillars: panelled pedestal with a fleur-de-lis, slender shaft, capital; globe lamps on the inner pair
-        xs = [-20.0, -12.5, -3.4, 3.4, 12.5, 20.0]
-        bm_p, bm_f, bm_c = bmesh.new(), bmesh.new(), bmesh.new()
-        for x in xs:
-            for y in (0.45, 5.2):
-                bm_box(bm_p, x - 0.55, x + 0.55, y - 0.55, y + 0.55, 0, 1.5)
-                bm_box(bm_p, x - 0.62, x + 0.62, y - 0.62, y + 0.62, 1.5, 1.62)
-                column_bm(bm_c, x, y, 1.62, 6.6 - 1.62, 0.2, 16)
-                if y > 1:
-                    fleur(bm_f, x, y + 0.55, 0.85)
-        obj_bm("ST_WB_pedestals", bm_p, "trim"); obj_bm("ST_WB_fleurs", bm_f, "gold"); obj_bm("ST_WB_columns", bm_c, "trim", smooth=True)
-        bm = bmesh.new()
-        for x in (-3.4, 3.4):
-            globe_lamp_bm(bm, x, 5.2, 6.0, 0.22)
-        obj_bm("ST_WB_lamps", bm, "lamp", smooth=True)
-        # 3. beams: entablature, frieze panels (one + Array), cornice, balustrade (balusters: one + Array)
-        box("ST_WB_entablature", [(-20.8, 20.8, -0.2, 5.8, 6.6, 7.4), (-21.0, 21.0, -0.2, 6.0, 7.4, 7.6)], "trim", 0.02)
-        pnl = box("ST_WB_frieze", (-20.0, -18.6, 5.8, 5.84, 6.75, 7.25), "cream"); array_mod(pnl, 21, (1.9, 0, 0))
-        box("ST_WB_balustrade", [(-21.0, 21.0, 5.55, 5.95, 8.3, 8.45), (-21.0, 21.0, 5.55, 5.95, 7.6, 7.72)] +
-            [(x - 0.3, x + 0.3, 5.45, 6.05, 7.6, 8.6) for x in xs], "trim")
-        bal = box("ST_WB_balusters", (-20.6, -20.5, 5.7, 5.8, 7.72, 8.3), "trim"); array_mod(bal, 140, (0.295, 0, 0))
-        box("ST_WB_porch_ceiling", (-20.8, 20.8, -0.2, 5.8, 6.5, 6.6), "trim")
-        # 4. arched frames between the columns: fretwork plates with segmental openings, rings in the spandrels
-        bm = bmesh.new(); bmr = bmesh.new()
-        for a, b in zip(xs[:-1], xs[1:]):
-            pts, _ = seg_arc((a + b) / 2, 5.4, b - a - 0.4, min(1.0, (b - a) / 6), 20)
-            bm_prism(bm, [(b - 0.2, 6.6), (a + 0.2, 6.6)] + pts[::-1], 5.15, 5.25, "xz")
-            for cx in (a + 0.9, b - 0.9):
-                bm_lathe(bmr, [(0.16, 0), (0.22, 0), (0.22, 0.06), (0.16, 0.06)], 16, T(cx, 5.27, 6.25) @ R(-math.pi / 2, "X"))
-        obj_bm("ST_WB_arches", bm, "trim"); obj_bm("ST_WB_rings", bmr, "trim")
-        # 5. the brick facade behind: arched ground floor, balconies, paired arched windows, pilasters, cornice
-        fw = box("ST_WB_facade", (-22.0, 22.0, -14.0, 0.0, 0.0, 8.4), "brick")
-        bays = [-16.0, -8.0, 0.0, 8.0, 16.0]
-        ground = [arch_opening(x - (2.2 if x == 0 else 1.6), x + (2.2 if x == 0 else 1.6), -1, 2.9, 0.9, 16) for x in bays]
-        upper = [arch_opening(x + dx - 0.45, x + dx + 0.45, 4.6, 6.2, 0.45, 12) for x in bays for dx in (-0.6, 0.6)]
-        cutter("ST_WB_cut_ground", ground, fw, "xz", (-0.6, 0.6))
-        cutter("ST_WB_cut_passage", [ground[2]], fw, "xz", (-14.5, 0.6))
-        cutter("ST_WB_cut_upper", upper, fw, "xz", (-0.3, 0.6))
-        box("ST_WB_shopfronts", [(x - 1.5, x + 1.5, -0.45, -0.4, 0, 3.6) for x in bays if x != 0], "win_dark")
-        box("ST_WB_windows", [(x + dx - 0.45, x + dx + 0.45, -0.22, -0.18, 4.6, 6.7) for x in bays for dx in (-0.6, 0.6)], "win_dark")
-        prism("ST_WB_arch_bands", [arch_band(x - (2.2 if x == 0 else 1.6), x + (2.2 if x == 0 else 1.6), 2.9, 0.9, 0.35, 16, leg=0.2) for x in bays]
-              + [arch_band(x - 1.15, x + 1.15, 6.2, 0.7, 0.2, 14, leg=0.15) for x in bays], 0.0, 0.1, "trim", "xz")
-        box("ST_WB_pilasters", [(x - 0.35, x + 0.35, 0.0, 0.18, 0.0, 8.4) for x in (-20, -12, -4, 4, 12, 20)], "trim", 0.02)
-        box("ST_WB_courses", [(-22.2, 22.2, -0.1, 0.22, 3.9, 4.15), (-22.3, 22.3, -0.1, 0.35, 8.0, 8.45), (-22.4, 22.4, -0.1, 0.4, 8.45, 8.6)], "trim", 0.02)
-        box("ST_WB_parapet", (-22.0, 22.0, -0.3, 0.0, 8.6, 9.3), "brick")
-        # balconies under the upper windows: slab, corbels, blue-green rails, flower boxes
-        box("ST_WB_balcony_slabs", [(x - 1.35, x + 1.35, 0.0, 0.75, 4.2, 4.35) for x in bays], "trim", 0.02)
-        box("ST_WB_balcony_corbels", [(x + dx - 0.08, x + dx + 0.08, 0.0, 0.6, 3.95, 4.2) for x in bays for dx in (-1.1, 1.1)], "trim")
-        box("ST_WB_balcony_rails", [(x - 1.35, x + 1.35, 0.68, 0.75, 4.35, 5.25) for x in bays] +
-            [(x + s * 1.35 - 0.04, x + s * 1.35 + 0.03, 0.0, 0.75, 4.35, 5.25) for x in bays for s in (-1, 1)], "rail_blue")
-        box("ST_WB_flower_boxes", [(x - 1.2, x + 1.2, 0.5, 0.68, 4.9, 5.2) for x in bays], "flowers_red")
-        bm = bmesh.new()                                  # passage ceiling / Main Street glimpse
-        bm_box(bm, -2.2, 2.2, -14.0, 0.0, 3.75, 3.85)
-        obj_bm("ST_WB_passage_ceiling", bm, "trim")
-        bm = bmesh.new()
-        for x in bays:
-            for s in (-1, 1):
-                if x == 0:
-                    continue
-                globe_lamp_bm(bm, x + s * 2.1, 0.35, 3.3, 0.12)
-        obj_bm("ST_WB_wall_lamps", bm, "lamp", smooth=True)
-        box("ST_WB_porch_floor", (-21.0, 21.0, -0.2, 6.2, 0.0, 0.05), "tile")
+        wb_sign(WB_C["front"] + 0.2)                      # 1. the sign first, as in the video
+        wb_portico("centre", [(-5.9, "cluster"), (-1.975, "pair"), (1.975, "pair"), (5.9, "cluster")], WB_C)   # 2. pillars, beams, arches
+        for s in (-1, 1):                                 # piers listed left to right
+            wb_portico(f"wing{s}", sorted((s * x, "pair") for x in (6.35, 9.65, 13.0)), WB_W, (s < 0, s > 0))
+        wb_wall()                                         # 3. the brick building behind, and its Main Street side
+        wb_back()
+        wb_hall()
+        for s in (-1, 1):
+            wb_shops(s)
 
 
 # ================================================================ 2. the main entrance gates: one bay + Array + Curve
@@ -610,14 +912,18 @@ def build_plaza(context=True):
 # ================================================================ scene
 def cams():
     a = math.radians(ARC["a_mid"]); pav = arc_point(ARC["a_mid"]); ou = (math.cos(a), math.sin(a))
-    wd = (-math.sin(math.radians(WB["ang"])), math.cos(math.radians(WB["ang"])))
-    wb = (WB["x"], WB["y"])
+    def wbp(lx, ly):                                      # World Bazaar local (x along the front, y to the plaza) -> plan
+        a = math.radians(WB["ang"])
+        return (WB["x"] + lx * math.cos(a) - ly * math.sin(a), WB["y"] + lx * math.sin(a) + ly * math.cos(a))
     return {
         "gate_out": ((pav[0] + ou[0] * 32, pav[1] + ou[1] * 32, 1.7), (pav[0], pav[1], 6.0), 24),
         "gate_in": ((pav[0] - ou[0] * 17, pav[1] - ou[1] * 17, 1.7), (pav[0], pav[1], 6.0), 20),
         "gates_arc": ((ARC["cx"] + 5, ARC["cy"] + 10, 2.0), (arc_point(160)[0], arc_point(160)[1], 4.0), 20),
-        "wb_porch": ((wb[0] + wd[0] * 24, wb[1] + wd[1] * 24, 1.7), (wb[0] + wd[0] * 4, wb[1] + wd[1] * 4, 5.0), 26),
-        "wb_sign": ((wb[0] + wd[0] * 10.5, wb[1] + wd[1] * 10.5, 1.5), (wb[0] + wd[0] * 5.3, wb[1] + wd[1] * 5.3, 5.6), 18),
+        "wb_photo": ((*wbp(0.0, 20.3), 1.65), (*wbp(0.0, 4.6), 6.4), 19),      # as the user's photo: just outside the bed's fence
+        "wb_front": ((*wbp(-30.0, 42.0), 1.7), (*wbp(0.0, 0.0), 7.5), 24),     # the whole front, beside the flowerbed
+        "wb_porch": ((*wbp(9.0, 14.0), 1.7), (*wbp(-2.0, 2.0), 5.5), 20),
+        "wb_sign": ((*wbp(0.0, 11.5), 1.6), (*wbp(0.0, 4.8), 5.4), 22),
+        "wb_back": ((*wbp(0.0, -36.0), 1.6), (*wbp(0.0, WB_BACK), 6.5), 22),  # from Main Street, as the user's photo
         "flowerbed": bed_cam(20.5, 1.7, 16),              # from the gates' side, as the photos (the face reads upright)
         "flowerbed_top": bed_cam(26.0, 14.0, 26),
         "flowerbed_plan": ((BED["x"], BED["y"] - 0.01, 70.0), (BED["x"], BED["y"], 0.0), 35),   # straight down
@@ -634,9 +940,14 @@ def build(context=True):
     B.hide = []
     B.M = extra_materials(ST.materials())
     t0 = time.time()
-    build_world_bazaar()                                  # the video's subject, in its order (sign, pillars, beams, arches, facade)
+    build_world_bazaar()                                  # the video's subject, in its order (sign, pillars, beams, arches, building)
     build_gates()
     build_plaza(context)
+    if context:                                           # 1.70 m figures at the World Bazaar portico, for the scale
+        old = B.col; B.col = bpy.data.collections["Context"]
+        with frame("WB_people", WB["x"], WB["y"], WB["ang"]):
+            wb_people()
+        B.col = old
     out = {}                                              # (the cutters keep their frame as parent: they are in its coordinates)
     for name, (loc, tgt, lens) in cams().items():
         cam = bpy.data.cameras.new("CAM_" + name); cam.lens = lens; cam.clip_start = 0.05; cam.clip_end = 3000
@@ -676,7 +987,7 @@ def export_objects(merged):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cams", default="gate_in,gate_out,gates_arc,wb_porch,wb_sign,flowerbed,aerial")
+    ap.add_argument("--cams", default="gate_in,gate_out,gates_arc,wb_photo,wb_front,wb_porch,wb_sign,wb_back,flowerbed,aerial")
     ap.add_argument("--samples", type=int, default=32)
     ap.add_argument("--percent", type=int, default=60)
     ap.add_argument("--quick", action="store_true")

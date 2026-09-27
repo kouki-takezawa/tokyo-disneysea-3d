@@ -233,6 +233,7 @@ def main():
               ("plaza", "paths", []), ("volcano", "landmarks", ["volc"]),   # plaza ground: shown with the 園路 layer; the path lines elsewhere stay
               ("tdl_station", "maihama", ["mhstation"]),                    # ds_tdl_station.py: replaces the station building's box
               ("tdl_entrance", "disneyland", []),                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
+              ("tdl_world_bazaar", "disneyland", ["dlwbroof"]),             # ds_tdl_world_bazaar.py: Main / Center Street under the glass roof
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
@@ -246,6 +247,8 @@ def main():
                      for i, lay, hides in MODELS if (mdir / f"{i}.json").exists()]
     if (mdir / "train.json").exists():   # the Resort Line cars (export_models.py --parts train), posed by the page's timetable
         out["train"] = "models/train.json"
+    if (mdir / "woody.json").exists():   # the walker (woody.py --web-glb, glb_to_json): replaces the box figure in 散歩
+        out["woody"] = "models/woody.json"
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
