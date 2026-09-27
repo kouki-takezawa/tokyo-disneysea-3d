@@ -657,6 +657,7 @@ $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
+  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"],
   ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
@@ -1636,6 +1637,14 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_wbz_awning_white: { color: 0xefece4, roughness: 0.9 }, ST_wbz_awning_blue: { color: 0x3d5a8a, roughness: 0.9 },
   ST_wbz_shingle: { color: 0x59626e, roughness: 0.8 }, ST_wbz_clock: { color: 0xf6f3ea, emissive: 0x77736a, emissiveIntensity: 0.4 },
   ST_wbz_leaf: { color: 0x44702f, roughness: 1, flatShading: true }, ST_wbz_wood: { color: 0x7d5a3c, roughness: 0.9 },
+  // 東京ディズニーランドホテル (ds_tdl_hotel.py): meshes HO_<material>
+  ST_hotel_cream: { color: 0xeedcb4, roughness: 0.75 }, ST_hotel_gold: { color: 0xd9b477, roughness: 0.6 }, ST_hotel_slate: { color: 0x55647c, roughness: 0.55 },
+  ST_hotel_gilt: { color: 0xd8aa4c, roughness: 0.35, metalness: 0.6 }, ST_hotel_bronze: { color: 0x7a5530, roughness: 0.4, metalness: 0.5 },
+  ST_hotel_iron: { color: 0x1d2323, roughness: 0.5, metalness: 0.4 }, ST_hotel_win: { color: 0x1c2630, roughness: 0.2 },
+  ST_hotel_glass: { color: 0x9fb8ae, roughness: 0.05, transparent: true, opacity: 0.45, depthWrite: false },
+  ST_hotel_brick: { color: 0x8a3e2c, roughness: 0.9 }, ST_hotel_paving1: { color: 0xc98a7c, roughness: 0.85 }, ST_hotel_paving2: { color: 0xb8b2a8, roughness: 0.85 },
+  ST_hotel_leaf: { color: 0x3a6a2c, roughness: 1, flatShading: true }, ST_hotel_flpurple: { color: 0x5c2a80, roughness: 0.9 },
+  ST_hotel_lamp: { color: 0xfff3d6, emissive: 0xffd88a, emissiveIntensity: 1.0 },
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
   TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
@@ -1813,7 +1822,7 @@ async function loadModels(T, scene, root, list = D.models) {
     await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
-        const nm = /^(EN|TK|WZ)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
+        const nm = /^(EN|TK|WZ|HO)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (o.name.startsWith("WS_water")) { o.material = makeWater(T); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
@@ -2227,7 +2236,7 @@ async function init3D() {
     // platforms: JR at its viaduct; the Resort Line's at the car floor (1 m above the beam top)
     MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : MH.loop_z + 1.9; prism("mhline", r, z - 0.4, z); });
     // station buildings get their own key, so a Blender station model can replace its box only
-    MH.places.forEach(p => p.r.forEach(r => prism(p.k === "station" ? "mhstation" : "mhplace", r, p.z || 0, (p.z || 0) + p.h)));
+    MH.places.forEach(p => p.r.forEach(r => prism(p.key || (p.k === "station" ? "mhstation" : "mhplace"), r, p.z || 0, (p.z || 0) + p.h)));
     MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
   }
   (D.parking || []).forEach(p => p.r.forEach(r => p.k === "multi" ? prism("lot", r, p.z || 0, (p.z || 0) + (p.h || 15)) : ringH("lot", r, 0.08)));
@@ -2241,13 +2250,13 @@ async function init3D() {
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
     dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland",
-    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhwalk: "maihama", lot: "parking" };
+    mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhtdlhotel: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
     dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0",
-    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhwalk: "--mh", lot: "--lot" };
+    mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhtdlhotel: "--muted", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {
     const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));

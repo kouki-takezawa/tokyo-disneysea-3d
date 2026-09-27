@@ -22,7 +22,8 @@ TDL_PARK_WAY = 1282875870          # 東京ディズニーランド (tourism=the
 TDS_PARK_WAY = 203538370           # 東京ディズニーシー: its contents are drawn by the DisneySea layers
 MAIHAMA_STATION = "舞浜"
 POI_REACH = 90.0
-MODEL_KEYS = {72216847: "dlwbroof"}   # World Bazaar's glass roof -> ds_tdl_world_bazaar.py
+MODEL_KEYS = {72216847: "dlwbroof"}
+PLACE_MODEL_KEYS = {"東京ディズニーランドホテル": "mhtdlhotel"}   # -> ds_tdl_hotel.py   # World Bazaar's glass roof -> ds_tdl_world_bazaar.py
 DEFAULT_H, OTHER_H = 12.0, 10.0    # estimates for untagged buildings (m)
 JR_Z = 10.0                        # Keiyo Line viaduct height above the promenade datum (estimate)
 # Resort Line beam: the mock draws it from RESORT_LINE_Z to RESORT_LINE_Z + 0.9. Its top (4.21 m on the datum) is the
@@ -291,6 +292,7 @@ def build(datum):
         if not outside_parks(cx, cy) and kind != "station": return
         h = height(tags, OTHER) if (tags.get("height") or tags.get("building:levels")) else {"hotel": 30.0, "mall": 15.0, "station": 9.0}[kind]
         places.append({"n": tags.get("name", ""), "k": kind, "r": [R(r) for r in rings], "h": round(h, 1), "z": z_of(cx, cy)})
+        if tags.get("name") in PLACE_MODEL_KEYS: places[-1]["key"] = PLACE_MODEL_KEYS[tags["name"]]   # a Blender model replaces it
     for w in DATA["ways"]:
         t = w["tags"]
         if not w["closed"]: continue
