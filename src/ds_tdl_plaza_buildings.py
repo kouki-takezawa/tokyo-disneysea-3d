@@ -56,7 +56,7 @@ BUILDINGS = {
 def materials(M):
     P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
     for k, c in (("pb_cream", (0.90, 0.84, 0.68)), ("pb_sand", (0.86, 0.74, 0.56)), ("pb_pink", (0.86, 0.66, 0.62)),
-                 ("pb_tan", (0.80, 0.68, 0.52))):
+                 ("pb_tan", (0.84, 0.71, 0.48))):
         mat, nt, b = _principled("st_" + k, c, 0.7); _mottle(nt, b, c, 6.0, 0.93, 0.03); M[k] = mat
     M["pb_white"] = P("st_pb_white", (0.94, 0.93, 0.89), 0.5)
     M["pb_green"] = P("st_pb_green", (0.16, 0.30, 0.24), 0.55)
@@ -65,7 +65,13 @@ def materials(M):
     M["pb_stripe"] = P("st_pb_stripe", (0.20, 0.36, 0.30), 0.8)                    # the awnings' thin green stripes (photo)
     M["pb_navy"] = P("st_pb_navy", (0.05, 0.10, 0.28), 0.4)                        # Monsters, Inc.: the signs' panels
     M["pb_cyan"] = P("st_pb_cyan", (0.35, 0.75, 0.95), 0.35, Emission_Color=(0.35, 0.75, 0.95, 1), Emission_Strength=0.3)
-    M["pb_tan2"] = P("st_pb_tan2", (0.62, 0.50, 0.36), 0.85)                       # the tower's recesses, the dome's joints
+    M["pb_tan2"] = P("st_pb_tan2", (0.58, 0.46, 0.31), 0.85)                       # the tower's recesses, the dome's joints
+    M["pb_tan3"] = P("st_pb_tan3", (0.92, 0.82, 0.62), 0.75)                       # the lighter coping, panels, niches
+    M["pb_bronze"] = P("st_pb_bronze", (0.36, 0.25, 0.14), 0.4, Metallic=0.6)     # the motto's letters, the plaques
+    M["pb_tile"] = P("st_pb_tile", (0.20, 0.25, 0.31), 0.5)                       # the tower's tiled panel
+    M["pb_trunk"] = P("st_pb_trunk", (0.42, 0.36, 0.28), 0.9)
+    M["pb_leaf"] = P("st_pb_leaf", (0.16, 0.32, 0.10), 0.8)
+    M["pb_hedge"] = P("st_pb_hedge", (0.13, 0.27, 0.09), 0.95)
     M["pb_glass"] = P("st_pb_glass", (0.08, 0.10, 0.12), 0.15, Coat_Weight=1.0)
     M["pb_display"] = P("st_pb_display", (0.85, 0.75, 0.55), 0.3, Emission_Color=(1.0, 0.85, 0.6, 1), Emission_Strength=0.5)
     M["pb_blue"] = P("st_pb_blue", (0.10, 0.35, 0.75), 0.4)
@@ -270,8 +276,10 @@ def building(bid, pts, kind, H, wall, trim, rmat):
 # Monsters, Inc.: the outline without the queue's small jogs on its east side (OSM 217930681, points 0-10, 23)
 MI_OUTLINE = [(-607.2, 764.2), (-634.1, 766.0), (-648.2, 782.8), (-642.8, 787.4), (-640.5, 817.7), (-621.7, 833.9),
               (-602.6, 833.0), (-590.4, 818.5), (-582.5, 810.0), (-582.5, 773.2), (-606.4, 774.7)]
-MI_DOME = (-606.0, 800.0, 11.0)          # centre x, y and radius (ESTIMATE: from the photos, about a third of the long side)
-MI_TOWER = (-622.0, 814.0, 26.0, 16.0)   # the tower's east face: its north end x, y, width (southwards), depth (westwards)
+MI_FRONT = {6: 3.2, 7: 3.2, 8: 3.6, 9: 3.2}    # the edges set back behind piers on the ground floor, and by how much
+MI_H, MI_Z0 = 9.5, 4.3                         # the parapet's top; the lintel's underside (photos: people 1.7 m)
+MI_DOME = (-606.0, 797.0, 12.0)                # centre x, y and radius (ESTIMATE from the photos)
+MI_TOWER = (-624.0, 797.0, 14.0, 12.0, 13.0)   # east face: north end x, y; the logo unit's width; the finned block's width; depth
 
 
 def offset_edges(pts, ds):
@@ -311,129 +319,238 @@ def taper_box(bm, cx, cy, w0, d0, w1, d1, z0, z1):
         bm.faces.new([vs[i] for i in f])
 
 
+def disc(bm, x, y, z, r, t=0.08, segs=24):
+    """A disc facing +y in the current frame."""
+    bm_lathe(bm, [(0, 0), (r, 0), (r, t), (0, t)], segs, T(x, y, z) @ R(-math.pi / 2, "X"))
+
+
+def mi_logo(name, x, y, z, r):
+    """The round Monsters, Inc. logo (photos): a white disc in a dark rim, the blue M with its one eye."""
+    bmr, bmw, bmb = bmesh.new(), bmesh.new(), bmesh.new()
+    disc(bmr, x, y, z, r * 1.15, 0.12); disc(bmw, x, y + 0.12, z, r, 0.06)
+    disc(bmw, x, y + 0.25, z + r * 0.12, r * 0.2, 0.05, 12); disc(bmr, x, y + 0.3, z + r * 0.12, r * 0.09, 0.04, 10)
+    obj_bm(f"{name}_rim", bmr, "pb_navy"); obj_bm(f"{name}_disc", bmw, "pb_white")
+    text(f"{name}_M", "M", r * 1.25, (x, y + 0.2, z - r * 0.05), (math.pi / 2, 0, math.pi), "pb_blue", 0.05)
+
+
 def mi_sign(name, x, y, deg, z):
-    """The blue Monsters, Inc. sign (photos): a navy panel in a light-blue frame, the big M, the name under it."""
+    """The blue Monsters, Inc. wall sign (photos): a navy panel in a light-blue frame, the logo, the name under it."""
     with frame(f"PB_{name}", x, y, deg):
         bmn, bmc = bmesh.new(), bmesh.new()
-        bm_box(bmn, -1.4, 1.4, 0, 0.45, z, z + 4.0)
-        bm_box(bmc, -1.55, 1.55, 0.05, 0.4, z - 0.15, z); bm_box(bmc, -1.55, 1.55, 0.05, 0.4, z + 4.0, z + 4.15)
-        bm_box(bmc, -1.55, -1.4, 0.05, 0.4, z, z + 4.0); bm_box(bmc, 1.4, 1.55, 0.05, 0.4, z, z + 4.0)
-        bm_lathe(bmc, [(0, 0), (0.55, 0), (0.55, 0.06), (0, 0.06)], 16, T(0, 0.47, z + 1.55) @ R(-math.pi / 2, "X"))   # the eye
+        bm_box(bmn, -1.4, 1.4, 0, 0.45, z, z + 3.6)
+        for bx in ((-1.55, 1.55, z - 0.15, z), (-1.55, 1.55, z + 3.6, z + 3.75), (-1.55, -1.4, z, z + 3.6), (1.4, 1.55, z, z + 3.6)):
+            bm_box(bmc, bx[0], bx[1], 0.05, 0.5, bx[2], bx[3])
         obj_bm(f"PB_{name}_panel", bmn, "pb_navy"); obj_bm(f"PB_{name}_frame", bmc, "pb_cyan")
-        text(f"PB_{name}_M", "M", 2.1, (0, 0.5, z + 2.55), (math.pi / 2, 0, math.pi), "pb_cyan", 0.08)
+        mi_logo(f"PB_{name}_logo", 0, 0.45, z + 2.2, 0.95)
         text(f"PB_{name}_name", "MONSTERS, INC.", 0.3, (0, 0.5, z + 0.6), (math.pi / 2, 0, math.pi), "pb_white", 0.02)
 
 
+def mi_pole_sign(name, x, y, deg):
+    """The sign on a column by the queue (photo): a pedestal with round emblems, a tapered column, a blue board
+    with the two monsters' faces in circles, "Ride & Go Seek!" and the sponsor's strip under it."""
+    with frame(f"PB_{name}", x, y, deg):
+        bmt, bmd, bmb, bmn, bmw = (bmesh.new() for _ in range(5))
+        bm_box(bmt, -0.75, 0.75, -0.75, 0.75, 0, 1.0); bm_box(bmt, -0.85, 0.85, -0.85, 0.85, 1.0, 1.15)
+        for sx in (-0.33, 0.33):
+            disc(bmd, sx, 0.75, 0.55, 0.28, 0.05, 16)
+        taper_box(bmt, 0, 0, 0.42, 0.42, 0.55, 0.55, 1.15, 3.9)
+        bm_box(bmt, -0.4, 0.4, -0.4, 0.4, 3.9, 4.05)
+        bm_box(bmw, -1.25, 1.25, -0.12, 0.12, 4.05, 4.45)                                 # the sponsor's strip
+        bm_box(bmn, -1.75, 1.75, -0.2, 0.2, 4.45, 6.9)                                    # the board, its frame
+        bm_box(bmb, -1.6, 1.6, 0.2, 0.24, 4.6, 6.75)
+        bm_box(bmt, -1.85, 1.85, -0.28, 0.28, 6.9, 7.1)
+        for sx in (-0.75, 0.75):                                                          # Mike's and Sulley's circles
+            disc(bmw, sx, 0.24, 6.0, 0.62, 0.04, 20); disc(bmd if sx < 0 else bmb, sx, 0.28, 6.0, 0.52, 0.04, 20)
+        obj_bm(f"PB_{name}_post", bmt, "pb_tan3"); obj_bm(f"PB_{name}_emblem", bmd, "pb_tan2")
+        obj_bm(f"PB_{name}_board", bmb, "pb_blue"); obj_bm(f"PB_{name}_frame", bmn, "pb_navy")
+        obj_bm(f"PB_{name}_white", bmw, "pb_white")
+        text(f"PB_{name}_t1", "MONSTERS, INC.", 0.34, (0, 0.28, 5.2), (math.pi / 2, 0, math.pi), "pb_white", 0.02)
+        text(f"PB_{name}_t2", "Ride & Go Seek!", 0.22, (0, 0.28, 4.82), (math.pi / 2, 0, math.pi), "pb_cyan", 0.02)
+        text(f"PB_{name}_t3", "Panasonic", 0.22, (0, 0.14, 4.25), (math.pi / 2, 0, math.pi), "pb_blue", 0.02)
+
+
+def palm(bm_t, bm_l, x, y, h, lean, rng):
+    """A palm (photos: tall and slender in the beds before the front): a ringed, gently curving trunk, a crown of
+    drooping fronds."""
+    ax, ay = math.cos(lean), math.sin(lean); bend = rng.uniform(0.6, 1.4)
+    P = lambda t: Vector((x + ax * bend * t * t, y + ay * bend * t * t, h * t))
+    n = 10
+    for k in range(n):
+        a, b = P(k / n), P((k + 1) / n); d = b - a
+        r0, r1 = 0.2 - 0.07 * k / n, 0.2 - 0.07 * (k + 1) / n
+        M_ = Matrix.Translation(a) @ d.to_track_quat("Z", "Y").to_matrix().to_4x4()
+        bm_lathe(bm_t, [(0, 0), (r0 * 1.12, 0), (r0, 0.12), (r1, d.length), (0, d.length)], 7, M_)
+    top = P(1.0)
+    for f in range(11):                                                                   # the fronds
+        az = 2 * math.pi * f / 11 + rng.uniform(-0.2, 0.2); L = rng.uniform(2.4, 3.2); up = rng.uniform(0.35, 0.8)
+        u = Vector((math.cos(az), math.sin(az), 0)); side = Vector((-u.y, u.x, 0))
+        pts = [top + u * (L * s) + Vector((0, 0, up * L * s - 1.6 * L * s * s * 0.5)) for s in (0, 0.25, 0.5, 0.75, 1.0)]
+        wid = (0.05, 0.42, 0.5, 0.36, 0.03)
+        vs = [(bm_l.verts.new(p - side * w), bm_l.verts.new(p - Vector((0, 0, 0.12 * w))), bm_l.verts.new(p + side * w))
+              for p, w in zip(pts, wid)]
+        for s in range(4):
+            bm_l.faces.new((vs[s][0], vs[s + 1][0], vs[s + 1][1], vs[s][1]))
+            bm_l.faces.new((vs[s][1], vs[s + 1][1], vs[s + 1][2], vs[s][2]))
+    bm_lathe(bm_t, [(0, -0.3), (0.3, -0.2), (0.25, 0.1), (0, 0.2)], 8, T(top.x, top.y, top.z))
+
+
+def mi_front(bid, i, L):
+    """The ground floor of a set-back edge (its own frame, +y out): tapered piers under a projecting lintel, the
+    back wall with panels echoing the piers, glass doors with their plaques; on the east face the store block and
+    the motto."""
+    d = MI_FRONT[i]; Z0 = MI_Z0
+    bmp, bmg, bmd, bml, bmq = (bmesh.new() for _ in range(5))
+    x_lo = 12.2 if i == 8 else 0.8                                                    # the store block takes 12 m of the east face
+    k = max(1, round((L - 0.8 - x_lo) / 6.0))
+    xs = [x_lo + (L - 0.8 - x_lo) * j / k for j in range(k + 1)]
+    for x in xs:
+        taper_box(bmp, x, -0.75, 0.75, 0.8, 1.5, 1.2, 0, Z0)
+        taper_box(bmq, x, -d - 0.05, 0.9, 0.12, 1.9, 0.12, 0.6, Z0)                   # the panel behind the pier
+    bm_box(bmp, 0, L, -0.3, 0.2, Z0, Z0 + 0.65)                                        # the lintel
+    bm_box(bmq, 0, L, 0.2, 0.3, Z0 + 0.5, Z0 + 0.65)
+    for j in range(k):
+        m = (xs[j] + xs[j + 1]) / 2
+        if (j + i) % 2 == 0:                                                               # a double glass door, its frame, a plaque
+            bm_box(bmq, m - 1.5, m + 1.5, -d, -d + 0.1, 0, 2.9)
+            bm_box(bmg, m - 1.3, m + 1.3, -d + 0.1, -d + 0.14, 0, 2.7)
+            bm_box(bml, m - 1.0, m + 1.0, -d, -d + 0.12, 3.05, 3.45)
+        else:                                                                              # a poster case
+            bm_box(bmq, m - 0.95, m + 0.95, -d, -d + 0.1, 0.8, 3.3)
+            bm_box(bmd, m - 0.8, m + 0.8, -d + 0.1, -d + 0.13, 0.95, 3.15)
+    if i == 8:                                                                             # the company store (photo: its front stands forward)
+        bmw = bmesh.new()
+        bm_box(bmw, 0, 12.0, -3.6, 4.3, Z0, MI_H - 0.4)
+        bm_box(bmw, 0, 12.0, -3.6, 3.0, 0, Z0)
+        for x in (0.6, 11.4):
+            taper_box(bmp, x, 3.7, 0.75, 0.8, 1.4, 1.1, 0, Z0)
+        bm_box(bmp, 0, 12.0, 3.1, 4.5, Z0, Z0 + 0.65)
+        for m in (3.4, 8.6):
+            bm_box(bmq, m - 1.6, m + 1.6, 3.0, 3.1, 0, 3.0); bm_box(bmg, m - 1.4, m + 1.4, 3.1, 3.14, 0, 2.8)
+        bm_box(bmq, 2.2, 9.8, 4.3, 4.45, Z0 + 1.2, Z0 + 2.4)                              # the store's name plaque
+        bm_box(bmq, -0.1, 12.1, -3.6, 4.6, MI_H - 0.9, MI_H - 0.4)
+        obj_bm(f"PB_{bid}_store", bmw, "pb_tan")
+        text(f"PB_{bid}_storename", "MONSTERS, INC.", 0.52, (6.0, 4.47, Z0 + 1.95), (math.pi / 2, 0, math.pi), "pb_bronze", 0.04)
+        text(f"PB_{bid}_storename2", "COMPANY STORE", 0.3, (6.0, 4.47, Z0 + 1.45), (math.pi / 2, 0, math.pi), "pb_bronze", 0.03)
+        text(f"PB_{bid}_motto", "IT'S LAUGHTER WE'RE AFTER", 0.78, ((12.2 + L) / 2, 0.05, Z0 + 2.2), (math.pi / 2, 0, math.pi), "pb_bronze", 0.05)
+    for nm, b_, mt in (("piers", bmp, "pb_tan"), ("panels", bmq, "pb_tan3"), ("doors", bmg, "pb_glass"),
+                       ("posters", bmd, "pb_display"), ("plaques", bml, "pb_bronze")):
+        if len(b_.verts):
+            obj_bm(f"PB_{bid}_{nm}{i}", b_, mt)
+        else:
+            b_.free()
+
+
 def monsters(bid, pts, H):
-    """Monsters, Inc. Ride & Go Seek (photos): a tan stucco box whose ground floor on the queue sides (east, north-east)
-    is set back behind piers that widen upwards; a low faceted dome, glazed on its east side; behind it a tall tower
-    of vertical fins with the round M logo in a stepped frame; the blue M signs on the corners."""
+    """Monsters, Inc. Ride & Go Seek (photos 2023-2026): a warm tan stucco box; on the queue sides the ground floor is
+    set back behind piers that widen upwards, under a lintel, with the motto over the entrance and the company store
+    standing forward at the north end of the east face; grooves round the upper wall and a coping on the parapet; a
+    low faceted dome of light and dark triangles (glazed on its south-west side) on a deep drum; behind it the tower
+    whose frame dips to a V over the dark tiled panel with the round logo, rounded niches either side, grooved sides,
+    and a finned block south of it; wall signs, a sign on a column, palms, lamps."""
+    H, Z0 = MI_H, MI_Z0
     pts = cw(MI_OUTLINE); n = len(pts)
-    Z0 = 4.8                                                                            # the overhang's underside
-    front = []
-    for i in range(n):
-        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
-        l = math.hypot(x1 - x0, y1 - y0)
-        front.append(-(y1 - y0) / l > 0.35 and l > 5)                                   # outward normal points east
-    prism(f"PB_{bid}_ground", [offset_edges(pts, [3.6 if f else 0.0 for f in front])], 0, Z0, "pb_tan")
+    prism(f"PB_{bid}_ground", [offset_edges(pts, [MI_FRONT.get(i, 0.0) for i in range(n)])], 0, Z0, "pb_tan")
     prism(f"PB_{bid}_body", [pts], Z0, H, "pb_tan")
-    ring_wall(f"PB_{bid}_cornice", inset(pts, -0.25), inset(pts, 0.35), H - 0.55, H + 0.45, "pb_white")   # the parapet's coping
+    ring_wall(f"PB_{bid}_cornice", inset(pts, -0.22), inset(pts, 0.35), H - 0.45, H + 0.3, "pb_tan3")   # the coping
     prism(f"PB_{bid}_roofdeck", [inset(pts, 0.3)], H - 0.3, H + 0.05, "pb_tan")
-    prism(f"PB_{bid}_band", [inset(pts, -0.08)], H - 2.2, H - 1.95, "pb_tan2")          # the groove under the parapet
-    prism(f"PB_{bid}_plinth", [inset(pts, -0.12)], Z0, Z0 + 0.35, "pb_white")
-    for i in range(n):
-        if not front[i]:
-            continue
+    ring_wall(f"PB_{bid}_band", inset(pts, -0.12), inset(pts, 0.05), Z0 + 3.2, Z0 + 3.45, "pb_tan3")   # the band over the motto
+    ring_wall(f"PB_{bid}_groove", inset(pts, -0.02), inset(pts, 0.05), H - 1.3, H - 1.18, "pb_tan2")
+    for i, d in MI_FRONT.items():
         (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
-        L = math.hypot(x1 - x0, y1 - y0)
         with frame(f"PB_{bid}_q{i}", x0, y0, math.degrees(math.atan2(y1 - y0, x1 - x0))):
-            bmp, bmg, bmd = bmesh.new(), bmesh.new(), bmesh.new()
-            k = max(1, round(L / 6.5))
-            for j in range(k + 1):                                                      # the piers
-                x = 0.8 + (L - 1.6) * j / k
-                taper_box(bmp, x, -0.75, 0.7, 0.8, 1.7, 1.4, 0, Z0)
-            for j in range(k):                                                          # posters and doors on the back wall
-                m = 0.8 + (L - 1.6) * (j + 0.5) / k
-                if j % 2 == 0:
-                    bm_box(bmd, m - 0.8, m + 0.8, -3.62, -3.55, 1.0, 3.2)
-                else:
-                    bm_box(bmg, m - 1.3, m + 1.3, -3.62, -3.55, 0, 2.8)
-            obj_bm(f"PB_{bid}_piers{i}", bmp, "pb_tan")
-            for nm, b_, mt in (("doors", bmg, "pb_glass"), ("posters", bmd, "pb_display")):
-                if len(b_.verts):
-                    obj_bm(f"PB_{bid}_{nm}{i}", b_, mt)
-                else:
-                    b_.free()
-    # the signs: on the north-east corner (a blade), on the east face and on the north face
-    mi_sign(f"{bid}_sign0", -583.4, 809.2, -45, 5.4)
-    mi_sign(f"{bid}_sign1", -582.5, 778.0, -90, 5.4)
-    mi_sign(f"{bid}_sign2", -612.0, 833.4, 0, 5.4)
-    # the tower (local +y = east, x southwards from its north end)
-    tx, ty, tw, td = MI_TOWER; TH = H + 13.0
-    with frame(f"PB_{bid}_tower", tx, ty, -90):
-        bmt, bmf, bmr, bml = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
-        bm_box(bmt, 0, tw, -td, 0, H - 0.5, TH - 1.5)
-        bm_box(bmt, 1.0, tw - 1.0, -td + 1.0, -0.6, TH - 1.5, TH)                       # the stepped top
-        nf = int(tw / 1.3)
-        for j in range(nf + 1):                                                         # the vertical fins
-            x = tw * j / nf
-            if abs(x - tw / 2) < 4.2:
-                continue
-            bm_box(bmf, x - 0.25, x + 0.25, 0, 0.7, H - 0.5, TH - 1.6 - (0.8 if j % 2 else 0))
-        m = tw / 2                                                                      # the logo's stepped frame
-        for s_, (w_, y_, z0_, z1_) in enumerate(((8.4, 0.5, H - 0.5, TH + 0.8), (6.4, 1.0, H + 3.0, TH + 0.2), (4.8, 1.4, H + 5.5, TH - 0.6))):
-            bm_prism(bmt if s_ != 1 else bmr, [(m - w_ / 2 - (0.6 if s_ else 0), z1_), (m + w_ / 2 + (0.6 if s_ else 0), z1_),
-                                               (m + w_ / 2, z0_), (m - w_ / 2, z0_)], -1.0, y_, "xz")
-        bm_box(bmr, m - 1.4, m + 1.4, 1.35, 1.5, H + 0.2, H + 4.6)                     # the dark window under the logo
-        zl = TH - 3.2
-        bm_lathe(bml, [(0, 0), (1.7, 0), (1.7, 0.15), (0, 0.15)], 32, T(m, 1.45, zl) @ R(-math.pi / 2, "X"))
-        obj_bm(f"PB_{bid}_towerbody", bmt, "pb_tan"); obj_bm(f"PB_{bid}_fins", bmf, "pb_tan")
-        obj_bm(f"PB_{bid}_recess", bmr, "pb_tan2"); obj_bm(f"PB_{bid}_logo", bml, "pb_navy")
-        bmc = bmesh.new()
-        bm_lathe(bmc, [(1.7, 0), (2.0, 0), (2.0, 0.3), (1.7, 0.3)], 32, T(m, 1.4, zl) @ R(-math.pi / 2, "X"))
-        obj_bm(f"PB_{bid}_logorim", bmc, "pb_white")
-        text(f"PB_{bid}_logoM", "M", 1.9, (m, 1.62, zl), (math.pi / 2, 0, math.pi), "pb_cyan", 0.05)
-    # the lower finned wing north of the tower
-    with frame(f"PB_{bid}_wing", tx - 1.0, ty + 10.0, -90):
-        bmw, bmf = bmesh.new(), bmesh.new()
-        bm_box(bmw, 0, 10.0, -8.0, 0, H - 0.5, H + 5.0)
-        for j in range(9):
-            x = 0.5 + 9.0 * j / 8
-            bm_box(bmf, x - 0.2, x + 0.2, 0, 0.5, H - 0.5, H + 4.6)
-        obj_bm(f"PB_{bid}_wingbody", bmw, "pb_tan"); obj_bm(f"PB_{bid}_wingfins", bmf, "pb_tan")
+            mi_front(bid, i, math.hypot(x1 - x0, y1 - y0))
+    mi_sign(f"{bid}_sign0", -586.5, 814.3, -47, 5.2)                                     # the north-east corner
+    mi_sign(f"{bid}_sign2", -612.0, 833.44, -2.7, 5.2)                                     # the north face
+    mi_pole_sign(f"{bid}_pole", -577.0, 776.5, -70)
+    rng = random.Random(bid)                                                               # the beds before the front
+    bmt, bml, bmh, bmc, bmlamp, bmpost = (bmesh.new() for _ in range(6))
+    for (bx, by, bl) in ((-575.5, 790.0, 9.0), (-574.5, 813.5, 7.0)):
+        bm_box(bmc, bx - 1.6, bx + 1.6, by - bl / 2, by + bl / 2, 0, 0.45)
+        bm_box(bmh, bx - 1.4, bx + 1.4, by - bl / 2 + 0.2, by + bl / 2 - 0.2, 0.45, 1.05)
+        for k in range(3 if bl > 8 else 2):
+            yy = by - bl / 2 + bl * (k + 0.5) / (3 if bl > 8 else 2)
+            palm(bmt, bml, bx + rng.uniform(-0.4, 0.4), yy, rng.uniform(7.0, 9.5), rng.uniform(0, 2 * math.pi), rng)
+    for (lx, ly) in ((-576.0, 800.5), (-576.0, 782.0), (-576.0, 769.0)):                  # the lamps
+        bm_lathe(bmpost, [(0, 0), (0.2, 0), (0.2, 0.5), (0.1, 0.7), (0.07, 3.8), (0.12, 3.9), (0.12, 4.0), (0, 4.0)], 10, T(lx, ly, 0))
+        bm_lathe(bmlamp, [(0, 0), (0.22, 0.1), (0.25, 0.55), (0.12, 0.75), (0, 0.8)], 10, T(lx, ly, 4.0))
+    obj_bm(f"PB_{bid}_palmtrunk", bmt, "pb_trunk"); obj_bm(f"PB_{bid}_palmleaf", bml, "pb_leaf")
+    obj_bm(f"PB_{bid}_hedge", bmh, "pb_hedge"); obj_bm(f"PB_{bid}_bedcurb", bmc, "pb_tan3")
+    obj_bm(f"PB_{bid}_lamppost", bmpost, "pb_white"); obj_bm(f"PB_{bid}_lamp", bmlamp, "pb_display")
+    mi_tower(bid, H)
     mi_dome(bid, H)
 
 
+def mi_tower(bid, H):
+    """The tower (photos; local +y = east, x southwards from its north end): the logo unit, then the finned block."""
+    tx, ty, wl, wf, td = MI_TOWER
+    with frame(f"PB_{bid}_tower", tx, ty, -90):
+        bmt, bmf, bmr, bmk, bmn, bmg = (bmesh.new() for _ in range(6))
+        top = H + 13.0
+        bm_box(bmt, 0, wl, -td, 0, H - 0.5, top)                                          # the grooved block
+        for z in [H + 0.6 + 0.85 * j for j in range(15)]:
+            bm_box(bmr, -0.03, wl + 0.03, -td - 0.03, 0.03, z, z + 0.12)
+        m = wl / 2
+        bm_prism(bmt, [(m - 5.2, H - 0.5), (m + 5.2, H - 0.5), (m + 5.2, top + 2.6), (m + 1.8, top + 0.8),
+                       (m - 1.8, top + 0.8), (m - 5.2, top + 2.6)], -2.0, 1.1, "xz")          # the frame dipping to a V
+        bm_prism(bmn, [(m - 5.35, top + 2.6), (m - 5.2, top + 2.75), (m - 1.75, top + 0.95), (m + 1.75, top + 0.95),
+                       (m + 5.2, top + 2.75), (m + 5.35, top + 2.6), (m + 1.8, top + 0.8), (m - 1.8, top + 0.8)], -2.0, 1.2, "xz")
+        for sx in (-1, 1):                                                                 # the rounded niches
+            c = m + sx * 3.55
+            bm_prism(bmk, arch_opening(c - 0.8, c + 0.8, H + 1.2, top - 1.0, 0.8, 10), 1.1, 1.18, "xz")
+            bm_prism(bmr, arch_opening(c - 0.95, c + 0.95, H + 1.05, top - 1.0, 0.95, 10), 1.08, 1.12, "xz")
+        bm_box(bmt, m - 2.55, m + 2.55, 1.1, 1.35, H + 5.75, top + 0.6)                    # the tiled panel's surround
+        bm_box(bmg, m - 2.3, m + 2.3, 1.35, 1.4, H + 6.0, top + 0.35)                    # the dark tiles and their joints
+        for j in range(1, 6):
+            x = m - 2.3 + 4.6 * j / 6; bm_box(bmr, x - 0.03, x + 0.03, 1.4, 1.43, H + 6.0, top + 0.35)
+        for j in range(1, 7):
+            z = H + 6.0 + (top - H - 5.65) * j / 7; bm_box(bmr, m - 2.3, m + 2.3, 1.4, 1.43, z - 0.03, z + 0.03)
+        bm_box(bmt, m - 2.8, m + 2.8, 1.1, 1.6, H + 5.45, H + 5.75)                          # the sill
+        wf0 = wl
+        bm_box(bmt, wf0, wf0 + wf, -td + 1.0, -0.8, H - 0.5, H + 10.0)                     # the finned block
+        bm_box(bmt, wf0 + 0.4, wf0 + wf - 0.4, -td + 1.6, -1.4, H + 10.0, H + 10.6)
+        for j in range(int(wf / 1.1) + 1):
+            x = wf0 + 0.3 + (wf - 0.6) * j / int(wf / 1.1)
+            bm_box(bmf, x - 0.2, x + 0.2, -0.8, -0.2, H - 0.5, H + 9.6 + (0.4 if j % 2 else 0))
+        obj_bm(f"PB_{bid}_towerbody", bmt, "pb_tan"); obj_bm(f"PB_{bid}_fins", bmf, "pb_tan")
+        obj_bm(f"PB_{bid}_grooves", bmr, "pb_tan2"); obj_bm(f"PB_{bid}_niches", bmk, "pb_tan3")
+        obj_bm(f"PB_{bid}_coping", bmn, "pb_tan3"); obj_bm(f"PB_{bid}_tiles", bmg, "pb_tile")
+        mi_logo(f"PB_{bid}_logo", m, 1.43, (H + 6.0 + top + 0.35) / 2, 1.55)
+
+
 def mi_dome(bid, H):
-    """The dome (photos): a drum, then a low faceted shell of 16 segments - glazed over its east third, tan panels
-    folded into triangles elsewhere - with white ribs and a ring round the top."""
+    """The dome (photos): a deep drum with a lip, then a low shell of 16 segments in three rows; each panel folded
+    into two triangles, light and dark in turn, with dark joints; glazed over its south-west third; a ring at the top."""
     cx, cy, r = MI_DOME
-    segs = 16; prof = [(r, 1.2), (r * 0.93, 2.8), (r * 0.78, 4.4), (r * 0.56, 5.6), (r * 0.30, 6.2)]
-    bmg, bmt, bmw = bmesh.new(), bmesh.new(), bmesh.new()
-    bm_lathe(bmt, [(0, 0), (r + 0.5, 0), (r + 0.5, 1.2), (0, 1.2)], segs, T(cx, cy, H))              # the drum
-    bm_lathe(bmw, [(r + 0.55, 0.95), (r + 0.75, 0.95), (r + 0.75, 1.3), (r + 0.55, 1.3)], segs, T(cx, cy, H))
-    P = lambda k, rr, z: Vector((cx + rr * math.cos(2 * math.pi * k / segs), cy + rr * math.sin(2 * math.pi * k / segs), H + z))
+    segs = 16; prof = [(r, 2.6), (r * 0.9, 5.1), (r * 0.7, 7.2), (r * 0.42, 8.6)]
+    bmg, bmt, bml, bmw, bmi = (bmesh.new() for _ in range(5))
+    bm_lathe(bmt, [(0, 0), (r + 0.5, 0), (r + 0.5, 2.3), (0, 2.3)], segs * 2, T(cx, cy, H))              # the drum
+    bm_lathe(bml, [(r + 0.5, 2.2), (r + 0.75, 2.2), (r + 0.75, 2.6), (0, 2.6)], segs * 2, T(cx, cy, H))  # its lip
+    Pt = lambda k, rr, z: Vector((cx + rr * math.cos(2 * math.pi * k / segs), cy + rr * math.sin(2 * math.pi * k / segs), H + z))
+
+    def rib(bm, v0, v1, w=0.09):
+        dvec = v1 - v0
+        mm = Matrix.Translation((v0 + v1) / 2) @ dvec.to_track_quat("Z", "Y").to_matrix().to_4x4()
+        bm_lathe(bm, [(0, -dvec.length / 2), (w, -dvec.length / 2), (w, dvec.length / 2), (0, dvec.length / 2)], 4, mm)
     for k in range(segs):
         az = math.degrees(2 * math.pi * (k + 0.5) / segs)
-        glazed = az < 65 or az > 295                                                    # facing east (+x)
+        glazed = abs((az - 250 + 180) % 360 - 180) < 56                                   # facing south-west (the photos from the east and north-east show none)
         for j in range(len(prof) - 1):
             (r0, z0), (r1, z1) = prof[j], prof[j + 1]
-            a, b, c, d = P(k, r0, z0), P(k + 1, r0, z0), P(k + 1, r1, z1), P(k, r1, z1)
+            a, b, c, d = Pt(k, r0, z0), Pt(k + 1, r0, z0), Pt(k + 1, r1, z1), Pt(k, r1, z1)
             if glazed:
                 bmg.faces.new([bmg.verts.new(v) for v in (a, b, c, d)])
-            else:                                                                        # a folded panel: 4 triangles round a raised centre
-                ctr = (a + b + c + d) / 4; nrm = (b - a).cross(d - a).normalized()
-                e = bmt.verts.new(ctr + nrm * 0.35); vs = [bmt.verts.new(v) for v in (a, b, c, d)]
-                for q in range(4):
-                    bmt.faces.new((vs[q], vs[(q + 1) % 4], e))
-            for v0, v1 in ((a, d), (a, b)):                                              # the ribs
-                dvec = v1 - v0
-                mm = Matrix.Translation((v0 + v1) / 2) @ dvec.to_track_quat("Z", "Y").to_matrix().to_4x4()
-                bm_lathe(bmw, [(0, -dvec.length / 2), (0.1, -dvec.length / 2), (0.1, dvec.length / 2), (0, dvec.length / 2)], 4, mm)
+                rib(bmi, (a + b) / 2, (c + d) / 2, 0.05); rib(bmi, (a + d) / 2, (b + c) / 2, 0.05)
+            else:
+                t1, t2 = ((a, b, c), (a, c, d)) if (k + j) % 2 == 0 else ((a, b, d), (b, c, d))
+                for tri, bm_ in ((t1, bmt), (t2, bml)):
+                    bm_.faces.new([bm_.verts.new(v) for v in tri])
+                rib(bmw, *((a, c) if (k + j) % 2 == 0 else (b, d)), 0.07)
+            rib(bmw, a, d); rib(bmw, a, b)
     rt, zt = prof[-1]
-    bm_lathe(bmw, [(0, zt), (rt + 0.4, zt), (rt + 0.4, zt + 0.7), (rt - 0.3, zt + 0.7), (rt - 0.3, zt + 0.4), (0, zt + 0.4)], segs, T(cx, cy, H))
+    bm_lathe(bml, [(0, zt), (rt + 0.45, zt), (rt + 0.45, zt + 0.9), (rt - 0.2, zt + 0.9), (rt - 0.2, zt + 0.6), (0, zt + 0.6)], segs * 2, T(cx, cy, H))
     obj_bm(f"PB_{bid}_domeglass", bmg, "pb_dome"); obj_bm(f"PB_{bid}_domepanels", bmt, "pb_tan")
-    obj_bm(f"PB_{bid}_domerib", bmw, "pb_white")
+    obj_bm(f"PB_{bid}_domelight", bml, "pb_tan3"); obj_bm(f"PB_{bid}_domerib", bmw, "pb_tan2")
+    obj_bm(f"PB_{bid}_domemullion", bmi, "pb_iron")
 
 
 def build_all():
@@ -495,6 +612,8 @@ def cams():
         "plaza_west": ((-560.0, 870.0, 1.7), (-593.0, 861.0, 4.0), 24),
         "monsters": ((-555.0, 840.0, 16.0), (-608.0, 800.0, 8.0), 24),
         "monsters_q": ((-566.0, 790.0, 1.7), (-590.0, 805.0, 4.0), 24),
+        "monsters_front": ((-540.0, 780.0, 1.7), (-600.0, 797.0, 9.0), 28),
+        "monsters_store": ((-560.0, 822.0, 1.7), (-605.0, 792.0, 10.0), 30),
         "aerial": ((-450.0, 760.0, 160.0), (-540.0, 880.0, 0.0), 30),
     }
 
