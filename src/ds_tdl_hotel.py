@@ -25,9 +25,11 @@ ESTIMATES (no photo has a person to scale against): ground floor 5.0 m, 7 floors
 33 m; the towers 11 floors and a spire to about 55 m; the dome's top about 44 m; the Victorian wings 4 floors. The tall
 block to the north-east gets OSM's 60 m (58 m + a penthouse). Bay widths, the gazebo's and the dais' sizes, the gates.
 The north side (the crescent on the porte-cochere loop) and the rest are the same facade as the court's wings, not
-checked against any photo.
+checked against any photo; a pediment over the middle of each long run, the porte-cochere where the loop road passes the
+wall (an iron-and-glass canopy), the gatehouse in the loop, the tall block's 15 floors, the curtains and lit rooms: all
+estimates.
 """
-import sys, math, json, argparse, pathlib, time
+import sys, math, json, argparse, pathlib, time, random
 
 try:
     import bpy, bmesh
@@ -38,7 +40,7 @@ except ImportError:
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
-from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, bend, T, R, seg_arc,
+from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, T, R, seg_arc,
                             arch_opening, arch_band, ring_sector, cutter, curve_obj, scroll_pts, column_bm,
                             globe_lamp_bm, text, bevel_mod, _principled, _mottle)
 from ds_tdl_entrance import frame, text_mesh, baluster_run
@@ -53,7 +55,6 @@ EAVE, RIDGE = CORNICE + 1.5, CORNICE + 5.5             # 28.9, 32.9 (crescent's 
 MANSARD_D, DECK_D = 1.6, 0.5                           # the mansard's slope depth, then a short flat deck behind it
 TOWER_FLOORS, TOWER_R = 11, 6.2                        # the two corner towers: 11 floors, 12.4 m across the octagon
 DOME_TOP = 46.0
-NGW_H = 58.0
 
 
 def hotel_materials(M):
@@ -79,22 +80,15 @@ def hotel_materials(M):
     M["h_lamp"] = P("st_hotel_lamp", (1.0, 0.93, 0.78), 0.3, Emission_Color=(1.0, 0.85, 0.55, 1), Emission_Strength=3.5)
     M["h_letters"] = P("st_hotel_letters", (0.95, 0.72, 0.12), 0.3, Metallic=0.6)
     M["h_clockface"] = P("st_hotel_clock", (0.95, 0.93, 0.85), 0.35)
+    M["h_curtain"] = P("st_hotel_curtain", (0.93, 0.88, 0.76), 0.9)
+    M["h_win_lit"] = P("st_hotel_winlit", (1.0, 0.86, 0.6), 0.4, Emission_Color=(1.0, 0.78, 0.48, 1), Emission_Strength=1.6)
+    M["h_wood"] = P("st_hotel_wood", (0.40, 0.24, 0.12), 0.6)
+    M["h_flower_pink"] = P("st_hotel_flpink", (0.85, 0.30, 0.45), 0.9)
+    M["h_flower_white"] = P("st_hotel_flwhite", (0.95, 0.93, 0.88), 0.9)
     return M
 
 
 # ================================================================ helpers
-def poly_curve(name, pts, loc=(0.0, 0.0, 0.0)):
-    """A flat poly curve through 2D points (lying in world XY, height handled by the bent mesh's own Z)."""
-    cu = bpy.data.curves.new(name, "CURVE"); cu.dimensions = "3D"; cu.twist_mode = "Z_UP"
-    sp = cu.splines.new("POLY"); sp.points.add(len(pts) - 1)
-    for p, (x, y) in zip(sp.points, pts):
-        p.co = (x, y, 0, 1)
-    o = bpy.data.objects.new(name, cu); B.col.objects.link(o); o.parent = B.root
-    o.location = loc; o.hide_render = True
-    length = sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
-    return o, length
-
-
 def paired_window(bm_frame, bm_glass, bm_rail, x, w, z0, z1, balcony=False):
     """Two round-arched lights sharing a surround (width w, sill z0, arch top z1); an iron Juliet balcony if balcony."""
     lw = w / 2 - 0.22
@@ -116,11 +110,11 @@ def paired_window(bm_frame, bm_glass, bm_rail, x, w, z0, z1, balcony=False):
             bm_box(bm_rail, x + dx * (w / 2 + 0.05) - 0.05, x + dx * (w / 2 + 0.05) + 0.05, 0.0, 0.75, z0 - 0.06, z0 + 0.9)
 
 
-def dormer(bm_wall, bm_glass, bm_trim, x, w=1.4):
+def dormer(bm_wall, bm_glass, bm_trim, x, w=1.4, dz=0.0):
     """A round-headed dormer standing on the mansard's slope (which runs back from the wall, local -y), with its own
     little gabled roof; its face is part way up the slope."""
     yf = -0.55                                            # the dormer's face
-    z0 = EAVE + (RIDGE - EAVE) * (-yf / MANSARD_D)        # the slope's height there: the dormer sits on it
+    z0 = EAVE + dz + (RIDGE - EAVE) * (-yf / MANSARD_D)   # the slope's height there: the dormer sits on it
     h = 1.8
     bm_box(bm_wall, x - w / 2, x + w / 2, yf - 1.1, yf, z0 - 0.5, z0 + h)
     bm_prism(bm_trim, arch_opening(x - w / 2 - 0.1, x + w / 2 + 0.1, z0 - 0.05, z0 + h - w / 2, w / 2 + 0.1, 12), yf, yf + 0.05, "xz")
@@ -137,28 +131,31 @@ def sconce(bm_iron, bm_lamp, x, y, z):
 
 
 # ================================================================ 1. the crescent (Array + Curve, as the entrance's gates)
-def crescent_bay(w, N, plain=False):
+def crescent_bay(w, N, plain=False, nfl=NFLOORS, tag="crescent", kerb=True, balcony=lambda f: True, belt=0):
     """One bay of the main building's facade (local x 0..w along the wall, +y out from it, z up), Array N times.
-    plain: a short run of wall (a kink in the outline) -- no windows, just the wall, cornice, balustrade and roof."""
+    plain: a short run of wall (a kink in the outline) -- no windows, just the wall, cornice, balustrade and roof.
+    nfl upper floors (the north-east block: 15); kerb: the kerb and hedge ball at the wall's foot (not under the
+    porte-cochere); balcony(f): which floors have a balcony; belt: a heavier band every belt floors (the tall block)."""
     P = {k: bmesh.new() for k in ("wall", "trim", "glass", "iron", "slate", "gold", "lamp", "leaf", "rail")}
     m = w / 2
-    if not plain:
+    cor = GF + FH * nfl; eave, ridge = cor + 1.5, cor + 5.5
+    if not plain and kerb:
         bm_box(P["trim"], 0.15, w - 0.15, 0.9, 1.3, 0.0, 0.35)            # a low kerb along the foot of the wall
         bm_lathe(P["leaf"], [(0, -0.28), (0.32, 0), (0, 0.28)], 10, T(m, 1.35, 0.4) @ R(math.pi / 2, "X"))   # a clipped hedge ball
-    bm_box(P["wall"], 0, w, -0.02, 0, 0, CORNICE)                        # the wall face itself (bent along the curve)
-    bm_box(P["trim"], 0.05, 0.35, 0.0, 0.18, 0, CORNICE)                  # quoins at each bay edge
-    bm_box(P["trim"], w - 0.35, w - 0.05, 0.0, 0.18, 0, CORNICE)
+    bm_box(P["wall"], 0, w, -0.02, 0, 0, cor)                        # the wall face itself (bent along the curve)
+    bm_box(P["trim"], 0.05, 0.35, 0.0, 0.18, 0, cor)                  # quoins at each bay edge
+    bm_box(P["trim"], w - 0.35, w - 0.05, 0.0, 0.18, 0, cor)
     if not plain and w >= 3.0:
         # the rooms' relief (photos): a pier 0.55 m proud between the bays from the first floor to the cornice, so the
         # windows and balconies sit in a recess; a cap on each pier at every floor, a bracket block under the cornice
         pw = min(0.6, w * 0.14)
         for x0, x1 in ((0.0, pw), (w - pw, w)):
-            bm_box(P["wall"], x0, x1, 0.0, 0.55, GF - 0.2, CORNICE - 0.4)
-            for f in range(NFLOORS + 1):
+            bm_box(P["wall"], x0, x1, 0.0, 0.55, GF - 0.2, cor - 0.4)
+            for f in range(nfl + 1):
                 zc = GF + FH * f - 0.12
                 bm_box(P["trim"], x0 - 0.03, x1 + 0.03, 0.0, 0.6, zc, zc + 0.14)
-            bm_box(P["trim"], x0 - 0.06, x1 + 0.06, 0.0, 0.66, CORNICE - 0.75, CORNICE - 0.25)
-    for k in range(1, int(CORNICE / 1.0)):                                # rustication: horizontal joint lines, ground floor
+            bm_box(P["trim"], x0 - 0.06, x1 + 0.06, 0.0, 0.66, cor - 0.75, cor - 0.25)
+    for k in range(1, int(cor / 1.0)):                                # rustication: horizontal joint lines, ground floor
         if k * 1.0 < GF - 0.6:
             bm_box(P["trim"], 0.35, w - 0.35, 0.0, 0.05, k * 1.0, k * 1.0 + 0.04)
     if not plain:
@@ -168,45 +165,45 @@ def crescent_bay(w, N, plain=False):
         bm_box(P["trim"], m - 0.12, m + 0.12, 0.14, 0.32, GF + 0.15, GF + 0.5)
         sconce(P["iron"], P["lamp"], m - 1.7, 0.16, GF - 2.4); sconce(P["iron"], P["lamp"], m + 1.7, 0.16, GF - 2.4)
         bm_box(P["trim"], m - 1.3, m + 1.3, 0.0, 0.2, GF - 0.55, GF - 0.2)    # string course under the upper floors
-        for f in range(NFLOORS):
+        for f in range(nfl):
             z0 = GF + FH * f + 0.55
             paired_window(P["trim"], P["glass"], P["rail"], m, 2.0, z0, z0 + 1.85, balcony=True)
             bm_box(P["trim"], m - 1.15, m + 1.15, 0.0, 0.14, GF + FH * (f + 1) - 0.12, GF + FH * (f + 1) + 0.05)
-    bm_box(P["trim"], -0.05, w + 0.05, -0.1, 0.28, CORNICE - 0.4, CORNICE - 0.25)   # a plain dentil cornice band
+    bm_box(P["trim"], -0.05, w + 0.05, -0.1, 0.28, cor - 0.4, cor - 0.25)   # a plain dentil cornice band
     for k in range(int(w / 0.5)):
         xx = k * 0.5 + 0.25
-        bm_box(P["trim"], xx - 0.1, xx + 0.1, 0.0, 0.22, CORNICE - 0.25, CORNICE - 0.1)
-    baluster_run(P["trim"], P["rail"], (0.0, 0.32), (w, 0.32), CORNICE, EAVE)   # a turned-baluster balustrade at the roofline
+        bm_box(P["trim"], xx - 0.1, xx + 0.1, 0.0, 0.22, cor - 0.25, cor - 0.1)
+    baluster_run(P["trim"], P["rail"], (0.0, 0.32), (w, 0.32), cor, eave)   # a turned-baluster balustrade at the roofline
     # the mansard: an open face sloping back from the wall (no end caps, so Array copies never share a coincident face)
     # then a short flat deck; gold cresting along the ridge line where the slope meets the deck
     V = lambda x, y, z: P["slate"].verts.new((x, y, z))
-    a0, b0 = V(0, 0.0, EAVE), V(w, 0.0, EAVE)
-    a1, b1 = V(0, -MANSARD_D, RIDGE), V(w, -MANSARD_D, RIDGE)
+    a0, b0 = V(0, 0.0, eave), V(w, 0.0, eave)
+    a1, b1 = V(0, -MANSARD_D, ridge), V(w, -MANSARD_D, ridge)
     P["slate"].faces.new((a0, b0, b1, a1))
-    a2, b2 = V(0, -MANSARD_D - DECK_D, RIDGE), V(w, -MANSARD_D - DECK_D, RIDGE)
+    a2, b2 = V(0, -MANSARD_D - DECK_D, ridge), V(w, -MANSARD_D - DECK_D, ridge)
     P["slate"].faces.new((a1, b1, b2, a2))
-    bm_lathe(P["gold"], [(0, 0), (0.025, 0), (0.02, 0.16), (0.05, 0.2), (0, 0.28)], 6, T(m, -MANSARD_D, RIDGE))
+    bm_lathe(P["gold"], [(0, 0), (0.025, 0), (0.02, 0.16), (0.05, 0.2), (0, 0.28)], 6, T(m, -MANSARD_D, ridge))
     obj = {}
     for k, bm in P.items():
         if not len(bm.verts):
             bm.free(); continue
         mat = {"wall": "h_cream", "trim": "h_gold_trim", "glass": "h_win_dark", "iron": "h_iron",
                "slate": "h_slate", "gold": "h_gold", "lamp": "h_lamp", "leaf": "h_leaf", "rail": "h_white"}[k]
-        o = obj_bm(f"HT_crescent_{k}", bm, mat, smooth=(k in ("gold", "lamp", "leaf")), recalc=(k != "slate"))
+        o = obj_bm(f"HT_{tag}_{k}", bm, mat, smooth=(k in ("gold", "lamp", "leaf")), recalc=(k != "slate"))
         array_mod(o, N, (w, 0, 0))
         obj[k] = o
     return obj
 
 
-def crescent_dormers(w, N):
+def crescent_dormers(w, N, nfl=NFLOORS, tag="crescent"):
     """Round dormers on every other bay, sitting on the mansard's slope."""
     bm_wall, bm_glass, bm_trim = bmesh.new(), bmesh.new(), bmesh.new()
     for k in range(N):
         if k % 2 == 0:
-            dormer(bm_wall, bm_glass, bm_trim, k * w + w / 2)
-    o1 = obj_bm("HT_crescent_dormer_wall", bm_wall, "h_cream")
-    o2 = obj_bm("HT_crescent_dormer_glass", bm_glass, "h_win_dark")
-    o3 = obj_bm("HT_crescent_dormer_trim", bm_trim, "h_gold_trim")
+            dormer(bm_wall, bm_glass, bm_trim, k * w + w / 2, dz=FH * (nfl - NFLOORS))
+    o1 = obj_bm(f"HT_{tag}_dormer_wall", bm_wall, "h_cream")
+    o2 = obj_bm(f"HT_{tag}_dormer_glass", bm_glass, "h_win_dark")
+    o3 = obj_bm(f"HT_{tag}_dormer_trim", bm_trim, "h_gold_trim")
     return [o1, o2, o3]
 
 
@@ -396,7 +393,7 @@ def entrance_pavilion(x, y, ang_deg):
         for s_ in (-1, 1):
             bm_box(bmg, s_ * 0.05, s_ * 1.4, d + 0.17, d + 0.22, 0.0, 3.6)
             sconce(bmt, bml, s_ * 3.4, d + 0.25, 3.0)
-        text("HT_pav_plaque", "TOKYO DISNEYLAND HOTEL", 0.3, (0, d + 0.25, GF - 0.5), (math.pi / 2, 0, 0), "h_bronze", 0.015)
+        text("HT_pav_plaque", "TOKYO DISNEYLAND HOTEL", 0.3, (0, d + 0.25, GF - 0.5), (math.pi / 2, 0, math.pi), "h_bronze", 0.015)
         # cornice, attic with small arched lights, balustrade with urns
         bm_box(bmt, -hw - 0.2, hw + 0.2, -2.0, d + 0.5, CORNICE - 0.3, CORNICE + 0.1)
         for xw in (-10.5, -6.3, -2.1, 2.1, 6.3, 10.5):
@@ -460,12 +457,18 @@ def gazebo(cx, cy):
 def build_main():
     """The main building: the same facade run round its whole outline (bays of about 5 m, a plain piece of wall on the
     short kinks), and the roof deck inside the mansards."""
+    pe = porte_edge()
     def run(L, i):
         if L < 3.2:
             crescent_bay(L, 1, plain=True)
         else:
             n = max(1, round(L / 5.0)); w = L / n
-            crescent_bay(w, n); crescent_dormers(w, n)
+            crescent_bay(w, n, kerb=(i != pe)); crescent_dormers(w, n)
+            window_fill(f"main_{i}", n, w, NFLOORS, i)
+            if i == pe:
+                porte_cochere(L, w, n)
+            elif L >= 30.0:
+                pediment(f"main_{i}", L / 2 if n % 2 else L / 2 + w / 2, min(w * 0.9, 5.0) if n % 2 else min(w, 5.5))
     facade_runs("main", PLAN["parts"]["main"]["ring"], run)
     prism("HT_main_roofdeck", PLAN["parts"]["main"]["roof"], RIDGE - 0.25, RIDGE, "h_slate")
 
@@ -480,56 +483,184 @@ def build_front():
         build_court()
 
 
-# ================================================================ 2. the back massing (New Grand Wing + the spine)
-def back_bay(name, w, nfloors, tall=False):
-    """One bay of a back wing (local x 0..w, y towards outside, z up): a plainer relative of crescent_bay -- an
-    arched ground floor, plain windows above with a string course each floor, and (tall) a shallow cap near the top."""
-    P = {k: bmesh.new() for k in ("wall", "trim", "glass")}
-    m, h = w / 2, GF + FH * nfloors
-    bm_box(P["wall"], 0, w, -0.02, 0, 0, h)
-    bm_box(P["trim"], 0.05, 0.25, 0.0, 0.14, 0, h); bm_box(P["trim"], w - 0.25, w - 0.05, 0.0, 0.14, 0, h)
-    bm_prism(P["trim"], arch_opening(m - 1.0, m + 1.0, GF - 3.6, GF - 0.6, 0.75, 12), 0.0, 0.12, "xz")
-    bm_prism(P["glass"], arch_opening(m - 0.82, m + 0.82, GF - 3.4, GF - 0.75, 0.6, 10), 0.12, 0.15, "xz")
-    for f in range(nfloors):
-        z0 = GF + FH * f
-        cap = tall and f >= nfloors - 3                     # the top few floors, set back under a shallow mansard cap
-        ww = 1.5 if not cap else 1.1
-        bm_box(P["trim"], m - ww / 2 - 0.12, m + ww / 2 + 0.12, 0.0, 0.1, z0 + 0.55, z0 + 0.65)
-        bm_box(P["glass"], m - ww / 2, m + ww / 2, 0.1, 0.13, z0 + 0.7, z0 + 2.35)
-        bm_box(P["trim"], m - ww / 2 - 0.1, m + ww / 2 + 0.1, 0.0, 0.14, z0 + 2.35, z0 + 2.55)
-        bm_box(P["trim"], 0, w, 0.0, 0.08, z0 - 0.08, z0 - 0.02)
-    bm_box(P["trim"], -0.04, w + 0.04, -0.05, 0.22, h - 0.35, h - 0.15)
-    obj = {}
-    for k, bm in P.items():
-        mat = {"wall": "h_cream", "trim": "h_gold_trim", "glass": "h_win_dark"}[k]
-        obj[k] = obj_bm(f"HT_{name}_{k}", bm, mat)
-    return obj, h
+# ================================================================ 2. the rooms' windows, the long back runs, the north-east block
+def quad(bm, x0, x1, y, z0, z1):
+    """A flat panel facing +y (a curtain, a pelmet): one face, the mock draws both sides."""
+    v = [bm.verts.new(c) for c in ((x0, y, z0), (x1, y, z0), (x1, y, z1), (x0, y, z1))]
+    bm.faces.new(v)
 
 
-def back_wing(name, pts, total_h):
-    """A closed footprint (local xy): a plain arcaded shell per straight run of at least 3 m (as many bays as fit,
-    Array + Curve so kinks and corners still line up with the real OSM plan), a parapet, and (tall) a set-back mansard
-    cap with its own cornice near the top -- reads as "the same family as the crescent, without the hero details"."""
-    nfloors = int(total_h / FH)
-    curve, L = poly_curve(f"HT_{name}_curve", pts + [pts[0]])
-    n_est = max(4, round(L / 5.5)); w = L / n_est
-    bays, h = back_bay(name, w, nfloors, tall=(total_h > 40))
-    for o in bays.values():
-        array_mod(o, n_est, (w, 0, 0)); bend(o, curve)
-    prism(f"HT_{name}_roof", [pts], h - 0.2, h, "h_slate")                 # a flat roof on the footprint itself
-    bm = bmesh.new()                                        # parapet: a low wall on every edge of the footprint
-    for i in range(len(pts)):
-        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % len(pts)]
-        L_ = math.hypot(x1 - x0, y1 - y0)
-        if L_ < 0.1:
+def window_fill(tag, n, w, nfl, seed):
+    """Curtains and lights behind the paired windows of a run of n bays (crescent_bay's windows, not arrayed so every
+    window differs): each light has its curtains open, half drawn or closed, and a pelmet; about one in ten rooms is lit,
+    and about a third of the ground-floor arches (the lobby, the restaurants). ESTIMATE: the mix is made up."""
+    rnd = random.Random(seed)
+    cur, lit = bmesh.new(), bmesh.new()
+    lw = 0.78                                              # paired_window(w=2.0): each light 0.78 wide at m +- 0.48
+    for k in range(n):
+        m = k * w + w / 2
+        if rnd.random() < 0.35:
+            bm_prism(lit, arch_opening(m - 0.93, m + 0.93, GF - 4.13, GF - 0.72, 0.66, 12), 0.15, 0.2, "xz")
+        for f in range(nfl):
+            z0 = GF + FH * f + 0.55; top = z0 + 1.85 - lw / 2
+            for dx in (-0.48, 0.48):
+                x0, x1 = m + dx - lw / 2 + 0.03, m + dx + lw / 2 - 0.03
+                on = rnd.random() < 0.1
+                if on:
+                    bm_prism(lit, arch_opening(x0, x1, z0 + 0.02, top, lw / 2 - 0.03, 10), 0.12, 0.16, "xz")
+                r = rnd.random()
+                cw = 0.1 if (r < 0.5 or on) else (0.2 if r < 0.85 else (x1 - x0) / 2)
+                quad(cur, x0, x0 + cw, 0.17, z0 + 0.04, top); quad(cur, x1 - cw, x1, 0.17, z0 + 0.04, top)
+                quad(cur, x0, x1, 0.175, top - 0.16, top)
+    obj_bm(f"HT_{tag}_curtains", cur, "h_curtain", recalc=False)
+    if len(lit.verts):
+        obj_bm(f"HT_{tag}_lit", lit, "h_win_lit")
+    else:
+        lit.free()
+
+
+def pediment(tag, x, hw):
+    """A pediment over the middle of a long run (the back wings: breaks up 40-60 m of the same bay): a tympanum with an
+    oculus on the cornice, raking cornices, a gold finial and urns. ESTIMATE: not in any photo."""
+    hh = hw * 0.42; z = CORNICE
+    bw, bt, bg, bs = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bm_prism(bw, [(x - hw, z), (x + hw, z), (x, z + hh)], -0.6, 0.4, "xz")
+    for s_ in (-1, 1):
+        bm_prism(bt, [(x + s_ * (hw + 0.25), z - 0.05), (x + s_ * (hw + 0.25), z + 0.2), (x, z + hh + 0.35), (x, z + hh + 0.1)], -0.7, 0.55, "xz")
+        bm_lathe(bs, [(0, 0), (0.22, 0), (0.14, 0.15), (0.3, 0.45), (0.12, 0.8), (0, 0.9)], 10, T(x + s_ * hw, 0.1, z + 0.1))
+    bm_box(bt, x - hw - 0.3, x + hw + 0.3, -0.7, 0.55, z - 0.25, z + 0.05)
+    bm_lathe(bg, [(0, 0), (0.62, 0), (0.62, 0.05), (0, 0.05)], 20, T(x, 0.42, z + hh * 0.42) @ R(-math.pi / 2, "X"))
+    bm_lathe(bt, [(0.62, 0), (0.8, 0), (0.8, 0.1), (0.62, 0.1)], 20, T(x, 0.4, z + hh * 0.42) @ R(-math.pi / 2, "X"))
+    bm_lathe(bs, [(0, 0), (0.1, 0), (0.06, 0.6), (0.16, 0.75), (0, 1.3)], 8, T(x, 0.2, z + hh + 0.3))
+    obj_bm(f"HT_pediment_{tag}_wall", bw, "h_cream"); obj_bm(f"HT_pediment_{tag}_trim", bt, "h_gold_trim")
+    obj_bm(f"HT_pediment_{tag}_glass", bg, "h_win_dark"); obj_bm(f"HT_pediment_{tag}_gold", bs, "h_gold", smooth=True)
+
+
+NGW_FLOORS = 15                                             # 5 + 15 x 3.2 = 53 m to the cornice, 58.5 m to the mansard's ridge
+
+
+def build_ngw():
+    """The tall block to the north-east (OSM's 60 m): the court wings' facade 15 floors high -- the same bays, piers and
+    dormered mansard, balconies on every other floor, a heavier band every fourth floor, and a slate penthouse on the
+    roof. ESTIMATE: no photo; built as "the same family, taller"."""
+    part = PLAN["parts"]["ngw"]
+    def run(L, i):
+        if L < 3.2:
+            crescent_bay(L, 1, plain=True, nfl=NGW_FLOORS, tag="ngw")
+            return
+        n = max(1, round(L / 5.0)); w = L / n
+        crescent_bay(w, n, nfl=NGW_FLOORS, tag="ngw", balcony=lambda f: f % 2 == 1, belt=4)
+        crescent_dormers(w, n, nfl=NGW_FLOORS, tag="ngw")
+        window_fill(f"ngw_{i}", n, w, NGW_FLOORS, 1000 + i)
+    facade_runs("ngw", part["ring"], run)
+    ridge = RIDGE + FH * (NGW_FLOORS - NFLOORS)
+    prism("HT_ngw_roofdeck", part["roof"], ridge - 0.25, ridge, "h_slate")
+    pts = part["ring"]; cx, cy = sum(x for x, y in pts) / len(pts), sum(y for x, y in pts) / len(pts)
+    prism("HT_ngw_penthouse", [[(cx + (x - cx) * 0.5, cy + (y - cy) * 0.5) for x, y in pts]], ridge - 0.25, ridge + 3.0, "h_slate")
+
+
+# ================================================================ 3. the north side: the porte-cochere, the gatehouse in the loop
+PORTE_MID = (16.06, 1.08)             # the middle of the wall the one-way loop road (OSM 659558364) passes nearest, 13-20 m out
+
+
+def porte_edge():
+    ring = PLAN["parts"]["main"]["ring"]
+    for i in range(len(ring)):
+        (x0, y0), (x1, y1) = ring[i], ring[(i + 1) % len(ring)]
+        if math.hypot((x0 + x1) / 2 - PORTE_MID[0], (y0 + y1) / 2 - PORTE_MID[1]) < 3.0:
+            return i
+    return -1
+
+
+def porte_cochere(L, w, n):
+    """The north entrance (in the wall's frame, x 0..L along it, +y out over the drive): an iron-and-glass canopy
+    14 m wide reaching 15 m over the loop road, on cast-iron columns; a lettered fascia with a lace valance, a gable with
+    a clock, lanterns hanging under the glass, a paved floor with a rosette, glazed doors in the arches behind.
+    ESTIMATE: sizes, the design (no photo of this side)."""
+    xc, hw, y1 = L / 2, 7.0, 15.3
+    zf0, zf1, zr = 5.5, 6.5, 8.9
+    P = {k: bmesh.new() for k in ("iron", "white", "glass", "cream", "gold", "lamp", "floor", "door", "clock")}
+    bm_box(P["floor"], xc - hw - 0.5, xc + hw + 0.5, 0.3, y1 + 0.3, -1.3, 0.06)       # deep: the ground slopes under it (mock)
+    cols = [(xc + s_ * 6.6, y1 - 0.35) for s_ in (-1, 1)] + [(xc + s_ * 2.4, y1 - 0.35) for s_ in (-1, 1)] + \
+           [(xc + s_ * 6.6, 7.6) for s_ in (-1, 1)]
+    for x, y in cols:
+        bm_lathe(P["iron"], [(0, -1.3), (0.34, -1.3), (0.34, 0.25), (0.22, 0.45), (0.2, 0.8), (0.15, 0.95), (0.13, zf0 - 0.6),
+                             (0.2, zf0 - 0.45), (0.3, zf0 - 0.2), (0.34, zf0), (0, zf0)], 12, T(x, y, 0.0))
+        for ca in (-1, 1):                                 # lace brackets from the column to the beam
+            bm_prism(P["iron"], [(x + ca * 0.15, zf0 - 1.4), (x + ca * 0.18, zf0), (x + ca * 1.2, zf0)], y - 0.03, y + 0.03, "xz")
+    bm_box(P["white"], xc - hw - 0.2, xc + hw + 0.2, y1 - 0.5, y1 + 0.1, zf0, zf1)            # the fascia, three sides
+    for s_ in (-1, 1):
+        bm_box(P["white"], xc + s_ * hw - 0.25, xc + s_ * hw + 0.25, 0.3, y1 + 0.1, zf0, zf1)
+    bm_box(P["iron"], xc - hw, xc + hw, 7.45, 7.75, zf0 + 0.2, zf1 - 0.1)                     # a cross beam over the middle columns
+    bm_box(P["gold"], xc - hw - 0.25, xc + hw + 0.25, y1 + 0.1, y1 + 0.14, zf1 - 0.12, zf1 - 0.06)
+    for k in range(int(2 * (hw + 0.2) / 0.32)):             # the lace valance under the fascia
+        x = xc - hw - 0.2 + 0.16 + k * 0.32
+        bm_prism(P["white"], [(x - 0.14, zf0), (x + 0.14, zf0), (x, zf0 - 0.28)], y1 + 0.02, y1 + 0.06, "xz")
+    for s_ in (-1, 1):
+        for k in range(int(y1 / 0.32)):
+            y = 0.5 + k * 0.32
+            bm_prism(P["white"], [(y - 0.14, zf0), (y + 0.14, zf0), (y, zf0 - 0.28)], xc + s_ * (hw + 0.2) - 0.02, xc + s_ * (hw + 0.2) + 0.02, "yz")
+    V = lambda bm, x, y, z: bm.verts.new((x, y, z))           # the glass roof: two slopes up to a ridge running out from the wall
+    for s_ in (-1, 1):
+        g = P["glass"]
+        g.faces.new((V(g, xc + s_ * hw, 0.3, zf1), V(g, xc + s_ * hw, y1, zf1), V(g, xc, y1, zr), V(g, xc, 0.3, zr)))
+        for k in range(int((y1 - 0.3) / 1.5) + 1):         # iron ribs over the glass
+            y = 0.3 + k * 1.5
+            bm_prism(P["iron"], [(xc + s_ * hw, zf1), (xc + s_ * hw, zf1 + 0.1), (xc, zr + 0.1), (xc, zr)], y - 0.04, y + 0.04, "xz")
+    bm_box(P["iron"], xc - 0.08, xc + 0.08, 0.3, y1, zr - 0.05, zr + 0.2)
+    bm_prism(P["cream"], [(xc - hw - 0.1, zf1), (xc + hw + 0.1, zf1), (xc, zr + 0.2)], y1 - 0.2, y1 + 0.05, "xz")   # the front gable
+    bm_prism(P["white"], [(xc - hw - 0.4, zf1 - 0.05), (xc - hw - 0.4, zf1 + 0.2), (xc, zr + 0.5), (xc, zr + 0.25)], y1 - 0.25, y1 + 0.15, "xz")
+    bm_prism(P["white"], [(xc + hw + 0.4, zf1 - 0.05), (xc, zr + 0.25), (xc, zr + 0.5), (xc + hw + 0.4, zf1 + 0.2)], y1 - 0.25, y1 + 0.15, "xz")
+    bm_lathe(P["clock"], [(0, 0), (0.62, 0), (0.62, 0.04), (0, 0.04)], 24, T(xc, y1 + 0.05, 7.55) @ R(-math.pi / 2, "X"))
+    bm_lathe(P["gold"], [(0.62, 0), (0.78, 0), (0.78, 0.08), (0.62, 0.08)], 24, T(xc, y1 + 0.05, 7.55) @ R(-math.pi / 2, "X"))
+    bm_box(P["iron"], xc - 0.03, xc + 0.03, y1 + 0.1, y1 + 0.12, 7.55, 7.95)             # the hands (ten past ten)
+    bm_prism(P["iron"], [(xc, 7.52), (xc + 0.4, 7.72), (xc + 0.4, 7.78), (xc, 7.58)], y1 + 0.1, y1 + 0.12, "xz")
+    bm_lathe(P["gold"], [(0, 0), (0.1, 0), (0.06, 0.5), (0.18, 0.62), (0, 1.1)], 8, T(xc, y1 - 0.1, zr + 0.45))
+    for x, y in ((xc - 3.5, 4.5), (xc + 3.5, 4.5), (xc - 3.5, 11.0), (xc + 3.5, 11.0)):   # lanterns on rods under the glass
+        bm_box(P["iron"], x - 0.02, x + 0.02, y - 0.02, y + 0.02, 4.9, zf1 + (zr - zf1) * (1 - abs(x - xc) / hw))
+        globe_lamp_bm(P["lamp"], x, y, 4.7, 0.22)
+    for k in range(n):                                      # glazed doors in the arches under the canopy
+        m = k * w + w / 2
+        if abs(m - xc) > hw - 1.0:
             continue
-        nx, ny = -(y1 - y0) / L_ * 0.35, (x1 - x0) / L_ * 0.35
-        bm_prism(bm, [(x0, y0), (x1, y1), (x1 + nx, y1 + ny), (x0 + nx, y0 + ny)], h, h + 0.9, "xy")
-    obj_bm(f"HT_{name}_parapet", bm, "h_gold_trim")
-    if total_h > 40:                                        # New Grand Wing: a slate penthouse over the middle of the roof
-        cx, cy = sum(x for x, y in pts) / len(pts), sum(y for x, y in pts) / len(pts)
-        inner = [(cx + (x - cx) * 0.55, cy + (y - cy) * 0.55) for x, y in pts]
-        prism(f"HT_{name}_cap", [inner], h, h + 3.2, "h_slate")
+        bm_box(P["white"], m - 1.0, m + 1.0, 0.16, 0.3, 0.0, 3.2)
+        bm_box(P["door"], m - 0.85, m + 0.85, 0.3, 0.33, 0.06, 3.05)
+        bm_box(P["white"], m - 0.04, m + 0.04, 0.3, 0.36, 0.06, 3.05)
+        bm_box(P["gold"], m - 0.12, m - 0.08, 0.36, 0.42, 1.0, 1.6); bm_box(P["gold"], m + 0.08, m + 0.12, 0.36, 0.42, 1.0, 1.6)
+    mats = {"iron": "h_iron", "white": "h_white", "glass": "h_glass", "cream": "h_cream", "gold": "h_gold", "lamp": "h_lamp",
+            "floor": "h_paving2", "door": "h_win_dark", "clock": "h_clockface"}
+    for k, bm_ in P.items():
+        obj_bm(f"HT_porte_{k}", bm_, mats[k], smooth=(k in ("lamp", "gold")), recalc=(k != "glass"))
+    r1, r2 = rosette(xc, 8.0, 0.8, 3.2, 12, z=0.06)
+    obj_bm("HT_porte_rosette1", r1, "h_paving1"); obj_bm("HT_porte_rosette2", r2, "h_paving2")
+    text("HT_porte_letters", "TOKYO DISNEYLAND HOTEL", 0.5, (xc, y1 + 0.12, (zf0 + zf1) / 2), (math.pi / 2, 0, math.pi), "h_letters", 0.03)
+
+
+def gatehouse():
+    """The little building in the middle of the loop road (OSM 788764389, 3.6 x 3.2 m): a gatehouse -- cream walls,
+    windows all round, a slate pyramid roof with a finial, a clipped hedge round it. ESTIMATE: all but the footprint."""
+    cx, cy, hx, hy, h = 26.75, 64.85, 1.8, 1.6, 2.9
+    P = {k: bmesh.new() for k in ("cream", "white", "glass", "slate", "gold", "leaf")}
+    bm_box(P["cream"], cx - hx, cx + hx, cy - hy, cy + hy, -1.0, h)
+    bm_box(P["white"], cx - hx - 0.08, cx + hx + 0.08, cy - hy - 0.08, cy + hy + 0.08, h - 0.3, h)
+    bm_box(P["white"], cx - hx - 0.05, cx + hx + 0.05, cy - hy - 0.05, cy + hy + 0.05, -1.0, 0.35)
+    for s_ in (-1, 1):
+        bm_box(P["glass"], cx - hx + 0.4, cx + hx - 0.4, cy + s_ * hy - 0.03, cy + s_ * hy + 0.03, 1.0, 2.3)
+        bm_box(P["glass"], cx + s_ * hx - 0.03, cx + s_ * hx + 0.03, cy - hy + 0.4, cy + hy - 0.4, 1.0, 2.3)
+    V = lambda x, y, z: P["slate"].verts.new((x, y, z))
+    c = [V(cx - hx - 0.35, cy - hy - 0.35, h), V(cx + hx + 0.35, cy - hy - 0.35, h), V(cx + hx + 0.35, cy + hy + 0.35, h),
+         V(cx - hx - 0.35, cy + hy + 0.35, h)]
+    top = V(cx, cy, h + 2.0)
+    for i in range(4):
+        P["slate"].faces.new((c[i], c[(i + 1) % 4], top))
+    P["slate"].faces.new(c[::-1])
+    bm_lathe(P["gold"], [(0, 0), (0.08, 0), (0.05, 0.4), (0.12, 0.5), (0, 0.9)], 8, T(cx, cy, h + 1.95))
+    ax, ay, bx, by = hx + 0.9, hy + 0.9, hx + 1.2, hy + 1.2   # the hedge: a square ring 0.9-1.2 m out from the walls
+    for x0, x1, y0, y1 in ((-bx, bx, -by, -ay), (-bx, bx, ay, by), (-bx, -ax, -ay, ay), (ax, bx, -ay, ay)):
+        bm_box(P["leaf"], cx + x0, cx + x1, cy + y0, cy + y1, -1.0, 0.7)
+    mats = {"cream": "h_cream", "white": "h_white", "glass": "h_win_dark", "slate": "h_slate", "gold": "h_gold", "leaf": "h_leaf"}
+    for k, bm_ in P.items():
+        obj_bm(f"HT_booth_{k}", bm_, mats[k], smooth=(k == "gold"))
 
 
 def build_plinth():
@@ -623,6 +754,64 @@ def build_court():
             globe_lamp_bm(bml, x + 0.35 * math.cos(aa), y + 0.35 * math.sin(aa), 5.0, 0.16)
         globe_lamp_bm(bml, x, y, 5.35, 0.2)
     obj_bm("HT_lampposts", bmp, "h_iron", smooth=True); obj_bm("HT_lamp_globes", bml, "h_lamp", smooth=True)
+    court_beds(cx, cy)
+
+
+def flower_bed(bms, bml, bmf, x0, x1, y0, y1, rnd):
+    """A raised bed: a stone kerb, a clipped box hedge along its outer edge, flowers in clumps (purple / pink / white)."""
+    bm_box(bms, x0, x1, y0, y1, 0.0, 0.32)
+    bm_box(bml, x0 + 0.05, x1 - 0.05, y0 + 0.05, y1 - 0.05, 0.32, 0.4)            # the soil's green cover
+    hx = x1 - x0 > y1 - y0
+    for s_ in (0, 1):                                      # the hedges at the bed's two long edges
+        if hx:
+            yy = y0 + 0.08 if s_ == 0 else y1 - 0.38
+            bm_box(bml, x0 + 0.08, x1 - 0.08, yy, yy + 0.3, 0.32, 0.72)
+        else:
+            xx = x0 + 0.08 if s_ == 0 else x1 - 0.38
+            bm_box(bml, xx, xx + 0.3, y0 + 0.08, y1 - 0.08, 0.32, 0.72)
+    ax0, ax1 = (x0 + 0.5, x1 - 0.5) if not hx else (x0 + 0.3, x1 - 0.3)
+    ay0, ay1 = (y0 + 0.5, y1 - 0.5) if hx else (y0 + 0.3, y1 - 0.3)
+    nx, ny = max(1, int((ax1 - ax0) / 0.32)), max(1, int((ay1 - ay0) / 0.32))
+    for i in range(nx):
+        for j in range(ny):
+            x = ax0 + (i + 0.5) * (ax1 - ax0) / nx + rnd.uniform(-0.05, 0.05)
+            y = ay0 + (j + 0.5) * (ay1 - ay0) / ny + rnd.uniform(-0.05, 0.05)
+            r = rnd.uniform(0.12, 0.17)
+            bm_lathe(bmf[rnd.choice((0, 0, 1, 2))], [(0, -r * 0.6), (r, 0), (0, r * 0.6)], 6, T(x, y, 0.42))
+
+
+def court_beds(cx, cy):
+    """The court's smaller planting (ESTIMATE: the photos show beds and box hedging along the wings, not their plan):
+    raised beds along the two wing walls, a ring of flowers round each great planter, iron benches inside the gates."""
+    rnd = random.Random(7)
+    bms, bml = bmesh.new(), bmesh.new()
+    bmf = [bmesh.new() for _ in range(3)]
+    flower_bed(bms, bml, bmf, -21.2, -19.6, 2.5, 10.5, rnd)       # along the east wing (the wall at x -21.4)
+    flower_bed(bms, bml, bmf, 19.3, 20.9, 10.0, 18.0, rnd)        # along the west wing (the wall at x 21.0)
+    for s_ in (-1, 1):                                             # round the great planters
+        px, py = cx + s_ * 12.8, cy
+        bm_lathe(bms, [(2.85, 0), (3.5, 0), (3.5, 0.25), (3.35, 0.25), (3.35, 0.12), (2.85, 0.12)], 40, T(px, py, 0))
+        for k in range(36):
+            a = 2 * math.pi * k / 36; rr = 3.1 + rnd.uniform(-0.08, 0.08); r = rnd.uniform(0.13, 0.18)
+            bm_lathe(bmf[k % 3 if k % 3 else 0], [(0, -r * 0.6), (r, 0), (0, r * 0.6)], 6,
+                     T(px + rr * math.cos(a), py + rr * math.sin(a), 0.2))
+    obj_bm("HT_court_bed_kerbs", bms, "h_stone"); obj_bm("HT_court_bed_hedges", bml, "h_leaf")
+    for bm_, mat in zip(bmf, ("h_flower_purple", "h_flower_pink", "h_flower_white")):
+        obj_bm(f"HT_court_flowers_{mat[9:]}", bm_, mat, smooth=True)
+    bmi, bmw = bmesh.new(), bmesh.new()                            # two iron benches inside the gates, facing the dais
+    for s_ in (-1, 1):
+        x, y0, y1 = s_ * 17.3, 27.4, 29.2
+        for yy in (y0 + 0.1, y1 - 0.1):
+            bm_box(bmi, x - 0.3, x + 0.3, yy - 0.04, yy + 0.04, 0.0, 0.45)
+            bm_prism(bmi, [(x + s_ * 0.3, 0.45), (x + s_ * 0.38, 0.45), (x + s_ * 0.48, 0.95), (x + s_ * 0.4, 0.95)], yy - 0.04, yy + 0.04, "xz")
+        for k in range(4):                                         # the seat's slats and the back's
+            xx = x - 0.28 + k * 0.15
+            bm_box(bmw, xx, xx + 0.11, y0, y1, 0.42, 0.46)
+        for k in range(3):
+            zz = 0.55 + k * 0.13
+            xx = x + s_ * (0.35 + (zz - 0.45) * 0.2)
+            bm_box(bmw, xx - 0.02, xx + 0.02, y0, y1, zz, zz + 0.09)
+    obj_bm("HT_court_bench_iron", bmi, "h_iron"); obj_bm("HT_court_bench_wood", bmw, "h_wood")
 
 
 def mickey_topiary(bm, x, y, z0, scale=1.0):
@@ -697,6 +886,11 @@ def export_objects(merged):
     building_z = g(hc.x, hc.y)                           # the building stands on the court's ground by its head wall
     print(f"[hotel] building level {building_z:.2f} m")
     court = ("HT_court_", "HT_gate", "HT_planter", "HT_topiary", "HT_steps", "HT_fountain", "HT_lamp", "HT_rail", "HT_gazebo")
+    def top_of(name):                                       # the highest ground under an object: it stands on that, the
+        o = bpy.data.objects[name]                           # rest goes down into the slope (its base is deep)
+        return max(g(p.x, p.y) for p in (o.matrix_world @ v.co for v in o.data.vertices))
+    porte_z, booth_z = top_of("HT_porte_floor"), top_of("HT_booth_cream")   # the north side, on the slope up from the loop road
+    print(f"[hotel] porte-cochere level {porte_z:.2f} m, gatehouse {booth_z:.2f} m")
     groups = {}
     for o in B.col.objects:
         if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith("CAM_"):
@@ -706,6 +900,10 @@ def export_objects(merged):
             continue
         if o.name == "HT_court_ground":
             dz = 0.0                                      # already on the ground, vertex by vertex
+        elif o.name.startswith("HT_porte"):
+            dz = porte_z
+        elif o.name.startswith("HT_booth"):
+            dz = booth_z
         elif o.name.startswith(court) and o.type == "MESH" and len(o.data.vertices):
             c = sum((o.matrix_world @ v.co for v in o.data.vertices), Vector()) / len(o.data.vertices)
             dz = g(c.x, c.y)
@@ -731,6 +929,10 @@ def cams():
         "tower": (C(-5.0, 45.0, 1.7), C(26.5, 25.5, 25.0), 20),
         "aerial": (C(40.0, 110.0, 90.0), C(0.0, -10.0, 0.0), 24),
         "north": ((0.0, 45.0, 6.0), (0.0, 0.0, 14.0), 22),            # the other side: the crescent on the loop road
+        "porte": ((2.0, 34.0, 1.7), (15.0, 6.0, 5.0), 20),            # the porte-cochere from the loop road
+        "ngw": ((110.0, -30.0, 2.0), (33.0, -58.0, 26.0), 18),        # the north-east block's long east face
+        "windows": (C(10.0, 14.0, 6.0), C(21.0, 14.0, 12.0), 30),     # the west wing's windows close up (curtains, lights)
+        "beds": (C(-6.0, 26.0, 1.6), C(-18.0, 20.0, 0.6), 22),        # the court's beds, a great planter's flower ring
     }
 
 
@@ -744,7 +946,8 @@ def build():
     B.M = hotel_materials(ST.materials())
     t0 = time.time()
     build_main()
-    back_wing("ngw", PLAN["parts"]["ngw"]["ring"], NGW_H)
+    build_ngw()
+    gatehouse()
     build_victorian("blue", "h_blue", "h_white")
     build_victorian("purple", "h_purple", "h_pink")
     build_plinth()
@@ -762,7 +965,7 @@ def build():
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cams", default="court,gates_wide,pavilion,tower,aerial,north")
+    ap.add_argument("--cams", default="court,gates_wide,pavilion,tower,aerial,north,porte,ngw,windows,beds")
     ap.add_argument("--samples", type=int, default=32)
     ap.add_argument("--percent", type=int, default=60)
     ap.add_argument("--quick", action="store_true")

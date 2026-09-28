@@ -8,7 +8,7 @@ round garden in the middle (OSM: the round building 788770688, the ring path 134
 carries the main block with the gold dome; the two wings end at the court's mouth, where the two tall towers stand.
 Parts (all from way 218553057, simplified to 1 m):
   main     the main building, 8 floors (everything but the three below)
-  ngw      the tall block to the north-east (points 20..40, closed across; OSM's height 60 m)
+  ngw      the tall block to the north-east (points 20..40, closed across; OSM's height 60 m), the same facade as main, taller
   blue     the low Victorian wing west of the court's mouth (south of the mouth line, the OSM outline reaches 25 m further south)
   purple   the low Victorian wing at the east of the court's mouth
 court frame: origin on the head wall opposite the round garden, +y out across the court towards the station.
@@ -73,7 +73,7 @@ def main():
         if poly.geom_type == "MultiPolygon":
             poly = max(poly.geoms, key=lambda q: q.area)
         poly = poly.simplify(1.0, preserve_topology=True)
-        inset = poly.buffer(-(MANSARD_D + DECK_D - 0.05), join_style=2) if name == "main" else poly.buffer(-3.2, join_style=2)
+        inset = poly.buffer(-(MANSARD_D + DECK_D - 0.05), join_style=2) if name in ("main", "ngw") else poly.buffer(-3.2, join_style=2)
         if inset.geom_type == "MultiPolygon":
             inset = [q for q in inset.geoms]
         else:
