@@ -1234,19 +1234,16 @@ def build_street():
             bm_box(bmp, x - 0.015, x + 0.015, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.05, 4.36)
             bm_box(bmp, x - 0.015, x + 0.2, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.035, 4.065)
         bm_lathe(bmp, [(0, 0), (0.1, 0), (0.05, 0.3), (0, 0.4)], 8, T(x, y, 4.72))
-    for x, y in ((-10.0, -84.0), (10.0, -84.0), (-10.0, -97.0), (10.0, -97.0)):   # trees in planters (clear of the arcade)
+    for x, y in ((-10.0, -84.0), (10.0, -84.0), (-10.0, -97.0), (10.0, -97.0)):   # planters (clear of the arcade; no trees, the user's request)
         bm_box(bmw, x - 0.8, x + 0.8, y - 0.8, y + 0.8, 0.04, 0.7)
-        bm_lathe(bmt, [(0, 0), (0.1, 0), (0.07, 2.4), (0, 2.4)], 8, T(x, y, 0.7))
-        for dx, dy, dz, r in ((0, 0, 3.3, 1.1), (0.6, 0.3, 2.9, 0.8), (-0.5, -0.4, 3.0, 0.8), (0.1, -0.6, 3.8, 0.7)):
-            globe_lamp_bm(bmf, x + dx, y + dy, dz, r)
     for x, y in ((-10.8, -22.0), (10.6, -35.0), (-10.2, -79.0), (10.2, -91.0)):     # benches
         s = 1 if x < 0 else -1
         bm_box(bmp, x - 0.3, x + 0.3, y - 0.9, y - 0.8, 0.04, 0.45); bm_box(bmp, x - 0.3, x + 0.3, y + 0.8, y + 0.9, 0.04, 0.45)
         bm_box(bmw, x - 0.28, x + 0.28, y - 0.95, y + 0.95, 0.42, 0.47)
         bm_box(bmw, x - s * 0.28 - 0.04, x - s * 0.28 + 0.04, y - 0.95, y + 0.95, 0.5, 0.9)
     obj_bm("ST_WBZ_furniture", bmp, "hall_iron", smooth=True); obj_bm("ST_WBZ_lamps", bml, "lamp", smooth=True)
-    obj_bm("ST_WBZ_clock_faces", bmc, "clock"); obj_bm("ST_WBZ_tree_crowns", bmf, "leaf", smooth=True)
-    obj_bm("ST_WBZ_trunks", bmt, "wood"); obj_bm("ST_WBZ_planters_benches", bmw, "wood")
+    obj_bm("ST_WBZ_clock_faces", bmc, "clock"); obj_bm("ST_WBZ_planters_benches", bmw, "wood")
+    bmf.free(); bmt.free()
 
 
 # ================================================================ scene

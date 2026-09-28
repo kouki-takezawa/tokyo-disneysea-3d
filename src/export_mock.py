@@ -302,7 +302,7 @@ def main():
                         shrubs += [round(x, 1), round(y, 1), round(min(1.1, bw * 0.25), 2)]
     except Exception as e:                                    # the ground scripts need shapely: without it, only OSM's trees
         print("[mock] plaza planting skipped:", e)
-    out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...]
+    out["trees3d"] = []                                      # no trees (the user's request, 2026-09-28); was: flat [x, y, height, ...]
     out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"

@@ -657,7 +657,7 @@ $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
-  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "木(OSM の木の位置)"],
+  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "植え込みの刈り込み"],
   ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
@@ -1866,6 +1866,7 @@ async function loadModels(T, scene, root, list = D.models) {
     await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
+        if (/^PZ_(Trunk|Canopy)/.test(o.name)) { o.visible = false; return; }   // the plaza model's trees: no trees (the user's request)
         const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (o.name.startsWith("WS_water")) { o.material = makeWater(T); }
@@ -2121,21 +2122,10 @@ async function init3D() {
   D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
   D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
   D.green.forEach(r => ringH("green", r, 0.05));
-  // woods: the outline on the ground and a tree symbol every 9 m inside (trunk + crown), instead of a 2-7 m box
-  // that hid the water and the buildings behind it
+  // woods: the outline on the ground only (no tree symbols: no trees, the user's request)
   function woods(key, r, gzf) {
     const g = (x, y) => gzf(x, y) ?? 0;
     for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; seg(key, [...V(x1, y1, g(x1, y1) + 0.1), ...V(x2, y2, g(x2, y2) + 0.1)]); }
-    const [a, b, c, d] = bboxOf([r]), st = 9;
-    for (let x = Math.ceil(a / st) * st; x <= c; x += st) for (let y = Math.ceil(b / st) * st; y <= d; y += st) {
-      const jx = x + ((y * 7) % 5) - 2, jy = y + ((x * 3) % 5) - 2;   // a little irregular
-      if (!pip(jx, jy, r)) continue;
-      const z = g(jx, jy);
-      seg(key, [...V(jx, jy, z), ...V(jx, jy, z + 3.2)]);
-      for (let k = 0; k < 6; k++) { const a1 = k / 6 * 6.2832, a2 = (k + 1) / 6 * 6.2832;
-        seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx + Math.cos(a2) * 2, jy + Math.sin(a2) * 2, z + 4.6)]);
-        if (k % 2 === 0) seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx, jy, z + 6.2)]); }
-    }
   }
   D.trees.forEach(r => woods("trees", r, gz));
   D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
@@ -2359,7 +2349,7 @@ async function init3D() {
   };
   // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground
   three.buildTrees = () => {
-    if (three.trees3d || !D.trees3d || !D.trees3d.length) return;
+    if (three.trees3d || !((D.trees3d || []).length || (D.shrubs3d || []).length)) return;
     const n = D.trees3d.length / 3;
     const trunkG = new T.CylinderGeometry(0.1, 0.16, 1, 6); trunkG.translate(0, 0.5, 0);
     const crownG = new T.IcosahedronGeometry(1, 1);
