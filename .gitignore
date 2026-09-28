@@ -37,7 +37,6 @@
 !/output/disneysea/train.html
 !/output/disneysea/train_model.js
 !/output/disneysea/models/
-!/output/disneysea/tex/
 /output/disneysea/models/*.glb
 # kept only as the Draco copy in models/web/ (src/compress_models.py WEB_ONLY)
 /output/disneysea/models/tdl_hotel.json

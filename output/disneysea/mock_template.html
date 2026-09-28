@@ -1844,82 +1844,6 @@ function reflectEnv(mat) {
   return mat;
 }
 const SUN_DIR = [-300, 600, 500], SUN_LEN = Math.hypot(...SUN_DIR);
-// patterns drawn on the solid materials from world position (no UVs needed): brick courses, slate shingles, paving
-// tiles, floor planks, a faint mottle on render and on plants; the pattern darkens / tints the material's own colour
-// photo textures (CC0, ambientCG; output/disneysea/tex/<name>_c.jpg), projected from world position on three axes (the
-// models carry no UVs): the texture's variation multiplies the material's own colour (texture / its mean colour), and
-// its brightness bumps the surface (screen-space derivatives) -- joints, shingles and planks read in relief
-const TEX_KINDS = {   // kind: [texture, metres per repeat, strength, bump]
-  1: ["brick", 1.6, 0.9, 0.9], 2: ["slate", 2.0, 0.8, 0.8], 3: ["paving", 2.4, 0.7, 0.6], 4: ["plank", 2.2, 0.8, 0.6],
-  5: ["plaster", 3.0, 0.45, 0.25], 6: ["leaves", 1.8, 0.9, 1.0], 7: ["grass", 2.5, 0.8, 0.4], 8: ["asphalt", 3.0, 0.7, 0.3],
-  9: ["stone", 2.4, 0.6, 0.5], 10: ["cobble", 1.6, 0.8, 0.8] };
-function patternKind(key) {
-  if (!key) return null;
-  const k = key.toLowerCase();
-  if (/brick/.test(k)) return 1;
-  if (/slate|shingle|mauve|copper|context_roof/.test(k)) return 2;
-  if (/wbz_walk|tg_paving|tg_slate|th_plaza|pz_brick/.test(k)) return 10;
-  if (/paving|walk|tile|plaza|tl_ground|tg_gate|th_path|tl_paving|pz_blue/.test(k)) return 3;
-  if (/stone|edging|curb|concrete|tg_band/.test(k)) return 9;
-  if (/road|parking|asphalt/.test(k)) return 8;
-  if (/floor|wood|deck|trunk/.test(k)) return 4;
-  if (/cream|wbz_(pink|yellow|blue|mint|peach|sand|sage|lilac)|hotel_(cream|blue|purple|pink|white)|st_trim|hotel_gold|mural|pb_(cream|sand|pink|tan)/.test(k)) return 5;
-  if (/grass|soil|lawn|tl_wood/.test(k)) return 7;
-  if (/leaf|hedge|canopy|flower/.test(k)) return 6;
-  return null;
-}
-const TEX = {};   // name -> { tex, mean: [r, g, b] } (a white 1x1 until the photo is in)
-function texFor(T, name) {
-  if (TEX[name]) return TEX[name];
-  const white = new T.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); white.needsUpdate = true;
-  const t = TEX[name] = { tex: white, mean: new T.Vector3(1, 1, 1), users: [] };
-  new T.TextureLoader().load(`tex/${name}_c.jpg`, img => {
-    img.wrapS = img.wrapT = T.RepeatWrapping; img.anisotropy = 4;
-    const c = document.createElement("canvas"); c.width = c.height = 16;
-    const g = c.getContext("2d"); g.drawImage(img.image, 0, 0, 16, 16);
-    const d = g.getImageData(0, 0, 16, 16).data; let r = 0, gg = 0, b = 0;
-    for (let q = 0; q < d.length; q += 4) { r += d[q]; gg += d[q + 1]; b += d[q + 2]; }
-    const n = d.length / 4 * 255; t.mean.set(Math.max(0.05, r / n), Math.max(0.05, gg / n), Math.max(0.05, b / n));
-    t.tex = img; for (const u of t.users) { u.uPatTex.value = img; u.uPatMean.value = t.mean; }
-  }, undefined, () => {});
-  return t;
-}
-const PATTERN_GLSL = `
-varying vec3 vPatP; varying vec3 vPatN;
-uniform sampler2D uPatTex; uniform vec3 uPatMean; uniform float uPatScale, uPatAmt, uPatBump;
-float patHeight;
-vec3 patSample() {
-  vec3 n = abs(normalize(vPatN)); n = pow(n, vec3(4.)); n /= (n.x + n.y + n.z);
-  vec3 p = vPatP / uPatScale;
-  return texture2D(uPatTex, p.zy).rgb * n.x + texture2D(uPatTex, p.xz).rgb * n.y + texture2D(uPatTex, p.xy).rgb * n.z;
-}
-vec3 patApply(vec3 c) {
-  vec3 t = patSample();
-  patHeight = dot(t, vec3(0.3, 0.59, 0.11));
-  return c * mix(vec3(1.), t / uPatMean, uPatAmt);
-}
-vec3 patBump(vec3 pos, vec3 nrm, float h) {
-  vec3 sx = dFdx(pos), sy = dFdy(pos), r1 = cross(sy, nrm), r2 = cross(nrm, sx);
-  float det = dot(sx, r1); vec3 g = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2);
-  return normalize(abs(det) * nrm - g);
-}`;
-function patternize(T, mat, key) {
-  const kind = patternKind(key);
-  if (!kind) return mat;
-  const [name, scale, amt, bump] = TEX_KINDS[kind];
-  const tx = texFor(T, name);
-  mat.onBeforeCompile = sh => {
-    const u = { uPatTex: { value: tx.tex }, uPatMean: { value: tx.mean }, uPatScale: { value: scale }, uPatAmt: { value: amt }, uPatBump: { value: bump * 0.04 } };
-    Object.assign(sh.uniforms, u); tx.users.push(u);
-    sh.vertexShader = "varying vec3 vPatP; varying vec3 vPatN;\n" + sh.vertexShader.replace("#include <project_vertex>",
-      "#include <project_vertex>\n vPatP = (modelMatrix * vec4(transformed, 1.0)).xyz; vPatN = normalize(mat3(modelMatrix) * objectNormal);");
-    sh.fragmentShader = PATTERN_GLSL + "\n" + sh.fragmentShader
-      .replace("#include <color_fragment>", "#include <color_fragment>\n diffuseColor.rgb = patApply(diffuseColor.rgb);")
-      .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n normal = patBump(-vViewPosition, normal, patHeight * uPatBump / max(uPatScale, 0.1) * 30.);");
-  };
-  mat.customProgramCacheKey = () => "tex" + kind;
-  return mat;
-}
 const modelsAsked = new Set();
 async function loadModels(T, scene, root, list = D.models) {
   list = list.filter(m => !modelsAsked.has(m.id)); list.forEach(m => modelsAsked.add(m.id));
@@ -1942,7 +1866,7 @@ async function loadModels(T, scene, root, list = D.models) {
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
         else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
-        else if (key) o.material = reflectEnv(patternize(T, new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] }), key));
+        else if (key) o.material = reflectEnv(new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] }));
         if (SHADOWS && o.material && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; }
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
@@ -2433,7 +2357,7 @@ async function init3D() {
     const trunkG = new T.CylinderGeometry(0.1, 0.16, 1, 6); trunkG.translate(0, 0.5, 0);
     const crownG = new T.IcosahedronGeometry(1, 1);
     const trunk = new T.InstancedMesh(trunkG, new T.MeshStandardMaterial({ color: 0x5a4330, roughness: 0.95 }), n);
-    const crownMat = patternize(T, new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), "leaf");
+    const crownMat = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true });
     const crown = new T.InstancedMesh(crownG, crownMat, n * 2);
     const m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), col = new T.Color();
     const greens = [0x3f6a2c, 0x4d7a33, 0x355e28, 0x587f3a, 0x2f5423];
