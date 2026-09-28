@@ -303,7 +303,7 @@ def main():
     except Exception as e:                                    # the ground scripts need shapely: without it, only OSM's trees
         print("[mock] plaza planting skipped:", e)
     out["trees3d"] = []                                      # no trees (the user's request, 2026-09-28); was: flat [x, y, height, ...]
-    out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
+    out["shrubs3d"] = []                                     # no round shrubs either (the user's request, 2026-09-28); was: shrubs, flat [x, y, radius, ...]
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
