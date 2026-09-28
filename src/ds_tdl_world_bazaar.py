@@ -25,7 +25,9 @@ Frame: the World Bazaar frame of ds_tdl_entrance (WB): +x along the entrance fro
 ESTIMATES: the heights of the roof (eaves 12.1 m, ridge 16.2 m, from the front photo), the shops (ground floor 4.2 m,
 upper floors 3.0 / 2.65 / 2.3 m, lower each floor up as the park's forced perspective), the arches at the end (springing 8.0 m), the tower and furniture sizes, the shops' widths and
 styles (drawn at random from what the photos show, with the Confectionery and House of Greetings corners placed by
-the photos, not surveyed).
+the photos, not surveyed); Center Street's Art Deco touches (marquees, blade signs, zigzag friezes, stepped crowns --
+only the Coffeehouse's streamline sign is from a photo); the sidewalk arcade's columns every second truss (photo A5
+shows them, their spacing and heights are estimated), the lanterns, the ridge cresting and the glazing bars' pitch.
 """
 import sys, math, json, argparse, pathlib, time, random
 
@@ -172,7 +174,35 @@ def glass_hall(name, p0, p1, w, eave, ridge, base, step=6.0, gaps=(), end=None, 
             for s in (-1, 1):
                 x = s * hw * (1 - f); z = eave + (ridge - eave) * f
                 bm_box(bmf, x - 0.05, x + 0.05, -L, 0, z + 0.02, z + 0.16)
+        # the glazing bars (photos: small panes, about 1.1 m up the slope by 1.5 m along): thin bars both ways
+        sl = math.hypot(hw, ridge - eave); nb = max(4, round(sl / 1.1))
+        for k in range(1, nb):
+            f = k / nb
+            for s in (-1, 1):
+                x = s * hw * (1 - f); z = eave + (ridge - eave) * f
+                bm_box(bmf, x - 0.025, x + 0.025, -L, 0, z + 0.01, z + 0.06)
+        n_r = max(2, int(L / 1.5))
+        for k in range(1, n_r):
+            y = -L * k / n_r
+            for s in (-1, 1):
+                q = [(s * hw, eave + 0.01), (0, ridge + 0.01), (0, ridge + 0.07), (s * hw, eave + 0.07)]
+                bm_prism(bmf, q if s > 0 else q[::-1], y - 0.02, y + 0.02, "xz")
         bm_box(bmf, -0.14, 0.14, -L, 0, ridge - 0.05, ridge + 0.3)
+        # iron cresting along the ridge (bars, a top rail, a ring between each pair), a gilt finial on each gable
+        bm_box(bmf, -0.03, 0.03, -L, 0, ridge + 0.72, ridge + 0.78)
+        y = -0.2
+        while y > -L + 0.1:
+            bm_box(bmf, -0.015, 0.015, y - 0.015, y + 0.015, ridge + 0.3, ridge + 0.72)
+            bm_lathe(bmf, [(0.07, -0.015), (0.1, -0.015), (0.1, 0.015), (0.07, 0.015)], 8, T(0, y - 0.15, ridge + 0.52) @ R(math.pi / 2, "Y"))
+            y -= 0.3
+        bmc = bmesh.new()
+        for kind, y0 in ((start, 0.0), (end, -L)):
+            if kind is not None:
+                finial_bm(bmc, 0.0, y0, ridge + 0.3, 1.4)
+        if len(bmc.verts):
+            obj_bm(f"ST_WBZ_{name}_finials", bmc, "brass", smooth=True)
+        else:
+            bmc.free()
         for kind, y0, sg in ((start, 0.0, 1), (end, -L, -1)):  # ends
             if kind is None:
                 continue
@@ -222,6 +252,81 @@ def lattice_tower(bm, x, y, z1):
     bm_box(bm, x - 0.7, x + 0.7, y - 0.7, y + 0.7, z1 - 0.35, z1)
 
 
+def tower_trim(bmb, bml, bmi, x, y, z1, cx, cy):
+    """The crossing towers' ornament: gilt bands on the pedestal and up the shaft, a bracketed capital under the girders,
+    and a lantern on a scrolled arm facing the crossing's centre (cx, cy) (photos: lamps hang on the towers)."""
+    for z in (2.2, 2.45):
+        bm_lathe(bmb, [(0.99, z), (1.04, z), (1.04, z + 0.06), (0.99, z + 0.06)], 8, T(x, y, 0) @ R(math.pi / 8, "Z"))
+    h = 0.45
+    for z in (4.0, 6.2, 8.4):                             # gilt bands round the shaft
+        for s in (-1, 1):
+            bm_box(bmb, x - h - 0.1, x + h + 0.1, y + s * (h + 0.06) - 0.03, y + s * (h + 0.06) + 0.03, z, z + 0.14)
+            bm_box(bmb, x + s * (h + 0.06) - 0.03, x + s * (h + 0.06) + 0.03, y - h - 0.1, y + h + 0.1, z, z + 0.14)
+    for sx in (-1, 1):                                    # the capital: a flared cap, a scroll bracket out on each face
+        for sy in (-1, 1):
+            bm_box(bmi, x + sx * h - 0.12, x + sx * h + 0.12, y + sy * h - 0.12, y + sy * h + 0.12, z1 - 1.3, z1 - 0.35)
+    bm_box(bmb, x - 0.75, x + 0.75, y - 0.75, y + 0.75, z1 - 1.45, z1 - 1.3)
+    for a in range(4):
+        c, s = math.cos(a * math.pi / 2), math.sin(a * math.pi / 2)
+        pts = [(h, z1 - 1.3), (h + 0.55, z1 - 0.35), (h + 0.55, z1 - 0.2), (h, z1 - 0.2)]
+        for t in (-0.2, 0.2):
+            ax, ay = -s * t, c * t
+            v = [bmi.verts.new((x + ax + c * r, y + ay + s * r, z)) for r, z in pts]
+            bmi.faces.new(v)
+    ux, uy = cx - x, cy - y; L = math.hypot(ux, uy) or 1.0; ux, uy = ux / L, uy / L
+    ax_, ay_ = x + ux * (h + 0.1), y + uy * (h + 0.1)     # the arm: a bar out, a scroll under it, the lantern hanging
+    bmesh.ops.create_cube(bmi, size=1.0, matrix=T(ax_ + ux * 0.55, ay_ + uy * 0.55, 7.3) @ R(math.atan2(uy, ux), "Z") @ Matrix.Diagonal((1.1, 0.06, 0.08, 1)))
+    bm_lathe(bmi, [(0.2, -0.025), (0.26, -0.025), (0.26, 0.025), (0.2, 0.025)], 12,
+             T(ax_ + ux * 0.3, ay_ + uy * 0.3, 7.0) @ R(math.atan2(uy, ux), "Z") @ R(math.pi / 2, "X"))
+    lx, ly = ax_ + ux * 1.0, ay_ + uy * 1.0
+    bm_lathe(bmi, [(0, 0.55), (0.06, 0.55), (0.25, 0.35), (0.22, 0.3), (0.08, 0.28), (0.08, -0.35), (0.12, -0.42), (0, -0.5)], 8, T(lx, ly, 6.75))
+    globe_lamp_bm(bml, lx, ly, 6.8, 0.2)
+
+
+def street_arcade(H):
+    """Main Street's cast-iron arcade (the user's photo A5): tall clustered columns on the sidewalks at the kerb, every
+    second truss, carrying segmental arches along the street, a tie girder at their tops and a beam across to the eave
+    girder; a lantern hangs from each arch's crown. Placed clear of the lamp posts, clocks, planters and porches."""
+    X = 8.05; ys = (-23.5, -35.5, -71.5, -83.5, -95.5)   # truss positions (every 6 m from the entrance building)
+    spring, top = 7.4, 11.2
+    bmi, bmb, bml = bmesh.new(), bmesh.new(), bmesh.new()
+    w = 24.5; hw = w / 2; sp = H["eave"] - 1.3; rise = (H["ridge"] - 1.5) - sp
+    _, (zc, Rr, _) = seg_arc(0.0, sp, w, rise, 9)
+    zb = zc + math.sqrt(max(Rr * Rr - X * X, 0.0))       # the truss's bottom chord over the column
+    for s in (-1, 1):
+        x = s * X
+        for y in ys:
+            if s > 0 and y == -35.5:
+                continue                                  # (the Confectionery's porch and the street clock)
+            bm_lathe(bmi, [(0, 0), (0.5, 0), (0.5, 0.25), (0.42, 0.35), (0.42, 1.0), (0.48, 1.1), (0.34, 1.3), (0.26, 1.35), (0, 1.35)], 8,
+                     T(x, y, 0.04) @ R(math.pi / 8, "Z"))  # the octagonal base
+            bm_lathe(bmi, [(0, 0), (0.24, 0), (0.2, 0.3), (0.19, spring - 2.0), (0.26, spring - 1.9), (0.38, spring - 1.55),
+                           (0.46, spring - 1.45), (0.46, spring - 1.3), (0, spring - 1.3)], 12, T(x, y, 1.35))
+            for a in range(4):                            # four colonnettes round the shaft
+                c, s_ = math.cos(math.pi / 4 + a * math.pi / 2), math.sin(math.pi / 4 + a * math.pi / 2)
+                bm_lathe(bmi, [(0, 0), (0.07, 0), (0.07, spring - 1.9), (0, spring - 1.9)], 6, T(x + 0.22 * c, y + 0.22 * s_, 1.35))
+            for z in (1.3, 4.3):
+                bm_lathe(bmb, [(0.22, z), (0.3, z), (0.3, z + 0.1), (0.22, z + 0.1)], 12, T(x, y, 0.04))
+            bm_box(bmi, x - 0.18, x + 0.18, y - 0.18, y + 0.18, spring + 0.05, top)          # the post up to the girder
+            bm_box(bmi, x - 0.1, x + 0.1, y - 0.1, y + 0.1, top, zb)                          # and on to the truss
+            bm_box(bmi, min(x, s * (hw - 0.1)), max(x, s * (hw - 0.1)), y - 0.12, y + 0.12, top - 0.35, top)            # the beam to the eave girder
+            bm_prism(bmi, [(x + s * 0.18, top - 0.35), (x + s * 1.4, top - 0.35), (x + s * 0.18, top - 1.4)][::s], y - 0.05, y + 0.05, "xz")
+        runs = [(a, b_) for a, b_ in zip(ys, ys[1:]) if b_ - a > -13 and not (s > 0 and -35.5 in (a, b_))]
+        for a, b_ in runs:                                # the arches along the street, spandrel rings, the tie girder
+            bm_prism(bmi, arch_band(b_ + 0.2, a - 0.2, spring, top - 0.35 - spring - 0.25, 0.3, 21), x - 0.09, x + 0.09, "yz")
+            bm_box(bmi, x - 0.12, x + 0.12, b_, a, top - 0.35, top)
+            for t in (0.12, 0.88):
+                yy = b_ + (a - b_) * t
+                bm_lathe(bmi, [(0.35, -0.04), (0.45, -0.04), (0.45, 0.04), (0.35, 0.04)], 16, T(x, yy, top - 1.15) @ R(math.pi / 2, "Y"))
+            ym = (a + b_) / 2; zt = top - 0.35                 # the lantern on a rod from the crown
+            bm_box(bmi, x - 0.015, x + 0.015, ym - 0.015, ym + 0.015, 8.6, zt - 0.1)
+            bm_lathe(bmi, [(0, 0.6), (0.08, 0.6), (0.34, 0.4), (0.3, 0.34), (0.1, 0.3), (0.1, -0.4), (0.15, -0.48), (0, -0.56)], 8, T(x, ym, 8.0))
+            globe_lamp_bm(bml, x, ym, 8.05, 0.26)
+    obj_bm("ST_WBZ_arcade_iron", bmi, "hall_iron")
+    obj_bm("ST_WBZ_arcade_brass", bmb, "brass")
+    obj_bm("ST_WBZ_arcade_lamps", bml, "lamp", smooth=True)
+
+
 def build_roof():
     H = HALL
     cy0, cy1 = CROSS["y0"] - WB_BACK, CROSS["y1"] - WB_BACK       # the crossing in the main hall's local y
@@ -239,7 +344,14 @@ def build_roof():
         bm_box(bm, sx * 11.0 - 0.2, sx * 11.0 + 0.2, CROSS["y1"] + 0.9, CROSS["y0"] - 0.9, H["eave"] - 1.2, H["eave"] - 0.2)
         for y in (CROSS["y0"] - 0.9, CROSS["y1"] + 0.9):
             bm_box(bm, sx * 11.0 - 0.2, sx * 12.4, y - 0.2, y + 0.2, H["eave"] - 1.2, H["eave"] - 0.2)
+    bmb, bml = bmesh.new(), bmesh.new()
+    for sx in (-1, 1):
+        for y in (CROSS["y0"] - 0.9, CROSS["y1"] + 0.9):
+            tower_trim(bmb, bml, bm, sx * 11.0, y, H["eave"] - 0.2, 0.0, CROSS["yc"])
     obj_bm("ST_WBZ_towers", bm, "hall_iron")
+    obj_bm("ST_WBZ_tower_bands", bmb, "brass")
+    obj_bm("ST_WBZ_tower_lamps", bml, "lamp", smooth=True)
+    street_arcade(H)
 
 
 # ================================================================ 2. the shops: one front per shop, styles from the photos
@@ -251,6 +363,62 @@ def finial_bm(bm, x, y, z, h):
     s = h / 0.7
     bm_lathe(bm, [(0, 0), (0.07 * s, 0), (0.035 * s, 0.12 * s), (0.03 * s, 0.25 * s), (0.08 * s, 0.33 * s), (0.08 * s, 0.39 * s),
                   (0.03 * s, 0.46 * s), (0.015 * s, 0.7 * s), (0, 0.72 * s)], 8, T(x, y, z))
+
+
+def deco_front(P, w, st, H, gf, xs, dx, bx, sl):
+    """Center Street's Art Deco touches (by estimate, from the Coffeehouse's streamline sign in the photo): the sign board
+    with rounded gilt ends and speed lines either side; with deco=True also a marquee lined with bulbs over the door
+    (where there is no awning), a tall blade sign with bulbs and a stepped top on the corner pilaster, a gilt zigzag
+    frieze on the parapet and a stepped crown with a sunburst."""
+    m = w / 2
+    for sx in (-1, 1):                                    # the sign's rounded ends, speed lines out to the pilasters
+        bm_lathe(P["brass"], [(0, 0), (0.3, 0), (0.3, 0.05), (0, 0.05)], 16, T(m + sx * sl / 2, 0.14, 3.575) @ R(-math.pi / 2, "X"))
+        a, b_ = sorted((m + sx * (sl / 2 + 0.4), m + sx * (w / 2 - 0.6)))
+        if b_ - a > 0.3:
+            for zz in (3.46, 3.56, 3.66):
+                bm_box(P["brass"], a, b_, 0.14, 0.17, zz, zz + 0.035)
+    if st["deco"] is not True:
+        return
+    if not st["awning"]:                                  # the marquee
+        bm_box(P["trim"], dx - 1.25, dx + 1.25, 0.05, 1.15, 3.0, 3.18)
+        bm_box(P["brass"], dx - 1.27, dx + 1.27, 1.15, 1.19, 2.95, 3.24)
+        for sx in (-1, 1):
+            bm_box(P["brass"], dx + sx * 1.25 - 0.02, dx + sx * 1.25 + 0.02, 0.05, 1.19, 2.95, 3.24)
+        for k in range(9):
+            globe_lamp_bm(P["lamp"], dx - 1.1 + 2.2 * k / 8, 1.0, 2.96, 0.04)
+    if w >= 5.0 and H >= gf + 4.0:                        # the blade sign on the corner pilaster away from the hanging one
+        xv = 0.22 if bx > w / 2 else w - 0.22
+        za, zb = gf + (1.15 if st["balcony"] else 0.35), H - 0.85
+        bm_box(P["sign"], xv - 0.09, xv + 0.09, 0.12, 0.95, za, zb)
+        bm_box(P["brass"], xv - 0.11, xv + 0.11, 0.95, 0.99, za, zb)
+        bm_prism(P["sign"], [(0.12, za), (0.95, za), (0.12, za - 0.6)], xv - 0.09, xv + 0.09, "yz")
+        bm_box(P["brass"], xv - 0.07, xv + 0.07, 0.47, 0.95, zb, H + 0.35)
+        bm_box(P["brass"], xv - 0.05, xv + 0.05, 0.47, 0.78, H + 0.35, H + 0.7)
+        z = za + 0.2
+        while z < zb - 0.1:
+            for sx in (-1, 1):
+                globe_lamp_bm(P["lamp"], xv + sx * 0.11, 0.88, z, 0.04)
+            z += 0.33
+    if st["roof"] in ("parapet", "pediment"):             # the zigzag frieze on the parapet
+        n = max(2, int((w - 0.4) / 0.5))
+        for k in range(n):
+            xa, xb = 0.2 + (w - 0.4) * k / n, 0.2 + (w - 0.4) * (k + 1) / n
+            q = [(xa, H + 0.15), (xb, H + 0.15), ((xa + xb) / 2, H + 0.6)] if k % 2 == 0 else [(xa, H + 0.6), ((xa + xb) / 2, H + 0.15), (xb, H + 0.6)]
+            bm_prism(P["brass"], q, 0.0, 0.035, "xz")
+    if st["roof"] == "parapet":                           # the stepped crown and its sunburst
+        z0 = H + 0.87; hs = min(0.42, (11.35 - z0) / 3)
+        if hs > 0.15:
+            cw = min(w * 0.55, 3.4)
+            for i in range(3):
+                c_ = cw * (1 - 0.28 * i)
+                bm_box(P["wall"], m - c_ / 2, m + c_ / 2, -0.35, 0.0, z0 + i * hs, z0 + (i + 1) * hs)
+                bm_box(P["trim"], m - c_ / 2 - 0.04, m + c_ / 2 + 0.04, -0.38, 0.05, z0 + (i + 1) * hs - 0.08, z0 + (i + 1) * hs)
+            rr = min(cw * 0.42, 3 * hs - 0.12)
+            for k in range(9):
+                a0, a1 = math.pi * (k + 0.15) / 9, math.pi * (k + 0.85) / 9
+                q = [(m + 0.06 * math.cos((a0 + a1) / 2), z0 + 0.02), (m + rr * math.cos(a1), z0 + 0.02 + rr * math.sin(a1) * 0.9),
+                     (m + rr * math.cos(a0), z0 + 0.02 + rr * math.sin(a0) * 0.9)]
+                bm_prism(P["brass"], q, 0.05, 0.08, "xz")
 
 
 def shop(name, w, st, room=None):
@@ -356,7 +524,12 @@ def shop(name, w, st, room=None):
         fh = fhs[f - 1]; ww_ = ww0 * (0.55 + 0.45 * fh / 3.0)
         z0 = zf[f - 1] + 0.22 * fh; z1 = z0 + 0.65 * fh
         bm_box(P["trim"], 0, w, 0.0, 0.1, zf[f - 1] - 0.05, zf[f - 1] + 0.12)
-        if st.get("pilasters"):                          # flat pilasters between the bays, a capital under the course above
+        if st.get("deco") is True:                       # Center Street: fluted fins between the bays, floor to cornice
+            for k in range(1, nwin):
+                x = (xs[k - 1] + xs[k]) / 2
+                for dx_ in (-0.12, 0.0, 0.12):
+                    bm_box(P["trim"], x + dx_ - 0.035, x + dx_ + 0.035, 0.0, 0.16 - abs(dx_) * 0.5, zf[f - 1] + 0.12, zf[f - 1] + fh - 0.05)
+        elif st.get("pilasters"):                        # flat pilasters between the bays, a capital under the course above
             for k in range(1, nwin):
                 x = (xs[k - 1] + xs[k]) / 2
                 bm_box(P["trim"], x - 0.14, x + 0.14, 0.0, 0.1, zf[f - 1] + 0.12, zf[f - 1] + fh - 0.05)
@@ -481,7 +654,7 @@ def shop(name, w, st, room=None):
             P["roof"].faces.new(v)
         bm_lathe(P["trim"], [(0.32, 0), (0.45, 0), (0.45, 0.08), (0.32, 0.08)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
         bm_lathe(P["glass"], [(0, 0), (0.33, 0), (0.33, 0.02), (0, 0.02)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
-    if st.get("cresting", rf in ("mansard", "parapet")):  # iron cresting along the top, gilt finials at the ends
+    if st.get("cresting", rf in ("mansard", "parapet") and not st.get("deco")):  # iron cresting along the top, gilt finials at the ends
         zc_, yc_ = (H + 2.0, -1.2) if rf == "mansard" else (H + 0.87, -0.17) if rf == "parapet" else (None, None)
         if zc_ is not None:
             bm_box(P["iron"], 0.1, w - 0.1, yc_ - 0.02, yc_ + 0.02, zc_ + 0.4, zc_ + 0.44)
@@ -520,6 +693,8 @@ def shop(name, w, st, room=None):
         bm_box(P["sign"], w / 2 - 2.3, w / 2 + 2.3, d, d + 0.08, gf + 0.9, gf + 1.8)
         if st.get("porch_sign"):
             text(f"ST_WBZ_{name}_porchsign", st["porch_sign"], 0.48, (w / 2, d + 0.1, gf + 1.33), (math.pi / 2, 0, math.pi), "t_maroon", 0.02)
+    if st.get("deco"):
+        deco_front(P, w, st, H, gf, xs, dx, bx, sl)
     if room:
         shop_interior(name, st, room, gf, rng)
     mats = {"wall": wall, "trim": trim, "glass": "win_dark", "display": "display", "door": "door", "iron": "iron",
@@ -727,7 +902,7 @@ SHOP_STYLE = {
     "CAMERA CENTER": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
                           porch_sign="CAMERA CENTER", signmat="t_dkgreen", balcony=False, oriel=False),
     "CENTER STREET COFFEEHOUSE": dict(wall="brick", trim="cream", floors=2, roof="pediment", date="1892", win="arch",
-                                      awning=("aw_green", None), win_awn=True, signmat="iron", balcony=False, oriel=False),
+                                      awning=("aw_green", None), win_awn=True, signmat="iron", balcony=False, oriel=False, deco="sign"),
     "DISNEY & CO.": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=3, roof="mansard", roofmat="t_dkgreen", turret=1, balcony=True,
                          win="arch", awning=None, signmat="t_maroon", oriel=False),
     "HOME STORE": dict(win_awn=False, portal=False, wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
@@ -785,6 +960,8 @@ def build_shops(seed=7):
                     st = dict(v); wd = st.pop("w")
                 else:
                     st = random_style(rng, prev); wd = v
+                    if fid[0] in "CA":                    # Center Street: flat parapets, the Art Deco touches (deco_front)
+                        st.update(deco=True, portal=False, roof="parapet" if rng.random() < 0.75 else st["roof"])
                 prev = st["wall"]
                 a_ = math.radians(ang); mx, my = p0[0] + (x + wd / 2) * math.cos(a_), p0[1] + (x + wd / 2) * math.sin(a_)
                 best = min(((math.hypot(sx - mx, sy - my), k) for k, (sx, sy, _, _) in enumerate(REAL_SHOPS) if k not in used), default=None)
@@ -1057,7 +1234,7 @@ def build_street():
             bm_box(bmp, x - 0.015, x + 0.015, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.05, 4.36)
             bm_box(bmp, x - 0.015, x + 0.2, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.035, 4.065)
         bm_lathe(bmp, [(0, 0), (0.1, 0), (0.05, 0.3), (0, 0.4)], 8, T(x, y, 4.72))
-    for x, y in ((-9.4, -84.0), (9.4, -84.0), (-9.4, -97.0), (9.4, -97.0)):   # trees in planters
+    for x, y in ((-10.0, -84.0), (10.0, -84.0), (-10.0, -97.0), (10.0, -97.0)):   # trees in planters (clear of the arcade)
         bm_box(bmw, x - 0.8, x + 0.8, y - 0.8, y + 0.8, 0.04, 0.7)
         bm_lathe(bmt, [(0, 0), (0.1, 0), (0.07, 2.4), (0, 2.4)], 8, T(x, y, 0.7))
         for dx, dy, dz, r in ((0, 0, 3.3, 1.1), (0.6, 0.3, 2.9, 0.8), (-0.5, -0.4, 3.0, 0.8), (0.1, -0.6, 3.8, 0.7)):
@@ -1084,6 +1261,9 @@ def cams():
         "wbz_castle": ((*wbp(-2.0, -70.0), 1.65), (*wbp(0.0, END_Y), 6.0), 22),    # the three arches
         "wbz_exit": ((*wbp(0.0, -150.0), 1.7), (*wbp(0.0, -100.0), 6.5), 16),     # from the hub back into World Bazaar (the user's photo)
         "wbz_crossing": ((*wbp(5.0, -30.0), 1.7), (*wbp(-14.0, -54.0), 6.0), 18),   # the towers and Center Street
+        "wbz_center": ((*wbp(-8.0, -50.0), 1.7), (*wbp(-50.0, -62.0), 5.0), 20),   # along Center Street's west arm
+        "wbz_deco": ((*wbp(34.0, -62.0), 1.7), (*wbp(40.0, -50.0), 6.0), 20),       # Center Street's east arm, the north side
+        "wbz_arcade": ((*wbp(-2.0, -60.0), 1.7), (*wbp(8.0, -100.0), 7.0), 18),    # the iron arcade on the east sidewalk
         "wbz_corner": ((*wbp(-3.0, -26.0), 1.7), (*wbp(12.0, -38.0), 5.5), 20),     # the Confectionery corner
         "wbz_back": ((*wbp(0.0, -40.0), 1.6), (*wbp(0.0, WB_BACK), 6.5), 22),        # back towards the entrance
         "wbz_shopfront": ((*wbp(4.0, -80.0), 1.7), (*wbp(12.0, -87.0), 2.4), 24),   # the shopfronts on the east side
