@@ -1,0 +1,13 @@
+{
+  "name": "tds-lod",
+  "private": true,
+  "type": "module",
+  "description": "far (low-detail) copies of the mock's heavy 3D models (src/compress_models.py runs lod.mjs)",
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/extensions": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "draco3dgltf": "^1.5.7",
+    "meshoptimizer": "^0.22.0"
+  }
+}

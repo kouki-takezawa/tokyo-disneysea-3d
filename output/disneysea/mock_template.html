@@ -117,6 +117,8 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 #plan{cursor:grab}
 #plan.dragging{cursor:grabbing}
 .hud{position:absolute;display:flex;gap:6px;pointer-events:none;z-index:5}
+.lost{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;padding:16px 18px;border-radius:10px;text-align:center;max-width:calc(100% - 32px)}
+.lost p{margin:0 0 10px}
 .hud>*{pointer-events:auto}
 .hud.tl{top:10px;left:10px;flex-wrap:wrap;max-width:calc(100% - 20px)}
 .hud.tc{top:10px;left:50%;transform:translateX(-50%)}
@@ -434,7 +436,6 @@ body.intro .introfx{opacity:1}
       <button class="btn only-orbit" id="btnFollow" aria-pressed="false" title="リゾートラインの電車をカメラで追う(F)">電車を追う</button>
       <button class="btn only-orbit" id="btnSwap" hidden title="もう一方の電車を追う(T)">2本目へ</button>
       <button class="btn only-3d" id="btnPhoto" title="操作部品を隠す(H)">写真</button>
-      <button class="btn only-3d" id="btnNight" aria-pressed="false" title="夜景にする / 昼に戻す(N)">夜</button>
     </div>
     <div class="hud tc only-walk"><span class="compass glass mono" id="compass">北 0°</span></div>
     <div class="hud tr only-plan" id="northWrap">
@@ -445,6 +446,7 @@ body.intro .introfx{opacity:1}
       </svg>
     </div>
     <div class="hud tr photo-only"><button class="btn" id="photoExit">表示を戻す</button></div>
+    <div class="lost glass" id="lostMsg" hidden><p>3D の表示が止まりました(端末のメモリ不足など)。</p><button class="btn" id="lostReload">再読み込み</button></div>
     <div class="hud bl only-plan" id="scaleWrap"><span class="scale mono" id="scaleLabel">100 m</span><i id="scaleBar" style="width:80px"></i></div>
     <div class="hud bl only-orbit" id="hint3d"><span class="hint3d glass"><span class="only-mouse">ドラッグで回転 ・ 右ドラッグで移動 ・ ホイールで拡大</span><span class="only-touch">1本指で回転 ・ 2本指で移動・拡大</span></span></div>
     <div class="hud bl only-walk" id="walkHud">
@@ -1861,98 +1863,6 @@ function addLights(T, scene) {   // the solid parts (Blender models, trains) sha
   }
 }
 const SHADOWS = !matchMedia("(pointer: coarse)").matches;   // phones and tablets: no shadows (speed)
-/* ---------- night (N): dark sky, moonlight, lit windows and lamps, and the nearest lamps light what is around them ---------- */
-const NIGHT = {
-  on: new URLSearchParams(location.search).has("night"),
-  N: SHADOWS ? 24 : 8,              // lamps that light the scene at once (the nearest to the view); the rest only glow
-  lamps: [],                        // {obj, p: local position}
-  u: null,                          // shared shader uniforms (made with three.js)
-  sky: 0x0b1322,
-  glow: {                           // mesh-name key -> emissiveIntensity at night (day values come from MODEL_MAT)
-    ST_lamp: 2.6, ST_hotel_lamp: 2.6, ST_bulb: 2.4, ST_hotel_winlit: 1.5, ST_wbz_display: 1.5, ST_pb_display: 1.5,
-    ST_wbz_clock: 1.1, ST_hotel_clock: 1.0, ST_screen: 1.4, ST_pb_cyan: 1.1,
-  },
-  flood: /^ST_(hotel_(cream|white|stone|pink|gold)|cream|trim|booth|wbz_(pink|cream|yellow|blue|mint|peach|sand|sage|lilac|stone|trim_white|trim_cream)|pb_(cream|sand|pink|tan|white|tan3))$/,   // floodlit walls
-  warm: { ST_hall_glass: 0.55, ST_wbz_shopglass: 0.5, ST_pb_dome: 0.35, ST_amber: 0.8 },   // glass lit from inside
-};
-window.TDS_NIGHT = NIGHT;   // for checking from outside (lamps, state)
-function nightUniforms(T) {
-  if (!NIGHT.u) NIGHT.u = {
-    uLamp: { value: Array.from({ length: NIGHT.N }, () => new T.Vector4(0, 0, -1e6, 1e-3)) },   // view-space position, reach (m)
-    uLampK: { value: 0 }, uLampCol: { value: new T.Color(1.0, 0.78, 0.48) },
-  };
-  return NIGHT.u;
-}
-// the lamps' light, added to a model material: warm, fading to nothing at the lamp's reach, brighter on faces turned to it
-function lampLit(T, mat) {
-  if (mat.userData.lampLit) return mat;
-  mat.userData.lampLit = true;
-  const u = nightUniforms(T), prev = mat.onBeforeCompile;
-  mat.onBeforeCompile = (sh, r) => {
-    prev && prev !== T.Material.prototype.onBeforeCompile && prev(sh, r);
-    Object.assign(sh.uniforms, u);
-    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>\nuniform vec4 uLamp[${NIGHT.N}]; uniform float uLampK; uniform vec3 uLampCol;`)
-      .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
-      if (uLampK > 0.) {
-        vec3 acc = vec3(0.);
-        for (int i = 0; i < ${NIGHT.N}; i++) {
-          vec3 d = uLamp[i].xyz + vViewPosition; float l = length(d);
-          float a = clamp(1. - l / uLamp[i].w, 0., 1.); a *= a;
-          acc += a * (0.3 + 0.7 * max(dot(normal, d / max(l, 1e-3)), 0.));
-        }
-        totalEmissiveRadiance += diffuseColor.rgb * uLampCol * acc * uLampK;
-      }`);
-  };
-  const key = mat.customProgramCacheKey.bind(mat);
-  mat.customProgramCacheKey = () => key() + "|lamp" + NIGHT.N + (prev ? prev.toString().length : 0);
-  return mat;
-}
-// the glow round each lamp: one soft additive sprite per lamp, shown only at night
-let glowTex = null;
-function lampGlow(T, mesh, pts) {
-  if (!glowTex) {
-    const c = document.createElement("canvas"); c.width = c.height = 64;
-    const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, "rgba(255,240,210,1)"); gr.addColorStop(0.18, "rgba(255,214,150,.55)"); gr.addColorStop(1, "rgba(255,190,110,0)");
-    g.fillStyle = gr; g.fillRect(0, 0, 64, 64); glowTex = new T.CanvasTexture(c);
-  }
-  const geo = new T.BufferGeometry().setFromPoints(pts);
-  const p = new T.Points(geo, new T.PointsMaterial({ map: glowTex, size: 2.6, sizeAttenuation: true, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
-  p.name = "night_glow"; p.visible = NIGHT.on; p.frustumCulled = false; p.renderOrder = 2;
-  mesh.add(p);
-}
-// lamp positions from a lamp mesh: vertices bucketed into 1.2 m cells, touching cells joined, one lamp per group
-function lampSpots(geo) {
-  const a = geo.attributes.position, cell = 1.2, cells = new Map();
-  for (let i = 0; i < a.count; i++) {
-    const k = [Math.floor(a.getX(i) / cell), Math.floor(a.getY(i) / cell), Math.floor(a.getZ(i) / cell)].join();
-    const c = cells.get(k) || cells.set(k, { s: [0, 0, 0, 0], p: null }).get(k);
-    c.s[0] += a.getX(i); c.s[1] += a.getY(i); c.s[2] += a.getZ(i); c.s[3]++;
-  }
-  const find = c => { while (c.p) c = c.p; return c; };
-  for (const [k, c] of cells) {
-    const [x, y, z] = k.split(",").map(Number);
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
-      const o = cells.get([x + dx, y + dy, z + dz].join()); if (!o) continue;
-      const r1 = find(c), r2 = find(o); if (r1 !== r2) r2.p = r1;
-    }
-  }
-  const sums = new Map();
-  for (const c of cells.values()) { const r = find(c), t = sums.get(r) || sums.set(r, [0, 0, 0, 0]).get(r); for (let j = 0; j < 4; j++) t[j] += c.s[j]; }
-  return [...sums.values()].map(t => [t[0] / t[3], t[1] / t[3], t[2] / t[3]]);
-}
-// day <-> night on every model material (the day values are kept in userData.day)
-function nightMesh(o, on) {
-  if (o.name === "night_glow") { o.visible = on; return; }
-  const m = o.material; if (!m || !m.isMeshStandardMaterial) return;
-  const k = o.userData.matKey;
-  if (!m.userData.day) m.userData.day = { ei: m.emissiveIntensity, em: m.emissive.getHex(), env: m.envMapIntensity };
-  const d = m.userData.day;
-  if (k && NIGHT.glow[k] != null) m.emissiveIntensity = on ? NIGHT.glow[k] : d.ei;
-  else if (k && NIGHT.warm[k] != null) { m.emissive.setHex(on ? 0xffc27a : d.em); m.emissiveIntensity = on ? NIGHT.warm[k] : d.ei; }
-  else if (k && NIGHT.flood.test(k)) { m.emissive.setHex(on ? m.color.getHex() : d.em); m.emissiveIntensity = on ? 0.16 : d.ei; }
-  if (m.envMap) m.envMapIntensity = on ? d.env * 0.15 : d.env;
-}
 // the sky in a material, as much as it is shiny: metal and glass get it fully, matt paint and paving almost none
 // (all of it on every surface over-lights the flat ground: the page has no tone mapping)
 function reflectEnv(mat) {
@@ -1974,9 +1884,72 @@ async function loadModels(T, scene, root, list = D.models) {
     if (!T.DRACOLoader) await loadScript(LIB + "loaders/DRACOLoader.js");
     const draco = new T.DRACOLoader(); draco.setDecoderPath(LIB + "libs/draco/gltf/"); loader.setDRACOLoader(draco);
   } catch (e) { /* no decoder: compressed models fail to load, plain ones still do */ }
+  three.loadGLTF = src => new Promise(done => loader.load(src, gltf => { prepModel(T, gltf.scene); done(gltf.scene); }, undefined, () => done(null)));
+  const eye = three.loadFrom?.();   // the nearest first: what is in front of the camera appears first (the opening: the station)
+  if (eye) list = list.slice().sort((a, b) => boxDist(a.box, eye) - boxDist(b.box, eye));
   for (const m of list) {   // one at a time: parsing them all at once stalls the page
-    await new Promise(next => loader.load(m.src, gltf => {
-      gltf.scene.traverse(o => {
+    let obj = m.far ? await three.loadGLTF(m.far) : null;   // far copy first (small); the full model when the camera comes near (lodTick)
+    const far = !!obj;
+    if (!obj) obj = await three.loadGLTF(m.src);
+    if (!obj) continue;   // model missing: keep the wireframe
+    const g = new T.Group(); g.name = "model-" + m.id; g.add(obj);
+    root.add(g);
+    three.models[m.id] = { id: m.id, obj: g, layer: m.layer, hides: m.hides || [], box: m.box, src: m.src,
+                           farObj: far ? obj : null, near: far ? null : obj, loading: false, failed: false };
+    three.visibility();
+    three.grow(g, MODEL_GROW_MS);
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+// distance (m) from point p (three.js world = glTF axes) to a model's bounding box [min xyz, max xyz]; no box: far away
+function boxDist(b, p) {
+  if (!b || !p) return 1e6;
+  return Math.hypot(Math.max(b[0] - p.x, 0, p.x - b[3]), Math.max(b[1] - p.y, 0, p.y - b[4]), Math.max(b[2] - p.z, 0, p.z - b[5]));
+}
+// full models near the camera, far copies elsewhere. Phones hold at most LOD_MAX full models and free the ones left behind.
+const LOD_NEAR = coarse ? 170 : 320, LOD_MAX = coarse ? 2 : 99;
+let lodBusy = false;
+function freeModel(obj) {
+  obj.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    [].concat(o.material || []).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+  });
+}
+function lodTick() {
+  const eye = three.eyePoint?.(); if (!eye || !three.loadGLTF) return;
+  const reach = LOD_NEAR * (three.tight ? 0.6 : 1);   // tight: after the GPU ran out of memory once
+  let changed = false, want = null, wantD = Infinity;
+  const withNear = [];
+  for (const m of Object.values(three.models)) {
+    if (!m.farObj) continue;
+    const d = boxDist(m.box, eye);
+    if (m.near) {
+      const show = d < reach * 1.3;   // a margin, so it does not flicker at the edge
+      if (m.near.visible !== show) { m.near.visible = show; m.farObj.visible = !show; changed = true; }
+      withNear.push([m, d]);
+    } else if (d < reach && !m.loading && !m.failed && d < wantD) { want = m; wantD = d; }
+  }
+  if (coarse || three.tight) {   // free the full models left behind (and the farthest beyond LOD_MAX)
+    withNear.sort((a, b) => a[1] - b[1]).forEach(([m, d], i) => {
+      if (d > reach * 1.6 || i >= LOD_MAX) { m.obj.remove(m.near); freeModel(m.near); m.near = null; m.farObj.visible = true; changed = true; }
+    });
+  }
+  if (want && !lodBusy) {
+    lodBusy = want.loading = true;
+    three.loadGLTF(want.src).then(obj => {
+      lodBusy = want.loading = false;
+      if (!obj) { want.failed = true; return; }
+      obj.visible = false; want.obj.add(obj); want.near = obj;
+      lodTick();
+    });
+  }
+  if (changed) { three.dirty = true; three.shadowDirty = true; three.walkDirty = true; }
+}
+// materials for a loaded model (the GLBs carry geometry; the page gives the colours)
+function prepModel(T, scene) {
+  {
+    {
+      scene.traverse(o => {
         if (!o.isMesh) return;
         if (/^PZ_(Trunk|Canopy)/.test(o.name)) { o.visible = false; return; }   // the plaza model's trees: no trees (the user's request)
         const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
@@ -1986,15 +1959,7 @@ async function loadModels(T, scene, root, list = D.models) {
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
         else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
-        else if (key) {
-          o.material = lampLit(T, reflectEnv(new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] })));
-          o.userData.matKey = key;
-          if (key === "ST_lamp" || key === "ST_hotel_lamp") {
-            const spots = lampSpots(o.geometry);
-            spots.forEach(p => NIGHT.lamps.push({ obj: o, p: new T.Vector3(...p) }));
-            lampGlow(T, o, spots.map(p => new T.Vector3(...p)));
-          }
-        }
+        else if (key) o.material = reflectEnv(new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] }));
         if (SHADOWS && o.material && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; }
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
@@ -2015,24 +1980,18 @@ async function loadModels(T, scene, root, list = D.models) {
             if (o.name === "CC_glass") { o.material.transparent = true; o.material.opacity = 0.6; }
             if (o.name === "CC_gold" || o.name === "CC_iron") { o.material.metalness = 0.25; o.material.roughness = 0.4; }   // no environment map: metal would go black
             if (o.name === "BC_glass" || o.name === "BC_bell") { o.material.transparent = true; o.material.opacity = 0.35; o.material.depthWrite = false; }
-            if (o.material.isMeshStandardMaterial) lampLit(T, o.material);
           }
           // the page renders in linear output (line colours come straight from CSS): show textures as stored
           if (o.material.map) { o.material.map.encoding = T.LinearEncoding; o.material.needsUpdate = true; }
         }
+        if (/^(WS_water|AQ_(Water|Curtain|Foam))/.test(o.name)) three.animated.push(o);   // moving water: drawn on, even when idle
       });
-      if (NIGHT.on) gltf.scene.traverse(o => nightMesh(o, true));
-      root.add(gltf.scene);
-      three.models[m.id] = { id: m.id, obj: gltf.scene, layer: m.layer, hides: m.hides || [] };
-      three.visibility();
-      three.grow(gltf.scene, MODEL_GROW_MS);
-      setTimeout(next, 0);
-    }, undefined, () => next()));   // model missing: keep the wireframe
+    }
   }
 }
 
 /* ---------- 3D wireframe (three.js loaded on first use) ---------- */
-const three = { ready: false, active: false };
+const three = { ready: false, active: false, animated: [], dirty: true, inputAt: 0 };
 // every visit opens on the whole park: the layers rise (RISE_MS), the models grow in one by one and the title shows while the
 // camera circles slowly; a tap zooms down onto Tokyo Disneyland Station (ZOOM_MS) and brings back the controls
 const RISE_MS = 2800, ZOOM_MS = 3200, MODEL_GROW_MS = 900, OPEN_STATION = "tdl_station";
@@ -2050,9 +2009,39 @@ async function init3D() {
   const renderer = new T.WebGLRenderer({ antialias: true }); three.renderer = renderer;
   renderer.setPixelRatio(PIXEL_RATIO);
   host.appendChild(renderer.domElement);
+  // the GPU can drop the page's 3D (phones out of memory): wait for it to come back, then redraw with fewer full models;
+  // if it does not come back, offer to reload
+  renderer.domElement.addEventListener("webglcontextlost", e => {
+    e.preventDefault(); three.lost = true;
+    toast("3D の表示が止まりました。戻るのを待っています…", 6000);
+    clearTimeout(three.lostT);
+    three.lostT = setTimeout(() => { if (three.lost) $("lostMsg").hidden = false; }, 5000);
+  });
+  renderer.domElement.addEventListener("webglcontextrestored", () => {
+    three.lost = false; clearTimeout(three.lostT); $("lostMsg").hidden = true;
+    three.tight = true;   // fewer full models from now on (lodTick)
+    const oldE = three.skyEnv, oldD = three.skyEnvDim;   // the sky maps were drawn on the GPU: draw them again
+    if (oldE) { three.skyEnv = makeSkyEnv(T, renderer); three.skyEnvDim = makeSkyEnv(T, renderer, false); }
+    scene.traverse(o => [].concat(o.material || []).forEach(m => {
+      if (m.envMap && m.envMap === oldE) m.envMap = three.skyEnv;
+      else if (m.envMap && m.envMap === oldD) m.envMap = three.skyEnvDim;
+      m.needsUpdate = true;
+    }));
+    three.colors?.();   // the clear colour is GPU state too
+    three.dirty = true; three.shadowDirty = true;
+    toast("3D の表示が戻りました(軽くして表示しています)", 3000);
+  });
+  $("lostReload").onclick = () => location.reload();
+  for (const ev of ["pointerdown", "pointermove", "wheel", "keydown", "touchmove"])   // any input: draw every frame for a while
+    addEventListener(ev, e => { if (ev !== "pointermove" || e.buttons || e.pointerType === "touch") three.inputAt = performance.now(); }, { capture: true, passive: true });
   const scene = new T.Scene();
   const cam = new T.PerspectiveCamera(38, 1, 1, 9000);
   const ctl = new T.OrbitControls(cam, renderer.domElement);
+  three.eyePoint = () => cam.position;
+  three.loadFrom = () => {   // where the opening lands (the station) while it plays, else the camera
+    const st = D.models.find(m => m.id === OPEN_STATION);
+    return intro !== null && st && st.box ? new T.Vector3((st.box[0] + st.box[3]) / 2, 0, (st.box[2] + st.box[5]) / 2) : cam.position;
+  };
   ctl.enableDamping = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   ctl.maxPolarAngle = Math.PI * 0.49;
   const cxp = (PB[0] + PB[2]) / 2, cyp = (PB[1] + PB[3]) / 2;
@@ -2429,13 +2418,12 @@ async function init3D() {
     root.add(objs[k]);
   }
   three.colors = () => {
-    renderer.setClearColor(new T.Color(NIGHT.on ? NIGHT.sky : css("--sheet")));
+    renderer.setClearColor(new T.Color(css("--sheet")));
     for (const [k, o] of Object.entries(objs)) {
       const pi = k.startsWith("p") && k.length <= 2 ? +k.slice(1) : -1;
       let c = pi >= 0 ? css(`--p${pi}`) : /^l\d$/.test(k) ? css(`--${k}`) : css(COLOR_OF[k]);
       if (k === "pri" && !on.priority) c = css("--muted");
       o.material.color.set(c);
-      if (NIGHT.on) o.material.color.lerp(new T.Color(0xffffff), 0.2).multiplyScalar(0.75);   // dark lines vanish on the night sky
       o.material.opacity = focus >= 0 && ((pi >= 0 && pi !== focus) || ["water", "green", "trees", "rock", "paths"].includes(k)) ? 0.25 : 1;
     }
   };
@@ -2456,9 +2444,9 @@ async function init3D() {
       $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     }
     three.colors();
-    three.walkDirty = true;
+    three.walkDirty = true; three.dirty = true;
   };
-  three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
+  three.resize = () => { three.dirty = true; const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
   three.home = () => { stopFollow(); home(); };
   // look at local point (x, y, z) from dist m away (used for checking models; window.TDS_FOCUS)
   // the sun's shadow box: centred where the view looks, sized by how far the camera is; redrawn when that moves 4 m
@@ -2470,7 +2458,7 @@ async function init3D() {
     const size = Math.max(45, Math.min(420, cam.position.distanceTo(c) * (three.walking ? 2.0 : 0.9)));
     if (shLast && shLast.c.distanceTo(c) < Math.max(4, size * 0.05) && Math.abs(shLast.size - size) < size * 0.15 && !three.shadowDirty) return;
     shLast = { c, size }; three.shadowDirty = false;
-    const texel = 2 * size / sun.shadow.mapSize.x;
+    const texel = 2 * size / sun.shadow.mapSize.x;   // the box snapped to shadow-map texels: no shimmer when the view moves
     const L = new T.Vector3(...SUN_DIR).normalize(), R = new T.Vector3(0, 1, 0).cross(L).normalize(), U = L.clone().cross(R);
     const a = Math.round(c.dot(R) / texel) * texel - c.dot(R), b = Math.round(c.dot(U) / texel) * texel - c.dot(U);
     c.addScaledVector(R, a).addScaledVector(U, b);
@@ -2480,35 +2468,6 @@ async function init3D() {
     const sc_ = sun.shadow.camera; sc_.left = -size; sc_.right = size; sc_.top = size; sc_.bottom = -size; sc_.updateProjectionMatrix();
     renderer.shadowMap.needsUpdate = true;
   };
-  // night: the NIGHT.N lamps nearest to where the view looks light the scene (view-space positions every frame)
-  const lampM = new T.Matrix4(), lampV = new T.Vector3();
-  let lampNear = [], lampAt = null;
-  three.nightTick = () => {
-    const u = NIGHT.u; if (!u) return;
-    u.uLampK.value = NIGHT.on ? 1.6 : 0;
-    if (!NIGHT.on) return;
-    const c = three.walking ? new T.Vector3(wk.x, wk.y, wk.z) : ctl.target.clone();
-    if (!lampAt || lampAt.distanceTo(c) > 3 || lampNear.length < Math.min(NIGHT.N, NIGHT.lamps.length)) {
-      lampAt = c;
-      lampNear = NIGHT.lamps.map(l => [l, lampV.copy(l.p).applyMatrix4(l.obj.matrixWorld).distanceToSquared(c)])
-        .sort((p, q) => p[1] - q[1]).slice(0, NIGHT.N).map(p => p[0]);
-    }
-    cam.updateMatrixWorld();
-    for (let i = 0; i < NIGHT.N; i++) {
-      const l = lampNear[i], v = u.uLamp.value[i];
-      if (!l || !l.obj.visible || !l.obj.parent?.visible) { v.set(0, 0, -1e6, 1e-3); continue; }
-      lampM.multiplyMatrices(cam.matrixWorldInverse, l.obj.matrixWorld);
-      lampV.copy(l.p).applyMatrix4(lampM); v.set(lampV.x, lampV.y, lampV.z, 11);
-    }
-  };
-  three.setNight = on => {
-    NIGHT.on = on; addLights(T, scene);
-    three.hemi.color.setHex(on ? 0x6a7cab : 0xdfe8f0); three.hemi.groundColor.setHex(on ? 0x1c1a20 : 0x5a5448); three.hemi.intensity = on ? 0.36 : 0.8;
-    three.sun.color.setHex(on ? 0xa9bce6 : 0xfff4e0); three.sun.intensity = on ? 0.2 : 0.95;
-    for (const m of Object.values(three.models)) m.obj.traverse(o => nightMesh(o, on));
-    three.colors(); three.shadowDirty = true; three.walkDirty = true;
-  };
-  if (NIGHT.on) three.setNight(true);
   // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground
   three.buildTrees = () => {
     if (three.trees3d || !((D.trees3d || []).length || (D.shrubs3d || []).length)) return;
@@ -2556,6 +2515,8 @@ async function init3D() {
   window.TDS_FOCUS = three.focus;
   window.TDS_SKIP = () => three.skipIntro();   // for checking: skip the opening
   window.TDS_MODELS = () => Object.keys(three.models);   // for checking: the models loaded so far
+  window.TDS_LOD = () => ({ draws: three.draws || 0, tight: !!three.tight, lost: !!three.lost, info: { ...renderer.info.render, ...renderer.info.memory },
+    models: Object.fromEntries(Object.values(three.models).map(m => [m.id, m.near && m.near.visible ? "full" : m.farObj ? (m.near ? "far+full(hidden)" : "far") : "full"])) });
   window.TDS_STATS = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lines: renderer.info.render.lines,
     geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() });   // for checking load
 
@@ -2671,12 +2632,13 @@ async function init3D() {
   const walkable = o => o.isMesh && !/^AQ_(WaterFilm|Curtain)/.test(o.name);
   function buildGrid() {
     const loaded = Object.entries(three.models).filter(([id]) => mdl[id] !== false);
-    const key = loaded.map(([id]) => id).join(",");
+    const act = m => (m.near && m.near.visible) || !m.farObj ? m.near : m.farObj;   // the full model or the far copy, whichever is on show
+    const key = loaded.map(([id, m]) => id + (act(m) === m.near ? "" : "~")).join(",");
     if (grid && key === gridKey) return;
     root.updateMatrixWorld(true);
     const tris = [], labs = [], cells = new Map(), p = new T.Vector3();
     const walls = [], wcells = new Map();   // standing faces (walls, fences, railings, pillars, rock faces): plan segment + the face in (along, up)
-    for (const [, m] of loaded) m.obj.traverse(o => {
+    for (const [, m] of loaded) act(m).traverse(o => {
       if (!walkable(o)) return;
       const li = SURF.findIndex(([pre]) => o.name.startsWith(pre)), lab = li < 0 ? 255 : li;
       const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
@@ -3343,13 +3305,32 @@ async function init3D() {
 
   three.visibility(); three.resize();
   if (!reduceMotion && mode !== "walk") root.scale.y = 0.001;   // flat until three.begin() (called by show once the camera is placed)
-  let last = performance.now(), mmLast = 0;
+  let last = performance.now(), mmLast = 0, drawLast = 0, lodLast = 0, animLast = 0, animSeen = 0;
+  const IDLE_FPS = coarse ? 20 : 30, WATER_FPS = coarse ? 8 : 10;   // nothing touched, but trains (or only water) in view
+  const frus = new T.Frustum(), pv = new T.Matrix4(), sph = new T.Sphere(), bx3 = new T.Box3();
+  // what moves in view (checked 3 times a second): 2 = a train within 800 m, 1 = only the water, 0 = nothing
+  const animInView = now => {
+    if (now - animLast < 330) return animSeen;
+    animLast = now;
+    pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); frus.setFromProjectionMatrix(pv);
+    const vis = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+    const groups = [...(three.trains || []).map(t => t.grp), ...(three.movers || []).map(it => it.solid)];
+    animSeen = groups.some(g => vis(g) && frus.intersectsBox(bx3.setFromObject(g)) && bx3.distanceToPoint(cam.position) < 800) ? 2 :
+      three.animated.some(o => {
+        if (!vis(o)) return false;
+        if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+        return frus.intersectsSphere(sph.copy(o.geometry.boundingSphere).applyMatrix4(o.matrixWorld));
+      }) ? 1 : 0;
+    return animSeen;
+  };
   (function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(), dt = (now - last) / 1000; last = now;
-    if (!three.active) return;
+    if (!three.active || three.lost) return;
     if (growing.size) stepGrow(now); else growLast = 0;
-    if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else ctl.update();
+    let moved = false;
+    if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else moved = ctl.update();
+    if (now - lodLast > 500) { lodLast = now; lodTick(); }
     if (three.walking) three.woodyTick?.(Math.min(dt, 0.1));
     FX_TIME.value = now / 1000;
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
@@ -3357,7 +3338,11 @@ async function init3D() {
     catch (e) { three.trainTick = null; console.error("Resort Line trains:", e); toast(`電車の3Dモデルを動かせませんでした(${e && e.message || e})`, 8000); }
     if (three.walking) three.rideTick?.();
     three.shadowTick?.();
-    three.nightTick?.();
+    // draw every frame while something changes; when idle, only as often as the trains and water need (or 1 a second)
+    const busy = growing.size || intro || three.anim || three.walking || fol.tr || moved || three.dirty ||
+      renderer.shadowMap.needsUpdate || now - three.inputAt < 1500;
+    if (!busy && now - drawLast < 1000 / [1, WATER_FPS, IDLE_FPS][animInView(now)] - 2) return;
+    drawLast = now; three.dirty = false; three.draws = (three.draws || 0) + 1;
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
   })();
@@ -3489,15 +3474,6 @@ function setPhoto(v) {
   if (v) toast("写真モード(H か「表示を戻す」で戻る)");
 }
 $("btnPhoto").onclick = () => setPhoto(true);
-function setNight(v) {
-  NIGHT.on = v; $("btnNight").setAttribute("aria-pressed", v);
-  if (three.ready) three.setNight(v);
-  const u = new URL(location.href); v ? u.searchParams.set("night", "1") : u.searchParams.delete("night");
-  history.replaceState(null, "", u);
-  toast(v ? "夜景(N で昼に戻す)" : "昼");
-}
-$("btnNight").setAttribute("aria-pressed", NIGHT.on);
-$("btnNight").onclick = () => setNight(!NIGHT.on);
 $("photoExit").onclick = () => setPhoto(false);
 // the view lives in the URL (#map/x,y,scale  #orbit/target,camera  #walk/x,y,yaw,pitch,view) so it can be shared
 function stateHash() {
@@ -3527,7 +3503,6 @@ addEventListener("keydown", e => {
   else if (e.code === "Digit2") applyPreset("mix");
   else if (e.code === "Digit3") applyPreset("wire");
   else if (e.code === "KeyH" && mode !== "plan") setPhoto(!photo);
-  else if (e.code === "KeyN" && mode !== "plan") setNight(!NIGHT.on);
   else if (e.code === "KeyF" && mode === "orbit" && RL && three.ready) three.following() ? three.unfollow() : startFollow(0);
   else if (e.code === "KeyT" && mode === "orbit" && RL && three.ready) swapFollow();
   else if (e.code === "Escape" && mode === "orbit" && three.ready && three.following()) three.unfollow();

@@ -47,3 +47,6 @@
 __pycache__/
 *.blend
 *.blend1
+
+# far-copy tool (tools/lod): npm install recreates it
+/tools/lod/node_modules/
