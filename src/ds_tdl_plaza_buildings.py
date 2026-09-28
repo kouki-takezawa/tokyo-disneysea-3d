@@ -261,7 +261,7 @@ def export_objects(merged):
     bpy.context.view_layer.update()
     groups = {}
     for o in B.col.objects:
-        if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith("CAM_"):
+        if o.type not in ("MESH", "CURVE", "FONT") or o.hide_render or o.name.startswith(("CAM_", "CTX_")):   # CTX_: the preview ground
             continue
         mats = [m for m in (o.data.materials if o.data else []) if m]
         if not mats:
