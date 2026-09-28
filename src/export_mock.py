@@ -273,7 +273,37 @@ def main():
             except ValueError:
                 h = 0
             trees += [x, y, h]
+    # the planting beds of the entrance plaza and round the hotel (the ground models' planters, from OSM; the park map
+    # shows a tree or clipped shrubs in each): a tree in each bed (a row along the long ones), clipped shrubs at the ends
+    shrubs = []
+    try:
+        import ds_tdl_ground, ds_tdl_hotel_ground
+        from shapely.geometry import LineString, Point
+        beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"])
+        for q in beds:
+            if q.is_empty or q.area < 3.0:
+                continue
+            mr = q.minimum_rotated_rectangle
+            c = list(mr.exterior.coords)[:4]
+            e1 = math.hypot(c[1][0] - c[0][0], c[1][1] - c[0][1]); e2 = math.hypot(c[2][0] - c[1][0], c[2][1] - c[1][1])
+            (a, b) = ((c[0], c[1]), (c[3], c[2])) if e1 >= e2 else ((c[1], c[2]), (c[0], c[3]))
+            m0 = ((a[0][0] + b[0][0]) / 2, (a[0][1] + b[0][1]) / 2); m1 = ((a[1][0] + b[1][0]) / 2, (a[1][1] + b[1][1]) / 2)
+            bl, bw = max(e1, e2), min(e1, e2)
+            n = max(1, int(bl / 7.0))
+            for k in range(n):
+                t = (k + 0.5) / n
+                x, y = m0[0] + (m1[0] - m0[0]) * t, m0[1] + (m1[1] - m0[1]) * t
+                if q.contains(Point(x, y)):
+                    trees += [round(x, 1), round(y, 1), round(min(9.0, 4.0 + bw * 0.9), 1)]
+            if bl > 5.0:                                      # clipped round shrubs at both ends
+                for t in (0.12, 0.88):
+                    x, y = m0[0] + (m1[0] - m0[0]) * t, m0[1] + (m1[1] - m0[1]) * t
+                    if q.contains(Point(x, y)):
+                        shrubs += [round(x, 1), round(y, 1), round(min(1.1, bw * 0.25), 2)]
+    except Exception as e:                                    # the ground scripts need shapely: without it, only OSM's trees
+        print("[mock] plaza planting skipped:", e)
     out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...]
+    out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
