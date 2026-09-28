@@ -865,15 +865,22 @@ function findSpot(x, y) {   // nearest dry point in the park outside buildings (
 
 /* ---------- Resort Line: two trains running round the loop ---------- */
 // The timetable is plain JS (it also drives the markers on the plan); the 3D cars are Blender models (models/train.json).
-// Both trains follow the same pattern half a lap apart: dwell at a station, speed up, run, slow down, stop.
+// The real line (ja.wikipedia ディズニーリゾートライン): a 5.0 km loop run anticlockwise, about 13 min a lap, up to 4 trains
+// 3 min 15 s apart; top speed by section: Gateway → Tokyo Disneyland 29 km/h, → Bayside 50, → Tokyo DisneySea 40–50,
+// → Gateway 40. Every train follows the same pattern a quarter lap apart: dwell, speed up, slow for the curves, stop.
+// ESTIMATES: acceleration 0.8 m/s², braking 0.9 m/s², curves at up to 0.5 m/s² sideways (radius 100 m → 25 km/h);
+// the dwell is what is left of the 13 min (about 50 s).
 const RL = (() => {
   if (!MH || !MH.loop || !MH.loop.length) return null;
-  const V = 35 / 3.6, ACC = 0.9, DWELL = 20;           // m/s (35 km/h; the line runs at up to 50), m/s², s
+  const LAP = 13 * 60, ACC = 0.8, DEC = 0.9, ALAT = 0.5;
+  const VSEC = [["ゲートウェイ", 29], ["ディズニーランド", 50], ["ベイサイド", 45], ["ディズニーシー", 40]];   // km/h from that station on
   const TL = 2 * 15.05 + 4 * 13.70 + 5 * 0.55;         // train length (6 cars and the gaps: train_blender SPEC)
   const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  // chain the loop's ways into one closed line
+  let pts;
+  if (MH.beam && MH.beam.length) pts = MH.beam.map(p => p.slice());   // [x, y, beam top z, curvature]: ds_tracks.beam_profile, anticlockwise
+  else {   // (older data) chain the loop's ways into one closed line, beam top level at loop_z + 0.9
   const rest = MH.loop.map(l => l.map(p => [p[0], p[1]]));
-  let pts = rest.shift();
+  pts = rest.shift();
   while (rest.length) {
     const end = pts[pts.length - 1]; let bi = 0, bd = Infinity, rev = false;
     rest.forEach((s, i) => { const a = d2(end, s[0]), b = d2(end, s[s.length - 1]); if (a < bd) { bd = a; bi = i; rev = false; } if (b < bd) { bd = b; bi = i; rev = true; } });
@@ -883,15 +890,17 @@ const RL = (() => {
   if (d2(pts[0], pts[pts.length - 1]) < 0.5) pts.pop();
   let a2 = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) a2 += pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1];
   if (a2 < 0) pts.reverse();   // anticlockwise, the way the line runs: Gateway → Tokyo Disneyland → Bayside → Tokyo DisneySea
+  pts = pts.map(p => [p[0], p[1], MH.loop_z + 0.9, 0]);
+  }
   pts.push(pts[0]);
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + d2(pts[i - 1], pts[i]));
   const LEN = cum[cum.length - 1];
-  function at(s) {   // [x, y, ux, uy] at arc length s (wraps round the loop)
+  function at(s) {   // [x, y, ux, uy, beam top z, curvature] at arc length s (wraps round the loop)
     s = ((s % LEN) + LEN) % LEN;
     let lo = 0, hi = cum.length - 1;
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
     const a = pts[lo], b = pts[hi], L = cum[hi] - cum[lo] || 1e-6, t = (s - cum[lo]) / L;
-    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (b[0] - a[0]) / L, (b[1] - a[1]) / L];
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, (b[0] - a[0]) / L, (b[1] - a[1]) / L, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
   }
   function project(x, y) {
     let best = 0, bd = Infinity;
@@ -903,39 +912,48 @@ const RL = (() => {
     return best;
   }
   // stations: the Resort Line's own (JR Maihama is not on the loop); the train stops centred on the platforms
-  const stations = MH.stations.filter(st => st.k === "monorail").map(st => {
+  // (the exported stops: ds_tracks.station_arcs, Tokyo Disneyland Station at the Blender model's own middle)
+  const stations = MH.stops && MH.beam ? MH.stops.map(st => ({ n: st.n, s: st.s })).sort((a, b) => a.s - b.s) : MH.stations.filter(st => st.k === "monorail").map(st => {
     const cs = MH.platforms.map(r => [r.reduce((a, p) => a + p[0], 0) / r.length, r.reduce((a, p) => a + p[1], 0) / r.length]).filter(c => d2(c, [st.x, st.y]) < 45);
     const c = cs.length ? [cs.reduce((a, p) => a + p[0], 0) / cs.length, cs.reduce((a, p) => a + p[1], 0) / cs.length] : [st.x, st.y];
     return { n: st.n, s: project(c[0], c[1]) };
   }).sort((a, b) => a.s - b.s);
   const g0 = Math.max(0, stations.findIndex(st => st.n.includes("ゲートウェイ")));
   stations.push(...stations.splice(0, g0));
-  // one lap: [dwell at station i, run to station i + 1] for every station
-  const run = d => {
-    const da = V * V / (2 * ACC);
-    if (d >= 2 * da) return { d, ta: V / ACC, tc: (d - 2 * da) / V, vm: V, T: 2 * V / ACC + (d - 2 * da) / V };
-    const vm = Math.sqrt(d * ACC); return { d, ta: vm / ACC, tc: 0, vm, T: 2 * vm / ACC };
+  // one lap: [dwell at station i, run to station i + 1] for every station. A run is a speed profile every metre or so:
+  // the section's top speed and the curve limit, then speeding up from the start and braking to the stop.
+  const run = (i, d) => {
+    const n = stations[i].n, V = (VSEC.find(([k]) => n.includes(k)) || [0, 40])[1] / 3.6, s0 = stations[i].s;
+    const m = Math.max(2, Math.ceil(d)), h = d / m, v = new Float64Array(m + 1), t = new Float64Array(m + 1);
+    for (let j = 0; j <= m; j++) { const k = Math.abs(at(s0 + j * h)[5]); v[j] = k > 1e-6 ? Math.min(V, Math.sqrt(ALAT / k)) : V; }
+    v[0] = 0; for (let j = 1; j <= m; j++) v[j] = Math.min(v[j], Math.sqrt(v[j - 1] * v[j - 1] + 2 * ACC * h));
+    v[m] = 0; for (let j = m - 1; j >= 0; j--) v[j] = Math.min(v[j], Math.sqrt(v[j + 1] * v[j + 1] + 2 * DEC * h));
+    for (let j = 1; j <= m; j++) t[j] = t[j - 1] + 2 * h / Math.max(0.05, v[j - 1] + v[j]);
+    return { d, h, m, v, t, T: t[m], vm: V };
   };
-  const runAt = (r, t) => {   // [distance, speed] t s after leaving
-    const da = 0.5 * ACC * r.ta * r.ta;
-    if (t < r.ta) return [0.5 * ACC * t * t, ACC * t];
-    if (t < r.ta + r.tc) return [da + r.vm * (t - r.ta), r.vm];
-    t = Math.min(r.T, t) - r.ta - r.tc; return [da + r.vm * r.tc + r.vm * t - 0.5 * ACC * t * t, Math.max(0, r.vm - ACC * t)];
+  const runAt = (r, t) => {   // [distance, speed, phase] t s after leaving
+    if (t >= r.T) return [r.d, 0, "brake"];
+    let lo = 0, hi = r.m;
+    while (hi - lo > 1) { const c = (lo + hi) >> 1; if (r.t[c] <= t) lo = c; else hi = c; }
+    const f = (t - r.t[lo]) / (r.t[hi] - r.t[lo] || 1e-9), dv = r.v[hi] - r.v[lo];
+    return [(lo + f) * r.h, r.v[lo] + dv * f, dv > 1e-3 ? "accel" : dv < -1e-3 ? "brake" : "cruise"];
   };
+  const runs = stations.map((st, i) => run(i, ((stations[(i + 1) % stations.length].s - st.s) % LEN + LEN) % LEN || LEN));
+  const DWELL = Math.max(25, (LAP - runs.reduce((a, r) => a + r.T, 0)) / stations.length);
+  const V = Math.max(...runs.map(r => r.vm));
   const legs = []; let P = 0;
-  stations.forEach((st, i) => {
-    const nx = stations[(i + 1) % stations.length], r = run(((nx.s - st.s) % LEN + LEN) % LEN || LEN);
-    legs.push({ i, t0: P, r }); P += DWELL + r.T;
-  });
-  const trains = [{ id: 0, scheme: "blue", ja: "ブルー", col: "#2f7fd6", off: 0 }, { id: 1, scheme: "yellow", ja: "イエロー", col: "#e0a50c", off: P / 2 }];
+  runs.forEach((r, i) => { legs.push({ i, t0: P, r }); P += DWELL + r.T; });
+  // Type C sets (5: yellow, pink, blue, purple, green); 4 run at the peak, a quarter lap (3 min 15 s) apart
+  const FLEET = [["yellow", "イエロー", "#e0a50c"], ["pink", "ピンク", "#e0628f"], ["blue", "ブルー", "#2f7fd6"], ["purple", "パープル", "#8a5cc2"]];
+  const trains = FLEET.map(([scheme, ja, col], id) => ({ id, scheme, ja, col, off: P * id / FLEET.length }));
   // state at time t (s): s = arc position of the train's middle, v = speed (m/s), stop / next = station names
   function state(tr, t) {
     const tt = (((t + tr.off) % P) + P) % P;
     let k = legs.length - 1; while (k > 0 && legs[k].t0 > tt) k--;
     const L = legs[k], st = stations[L.i], nx = stations[(L.i + 1) % stations.length], dt = tt - L.t0;
     if (dt < DWELL) return { s: st.s, v: 0, stop: st.n, next: nx.n, left: DWELL - dt };
-    const [d, v] = runAt(L.r, dt - DWELL);
-    return { s: st.s + d, v, stop: null, next: nx.n, phase: dt - DWELL < L.r.ta ? "accel" : dt - DWELL < L.r.ta + L.r.tc ? "cruise" : "brake" };
+    const [d, v, phase] = runAt(L.r, dt - DWELL);
+    return { s: st.s + d, v, stop: null, next: nx.n, phase };
   }
   // clock (s): runs with the page; TDS_TRAINS can set it or speed it up for checking
   const clk = { base: 0, at: performance.now(), k: 1 };
@@ -952,7 +970,7 @@ const RL = (() => {
     : `時速 ${Math.round(st.v * 3.6)} km ${st.phase === "brake" ? "・ 減速中 " : st.phase === "accel" ? "・ 加速中 " : ""}・ 次は ${st.next}`;
   window.TDS_TRAINS = { now, setClock, period: P, length: LEN, stations, trains,
     state: (t = now()) => trains.map(tr => { const st = state(tr, t), [x, y] = at(st.s); return { ...st, x, y, id: tr.id }; }) };
-  return { V, TL, LEN, P, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots (the 3D trains: trainsSolid / trainsWire)
+  return { V, TL, LEN, P, DWELL, runs, at, stations, trains, state, now, hit, describe, shown: () => on.trains };   // the plan markers / minimap dots (the 3D trains: trainsSolid / trainsWire)
 })();
 
 /* ---------- JR Keiyo Line trains through Maihama ---------- */
@@ -2264,12 +2282,17 @@ async function init3D() {
   }
   if (MH) {
     const hz = (x, y) => heightAt(x, y) ?? 0;
-    MH.loop.forEach(l => { line("mhline", l, MH.loop_z + 0.9); line("mhline", l, MH.loop_z);
+    if (MH.beam) {   // the beam (top and bottom, 0.9 m) along its profile, a pier line every 20 m
+      const b = MH.beam.concat([MH.beam[0]]);
+      lineZ("mhline", b, b.map(p => p[2])); lineZ("mhline", b, b.map(p => p[2] - 0.9));
+      for (let i = 0; i < b.length - 1; i += 4) seg("mhline", [...V(b[i][0], b[i][1], hz(b[i][0], b[i][1])), ...V(b[i][0], b[i][1], b[i][2] - 0.9)]);
+    } else MH.loop.forEach(l => { line("mhline", l, MH.loop_z + 0.9); line("mhline", l, MH.loop_z);
       for (let i = 0; i < l.length; i += 4) seg("mhline", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.loop_z)]); });
+    const beamAt = (x, y) => MH.beam ? MH.beam.reduce((a, p) => (p[0] - x) ** 2 + (p[1] - y) ** 2 < (a[0] - x) ** 2 + (a[1] - y) ** 2 ? p : a)[2] : MH.loop_z + 0.9;
     MH.jr.forEach(l => { line("mhjr", l, MH.jr_z + 1); line("mhjr", l, MH.jr_z);
       for (let i = 0; i < l.length; i += 3) seg("mhjr", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.jr_z)]); });
     // platforms: JR at its viaduct; the Resort Line's at the car floor (1 m above the beam top)
-    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : MH.loop_z + 1.9; prism("mhline", r, z - 0.4, z); });
+    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : beamAt(cx, cy) + 1.0; prism("mhline", r, z - 0.4, z); });
     // station buildings get their own key, so a Blender station model can replace its box only
     MH.places.forEach(p => p.r.forEach(r => prism(p.key || (p.k === "station" ? "mhstation" : "mhplace"), r, p.z || 0, (p.z || 0) + p.h)));
     MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
@@ -2866,7 +2889,8 @@ async function init3D() {
     wk.dist = ride.dist; ride = null;
     const [x, y] = ridePlat;
     wk.x = x; wk.z = -y;
-    wk.y = groundAt(wk.x, wk.z, beamTop + CAR_FLOOR + 0.3) ?? beamTop + CAR_FLOOR;
+    const bz = RL.at(RL.stations.find(st => st.n === RIDE_ST)?.s ?? 0)[4];   // the beam top there (level through the station)
+    wk.y = groundAt(wk.x, wk.z, bz + CAR_FLOOR + 0.3) ?? bz + CAR_FLOOR;
     placeCamera(); updateRideBtn();
     toast(`${RIDE_ST}のホームに降りました`);
   }
@@ -2974,7 +2998,7 @@ async function init3D() {
   // 3D: the solid trains follow the 3Dモデル toggle; the 電車 layer draws them as outlines where the model is off
   // (or on top of it with 枠線も重ねて表示), like the other parts
   const trainsSolid = () => mdl.trains !== false, trainsWire = () => !!on.trains && (!trainsSolid() || !!mdl.overlay);
-  const beamTop = MH ? MH.loop_z + 0.9 : 0;   // the beam drawn by the 舞浜駅・周辺 layer: top at 4.21 m, as in the Blender station
+  const CANT = 6 * Math.PI / 180;   // the beam's cant on curves (ds_tracks: curvature × 220 rad, up to 6°); the cars lean with it
 
   /* ---------- camera that follows a train (俯瞰) ---------- */
   // The camera starts behind the train, a little to the right and above, then keeps its offset from the
@@ -2984,7 +3008,7 @@ async function init3D() {
   const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
   function trainPose(tr) {
     const c = RL.state(tr, RL.now()).s, a = RL.at(c - 20), b = RL.at(c + 20), m = RL.at(c);
-    return { x: m[0], y: m[1], h: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+    return { x: m[0], y: m[1], z: m[4], h: Math.atan2(b[1] - a[1], b[0] - a[0]) };
   }
   const startOffset = h => new T.Vector3(-Math.cos(h) * 70 + Math.sin(h) * 24, 32, Math.sin(h) * 70 + Math.cos(h) * 24);
   function stopFollow() {
@@ -3007,7 +3031,7 @@ async function init3D() {
   three.following = () => fol.tr;
   function followTick(now) {
     const p = trainPose(fol.tr), dh = wrapA(p.h - fol.h); fol.h = p.h;
-    fTgt.set(p.x, beamTop + 2.5, -p.y);
+    fTgt.set(p.x, p.z + 2.5, -p.y);
     const B = fol.blend;
     if (B) {   // glide in
       const k = reduceMotion ? 1 : ease(Math.min(1, (now - B.t0) / B.dur));
@@ -3025,7 +3049,7 @@ async function init3D() {
   // (x along the car, nose at +x, y up, beam top = 0). Every train clones them per car; TR*_paint gets that train's
   // colour band in the shader (the same wavy-band formula as before) and its inner skin is the cream cabin wall.
   // Lite mode hides the cabins. If loading fails, say why (the plan markers and the follow camera still work).
-  const TRAIN_COLS = { blue: [0x2f7fd6, 0x9cc9f2], yellow: [0xf2b51c, 0xfbe18a] };
+  const TRAIN_COLS = { blue: [0x2f7fd6, 0x9cc9f2], yellow: [0xf2b51c, 0xfbe18a], pink: [0xe0628f, 0xf5bdd0], purple: [0x8a5cc2, 0xcdb6e8], green: [0x3f9f4d, 0xa9dbaf] };
   const TRAIN_PAINT = `{
     vec3 white = vec3(0.93, 0.94, 0.95), silver = vec3(0.66, 0.69, 0.72), c = white;
     bool sideF = abs(vLN.z) > abs(vLN.x); float u = sideF ? vLP.x : vLP.z, y = vLP.y;
@@ -3099,7 +3123,9 @@ async function init3D() {
     $("md-trains").disabled = false; $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
       const a = RL.at(s), b = RL.at(s + len), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6, ux = dx / L, uy = dy / L;
-      o.position.set(a[0] - ux * off, beamTop, -(a[1] - uy * off)); o.rotation.set(0, Math.atan2(uy, ux), 0);
+      const pitch = Math.atan2(b[4] - a[4], L), lean = Math.max(-CANT, Math.min(CANT, (a[5] + b[5]) / 2 * 220));
+      o.position.set(a[0] - ux * off, a[4] - Math.sin(pitch) * off, -(a[1] - uy * off));
+      o.rotation.order = "YZX"; o.rotation.set(-lean, Math.atan2(uy, ux), pitch);   // (local +z is the right side: lean left = -x turn)
     };
     const pose = (b, c) => {
       b.cars.forEach((k, i) => place(b.slots[i], c + k.start + 2.7, k.L - 5.4, 2.7));
@@ -3273,7 +3299,7 @@ setPanel(!narrow() && ui.panel !== false);
 /* ---------- Resort Line status (情報 tab) ---------- */
 if (RL) {
   $("rlSec").hidden = false;
-  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km ・ 各駅で 20 秒停車 ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。地図の印は「レイヤー」の「電車(リゾートライン)」、俯瞰・散歩の電車は「3Dモデル」の「電車(リゾートライン)」で切り替えます。`;
+  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km(駅間ごとに ${RL.runs.map(r => Math.round(r.vm * 3.6)).join(" / ")} km、カーブは減速)・ 各駅で ${Math.round(RL.DWELL)} 秒停車 ・ ${RL.trains.length} 編成が ${Math.floor(RL.P / RL.trains.length / 60)} 分 ${Math.round(RL.P / RL.trains.length % 60)} 秒おき ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。地図の印は「レイヤー」の「電車(リゾートライン)」、俯瞰・散歩の電車は「3Dモデル」の「電車(リゾートライン)」で切り替えます。`;
   const upd = () => {
     if (document.hidden || $("rlSec").offsetParent === null) return;
     const t = RL.now();

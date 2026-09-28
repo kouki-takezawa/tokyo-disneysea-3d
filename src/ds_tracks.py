@@ -6,8 +6,8 @@
 
 Data: the mock's own lines (tds_outline.html: maihama.loop = the Resort Line, maihama.jr = the two Keiyo Line tracks,
 maihama.platforms = the OSM platforms), the DEM grids for the ground under the piers. DisneySea frame metres, heights
-on the promenade datum (the same numbers the mock's trains run on: Resort Line beam top loop_z + 0.9 = 4.21 m, Keiyo
-Line rail top jr_z = 10.0 m).
+on the promenade datum (the same numbers the mock's trains run on: Resort Line beam top = maihama.beam, beam_profile():
+6.0 m over the ground, level through the stations, 4.21 m at Tokyo Disneyland Station; Keiyo Line rail top jr_z = 10.0 m).
 
 Resort Line (straddle monorail, built like the Alweg / Hitachi lines):
   * the running beam: a prestressed concrete girder 0.85 m wide and 1.5 m deep (the train's tyres run on its top, the
@@ -173,6 +173,88 @@ def curvature(pts, closed):
     return out
 
 
+BEAM = dict(step=5.0, clear=6.0, reach=20.0, zone=55.0, grade=0.025, tdl=ST.FRAME["ground_datum"] + ST.SPEC["beam_top"])
+
+
+def station_arcs(MH, pts, L):
+    """Arc position (m along `pts`, a closed resampled ring) of the middle of each Resort Line station's platform."""
+    d2 = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])
+    out = []
+    for st in MH["stations"]:
+        if st["k"] != "monorail":
+            continue
+        cs = [(sum(p[0] for p in r) / len(r), sum(p[1] for p in r) / len(r)) for r in MH["platforms"]]
+        cs = [c for c in cs if d2(c, (st["x"], st["y"])) < 45] or [(st["x"], st["y"])]
+        c = (sum(a for a, _ in cs) / len(cs), sum(b for _, b in cs) / len(cs))
+        if "ディズニーランド" in st["n"]:          # the Blender station: its platform is centred on its own origin
+            c = (ST.FRAME["x"], ST.FRAME["y"])
+        i = min(range(len(pts)), key=lambda i: d2(pts[i], c))
+        out.append((st["n"], L * i / len(pts)))
+    return out
+
+
+def beam_profile(D):
+    """The Resort Line beam as a closed ring [[x, y, z, k], ...] every 5 m, anticlockwise (the way the trains run):
+    z = beam top on the promenade datum, k = signed curvature (1/m, + = turning left; the cant is k * 220 rad, up to
+    6 deg). Rule (ESTIMATE, no survey): the top is 6.0 m over the highest ground within 20 m, as at Tokyo Disneyland
+    Station (ds_tdl_station: beam top 6.0 m over its ground, so 4.5 m under the 1.5 m beam, the clearance over a
+    public road), level through each station (55 m either side of the platform's middle; Tokyo Disneyland Station at
+    exactly its model's 4.21 m) and no steeper than 2.5 % between."""
+    B_ = BEAM; MH = D["maihama"]; h = make_ground(D)
+    ring = chaikin(chain_loop(MH["loop"]), True, 2)
+    pts, L = resample(ring, B_["step"], True); n = len(pts); ds = L / n
+    g = [h(p[0], p[1]) for p in pts]
+    r = int(round(B_["reach"] / ds))
+    z = [max(g[(i + j) % n] for j in range(-r, r + 1)) + B_["clear"] for i in range(n)]
+    lock = [None] * n
+    zr = int(round(B_["zone"] / ds))
+    for name, s in station_arcs(MH, pts, L):
+        c = int(round(s / ds)); idx = [(c + j) % n for j in range(-zr, zr + 1)]
+        v = B_["tdl"] if "ディズニーランド" in name else max(z[i] for i in idx)
+        for i in idx:
+            lock[i] = v
+    z = [lock[i] if lock[i] is not None else z[i] for i in range(n)]
+    dz = B_["grade"] * ds
+    for _ in range(n):                                      # raise-only grade limit (keeps the clearance)
+        ch = False
+        for i in list(range(n)) + list(range(n - 1, -1, -1)):
+            if lock[i] is None:
+                w = max(z[i], z[i - 1] - dz, z[(i + 1) % n] - dz)
+                if w > z[i] + 1e-6:
+                    z[i] = w; ch = True
+        if not ch:
+            break
+    for _ in range(n):                                      # ... and down to the locked stations (Tokyo Disneyland's 4.21 m)
+        ch = False
+        for i in list(range(n)) + list(range(n - 1, -1, -1)):
+            if lock[i] is None:
+                w = min(z[i], z[i - 1] + dz, z[(i + 1) % n] + dz)
+                if w < z[i] - 1e-6:
+                    z[i] = w; ch = True
+        if not ch:
+            break
+    for _ in range(3):                                      # round off the grade changes
+        z = [z[i] if lock[i] is not None else (z[i - 1] + 2 * z[i] + z[(i + 1) % n]) / 4 for i in range(n)]
+    k = curvature([(p[0], p[1]) for p in pts], True)
+    return [[round(p[0], 2), round(p[1], 2), round(z[i], 2), round(k[i], 5)] for i, p in enumerate(pts)], g
+
+
+def beam_top(D):
+    """(z_s, z_xy): the beam top at arc s along chaikin(chain_loop(loop)) (the ring beam_profile and the track model
+    both resample from the same start), and at the ring point nearest to (x, y). From the exported data's
+    maihama.beam (export_mock), else computed here."""
+    ring = D["maihama"].get("beam") or beam_profile(D)[0]
+    n = len(ring); L = sum(math.hypot(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]) for i in range(n)); ds = L / n
+
+    def z_s(s):
+        f = (s % L) / ds; i = int(f) % n; t = f - int(f)
+        return ring[i][2] * (1 - t) + ring[(i + 1) % n][2] * t
+
+    def z_xy(x, y):
+        return min(ring, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)[2]
+    return z_s, z_xy
+
+
 def sweep(bm, pts, profile, closed, z_of, cap=True, mitre=True, roll=None):
     """Extrude a closed (y, z) profile along plan points; z_of(i) gives the base height at point i; roll(i) (rad)
     turns the profile about its origin (a banked beam on a curve)."""
@@ -231,7 +313,7 @@ def materials():
 
 # ================================================================ the Resort Line
 def build_resort_line(D, h, skip):
-    S = SPEC; zt = D["maihama"]["loop_z"] + 0.9; zb = zt - S["beam_d"]
+    S = SPEC; z_s, _ = beam_top(D)
     loop = chaikin(chain_loop(D["maihama"]["loop"]), True, 2)
     pts, L = resample(loop, 4.0 if WEB else 2.0, True)
     keep = [True for p in pts]                               # the beam runs unbroken, through Tokyo Disneyland Station too
@@ -257,12 +339,14 @@ def build_resort_line(D, h, skip):
     kap = curvature([(p[0], p[1]) for p in pts], True); ki = {id(p): kap[i] for i, p in enumerate(pts)}
     CANT_MAX = math.radians(6.0)
     for run in runs:
-        roll = lambda i, run=run: max(-CANT_MAX, min(CANT_MAX, ki[id(run[i])] * 220.0))   # radius 100 m -> about 2.2 deg
-        sweep(bm_b, run, beam, closed, lambda i: zt, roll=roll)
+        # radius 100 m -> about 2.2 deg, leaning into the curve (sweep's + roll turns the top to the right, so minus)
+        roll = lambda i, run=run: -max(-CANT_MAX, min(CANT_MAX, ki[id(run[i])] * 220.0))
+        zr = lambda i, run=run: z_s(run[i][2])
+        sweep(bm_b, run, beam, closed, zr, roll=roll)
         for side in (-1, 1):                               # conductor rails, low on the beam sides (the collector shoes' height)
             for dz in ((-1.03,) if WEB else (-0.95, -1.12)):
                 prof = [(side * (hw + 0.09 + y), z + dz) for y, z in rail]
-                sweep(bm_r, run, prof if side > 0 else [(y, z) for y, z in prof][::-1], closed, lambda i: zt, roll=roll)
+                sweep(bm_r, run, prof if side > 0 else [(y, z) for y, z in prof][::-1], closed, zr, roll=roll)
         # joints every span: finger plates on the top, a pier under each
         s0 = run[0][2]
         for p in run:
@@ -272,7 +356,7 @@ def build_resort_line(D, h, skip):
     idx = {id(p): i for i, p in enumerate(pts)}
     for p in piers:
         i = idx[id(p)]; t, nrm, _ = F[i]
-        g = h(p[0], p[1])
+        g = h(p[0], p[1]); zt = z_s(p[2]); zb = zt - S["beam_d"]
         ang = math.atan2(t[1], t[0])
         M = Matrix.Translation((p[0], p[1], 0.0)) @ Matrix.Rotation(ang, 4, "Z")
         # column: round, 1.5 m across, rising from a footing to a trumpet-shaped head that takes the beam
@@ -299,7 +383,7 @@ def build_resort_line(D, h, skip):
     obj_bm("TK_RL_joints", bm_j, "iron")
     # insulator brackets along the beam: one bracket + Array (fit to the curve) + Curve, per run and side
     for r_i, run in enumerate([] if WEB else runs):          # (the mock leaves the brackets out)
-        cv = poly_curve(f"TK_RL_path{r_i}", [(p[0], p[1]) for p in run], zt, closed)
+        cv = poly_curve(f"TK_RL_path{r_i}", [(p[0], p[1]) for p in run], lambda i, run=run: z_s(run[i][2]), closed)
         Lr = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(run[:-1], run[1:]))
         for side in (-1, 1):
             bm = bmesh.new()
@@ -315,7 +399,7 @@ def build_resort_line(D, h, skip):
 
 def build_rl_platforms(D, h, skip):
     """Platforms of the other three Resort Line stations: slab at the car floor, edge line, screen doors, canopy."""
-    MH = D["maihama"]; zf = MH["loop_z"] + 0.9 + 1.0
+    MH = D["maihama"]; _, z_xy = beam_top(D)
     loop = chain_loop(MH["loop"])
     bm_s, bm_y, bm_d, bm_c, bm_k = (bmesh.new() for _ in range(5))
     for r in MH["platforms"]:
@@ -335,6 +419,7 @@ def build_rl_platforms(D, h, skip):
         def boxm(bm, a0, a1, b0, b1, z0, z1):
             for v in bm_box(bm, a0, a1, b0, b1, z0, z1):
                 v.co = M @ v.co
+        zf = z_xy(cx, cy) + 1.0                             # the car floor (level through the station: beam_profile)
         boxm(bm_s, u0, u1, v0, v1, zf - 0.5, zf)
         ve = v1 if beam_side > 0 else v0
         boxm(bm_y, u0 + 0.3, u1 - 0.3, min(ve, ve - beam_side * 0.5), max(ve - beam_side * 0.2, ve - beam_side * 0.5), zf, zf + 0.006)
@@ -595,7 +680,7 @@ def build(context=True, train=True):
             i = min(range(len(pts)), key=lambda k: math.hypot(pts[k][0] + 770.0, pts[k][1] - 95.0))   # on the Bayside curve
             p = pts[i]; q = pts[(i + 5) % len(pts)]
             e = bpy.data.objects.new("TK_Train", None); B.col.objects.link(e)
-            e.location = (p[0], p[1], D["maihama"]["loop_z"] + 0.9); e.rotation_euler = (0, 0, math.atan2(q[1] - p[1], q[0] - p[0]))
+            e.location = (p[0], p[1], beam_top(D)[1](p[0], p[1])); e.rotation_euler = (0, 0, math.atan2(q[1] - p[1], q[0] - p[0]))
             for o in objs:
                 o.parent = e
         except Exception as ex:

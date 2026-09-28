@@ -191,6 +191,10 @@ def main():
     out["entrance"] = C.entrance_layer()      # Resort Line station + ticket gates (入場口・駅 layer)
     out.update(DLM.build(out["levels"]["datum"]))   # ディズニーランド / 舞浜駅・周辺 layers (separate OSM extract)
     resolve_stairs(out["disneyland"]["paths"])
+    import ds_tracks   # the Resort Line beam: [x, y, beam top z, curvature] every 5 m round the loop (ds_tracks.beam_profile)
+    beam = out["maihama"]["beam"] = ds_tracks.beam_profile(out)[0]
+    blen = sum(math.hypot(beam[i][0] - beam[i - 1][0], beam[i][1] - beam[i - 1][1]) for i in range(len(beam)))
+    out["maihama"]["stops"] = [{"n": n, "s": round(s, 1)} for n, s in ds_tracks.station_arcs(out["maihama"], beam, blen)]   # m along beam
     out["aquasphere"] = AQ.mock_geometry()     # same layout as the Blender build (ds_aquasphere.SPEC)
     vres = VO.build()
     out["volcano"] = {"contours": VO.contours(vres, 2.0), "summit": vres["summit"]}

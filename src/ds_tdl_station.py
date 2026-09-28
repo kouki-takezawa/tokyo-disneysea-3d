@@ -38,9 +38,8 @@ hotel (NNW). Ground = 0 (the DEM ground here is about -1.79 m on the DisneySea d
 ESTIMATES (no drawings or measurements; scaled from photos with the OSM outline as the ruler):
   platform / gate floor 7.0 m, beam top 6.0 m (car floor 1.0 m above the beam, train_blender SPEC), eaves 11.0 m,
   centre-block cornice 11.5 m, glass vault radius 6.4 m springing at 11.6 m (crown 18 m), clock hub 12.9 m,
-  arches 7.3 m wide springing at 4.6 m, stair 44 steps, escalators about 30 deg. The mock draws this beam at 8.9 m on
-  the datum (about 10.7 m above this ground), so the mock's viaduct and trains need the same heights before this
-  model goes in.
+  arches 7.3 m wide springing at 4.6 m, stair 44 steps, escalators about 30 deg. The mock's beam (ds_tracks.beam_profile)
+  is level at this 4.21 m on the datum for 55 m either side and follows the ground (6.0 m over it) beyond.
 """
 import sys, math, json, re, argparse, pathlib, time
 
@@ -58,7 +57,7 @@ FRAME = dict(x=-583.08, y=1023.04, ang_deg=24.78, ground_datum=-1.79)
 SPEC = dict(
     F2=7.0, slab=0.6, beam_top=6.0, beam_w=0.85, beam_d=1.6, track_v=3.6,
     bar_u=45.8, bar_v0=-4.0, bar_v1=7.6,                  # the long block along the track
-    plat_u=41.0, plat_edge=1.95,                          # platform u -41..41, v -4 .. edge
+    plat_u=44.9, plat_edge=1.95,                          # platform u -44.9..44.9 (the 87.7 m train + 1 m), v -4 .. edge
     cb_u=9.8, cb_v0=-15.0,                                # park-side centre block (gate hall)
     wing_u=19.2, wing_v0=-13.5,                           # 2F verandas between the hall and the stairs
     st_u1=32.3, st_v0=-13.9, st_v1=-11.35, esc_v0=-10.95, esc_v1=-9.05,
@@ -68,6 +67,18 @@ SPEC = dict(
     arch_half=(0.9, 8.2), arch_spring=4.6, arch_rise=1.8,
 )
 TRAIN_LEN = 2 * 15.05 + 4 * 13.70 + 5 * 0.55
+
+
+def car_doors():
+    """u of every car door of the train stopped at the platform (centred on u = 0): train_blender puts the doors 1.95 m
+    from each car end, 5.6 m back from a head car's nose; the train is symmetric, so the list is too."""
+    out, x = [], 0.0
+    lens = [15.05] + [13.70] * 4 + [15.05]
+    for i, L in enumerate(lens):
+        ds = [1.95, L - 5.6] if i == len(lens) - 1 else [5.6, L - 1.95] if i == 0 else [1.95, L - 1.95]
+        out += [TRAIN_LEN / 2 - (x + d) for d in ds]
+        x += L + 0.55
+    return sorted(out)
 # sun (a lamp): from the south-south-east, in front of the park face and a little to its right as in the photo
 SUN_EL, SUN_AZ, SUN_W = 38.0, -15.0, 3.5     # elevation, azimuth (deg, from +X = east, counter-clockwise), W/m2
 
@@ -867,9 +878,17 @@ def build_shell():
         for u in range(12, 44, 6):
             bm_lathe(bm, [(0, 0), (0.12, 0.02), (0.28, 0.18), (0.08, 0.3), (0, 0.32)], 16, T(s * u, -1.2, eave - 1.25))
     obj_bm("ST_Platform_pendants", bm, "lamp", smooth=True)
-    # ---- platform screen doors: one panel + Array
-    ps = box("ST_Platform_screens", (-S["plat_u"] + 0.2, -S["plat_u"] + 2.2, S["plat_edge"] - 0.3, S["plat_edge"] - 0.1, F2, F2 + 1.3), "white", 0.02)
-    array_mod(ps, 36, (2.3, 0, 0))
+    # ---- platform screen doors (1.3 m high): fixed panels, an opening 2.0 m wide at each car door with its door
+    #      leaves slid back behind the panels either side, steel posts at the openings, boarding marks on the floor
+    e0, e1 = S["plat_edge"] - 0.3, S["plat_edge"] - 0.1
+    ds = car_doors(); cuts = [-S["plat_u"]] + [c for d in ds for c in (d - 1.0, d + 1.0)] + [S["plat_u"]]
+    box("ST_Platform_screens", [(a + 0.06, b - 0.06, e0, e1, F2, F2 + 1.3) for a, b in zip(cuts[::2], cuts[1::2]) if b - a > 0.2], "white", 0.02)
+    box("ST_Platform_screen_leaves", [(d + s * 1.05 - (1.0 if s < 0 else 0), d + s * 1.05 + (1.0 if s > 0 else 0),
+                                       e0 - 0.12, e0 - 0.04, F2, F2 + 1.25) for d in ds for s in (-1, 1)], "white", 0.01)
+    box("ST_Platform_screen_posts", [(c - 0.06, c + 0.06, e0 - 0.14, e1, F2, F2 + 1.4) for c in cuts[1:-1]] +
+        [(c - 0.06, c + 0.06, e0, e1, F2, F2 + 1.4) for c in (-S["plat_u"], S["plat_u"])], "iron")
+    box("ST_Platform_boarding", [(d - 0.9, d + 0.9, e0 - 1.3, e0 - 1.2, F2, F2 + 0.007) for d in ds] +
+        [(d + s * 0.95 - 0.05, d + s * 0.95 + 0.05, e0 - 1.3, e0 - 0.2, F2, F2 + 0.007) for d in ds for s in (-1, 1)], "yellow")
 
 
 # ================================================================ roofs
@@ -1235,7 +1254,7 @@ def export_objects(merged):
     """Build without train / context, then one mesh per material ("ST_<material>") in the mock's frame:
     DisneySea local metres, heights on the DEM datum (the station ground is FRAME ground_datum). `merged` is
     export_models.merged(name, [(obj, dz)], col) with every object's world matrix and modifiers applied."""
-    build(train=False, context=False, reach=60.0)
+    build(train=False, context=False, reach=50.0)   # (the beam is level only 55 m either side: ds_tracks.BEAM)
     B.root.location = (FRAME["x"], FRAME["y"], 0.0); B.root.rotation_euler = (0, 0, math.radians(FRAME["ang_deg"]))
     for o in B.col.objects:                  # web weight: no bevels, thinner scroll curves (the .blend keeps them)
         for m in o.modifiers:
