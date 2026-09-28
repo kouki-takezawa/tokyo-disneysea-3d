@@ -79,6 +79,7 @@ def extra_materials(M):
     M["rail_blue"] = P("st_rail_blue", (0.08, 0.22, 0.24), 0.4, Metallic=0.6)
     M["flowers_red"] = P("st_flowers_red", (0.75, 0.10, 0.20), 0.8)
     M["blue_disc"] = P("st_blue_disc", (0.12, 0.25, 0.55), 0.4)
+    M["screen"] = P("st_screen", (0.05, 0.12, 0.20), 0.15, Emission_Color=(0.3, 0.6, 0.9, 1), Emission_Strength=0.6)
     M["mauve"] = P("st_mauve", (0.30, 0.09, 0.13), 0.6)                    # the World Bazaar shops' mansards
     M["hall_iron"] = P("st_hall_iron", (0.15, 0.30, 0.28), 0.45, Metallic=0.5)
     M["hall_glass"] = ST.clear_glass("st_hall_glass", (0.70, 0.86, 0.82), 0.35)
@@ -583,10 +584,34 @@ def build_world_bazaar():
 
 
 # ================================================================ 2. the main entrance gates: one bay + Array + Curve
+def turnstile_row(parts, x0, x1, y, k_booth="booth", k_trim="mint", k_scr="screen"):
+    """The 2023 gates' lanes (photos): waist-high ticket pedestals about 1.5 m apart, each with a small screen on a
+    slanted top, a low stainless rail between the lanes."""
+    n = max(1, int((x1 - x0) / 1.5))
+    for k in range(n + 1):
+        x = x0 + (x1 - x0) * k / n
+        bm_box(parts[k_booth], x - 0.16, x + 0.16, y - 0.35, y + 0.35, 0, 0.95)
+        bm_box(parts[k_trim], x - 0.18, x + 0.18, y - 0.37, y + 0.37, 0.95, 1.02)
+        bm_prism(parts[k_scr], [(y - 0.12, 1.02), (y + 0.12, 1.02), (y + 0.12, 1.2), (y - 0.12, 1.12)], x - 0.1, x + 0.1, "yz")
+        if k < n:
+            bm_box(parts[k_trim], x + 0.16, x + (x1 - x0) / n - 0.16, y - 0.02, y + 0.02, 0.85, 0.9)
+
+
+def valance(bm, x0, x1, y, z, depth=0.35, n_per_m=2.2):
+    """A scalloped valance (photos: seafoam and cream, under the beam over the turnstiles), in the xz plane at y."""
+    n = max(2, int((x1 - x0) * n_per_m))
+    pts = [(x0, z), (x1, z)]
+    for k in range(n, 0, -1):
+        for j in range(5):
+            t = (k - j / 4) / n
+            pts.append((x0 + (x1 - x0) * t, z - depth * (0.45 + 0.55 * math.sin(math.pi * j / 4))))
+    bm_prism(bm, pts, y - 0.03, y + 0.03, "xz")
+
+
 def bay_module(name, w, N, curve):
     """One gate bay in curve coordinates (x along the arc 0..w, y towards the plaza, z up), then Array N and bend."""
     h = ARC["half"]
-    parts = {k: bmesh.new() for k in ("trim", "mint", "slate", "iron", "booth", "green_sign", "lamp", "magenta", "gold")}
+    parts = {k: bmesh.new() for k in ("trim", "mint", "slate", "iron", "booth", "green_sign", "lamp", "magenta", "gold", "screen")}
     for s in (-1, 1):
         y = s * (h - 0.6)
         bm_box(parts["trim"], 0, w, y - 0.3, y + 0.3, 3.7, 4.55)                        # beam
@@ -611,13 +636,20 @@ def bay_module(name, w, N, curve):
             q = [parts["slate"].verts.new(p) for p in ((x0, yf + s * 0.25, 4.45), (x1, yf + s * 0.25, gz + 0.12), (x1, yr, gz + 0.12), (x0, yr, 4.45 + (7.0 - 4.45) * (1 - abs(yr) / h) * 0.0))]
             parts["slate"].faces.new(q)
     bm_box(parts["trim"], 0, w, -h + 0.2, h - 0.2, 3.95, 4.02)                               # ceiling
-    for fx in (0.33, 0.67):                                                                 # turnstile booths
-        bm_box(parts["booth"], w * fx - 0.2, w * fx + 0.2, -0.8, 0.8, 0, 1.05)
-        bm_box(parts["mint"], w * fx - 0.22, w * fx + 0.22, -0.82, 0.82, 1.05, 1.1)
+    turnstile_row(parts, 0.55, w - 0.55, 0.0)                                              # the lanes
+    for s in (-1, 1):                                                                       # scalloped valances under the beams
+        valance(parts["mint"], 0.35, w - 0.35, s * (ARC["half"] - 0.6) - s * 0.35, 3.7)
+    for fx in (0.3, 0.7):                                                                   # a screen over each pair of lanes
+        bm_box(parts["screen"], w * fx - 0.32, w * fx + 0.32, -0.04, 0.04, 3.1, 3.45)
+        bm_box(parts["iron"], w * fx - 0.02, w * fx + 0.02, -0.02, 0.02, 3.45, 3.95)
+    for fx in (0.25, 0.75):                                                                 # ceiling lights
+        globe_lamp_bm(parts["lamp"], w * fx, 0.0, 3.75, 0.13)
     globe_lamp_bm(parts["lamp"], w / 2, 0.0, 3.6, 0.2)
     cres = bmesh.new(); bm_lathe(cres, [(0, 0), (0.03, 0), (0.02, 0.3), (0.045, 0.34), (0, 0.46)], 6, T(0.2, 0, 7.0))
     out = []
     for k, bm in parts.items():
+        if not len(bm.verts):
+            bm.free(); continue
         o = obj_bm(f"ST_Gate_{name}_{k}", bm, k if k in B.M else "trim", recalc=(k != "slate"))
         if k == "slate":
             sd = o.modifiers.new("Solidify", "SOLIDIFY"); sd.thickness = 0.12; sd.offset = -1
@@ -729,11 +761,20 @@ def pavilion(name, a_deg, w, d, eave, apex, deck=None, sign=False, spires=False)
                 rot = (math.pi / 2, 0, math.pi) if s > 0 else (math.pi / 2, 0, 0)
                 tm = text_mesh(f"ST_Pav_{name}_entrance_text{s}", "ENTRANCE", 0.2, (-hw * 0.38 - 1.5, s * (hd - 0.3 + 0.04), eave - 1.52), rot, "white")
                 array_mod(tm, 2, ((hw * 0.76 + 3.0) * (1 if s < 0 else -1), 0, 0))
-        bm = bmesh.new()                                  # turnstiles under the pavilion
-        for k in range(int(w / 1.4)):
-            x = -hw + 0.9 + k * 1.4
-            bm_box(bm, x - 0.2, x + 0.2, -0.8, 0.8, 0, 1.05)
-        obj_bm(f"ST_Pav_{name}_booths", bm, "booth")
+        tp = {k: bmesh.new() for k in ("booth", "mint", "screen")}   # the lanes under the pavilion
+        turnstile_row(tp, -hw + 0.9, hw - 0.9, 0.0)
+        for s in (-1, 1):
+            valance(tp["mint"], -hw + 0.6, hw - 0.6, s * (hd - 0.7), eave - 0.75)
+        for k, bm_ in tp.items():
+            obj_bm(f"ST_Pav_{name}_{k}", bm_, k)
+        if deck:                                          # a weathervane on the deck (photo: a bird on an arrow)
+            bmv = bmesh.new()
+            bm_lathe(bmv, [(0, 0), (0.06, 0), (0.03, 2.2), (0, 2.25)], 8, T(0, 0, deck + 0.9))
+            bm_box(bmv, -0.9, 0.9, -0.015, 0.015, deck + 2.6, deck + 2.66)
+            bm_prism(bmv, [(0.9, deck + 2.5), (1.25, deck + 2.63), (0.9, deck + 2.76)], -0.015, 0.015, "xz")
+            bm_prism(bmv, [(-0.9, deck + 2.45), (-0.55, deck + 2.63), (-0.9, deck + 2.81), (-1.2, deck + 2.81), (-0.95, deck + 2.63), (-1.2, deck + 2.45)], -0.015, 0.015, "xz")
+            bm_prism(bmv, [(-0.2, deck + 2.66), (0.3, deck + 2.7), (0.45, deck + 2.95), (0.2, deck + 2.85), (-0.25, deck + 2.95), (-0.1, deck + 2.75)], -0.02, 0.02, "xz")
+            obj_bm(f"ST_Pav_{name}_weathervane", bmv, "gold")
 
 
 def build_gates():
@@ -759,8 +800,10 @@ def build_gates():
 # straight above: round head, two round ears, the skin mask (lower oval + two tall lobes round the eyes with the
 # widow's peak between), tall eyes, an oval nose, a smile turned up at the cheeks.
 BED = dict(x=-538.0 - P0[0], y=927.3 - P0[1] - 1.0, ang=205.0,     # local +X: left to right for a guest at the gates,
-           tilt=7.0, zc=2.1,                                         # local +Y: away from the gates (towards World Bazaar)
-           fence=(17.0, 17.0), bank=(12.9, 12.9), brick=(12.5, 12.5), lawn=(11.5, 11.5))   # round (user, 2026-09-24)
+           tilt=7.0, zc=1.5,                                         # local +Y: away from the gates (towards World Bazaar)
+           fence=(12.0, 12.0), bank=(9.1, 9.1), brick=(8.8, 8.8), lawn=(8.1, 8.1))   # round (user, 2026-09-24); 24 m across
+# (2026-09-28: 34 m was too big -- only ~49 m between the World Bazaar portico and the gates' inner face, and the photos,
+#  against people, put the bed at 15-20 m across the planting; 24 m to the fence leaves ~12 m of walkway either side)
 
 
 def bed_cam(dist, h, lens):
@@ -803,7 +846,7 @@ def build_flowerbed():
         bm_prism(bm, q, -0.3, 0.04, "xy")
     obj_bm("ST_Bed_brick_edging", bm, "brick")
     # the Mickey face, in flowers (units of the head radius R, x to the right, y up for a guest at the gates)
-    R_ = 5.6; oy = -1.3                                    # head radius; the head sits a little low so the ears fit
+    R_ = 3.95; oy = -0.9                                   # head radius; the head sits a little low so the ears fit
     P_ = lambda x, y: (x * R_, y * R_ + oy)
     E_ = lambda rx, ry, cx, cy, n=48: ellipse(rx * R_, ry * R_, n, cx * R_, cy * R_ + oy)
     fz = 0.02
@@ -827,8 +870,17 @@ def build_flowerbed():
     feats.append(smile)
     prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "flower_purple")
     prism("ST_Bed_tongue", [E_(0.16, 0.07, 0.0, -0.55, 28)], fz + 0.2, fz + 0.27, "flowers_red")
-    prism("ST_Bed_red_flowers", [ellipse(1.2, 1.2, 32, 8.3, -7.2)], fz, fz + 0.3, "flowers_red")
-    prism("ST_Bed_white_flowers", [ellipse(1.1, 1.1, 32, 6.3, -9.0)], fz, fz + 0.3, "flower_white")
+    prism("ST_Bed_red_flowers", [ellipse(0.85, 0.85, 32, 5.85, -5.1)], fz, fz + 0.3, "flowers_red")
+    prism("ST_Bed_white_flowers", [ellipse(0.8, 0.8, 32, 4.45, -6.35)], fz, fz + 0.3, "flower_white")
+    # the planting round the face (photo: purple and white flowers with red): a ring of alternating clumps on the lawn
+    bmr, bmw_, bmp_ = bmesh.new(), bmesh.new(), bmesh.new()
+    for k in range(40):
+        a = 2 * math.pi * k / 40; rr = lx - 0.55
+        cx_, cy_ = rr * math.cos(a), rr * math.sin(a)
+        if abs(cx_ - 5.85) < 1.3 and abs(cy_ + 5.1) < 1.3 or abs(cx_ - 4.45) < 1.3 and abs(cy_ + 6.35) < 1.3:
+            continue
+        bm_prism((bmr, bmw_, bmp_)[k % 3], ellipse(0.32, 0.32, 10, cx_, cy_), fz, fz + 0.22, "xy")
+    obj_bm("ST_Bed_ring_red", bmr, "flowers_red"); obj_bm("ST_Bed_ring_white", bmw_, "flower_white"); obj_bm("ST_Bed_ring_purple", bmp_, "flower_purple")
     B.root = prev
     # (b) the shrub bank: from the ground at the fence up to the brick edging on the tilted plane (a loft)
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
@@ -892,7 +944,7 @@ def build_plaza(context=True):
     fx, fy = BED["x"], BED["y"]
     # lamp posts with four globes: round the plaza and either side of the central pavilion
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
-    posts = [(fx + 20.5 * math.cos(t) * ca - 20.5 * math.sin(t) * sa, fy + 20.5 * math.cos(t) * sa + 20.5 * math.sin(t) * ca)
+    posts = [(fx + 15.0 * math.cos(t) * ca - 15.0 * math.sin(t) * sa, fy + 15.0 * math.cos(t) * sa + 15.0 * math.sin(t) * ca)
              for t in (0.35, 2.79, 3.49, 5.93)]   # round the bed, outside its fence
     for d in (-12.0, 12.0):
         a = math.radians(ARC["a_mid"]); t = (-math.sin(a), math.cos(a))
