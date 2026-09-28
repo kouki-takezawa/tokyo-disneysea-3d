@@ -148,6 +148,16 @@ def crescent_bay(w, N, plain=False):
     bm_box(P["wall"], 0, w, -0.02, 0, 0, CORNICE)                        # the wall face itself (bent along the curve)
     bm_box(P["trim"], 0.05, 0.35, 0.0, 0.18, 0, CORNICE)                  # quoins at each bay edge
     bm_box(P["trim"], w - 0.35, w - 0.05, 0.0, 0.18, 0, CORNICE)
+    if not plain and w >= 3.0:
+        # the rooms' relief (photos): a pier 0.55 m proud between the bays from the first floor to the cornice, so the
+        # windows and balconies sit in a recess; a cap on each pier at every floor, a bracket block under the cornice
+        pw = min(0.6, w * 0.14)
+        for x0, x1 in ((0.0, pw), (w - pw, w)):
+            bm_box(P["wall"], x0, x1, 0.0, 0.55, GF - 0.2, CORNICE - 0.4)
+            for f in range(NFLOORS + 1):
+                zc = GF + FH * f - 0.12
+                bm_box(P["trim"], x0 - 0.03, x1 + 0.03, 0.0, 0.6, zc, zc + 0.14)
+            bm_box(P["trim"], x0 - 0.06, x1 + 0.06, 0.0, 0.66, CORNICE - 0.75, CORNICE - 0.25)
     for k in range(1, int(CORNICE / 1.0)):                                # rustication: horizontal joint lines, ground floor
         if k * 1.0 < GF - 0.6:
             bm_box(P["trim"], 0.35, w - 0.35, 0.0, 0.05, k * 1.0, k * 1.0 + 0.04)
