@@ -100,6 +100,8 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
 .keys dd{margin:0;color:var(--muted)}
 .credit{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;color:var(--muted);font-size:11px;line-height:1.5}
 .credit a{color:inherit;text-decoration:underline}
+.mini-credit{pointer-events:auto;font-size:10px;color:var(--muted);background:color-mix(in srgb,var(--sheet) 70%,transparent);padding:1px 6px;border-radius:3px;white-space:nowrap}
+.mini-credit a{color:inherit}
 .basis{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:3px}
 .basis li{display:grid;grid-template-columns:18px 1fr auto;gap:8px;align-items:center}
 .basis .n{font-family:var(--font-mono);font-size:11.5px;color:var(--muted)}
@@ -306,125 +308,10 @@ body.intro .introfx{opacity:1}
   </div>
   <div class="tools">
     <button class="btn" id="btnShare" title="今の視点の URL を共有">共有</button>
-    <button class="btn" id="btnPanel" aria-expanded="true" aria-controls="panel" title="パネルの表示・非表示">パネル</button>
   </div>
 </header>
 
 <main class="stage">
-  <aside class="panel" id="panel" aria-label="パネル">
-    <div class="grip" id="grip" aria-hidden="true"></div>
-    <div class="ptabs" role="tablist">
-      <button role="tab" data-tab="layers" aria-selected="true">表示</button>
-      <button role="tab" data-tab="areas" aria-selected="false">エリア・移動</button>
-      <button role="tab" data-tab="info" aria-selected="false">情報</button>
-      <button class="pclose" id="panelClose" aria-label="パネルを閉じる">×</button>
-    </div>
-    <div class="pbody">
-      <div class="pane" data-pane="layers">
-        <section>
-          <h2>表示のプリセット</h2>
-          <div class="presets">
-            <button class="pbtn" id="pre-model" aria-pressed="false"><b>モデルのみ</b><span>1</span></button>
-            <button class="pbtn" id="pre-mix" aria-pressed="false"><b>枠線+モデル</b><span>2</span></button>
-            <button class="pbtn" id="pre-wire" aria-pressed="false"><b>枠線のみ</b><span>3</span></button>
-          </div>
-        </section>
-        <section>
-          <details class="fold" data-fold="layers" open>
-            <summary title="押すと折りたたむ / 開く"><h2>レイヤー(枠線)</h2></summary>
-            <div class="bulk"><button type="button" id="ly-all-on">すべてオン</button><button type="button" id="ly-all-off">すべてオフ</button></div>
-            <div class="layers" id="layers"></div>
-          </details>
-        </section>
-        <section>
-          <details class="fold" data-fold="models" open>
-            <summary title="押すと折りたたむ / 開く"><h2>3Dモデル(俯瞰・散歩)</h2></summary>
-            <div class="bulk"><button type="button" id="mdl-all-on" disabled>すべてオン</button><button type="button" id="mdl-all-off" disabled>すべてオフ</button></div>
-            <div class="layers" id="models"></div>
-            <label class="models-h"><input type="checkbox" id="mdl-overlay">枠線も重ねて表示</label>
-          </details>
-        </section>
-      </div>
-      <div class="pane" data-pane="areas" hidden>
-        <section>
-          <h2>施設を探す</h2>
-          <input type="search" id="q" class="search" placeholder="例: タワー・オブ・テラー、シンデレラ城、ベイサイド" autocomplete="off" aria-label="施設名で探す">
-          <ul class="areas" id="qres"></ul>
-        </section>
-        <p class="hintp">地図・俯瞰では、そのエリアへ移動して強調します(もう一度押すと解除)。散歩では、その場所へ移動します。</p>
-        <section>
-          <h2>スタート地点</h2>
-          <ul class="areas"><li><button id="dest-aq"><span class="sw" style="color:var(--water);border-top-width:3px"></span><span>アクアスフィア</span><span class="n"></span></button></li></ul>
-        </section>
-        <section>
-          <h2>エリア</h2>
-          <ul class="areas" id="areas"></ul>
-        </section>
-        <section>
-          <h2>ディズニーランド・舞浜駅(地図・俯瞰)</h2>
-          <ul class="areas" id="dlAreas"></ul>
-        </section>
-        <section id="folSec" hidden>
-          <h2>リゾートラインの電車を追う(俯瞰)</h2>
-          <ul class="areas" id="folAreas"></ul>
-        </section>
-      </div>
-      <div class="pane" data-pane="info" hidden>
-        <div class="stats">
-          <div><span class="v" id="st-b">0</span><span class="k">建物</span></div>
-          <div><span class="v" id="st-w">0</span><span class="k">水面</span></div>
-          <div><span class="v" id="st-p">0</span><span class="k">園路</span></div>
-        </div>
-        <section class="keys-sec">
-          <h2>操作</h2>
-          <dl class="keys">
-            <dt>1 / 2 / 3</dt><dd>表示のプリセット(モデルのみ / 枠線+モデル / 枠線のみ)</dd>
-            <dt>W A S D・矢印</dt><dd>散歩で歩く(Shift で走る)</dd>
-            <dt>ドラッグ</dt><dd>散歩で見回す(キャラクターの向きは変わらない)</dd>
-            <dt>ホイール・ピンチ</dt><dd>散歩でキャラクターを中心にズーム</dd>
-            <dt>H</dt><dd>写真モード(操作部品を隠す)</dd>
-            <dt>Esc</dt><dd>散歩から俯瞰へ戻る ・ 電車を追うのをやめる</dd>
-            <dt>F</dt><dd>俯瞰で電車を追う / やめる</dd>
-            <dt>T</dt><dd>追う電車を 1 本目 / 2 本目で切り替える</dd>
-            <dt>ミニマップ</dt><dd>クリックした場所へ移動</dd>
-          </dl>
-        </section>
-        <div id="wxSlot"></div>
-        <section id="rlSec" hidden>
-          <h2>リゾートライン(電車)</h2>
-          <ul class="notes" id="rlStatus"></ul>
-          <p class="hintp" id="rlNote"></p>
-        </section>
-        <section>
-          <h2>階段・高低差</h2>
-          <ul class="basis" id="basis"></ul>
-        </section>
-        <section>
-          <h2>この下書きについて</h2>
-          <ul class="notes">
-            <li><strong>赤線</strong>は参考モデルがある優先パーツ。次の段階で作り込む箇所です。</li>
-            <li>高さは実測タグ約15棟とプロメテウス火山(51 m)以外、エリアごとの推定値です。</li>
-            <li>地面の高さは国土地理院の5 mメッシュ標高(航空レーザー)。園路の中央値 <span class="mono" id="datum"></span> を 0 m としています。</li>
-            <li>階段は<strong>色で根拠</strong>を区別。矢印は上り方向。赤は向きが分からないので確認が必要です。</li>
-            <li>水面は護岸より少し下、高架鉄道は地上7 m。</li>
-            <li>火山・アクアスフィア・ドーム・コロンビア号は概形のみ。</li>
-            <li>リゾートラインの電車は、実際の時刻表ではなく、同じ走り方をくり返す想定の運行です(速度・停車時間は推定)。</li>
-          </ul>
-        </section>
-        <section>
-          <h2>出典</h2>
-          <ul class="credit">
-            <li>地図: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>(ODbL)</li>
-            <li>標高: 国土地理院 基盤地図情報 数値標高モデル(5 mメッシュ, DEM5A)</li>
-            <li>航空写真: 国土地理院 シームレス空中写真</li>
-            <li>地球儀: NOAA ETOPO(パブリックドメイン)</li>
-            <li>電車の寸法: Wikipedia「舞浜リゾートライン」(形と色は写真を見て手で作ったもの)</li>
-          </ul>
-        </section>
-      </div>
-    </div>
-  </aside>
-
   <div class="viewport" id="viewport">
     <canvas id="plan" aria-label="ディズニーパークの平面図"></canvas>
     <canvas id="trainPlan" aria-hidden="true"></canvas>
@@ -459,6 +346,7 @@ body.intro .introfx{opacity:1}
     <div class="joy only-walk only-touch" id="joy" aria-label="移動スティック"><i></i></div>
     <button class="runbtn only-walk only-touch" id="runBtn" aria-pressed="false">走る</button>
     <button class="ridebtn only-walk" id="btnRide" hidden></button>
+    <div class="hud bc"><span class="mini-credit">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> ・ 国土地理院</span></div>
     <div class="introfx" aria-hidden="true"></div>
     <div class="letterbox" aria-hidden="true"><i></i><i></i></div>
     <div class="intrologo" id="introLogo" role="button" aria-label="DISNEY ADVENTURE ・ タップしてはじめる" hidden>
@@ -636,25 +524,8 @@ const LAYERS = [
   ["walls","壁・柵・擁壁","--wall",0], ["contours","等高線 1 m","--contour-idx",0],
   ["rail","高架鉄道","--rail",1], ["landmarks","ランドマーク","--land",0], ["entrance","入場口・駅","--gate",0], ["disneyland","ディズニーランド","--l4",0], ["maihama","舞浜駅・周辺","--mh",0], ["parking","駐車場","--lot",0], ["trains","電車(リゾートライン・京葉線)","--mh",0], ["labels","ラベル","--muted",0],
 ];
-const on = {}; LAYERS.forEach(([k]) => on[k] = true);
-try { localStorage.removeItem("tds-layers"); localStorage.removeItem("tds-models"); } catch (e) {}   // older versions kept these; every visit now starts from the defaults
-const layersEl = $("layers");
-LAYERS.forEach(([k, label, color, dash]) => {
-  const l = document.createElement("label");
-  l.innerHTML = `<input type="checkbox" id="ly-${k}" ${on[k] ? "checked" : ""}><span class="sw${dash ? " dash" : ""}" style="color:var(${color})"></span>${label}`;
-  l.querySelector("input").addEventListener("change", e => {
-    on[k] = e.target.checked;
-    redraw(); if (three.ready) three.visibility(); syncPresets();
-  });
-  layersEl.appendChild(l);
-});
-
-function setAllLayers(v) {
-  LAYERS.forEach(([k]) => { on[k] = v; $("ly-" + k).checked = v; });
-  redraw(); if (three.ready) three.visibility(); syncPresets();
-}
-$("ly-all-on").addEventListener("click", () => setAllLayers(true));
-$("ly-all-off").addEventListener("click", () => setAllLayers(false));
+const on = {}; LAYERS.forEach(([k]) => on[k] = false);   // the wire layers start hidden (keys 2 / 3 show them)
+try { localStorage.removeItem("tds-layers"); localStorage.removeItem("tds-models"); localStorage.removeItem("tds-fold"); localStorage.removeItem("tds-ui"); } catch (e) {}   // older versions kept these
 
 /* ---------- 3D models (separate from the wire layers) ---------- */
 const MODELS = [
@@ -666,103 +537,20 @@ const MODELS = [
   ["trains", "電車(リゾートライン・京葉線)"],
 ];
 const mdl = {}; MODELS.forEach(([k]) => mdl[k] = true); mdl.overlay = false;
-const saveMdl = () => { if (three.ready) three.visibility(); syncPresets(); };
-MODELS.forEach(([k, label]) => {
-  const l = document.createElement("label");
-  l.innerHTML = `<input type="checkbox" id="md-${k}" ${mdl[k] ? "checked" : ""} disabled>${label}`;
-  l.querySelector("input").addEventListener("change", e => { mdl[k] = e.target.checked; saveMdl(); });
-  $("models").appendChild(l);
-});
-function setAllModels(v) {
-  MODELS.forEach(([k]) => { mdl[k] = v; $("md-" + k).checked = v; });
-  saveMdl();
-}
-$("mdl-all-on").addEventListener("click", () => setAllModels(true));
-$("mdl-all-off").addEventListener("click", () => setAllModels(false));
-$("mdl-overlay").checked = mdl.overlay;
-$("mdl-overlay").addEventListener("change", e => { mdl.overlay = e.target.checked; saveMdl(); });
-
-/* ---------- fold state of the panel sections (レイヤー / 3Dモデル), kept in tds-fold ---------- */
-{
-  let fold = {};
-  try { fold = JSON.parse(localStorage.getItem("tds-fold") || "null") || {}; } catch (e) {}
-  document.querySelectorAll("details.fold").forEach(d => {
-    if (fold[d.dataset.fold] === false) d.open = false;
-    d.addEventListener("toggle", () => { fold[d.dataset.fold] = d.open; try { localStorage.setItem("tds-fold", JSON.stringify(fold)); } catch (e) {} });
-  });
-}
+const saveMdl = () => { if (three.ready) three.visibility(); };
 
 /* ---------- display presets (keys 1 / 2 / 3) ---------- */
 const PRESETS = { model: [false, true, false, "3Dモデルのみ"], mix: [true, true, false, "枠線+モデル"], wire: [true, false, false, "枠線のみ"] };
 function applyPreset(k) {
   const [ly, md, ov, name] = PRESETS[k];
-  LAYERS.forEach(([n]) => { on[n] = ly; $("ly-" + n).checked = ly; });
-  MODELS.forEach(([n]) => { mdl[n] = md; $("md-" + n).checked = md; });
-  mdl.overlay = ov; $("mdl-overlay").checked = ov;
+  LAYERS.forEach(([n]) => { on[n] = ly; });
+  MODELS.forEach(([n]) => { mdl[n] = md; });
+  mdl.overlay = ov;
   saveMdl(); redraw();
   toast(`表示: ${name}`);
 }
-function syncPresets() {
-  for (const [k, [ly, md, ov]] of Object.entries(PRESETS))
-    $("pre-" + k).setAttribute("aria-pressed", String(LAYERS.every(([n]) => on[n] === ly) && MODELS.every(([n]) => mdl[n] === md) && mdl.overlay === ov));
-}
-Object.keys(PRESETS).forEach(k => { $("pre-" + k).onclick = () => applyPreset(k); });
-syncPresets();
 
-/* ---------- areas: highlight + move there (plan / orbit), teleport (walk) ---------- */
-let focus = -1;
-const counts = D.ports.map(() => 0);
-D.buildings.forEach(b => counts[b.p]++);
-const areasEl = $("areas");
-const areaPt = i => {
-  const l = D.labels.find(l => l.p === i);
-  if (l) return [l.x, l.y];
-  const bb = bboxOf(D.buildings.filter(b => b.p === i).flatMap(b => b.r));
-  return [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
-};
-D.ports.forEach((p, i) => {
-  const li = document.createElement("li");
-  li.innerHTML = `<button aria-pressed="false" id="area-${i}"><span class="sw" style="color:var(--p${i});border-top-width:3px"></span><span>${p.ja}</span><span class="n">${counts[i]}</span></button>`;
-  li.firstChild.addEventListener("click", () => goArea(i));
-  areasEl.appendChild(li);
-});
-function goArea(i) {
-  if (mode === "walk") { const [x, y] = areaPt(i); three.walkTo(x, y); if (narrow()) setPanel(false); return; }
-  focus = focus === i ? -1 : i;
-  areasEl.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === focus)));
-  if (focus >= 0) { zoomToArea(focus); if (mode === "orbit") { const [x, y] = areaPt(i); three.flyToPlan(x, y, 520); } }
-  redraw(); if (three.ready) three.colors();
-  if (narrow() && focus >= 0) setPanel(false);
-}
-$("dest-aq").onclick = () => {
-  const A = D.aquasphere;
-  if (mode === "walk") three.walkEnter();
-  else if (mode === "orbit") three.flyToPlan(A.cx, A.cy, 90);
-  else { sc = 5; ox = W / 2 - A.cx * sc; oy = H / 2 + A.cy * sc; redraw(); }
-  if (narrow()) setPanel(false);
-};
-if (DL) {
-  const el = $("dlAreas"), cnt = DL.lands.map(() => 0);
-  DL.buildings.forEach(b => cnt[b.p]++);
-  const dest = [];
-  if (MH) dest.push(["舞浜駅(JR)", "--mh", MH.station.x, MH.station.y, 3.2, "", 260], ["ランドのメインエントランス", "--mh", MH.gate.x, MH.gate.y, 3.2, "", 200]);
-  DL.labels.forEach(l => dest.push([l.n, `--l${l.p}`, l.x, l.y, 2.2, cnt[l.p], 380]));
-  dest.forEach(([n, col, x, y, s2, c, dist]) => {
-    const li = document.createElement("li");
-    li.innerHTML = `<button><span class="sw" style="color:var(${col});border-top-width:3px"></span><span>${n}</span><span class="n">${c}</span></button>`;
-    li.firstChild.onclick = () => {
-      if (mode === "walk") { toast("散歩はディズニーシーの中だけです。地図か俯瞰で見てください"); return; }
-      for (const k of ["disneyland", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; }
-      if (mode === "orbit") three.flyToPlan(x, y, dist * 1.4); else { sc = s2; ox = W / 2 - x * sc; oy = H / 2 + y * sc; redraw(); }
-      if (three.ready) three.visibility();
-      if (narrow()) setPanel(false);
-    };
-    el.appendChild(li);
-  });
-}
-$("st-b").textContent = D.buildings.length;
-$("st-w").textContent = D.water.length + D.ponds.length;
-$("st-p").textContent = D.paths.length;
+let focus = -1;   // highlighted DisneySea area (none; the area list lived in the removed panel)
 
 /* ---------- stairs / levels ---------- */
 const BASIS = { dem: ["DEMで確定", "--st-dem"], link: ["つながりから推定", "--st-link"], wide: ["周辺のDEMから推定", "--st-link"], length: ["長さから推定", "--st-len"],
@@ -772,9 +560,6 @@ const DL_STAIRS = DL ? DL.paths.filter(p => p.s) : [];
 DL_STAIRS.forEach(p => p.dl = 1);
 const bcount = {}; STAIRS.forEach(p => bcount[p.s.basis] = (bcount[p.s.basis] || 0) + 1);
 const dcount = {}; DL_STAIRS.forEach(p => dcount[p.s.basis] = (dcount[p.s.basis] || 0) + 1);
-$("basis").innerHTML = ["dem", "link", "wide", "length", "unknown"].map(k =>
-  `<li><span class="sw" style="color:var(${BASIS[k][1]});border-top-width:3px"></span><span>${BASIS[k][0]}</span><span class="n">${bcount[k] || 0}${DL ? ` ・ ランド ${dcount[k] || 0}` : ""}</span></li>`).join("");
-$("datum").textContent = `(海抜 ${D.levels.datum} m)`;
 const polyLen = l => { let s = 0; for (let i = 1; i < l.length; i++) s += Math.hypot(l[i][0] - l[i - 1][0], l[i][1] - l[i - 1][1]); return s; };
 function alongAt(l, d) { // point + unit direction at distance d along polyline
   for (let i = 1; i < l.length; i++) {
@@ -1031,52 +816,6 @@ const MOV = (() => {
     m.cars.forEach(L => { out.push([st.c + st.dir * (o - L / 2), L]); o -= L + (m.gap || 0); }); return out; };
   return { list, carsAt, shown: () => on.trains };
 })();
-
-/* ---------- search: facility names -> move there ---------- */
-// Everything with a name: DisneySea / Disneyland buildings, areas, Maihama places and stations, named stairs.
-// Matching ignores case, spaces, dots and hiragana / katakana; the largest footprint of a repeated name wins.
-const fold = t => (t || "").toLowerCase().normalize("NFKC").replace(/[\u3041-\u3096]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/[\s・･.\-ー―]/g, "");
-const SEARCH = (() => {
-  const by = new Map();
-  const put = (n, sub, x, y, a, col, extra) => { if (!n) return; const k = fold(n), o = by.get(k); if (!o || a > o.a) by.set(k, { n, sub, x, y, a, col, k, ...extra }); };
-  D.buildings.forEach(b => { if (!b.n) return; const [x0, y0, x1, y1] = b.bb; put(b.n.replace(/ Tokyo DisneySea.*$/, ""), D.ports[b.p].ja, (x0 + x1) / 2, (y0 + y1) / 2, area(b.r[0]), `--p${b.p}`, { b, sea: 1 }); });
-  D.labels.forEach(l => put(l.n, "ディズニーシーのエリア", l.x, l.y, 1e9, `--p${l.p}`, { sea: 1 }));
-  (D.pois || []).forEach(p => put(p.n, D.ports[p.p].ja, p.x, p.y, 5e5, `--p${p.p}`, { sea: 1 }));   // attractions, shops, restaurants
-  if (DL) { DL.buildings.forEach(b => { if (!b.n) return; const [x0, y0, x1, y1] = b.bb; put(b.n, "ディズニーランド ・ " + DL.lands[b.p].ja, (x0 + x1) / 2, (y0 + y1) / 2, area(b.r[0]), `--l${b.p}`, { b }); });
-    DL.labels.forEach(l => put(l.n, "ディズニーランドのエリア", l.x, l.y, 1e9, `--l${l.p}`));
-    (DL.pois || []).forEach(p => put(p.n, "ディズニーランド ・ " + (DL.lands[p.p] || DL.lands[DL.lands.length - 1]).ja, p.x, p.y, 5e5, `--l${p.p}`)); }
-  if (MH) { MH.stations.forEach(st => put(st.k === "jr" ? "舞浜駅(JR 京葉線)" : st.n, "駅", st.x, st.y, 1e8, "--mh"));
-    MH.places.forEach(p => { if (!p.n) return; const [x0, y0, x1, y1] = bboxOf(p.r); put(p.n, "舞浜駅・周辺", (x0 + x1) / 2, (y0 + y1) / 2, area(p.r[0]), "--muted"); }); }
-  (D.parking || []).forEach(p => { if (!p.n) return; const [x0, y0, x1, y1] = bboxOf(p.r); put(p.n + (p.n.includes("駐車場") ? "" : "(駐車場)"), "駐車場", (x0 + x1) / 2, (y0 + y1) / 2, p.a, "--lot"); });
-  D.paths.forEach(p => { if (p.s && p.s.n) { const [x, y] = alongAt(p.l, polyLen(p.l) / 2); put(p.s.n + "(階段)", "ディズニーシー", x, y, 1, "--st-dem", { sea: 1 }); } });
-  if (D.aquasphere) put("アクアスフィア", "ディズニーシー・プラザ", D.aquasphere.cx, D.aquasphere.cy, 1e9, "--water", { sea: 1 });
-  return [...by.values()];
-})();
-function searchGo(it) {
-  if (mode === "walk") {
-    if (!pip(it.x, it.y, D.park)) { toast("散歩はディズニーシーの中だけです。地図か俯瞰で見てください"); return; }
-    three.walkTo(it.x, it.y);
-  } else {
-    if (!it.sea) for (const k of ["disneyland", "maihama"]) if (!on[k]) { on[k] = true; $("ly-" + k).checked = true; }
-    if (mode === "orbit") { if (three.ready) { three.visibility(); three.flyToPlan(it.x, it.y, 260); } }
-    else { sc = Math.max(sc, 3.5); ox = W / 2 - it.x * sc; oy = H / 2 + it.y * sc; hover = it.b || null; redraw(); }
-  }
-  if (narrow()) setPanel(false);
-}
-{
-  const q = $("q"), res = $("qres");
-  const run = () => {
-    const k = fold(q.value); res.innerHTML = "";
-    if (!k) return;
-    const hits = SEARCH.filter(it => it.k.includes(k)).sort((a, b) => (a.k.startsWith(k) ? 0 : 1) - (b.k.startsWith(k) ? 0 : 1) || a.k.length - b.k.length).slice(0, 20);
-    if (!hits.length) { res.innerHTML = `<li class="hintp">見つかりませんでした</li>`; return; }
-    hits.forEach(it => { const li = document.createElement("li");
-      li.innerHTML = `<button><span class="sw" style="color:var(${it.col});border-top-width:3px"></span><span>${it.n}</span><span class="n">${it.sub}</span></button>`;
-      li.firstChild.onclick = () => searchGo(it); res.appendChild(li); });
-  };
-  q.addEventListener("input", run);
-  q.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") { const b = res.querySelector("button"); if (b) b.click(); } });
-}
 
 /* ---------- plan view ---------- */
 const cv = $("plan"), ctx = cv.getContext("2d"), vp = $("viewport");
@@ -2436,12 +2175,10 @@ async function init3D() {
       o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
     for (const t of three.trains || []) { t.grp.visible = trainsSolid(); t.wire.group.visible = trainsWire(); }
-    if (three.trees3d) { three.trees3d.visible = mdl.trees3d !== false; const cb = document.getElementById("md-trees3d"); if (cb) cb.disabled = false; }
+    if (three.trees3d) three.trees3d.visible = mdl.trees3d !== false;
     three.shadowDirty = true;
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
-      const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
-      $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     }
     three.colors();
     three.walkDirty = true; three.dirty = true;
@@ -3221,7 +2958,6 @@ async function init3D() {
       return { tr, grp, cars, slots, gangways, inside, wire: { group: wg, cars, slots: wslots, gangways: wgang } };
     });
     window.TDS_TRAIN3D = three.trains;   // for checking in the console
-    $("md-trains").disabled = false; $("mdl-all-on").disabled = $("mdl-all-off").disabled = false;
     const place = (o, s, len, off) => {   // local x = off at arc s, heading along the chord from s to s + len
       const a = RL.at(s), b = RL.at(s + len), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6, ux = dx / L, uy = dy / L;
       const pitch = Math.atan2(b[4] - a[4], L), lean = Math.max(-CANT, Math.min(CANT, (a[5] + b[5]) / 2 * 220));
@@ -3282,7 +3018,6 @@ async function init3D() {
       const cars = m.cars.map((L, k) => { const c = build(m, k, L); solid.add(c); const e = edgesOf(c, m.col); wire.add(e); return { c, e }; });
       three.root.add(solid, wire); return { m, solid, wire, cars };
     });
-    if (items.length) $("md-trains").disabled = false;
     return items;
   })();
   three.moverTick = () => {
@@ -3385,63 +3120,19 @@ async function show(next, opts = {}) {
     if (first) three.begin(opening);
   }
   if (next === "walk" && prev !== "walk") toast(coarse ? "左のスティックで移動、画面をドラッグして見回せます" : "ドラッグで見回せます(W A S D / 矢印で移動)", 3500);
-  if (narrow() && next === "walk") setPanel(false);
 }
 $("tab-3d").onclick = () => show("orbit");
 $("tab-walk").onclick = () => show("walk");
 window.TDS_WALK = (x, y, yaw, pitch) => mode === "walk" && three.ready ? three.walkEnter(x, y, yaw, pitch) : show("walk", { x, y, yaw, pitch, instant: true });
 
-/* ---------- panel: tabs, open/closed (a bottom sheet on narrow screens) ---------- */
-const ui = (() => { try { return JSON.parse(localStorage.getItem("tds-ui") || "null") || {}; } catch (e) { return {}; } })();
-const saveUi = () => { try { localStorage.setItem("tds-ui", JSON.stringify(ui)); } catch (e) {} };
-function narrow() { return matchMedia("(max-width: 760px)").matches; }
-function setPanel(open) {
-  $("panel").classList.toggle("closed", !open);
-  $("btnPanel").setAttribute("aria-expanded", String(open)); $("btnPanel").setAttribute("aria-pressed", String(open));
-  if (!narrow()) { ui.panel = open; saveUi(); }
-}
-function setTab(k) {
-  document.querySelectorAll(".ptabs [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
-  document.querySelectorAll(".pane").forEach(p => p.hidden = p.dataset.pane !== k);
-  ui.tab = k; saveUi();
-}
-document.querySelectorAll(".ptabs [data-tab]").forEach(b => b.onclick = () => setTab(b.dataset.tab));
-$("btnPanel").onclick = () => setPanel($("panel").classList.contains("closed"));
-$("panelClose").onclick = () => setPanel(false);
-{ // bottom sheet: drag the grip or the tab row down to close it
-  let y0 = null;
-  const start = e => { if (narrow() && !e.target.closest("button:not(.ptabs button)")) { y0 = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} } };
-  const move = e => { if (y0 != null) $("panel").style.transform = `translateY(${Math.max(0, e.clientY - y0)}px)`; };
-  const end = e => { if (y0 == null) return; const dy = e.clientY - y0; y0 = null; $("panel").style.transform = ""; if (dy > 70) setPanel(false); };
-  for (const el of [$("grip"), document.querySelector(".ptabs")]) {
-    el.addEventListener("pointerdown", start); el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
-  }
-}
-setTab(ui.tab || "layers");
-setPanel(!narrow() && ui.panel !== false);
-
-/* ---------- Resort Line status (情報 tab) ---------- */
-if (RL) {
-  $("rlSec").hidden = false;
-  $("rlNote").textContent = `1 周 ${(RL.LEN / 1000).toFixed(2)} km ・ 駅 ${RL.stations.length} つ(${RL.stations.map(s => s.n.replace("・ステーション", "")).join(" → ")})・ 最高 時速 ${Math.round(RL.V * 3.6)} km(駅間ごとに ${RL.runs.map(r => Math.round(r.vm * 3.6)).join(" / ")} km、カーブは減速)・ 各駅で ${Math.round(RL.DWELL)} 秒停車 ・ ${RL.trains.length} 編成が ${Math.floor(RL.P / RL.trains.length / 60)} 分 ${Math.round(RL.P / RL.trains.length % 60)} 秒おき ・ 1 周 ${Math.floor(RL.P / 60)} 分 ${Math.round(RL.P % 60)} 秒。地図の印は「レイヤー」の「電車(リゾートライン)」、俯瞰・散歩の電車は「3Dモデル」の「電車(リゾートライン)」で切り替えます。`;
-  const upd = () => {
-    if (document.hidden || $("rlSec").offsetParent === null) return;
-    const t = RL.now();
-    $("rlStatus").innerHTML = RL.trains.map(tr => `<li><span style="color:${tr.col}">■</span> <strong>${tr.ja}</strong>: ${RL.describe(tr, RL.state(tr, t))}</li>`).join("");
-  };
-  setInterval(upd, 1000); upd();
-}
-
 /* ---------- follow a Resort Line train (俯瞰) ---------- */
 async function startFollow(id) {
   if (!RL) return;
-  if (mdl.trains === false && !on.trains) { mdl.trains = true; $("md-trains").checked = true; saveMdl(); }   // something must show the train
+  if (mdl.trains === false && !on.trains) { mdl.trains = true; saveMdl(); }   // something must show the train
   if (mode !== "orbit") await show("orbit");
   if (!three.ready) return;
   three.visibility();
   three.follow(id);
-  if (narrow()) setPanel(false);
 }
 function syncFollowUI() {
   const f = three.ready && three.following();
@@ -3451,13 +3142,6 @@ function syncFollowUI() {
 }
 function swapFollow() { const f = three.ready && three.following(); if (f) three.follow(RL.trains[(RL.trains.indexOf(f) + 1) % RL.trains.length].id); }
 if (RL) {
-  $("folSec").hidden = false;
-  RL.trains.forEach(tr => {
-    const li = document.createElement("li");
-    li.innerHTML = `<button><span class="sw" style="color:${tr.col};border-top-width:3px"></span><span>${tr.id + 1}本目(${tr.ja})を追う</span><span class="n"></span></button>`;
-    li.firstChild.onclick = () => startFollow(tr.id);
-    $("folAreas").appendChild(li);
-  });
   $("btnFollow").onclick = () => three.following() ? three.unfollow() : startFollow(0);
   $("btnSwap").onclick = swapFollow;
 } else $("btnFollow").hidden = true;
@@ -3530,6 +3214,6 @@ addEventListener("keydown", e => {
 new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
-show("orbit");   // every visit opens with the opening (the view in the URL is only for sharing)
+show("walk");   // every visit starts walking (the view in the URL is only for sharing)
 })();
 </script>
