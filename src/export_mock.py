@@ -253,6 +253,27 @@ def main():
     if (mdir / "woody.json").exists():   # the walker (woody.py --web-glb, glb_to_json): replaces the box figure in 散歩
         out["woody"] = "models/woody.json"
 
+    # trees for the 3D view (the page instances one low-poly tree per point): OSM natural=tree nodes of both extracts
+    trees, seen = [], set()
+    for fn in ("disneyland_osm.json", "disneysea_osm.json"):
+        f = ROOT / "plateau_data" / fn
+        if not f.exists():
+            continue
+        for p in json.loads(f.read_text(encoding="utf-8")).get("pois", []):
+            if p["tags"].get("natural") != "tree":
+                continue
+            x, y = round(p["xy"][0], 1), round(p["xy"][1], 1)
+            if (x, y) in seen:
+                continue
+            seen.add((x, y))
+            h = p["tags"].get("height")
+            try:
+                h = round(float(str(h).replace("m", "")), 1) if h else 0
+            except ValueError:
+                h = 0
+            trees += [x, y, h]
+    out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...]
+
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[mock] {path} {path.stat().st_size / 1024:.0f} KB  "

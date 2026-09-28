@@ -657,7 +657,7 @@ $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
-  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"],
+  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["trees3d", "木(OSM の木の位置)"],
   ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
@@ -1816,10 +1816,73 @@ function makeSpray(T, n = 700) {
 function addLights(T, scene) {   // the solid parts (Blender models, trains) share one sky and sun
   if (!three.skyEnv) three.skyEnv = makeSkyEnv(T, three.renderer);
   if (!three.lit) {
-    three.hemi = new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.85); scene.add(three.hemi);
-    const sun = new T.DirectionalLight(0xfff4e0, 0.9); sun.position.set(-300, 600, 500); scene.add(sun); three.sun = sun;
+    scene.environment = three.skyEnv;   // the sky reflected in every solid material (gold, glass, slate, paint)
+    three.hemi = new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.55); scene.add(three.hemi);
+    const sun = new T.DirectionalLight(0xfff4e0, 1.05); sun.position.set(-300, 600, 500); scene.add(sun); scene.add(sun.target); three.sun = sun;
+    if (SHADOWS) {   // a shadow box that follows the view (three.shadowTick), redrawn only when the view moves
+      const r = three.renderer; r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; r.shadowMap.autoUpdate = false;
+      sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+      sun.shadow.camera.near = 1; sun.shadow.camera.far = 1600;
+    }
     three.lit = true;
   }
+}
+const SHADOWS = !matchMedia("(pointer: coarse)").matches;   // phones and tablets: no shadows (speed)
+const SUN_DIR = [-300, 600, 500], SUN_LEN = Math.hypot(...SUN_DIR);
+// patterns drawn on the solid materials from world position (no UVs needed): brick courses, slate shingles, paving
+// tiles, floor planks, a faint mottle on render and on plants; the pattern darkens / tints the material's own colour
+function patternKind(key) {
+  if (!key) return null;
+  const k = key.toLowerCase();
+  if (/brick/.test(k)) return 1;
+  if (/slate|shingle|mauve|copper|context_roof/.test(k)) return 2;
+  if (/paving|walk|tile|plaza|tl_ground|tg_gate|th_path|tl_paving|pz_blue|stone|edging|curb|concrete/.test(k)) return 3;
+  if (/floor|wood|deck|trunk/.test(k)) return 4;
+  if (/cream|wbz_(pink|yellow|blue|mint|peach|sand|sage|lilac)|hotel_(cream|blue|purple|pink)|st_trim|hotel_gold|mural/.test(k)) return 5;
+  if (/grass|leaf|hedge|soil|canopy|tl_wood|flower/.test(k)) return 6;
+  return null;
+}
+const PATTERN_GLSL = `
+varying vec3 vPatP; varying vec3 vPatN; uniform float uPatKind;
+float patH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float patN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(patH(i), patH(i + vec2(1, 0)), f.x), mix(patH(i + vec2(0, 1)), patH(i + vec2(1, 1)), f.x), f.y); }
+float patLine(float v, float w) { float f = fract(v); return smoothstep(0., w, f) * smoothstep(0., w, 1. - f); }
+vec3 patApply(vec3 c) {
+  vec3 n = abs(normalize(vPatN)); bool top = n.y > 0.7;
+  vec2 uv = top ? vPatP.xz : (n.x > n.z ? vPatP.zy : vPatP.xy);
+  float k = uPatKind;
+  if (k < 1.5) {                       // brick: 0.23 x 0.075 m, running bond, mortar joints, a tint per brick
+    vec2 b = uv / vec2(0.23, 0.075); b.x += 0.5 * floor(mod(b.y, 2.));
+    float m = patLine(b.x, 0.05) * patLine(b.y, 0.12);
+    return c * (0.9 + 0.2 * patH(floor(b))) * mix(0.62, 1., m);
+  } else if (k < 2.5) {                // slate: rows of 0.2 m, shingles 0.25 wide, staggered, a dark lower edge
+    vec2 b = uv / vec2(0.25, 0.2); b.x += 0.5 * floor(mod(b.y, 2.));
+    float edge = smoothstep(0., 0.18, fract(b.y));
+    return c * (0.86 + 0.22 * patH(floor(b))) * mix(0.7, 1., edge) * mix(0.8, 1., patLine(b.x, 0.04));
+  } else if (k < 3.5) {                // paving: 0.45 m tiles, joints, a tint per tile
+    vec2 b = uv / 0.45; float m = patLine(b.x, 0.04) * patLine(b.y, 0.04);
+    return c * (0.9 + 0.16 * patH(floor(b))) * mix(0.72, 1., m);
+  } else if (k < 4.5) {                // planks: 0.14 m boards, 2.4 m long
+    vec2 b = vec2(uv.x / 2.4, uv.y / 0.14); b.x += 0.37 * floor(b.y);
+    return c * (0.85 + 0.25 * patH(floor(b))) * mix(0.7, 1., patLine(b.y, 0.06) * patLine(b.x, 0.01));
+  } else if (k < 5.5) {                // render / painted walls: a faint large-scale mottle
+    return c * (0.95 + 0.07 * patN(uv * 0.6) + 0.03 * patN(uv * 5.));
+  }
+  return c * (0.8 + 0.3 * patN(uv * 1.3) + 0.15 * patN(uv * 7.));   // plants: a leafy mottle
+}`;
+function patternize(T, mat, key) {
+  const kind = patternKind(key);
+  if (!kind) return mat;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uPatKind = { value: kind };
+    sh.vertexShader = "varying vec3 vPatP; varying vec3 vPatN;\n" + sh.vertexShader.replace("#include <project_vertex>",
+      "#include <project_vertex>\n vPatP = (modelMatrix * vec4(transformed, 1.0)).xyz; vPatN = normalize(mat3(modelMatrix) * objectNormal);");
+    sh.fragmentShader = PATTERN_GLSL + "\n" + sh.fragmentShader.replace("#include <color_fragment>",
+      "#include <color_fragment>\n diffuseColor.rgb = patApply(diffuseColor.rgb);");
+  };
+  mat.customProgramCacheKey = () => "pat" + kind;
+  return mat;
 }
 const modelsAsked = new Set();
 async function loadModels(T, scene, root, list = D.models) {
@@ -1843,7 +1906,8 @@ async function loadModels(T, scene, root, list = D.models) {
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
         else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
-        else if (key) o.material = new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] });
+        else if (key) o.material = patternize(T, new T.MeshStandardMaterial({ side: T.DoubleSide, envMapIntensity: 0.7, ...MODEL_MAT[key] }), key);
+        if (SHADOWS && o.material && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; }
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
           const a = vc.array, n = vc.itemSize;
@@ -2299,6 +2363,8 @@ async function init3D() {
       o.visible = (!layer || [].concat(layer).every(n => on[n])) && !replaced.has(k);
     }
     for (const t of three.trains || []) { t.grp.visible = trainsSolid(); t.wire.group.visible = trainsWire(); }
+    if (three.trees3d) { three.trees3d.visible = mdl.trees3d !== false; const cb = document.getElementById("md-trees3d"); if (cb) cb.disabled = false; }
+    three.shadowDirty = true;
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
       const cb = document.getElementById("md-" + id); if (cb) cb.disabled = false;
@@ -2310,6 +2376,46 @@ async function init3D() {
   three.resize = () => { const r = vp.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); cam.aspect = r.width / r.height; cam.updateProjectionMatrix(); };
   three.home = () => { stopFollow(); home(); };
   // look at local point (x, y, z) from dist m away (used for checking models; window.TDS_FOCUS)
+  // the sun's shadow box: centred where the view looks, sized by how far the camera is; redrawn when that moves 4 m
+  let shLast = null;
+  three.shadowTick = () => {
+    const sun = three.sun; if (!SHADOWS || !sun) return;
+    if (intro || three.anim) { three.shadowDirty = true; return; }   // not while the camera flies (the opening, tweens): once it stops
+    const c = three.walking ? new T.Vector3(wk.x, wk.y, wk.z) : ctl.target.clone();
+    const size = Math.max(45, Math.min(420, cam.position.distanceTo(c) * (three.walking ? 2.0 : 0.9)));
+    if (shLast && shLast.c.distanceTo(c) < Math.max(4, size * 0.05) && Math.abs(shLast.size - size) < size * 0.15 && !three.shadowDirty) return;
+    shLast = { c, size }; three.shadowDirty = false;
+    sun.position.set(c.x + SUN_DIR[0] / SUN_LEN * 700, c.y + SUN_DIR[1] / SUN_LEN * 700, c.z + SUN_DIR[2] / SUN_LEN * 700);
+    sun.target.position.copy(c); sun.target.updateMatrixWorld();
+    const sc_ = sun.shadow.camera; sc_.left = -size; sc_.right = size; sc_.top = size; sc_.bottom = -size; sc_.updateProjectionMatrix();
+    renderer.shadowMap.needsUpdate = true;
+  };
+  // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground
+  three.buildTrees = () => {
+    if (three.trees3d || !D.trees3d || !D.trees3d.length) return;
+    const n = D.trees3d.length / 3;
+    const trunkG = new T.CylinderGeometry(0.1, 0.16, 1, 6); trunkG.translate(0, 0.5, 0);
+    const crownG = new T.IcosahedronGeometry(1, 1);
+    const trunk = new T.InstancedMesh(trunkG, new T.MeshStandardMaterial({ color: 0x5a4330, roughness: 0.95 }), n);
+    const crownMat = patternize(T, new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), "leaf");
+    const crown = new T.InstancedMesh(crownG, crownMat, n * 2);
+    const m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), col = new T.Color();
+    const greens = [0x3f6a2c, 0x4d7a33, 0x355e28, 0x587f3a, 0x2f5423];
+    let rnd = 12345; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < n; i++) {
+      const x = D.trees3d[i * 3], y = D.trees3d[i * 3 + 1], h = D.trees3d[i * 3 + 2] || (5 + rand() * 5);
+      const g = heightAt(x, y) ?? 0, r = h * (0.24 + rand() * 0.08);
+      m.compose(p.set(x, g, -y), q.identity(), s.set(1 + h * 0.03, h * 0.45, 1 + h * 0.03)); trunk.setMatrixAt(i, m);
+      col.setHex(greens[Math.floor(rand() * greens.length)]);
+      m.compose(p.set(x, g + h * 0.62, -y), q.setFromAxisAngle(new T.Vector3(0, 1, 0), rand() * 6.28), s.set(r, r * 1.05, r)); crown.setMatrixAt(i * 2, m); crown.setColorAt(i * 2, col);
+      m.compose(p.set(x + (rand() - 0.5) * r * 0.8, g + h * 0.8, -y + (rand() - 0.5) * r * 0.8), q, s.set(r * 0.7, r * 0.75, r * 0.7)); crown.setMatrixAt(i * 2 + 1, m); crown.setColorAt(i * 2 + 1, col.multiplyScalar(1.12));
+    }
+    const grp = new T.Group(); grp.add(trunk, crown);
+    if (SHADOWS) { trunk.castShadow = crown.castShadow = true; }
+    trunk.frustumCulled = crown.frustumCulled = false;
+    root.add(grp); three.trees3d = grp; three.shadowDirty = true;
+    grp.visible = mdl.trees3d !== false;
+  };
   three.focus = (x, y, z, dist = 60, az = 0.8, el = 0.45) => {
     stopFollow();
     ctl.target.set(x, z, -y);
@@ -2317,6 +2423,7 @@ async function init3D() {
     ctl.update();
   };
   window.TDS_FOCUS = three.focus;
+  window.TDS_SKIP = () => three.skipIntro();   // for checking: skip the opening
   window.TDS_STATS = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lines: renderer.info.render.lines,
     geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() });   // for checking load
 
@@ -3114,10 +3221,12 @@ async function init3D() {
     try { three.trainTick?.(); }
     catch (e) { three.trainTick = null; console.error("Resort Line trains:", e); toast(`電車の3Dモデルを動かせませんでした(${e && e.message || e})`, 8000); }
     if (three.walking) three.rideTick?.();
+    three.shadowTick?.();
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
   })();
   three.ready = true;
+  try { three.buildTrees(); } catch (e) { console.error("trees:", e); }
   return true;
 }
 
