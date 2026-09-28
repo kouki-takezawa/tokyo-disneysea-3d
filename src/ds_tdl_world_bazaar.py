@@ -119,6 +119,13 @@ def wbz_materials(M):
     ST._bump(nt, b, br.outputs["Fac"], -0.25, 0.004)
     M["w_icc"] = mat
     M["icc_pink"] = P("st_wbz_icc_pink", (0.90, 0.50, 0.62), 0.45)
+    # and inside (photos 4..6): the salmon upper walls, the pale blue floor squares, the counter's diamonds, the
+    # machines' steel, the cones
+    M["icc_salmon"] = P("st_wbz_icc_salmon", (0.88, 0.52, 0.50), 0.7)
+    M["icc_blue"] = P("st_wbz_icc_blue", (0.60, 0.76, 0.90), 0.3)
+    M["icc_rose"] = P("st_wbz_icc_rose", (0.70, 0.36, 0.44), 0.5)
+    M["icc_steel"] = P("st_wbz_icc_steel", (0.70, 0.72, 0.74), 0.3, Metallic=0.8)
+    M["icc_waffle"] = P("st_wbz_icc_waffle", (0.78, 0.55, 0.30), 0.7)
     return M
 
 
@@ -1214,8 +1221,8 @@ EXIT_MATS = {"white": "t_white", "teal": "t_teal", "green": "t_dkgreen", "brick"
 # Street's axis) is x = 0 for y = -5.4 .. 0. The front: the arcade (y 0 .. 3.3, white columns, balcony on top) from
 # the gazebo to the Sweetheart Cafe (x 2.2 .. 20.2 = WB -29.6); the gazebo on the corner, its stair wrapping the side
 # away from the building; the round sign on its post in front of the east face.
-ICC = dict(x=-9.4, y=-112.0, L=20.2, g=(-0.8, 3.0), gr=3.0, z1=4.3, top=8.3)
-ICC_MATS = {"wall": "w_icc", "cream": "t_cream", "white": "t_white", "glass": "win_dark", "pink": "icc_pink", "red": "aw_red",
+ICC = dict(x=-9.4, y=-112.0, L=20.2, g=(-0.8, 3.0), gr=3.0, z1=4.3, top=8.3, room=(11.2, -5.3))
+ICC_MATS = {"wall": "w_icc", "cream": "t_cream", "white": "t_white", "glass": "win_dark", "shopglass": "shopglass", "pink": "icc_pink", "red": "aw_red",
             "iron": "t_dkgreen", "brass": "brass", "lamp": "lamp", "walk": "walk", "yellow": "m_yellow", "dark": "door"}
 
 
@@ -1262,10 +1269,10 @@ def bulbs(bm, x0, x1, z0, z1, y, step=0.18, face="y"):
             globe_lamp_bm(bm, *((u, y) if face == "y" else (y, u)), z, 0.045)
 
 
-def icc_window(P, u0, u1, z0, z1, logo, face=1, lights=3):
+def icc_window(P, u0, u1, z0, z1, logo, face=1, lights=3, clear=False):
     """A tall shop window in the wall plane y = 0 (face 1: towards +y), or x = 0 (face -1: towards -x, u along -y):
     cream frame and sill, dark glass in lights with a transom, white lace curtains over the lower part and gathered in
-    the transom, the pink round logo on the middle light (photos 1, 2)."""
+    the transom, the pink round logo on the middle light (photos 1, 2). clear: real glass (the shop is behind it)."""
     def B_(bm, a0, a1, d0, d1, za, zb):                  # a box: u a0..a1, depth d0..d1 out of the wall
         if face == 1:
             bm_box(bm, a0, a1, d0, d1, za, zb)
@@ -1274,7 +1281,7 @@ def icc_window(P, u0, u1, z0, z1, logo, face=1, lights=3):
     B_(P["cream"], u0 - 0.18, u1 + 0.18, 0.0, 0.1, z0 - 0.12, z1 + 0.18)
     B_(P["cream"], u0 - 0.28, u1 + 0.28, 0.0, 0.2, z0 - 0.2, z0 - 0.06)                      # sill
     B_(P["cream"], u0 - 0.3, u1 + 0.3, 0.0, 0.18, z1 + 0.18, z1 + 0.34)                    # head
-    B_(P["glass"], u0, u1, 0.1, 0.12, z0, z1)
+    B_(P["shopglass" if clear else "glass"], u0, u1, 0.1, 0.12, z0, z1)
     zt = z1 - (z1 - z0) * 0.2
     B_(P["cream"], u0, u1, 0.12, 0.16, zt - 0.05, zt + 0.05)
     for j in range(1, lights):
@@ -1289,19 +1296,234 @@ def icc_window(P, u0, u1, z0, z1, logo, face=1, lights=3):
         bm_lathe(P["cream"], [(r * 0.55, 0.03), (r * 0.65, 0.03), (r * 0.65, 0.04), (r * 0.55, 0.04)], 20, M)
 
 
+def wall_holes(box, u0, u1, z0, z1, holes):
+    """A wall u0..u1 x z0..z1 with rectangular holes (a, b, za, zb), built as boxes: box(a, b, za, zb)."""
+    cur = u0
+    for a, b_, za, zb in sorted(holes):
+        za, zb = max(za, z0), min(zb, z1)
+        if b_ <= u0 or a >= u1 or za >= zb:
+            continue
+        if a > cur:
+            box(cur, a, z0, z1)
+        if za > z0:
+            box(a, b_, z0, za)
+        if zb < z1:
+            box(a, b_, zb, z1)
+        cur = b_
+    if u1 > cur:
+        box(cur, u1, z0, z1)
+
+
+ICC_CEIL = 3.9
+
+
+def icc_inner_wall(bmk, bx, u0, u1, holes, lower="t_white"):
+    """The finish on one inside wall (photos 4, 5): panelled lower wall to 2.4 with a chair rail, salmon above, a white
+    cornice under the ceiling, white frames round the openings. bx(bm, u0, u1, d0, d1, z0, z1) is a box in the wall's
+    own terms (d: out of the wall into the room)."""
+    def W(mat, d0, d1, z0, z1):
+        wall_holes(lambda a, b_, za, zb: bx(bmk(mat), a, b_, d0, d1, za, zb), u0, u1, z0, z1, holes)
+    W(lower, 0.0, 0.03, 0.06, 2.4)
+    W("icc_salmon", 0.0, 0.03, 2.4, ICC_CEIL)
+    W("t_cream", 0.03, 0.05, 0.06, 0.22)                  # skirting
+    W("t_white", 0.03, 0.08, 2.35, 2.47)                  # chair rail
+    W("t_white", 0.03, 0.16, ICC_CEIL - 0.18, ICC_CEIL)   # cornice
+    for a, b_, za, zb in holes:                           # white frames round the openings
+        fr = [(a - 0.1, a, za, zb), (b_, b_ + 0.1, za, zb), (a - 0.1, b_ + 0.1, zb, zb + 0.1)]
+        if za > 0.5:
+            fr.append((a - 0.1, b_ + 0.1, za - 0.1, za))
+        for p0, p1, q0, q1 in fr:
+            if p0 >= u0 - 0.05 and p1 <= u1 + 0.05:
+                bx(bmk("t_white"), p0, p1, 0.03, 0.07, q0, q1)
+    free, cur = [], u0                                    # the panel mouldings: tall ones between openings, low ones under windows
+    for a, b_, za, zb in sorted(holes) + [(u1 + 0.1, u1 + 0.1, 0.0, 0.0)]:
+        if a - 0.1 - cur > 0.9:
+            free.append((cur, a - 0.1, 0.4, 2.1))
+        if za > 0.9:
+            free.append((a, b_, 0.35, za - 0.25))
+        cur = max(cur, b_ + 0.1)
+    for a, b_, z0, z1 in free:
+        n = max(1, round((b_ - a) / 1.2)); w = (b_ - a) / n
+        for k in range(n):
+            p0, p1 = a + k * w + 0.15, a + (k + 1) * w - 0.15
+            for q in ((p0, p1, z0, z0 + 0.04), (p0, p1, z1 - 0.04, z1), (p0, p0 + 0.04, z0, z1), (p1 - 0.04, p1, z0, z1)):
+                bx(bmk("t_cream"), q[0], q[1], 0.03, 0.05, q[2], q[3])
+
+
+def xform_new(P, M, fn):
+    """Run fn (it adds geometry to the bmeshes in P, in local terms) and move what it added by M."""
+    for b in P.values():                                  # tag what is there (remove_doubles frees slots that new verts
+        for v in b.verts:                                 # reuse, so "the ones past the old count" is not the new ones)
+            v.tag = True
+    fn()
+    for b in P.values():
+        vs = [v for v in b.verts if not v.tag]
+        if vs:
+            bmesh.ops.transform(b, matrix=M, verts=vs)
+        for v in b.verts:
+            v.tag = False
+
+
+def icc_counter(bmk, L, body, cols, signs=(), cases=(), rng=None):
+    """One run of the serving counter (photos 4..6) in local terms: u 0..L along it, the guests' face on v = 0 (+v is
+    the guests' side), z up. The white counter (body: u range) with pink panels and rose diamonds, white columns on it
+    carrying a fretwork frieze with brackets, a salmon band with white frames and oval medallions, a white cornice;
+    signs: the oval menu signs (u); cases: the glass cases of cones on the counter (u0, u1)."""
+    b0, b1 = body
+    bm_box(bmk("t_white"), b0, b1, -0.6, 0.0, 0.06, 0.95)
+    bm_box(bmk("t_cream"), b0, b1, -0.55, -0.05, 0.0, 0.06)
+    bm_box(bmk("t_white"), b0, b1, -0.62, 0.05, 0.95, 1.0)                       # the top
+    edges = sorted({b0, b1} | {c for c in cols if b0 < c < b1})
+    for c in edges:                                       # pilaster strips on the face
+        bm_box(bmk("t_white"), max(b0, c - 0.1), min(b1, c + 0.1), 0.0, 0.025, 0.06, 0.95)
+    for a, b_ in zip(edges, edges[1:]):                  # a bay: narrow, wide (with the diamond), narrow panels
+        a, b_ = a + 0.14, b_ - 0.14
+        if b_ - a < 0.5:
+            continue
+        nw = min(0.3, (b_ - a) * 0.18)
+        for p0, p1 in ((a, a + nw), (a + nw + 0.1, b_ - nw - 0.1), (b_ - nw, b_)):
+            bm_box(bmk("icc_pink"), p0, p1, 0.0, 0.015, 0.22, 0.82)
+        c = (a + b_) / 2
+        if b_ - a - 2 * nw > 0.8:
+            bmesh.ops.create_cube(bmk("icc_rose"), size=1.0, matrix=T(c, 0.02, 0.52) @ Matrix.Diagonal((1, 1, 0.4, 1)) @ R(math.pi / 4, "Y")
+                                  @ Matrix.Diagonal((0.42, 0.012, 0.42, 1)))
+    zc = 2.55
+    for c in cols:                                        # the columns and their fretwork brackets
+        column_bm(bmk("t_white"), c, -0.2, 1.0, zc - 1.0, 0.07, 10)
+        for s in (-1, 1):
+            if 0.0 < c + s * 0.4 < L:
+                bm_prism(bmk("t_white"), [(c, zc - 0.42), (c + s * 0.4, zc), (c, zc)], -0.24, -0.16, "xz")
+    for a, b_ in zip(cols, cols[1:]):                    # the frieze: a shallow arch, drops; a downlight in the canopy
+        bm_prism(bmk("t_white"), arch_band(a + 0.1, b_ - 0.1, zc - 0.28, 0.2, 0.07, 12, leg=0.1), -0.23, -0.17, "xz")
+        for j in range(1, 6):
+            bm_lathe(bmk("t_white"), [(0, 0), (0.03, 0), (0.02, -0.14), (0, -0.18)], 6, T(a + (b_ - a) * j / 6, -0.2, zc - 0.02))
+        globe_lamp_bm(bmk("lamp"), (a + b_) / 2, -0.4, zc - 0.05, 0.06)
+    bm_box(bmk("t_white"), 0.0, L, -0.62, 0.05, zc, zc + 0.15)                     # the beam
+    bm_box(bmk("icc_salmon"), 0.0, L, -0.62, 0.0, zc + 0.15, 3.35)                 # the band
+    for z0 in (zc + 0.15, 3.29):
+        bm_box(bmk("t_white"), 0.0, L, 0.0, 0.05, z0, z0 + 0.06)
+    for c in cols:
+        bm_box(bmk("t_white"), c - 0.08, c + 0.08, 0.0, 0.05, zc + 0.15, 3.35)
+    for a, b_ in zip(cols, cols[1:]):                    # an oval medallion in each bay
+        M = T((a + b_) / 2, 0.04, (zc + 3.35) / 2 + 0.05) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.0, 0.72, 1, 1))
+        bm_lathe(bmk("t_white"), [(0.2, 0), (0.27, 0), (0.27, 0.05), (0.2, 0.05)], 20, M)
+        bm_lathe(bmk("t_cream"), [(0, 0), (0.2, 0), (0.2, 0.02), (0, 0.02)], 20, M)
+    bm_box(bmk("t_white"), -0.05, L + 0.05, -0.68, 0.14, 3.35, 3.47)               # the cornice
+    for u in signs:                                       # the oval menu sign on the frieze (photos 4, 5)
+        M = T(u, 0.07, 2.2) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.0, 0.45, 1, 1))
+        bm_lathe(bmk("icc_pink"), [(0, 0), (0.62, 0), (0.62, 0.05), (0, 0.05)], 24, M)
+        bm_lathe(bmk("t_maroon"), [(0, 0.05), (0.52, 0.05), (0.52, 0.07), (0, 0.07)], 24, M)
+        bm_lathe(bmk("t_white"), [(0.53, 0.05), (0.58, 0.05), (0.58, 0.08), (0.53, 0.08)], 24, M)
+    for a, b_ in cases:                                   # the glass case of cones on the counter (photos 4, 6)
+        bm_box(bmk("t_white"), a, b_, -0.55, -0.05, 1.0, 1.06)
+        bm_box(bmk("shopglass"), a, b_, -0.55, -0.05, 1.06, 1.42)
+        for p0 in (a, b_ - 0.03):
+            bm_box(bmk("brass"), p0, p0 + 0.03, -0.55, -0.05, 1.06, 1.44)
+        bm_box(bmk("brass"), a, b_, -0.55, -0.05, 1.42, 1.44)
+        for v in (-0.4, -0.2):
+            u = a + 0.12
+            while u < b_ - 0.1:
+                bm_lathe(bmk("icc_waffle"), [(0, 0), (0.005, 0), (0.04, 0.13), (0, 0.13)], 8, T(u, v, 1.08))
+                bm_lathe(bmk(rng.choice(("m_pink", "m_white", "m_brown", "m_green", "m_yellow", "icc_pink"))),
+                         [(0, -0.05)] + [(0.05 * math.sin(math.pi * i / 6), -0.05 * math.cos(math.pi * i / 6)) for i in range(1, 6)] + [(0, 0.05)],
+                         8, T(u, v, 1.24))
+                u += 0.16
+
+
+def chandelier(bmk, x, y, top):
+    """A brass chandelier (photos 4, 5): a rod from the ceiling, a turned body, six arms with candle lights."""
+    bm_box(bmk("brass"), x - 0.012, x + 0.012, y - 0.012, y + 0.012, top - 0.6, top)
+    bm_lathe(bmk("brass"), [(0, 0), (0.05, 0), (0.08, 0.08), (0.05, 0.18), (0.1, 0.24), (0.04, 0.3), (0, 0.3)], 10, T(x, y, top - 0.9))
+    for k in range(6):
+        a = 2 * math.pi * k / 6; cx, cy = x + 0.42 * math.cos(a), y + 0.42 * math.sin(a)
+        mx, my = x + 0.25 * math.cos(a), y + 0.25 * math.sin(a)
+        bar(bmk("brass"), (x, y, top - 0.8), (mx, my, top - 0.9), 0.025)
+        bar(bmk("brass"), (mx, my, top - 0.9), (cx, cy, top - 0.8), 0.025)
+        bm_lathe(bmk("brass"), [(0, 0), (0.05, 0), (0.05, 0.02), (0, 0.02)], 8, T(cx, cy, top - 0.8))
+        bm_lathe(bmk("t_white"), [(0, 0), (0.02, 0), (0.02, 0.12), (0, 0.12)], 6, T(cx, cy, top - 0.78))
+        globe_lamp_bm(bmk("lamp"), cx, cy, top - 0.62, 0.035)
+
+
+def icc_interior(door, dz, clear, WZ, EW):
+    """The shop behind the doorway (photos 4..6), in the building's frame: a room x 0.3 .. room[0], y -0.3 ..
+    room[1] (clear of the Main Street shops behind), the pale blue and white squares on the floor, panelled white
+    walls under salmon, chandeliers; across the back the serving counter under its canopy (a long run facing the
+    windows and a short return by the east window), the brass queue rail; behind it the steel machines."""
+    x1, y1 = ICC["room"]; x0, y0 = 0.3, -0.3; top = ICC_CEIL
+    P = {}
+
+    def bmk(k):
+        if k not in P:
+            P[k] = bmesh.new()
+        return P[k]
+    rng = random.Random("icc_in")
+    bm_box(bmk("t_white"), x0, x1, y1, y0, 0.0, 0.055)                             # the floor: white, blue squares
+    s = 0.6
+    for i in range(int((x1 - x0) / s) + 1):
+        for j in range(int((y0 - y1) / s) + 1):
+            if (i + j) % 2 == 0:
+                a, b_ = x0 + i * s, min(x1, x0 + (i + 1) * s); c, d = max(y1, y0 - (j + 1) * s), y0 - j * s
+                if b_ > a and d > c:
+                    bm_box(bmk("icc_blue"), a, b_, c, d, 0.055, 0.06)
+    bm_box(bmk("t_white"), x0, x1, y1, y0, top, top + 0.05)                        # the ceiling
+    bm_box(bmk("t_white"), x0 - 0.3, x1 + 0.15, y1 - 0.15, y1, 0.0, top + 0.05)    # the back and west walls
+    bm_box(bmk("t_white"), x1, x1 + 0.15, y1, y0, 0.0, top + 0.05)
+    icc_inner_wall(bmk, lambda bm, a, b_, d0, d1, za, zb: bm_box(bm, a, b_, y0 - d1, y0 - d0, za, zb), x0, x1,
+                   [(door[0], door[1], 0.0, dz + 0.45)] + [(u - 0.85, u + 0.85, *WZ) for u in clear])      # the front
+    icc_inner_wall(bmk, lambda bm, a, b_, d0, d1, za, zb: bm_box(bm, x0 + d0, x0 + d1, a, b_, za, zb), y1, y0, [(*EW, *WZ)])  # the east
+    icc_inner_wall(bmk, lambda bm, a, b_, d0, d1, za, zb: bm_box(bm, x1 - d1, x1 - d0, a, b_, za, zb), y1, y0, [])             # the west
+    icc_inner_wall(bmk, lambda bm, a, b_, d0, d1, za, zb: bm_box(bm, a, b_, y1 + d0, y1 + d1, za, zb), x0, x1, [], lower="t_cream")  # the back
+    # the counter: the long run faces the windows 2.6 m in (x 2.2 .. room - 0.8; the gap at the west end is the
+    # staff's way in), the return runs back along x = 2.2 by the east window
+    cy = -2.9; ux0, ux1 = 2.2, x1 - 0.8
+    cols = [0.2 + (ux1 - ux0 - 0.4) * k / 4 for k in range(5)]
+    sign_u = (cols[1] + cols[2]) / 2
+    xform_new(P, T(ux0, cy, 0.0), lambda: icc_counter(bmk, ux1 - ux0, (0.0, ux1 - ux0), cols, signs=[sign_u],
+                                                     cases=[(cols[1] + 0.3, cols[2] - 0.3), (cols[2] + 0.3, cols[3] - 0.3)], rng=rng))
+    Lr = cy - y1
+    xform_new(P, T(ux0, y1, 0.005) @ R(math.pi / 2, "Z"), lambda: icc_counter(bmk, Lr, (0.0, Lr - 0.6), [0.25, Lr - 0.2], rng=rng))
+    # behind the counter: the work bench on the back wall, the machines on it, a framed picture (photo 5)
+    bm_box(bmk("icc_steel"), ux0 + 0.8, x1 - 0.3, y1, y1 + 0.65, 0.06, 0.92)
+    bm_box(bmk("icc_steel"), ux0 + 0.75, x1 - 0.25, y1, y1 + 0.7, 0.92, 0.96)
+    for x in (3.6, 4.6, 7.8, 8.8, 9.8):
+        bm_box(bmk("icc_steel"), x - 0.27, x + 0.27, y1 + 0.05, y1 + 0.55, 0.96, 1.62)
+        bm_box(bmk("m_black"), x - 0.2, x + 0.2, y1 + 0.55, y1 + 0.57, 1.3, 1.52)
+        for s_ in (-1, 1):
+            bm_box(bmk("icc_steel"), x + s_ * 0.1 - 0.02, x + s_ * 0.1 + 0.02, y1 + 0.45, y1 + 0.52, 1.1, 1.3)
+    pc = 6.2
+    bm_box(bmk("brass"), pc - 0.95, pc + 0.95, y1 + 0.03, y1 + 0.08, 1.45, 2.25)
+    bm_box(bmk("display"), pc - 0.85, pc + 0.85, y1 + 0.08, y1 + 0.09, 1.55, 2.15)
+    # the chandeliers over the guests, the brass queue rail in front of the counter (photos 4, 5)
+    for x in (1.3, 5.2, 8.9):
+        chandelier(bmk, x, -1.6, top)
+    ra, rb, ry = 5.4, 9.9, -2.0
+    for k in range(5):
+        x = ra + (rb - ra) * k / 4
+        bm_lathe(bmk("brass"), [(0, 0), (0.14, 0), (0.14, 0.03), (0.03, 0.06), (0.025, 0.95), (0.04, 0.98), (0, 1.0)], 10, T(x, ry, 0.06))
+    bar(bmk("brass"), (ra, ry, 0.98), (rb, ry, 0.98), 0.035)
+    bar(bmk("brass"), (ra, ry, 0.55), (rb, ry, 0.55), 0.03)
+    for k, bm_ in P.items():
+        obj_bm(f"ST_WBZ_icc_in_{k}", bm_, k, smooth=(k == "lamp"))
+    text("ST_WBZ_icc_in_menu", "ICE CREAM", 0.1, (ux0 + sign_u, cy + 0.155, 2.25), (math.pi / 2, 0, math.pi), "t_white", 0.005)
+
+
 def ice_cream_cones():
     C = ICC; L = C["L"]; z1 = C["z1"]; top = C["top"]; gx, gy = C["g"]; r = C["gr"]
     P = {k: bmesh.new() for k in ICC_MATS}
     # ---- the walls: the front (with the doorway) and the east face; wainscot, pilasters, the band, the cornice
     door = (3.0, 4.75)                                    # the doorway, under the arcade next to the gazebo (photos 2, 3)
     dz = 2.9
-    bm_box(P["wall"], 0.0, door[0], -0.3, 0.0, 0.0, top); bm_box(P["wall"], door[1], L, -0.3, 0.0, 0.0, top)
+    cols = [2.4 + k * (L - 0.2 - 2.4) / 6 for k in range(7)]     # the arcade's columns (every ~2.9 m)
+    bays = [(a + b_) / 2 for a, b_ in zip(cols, cols[1:])]
+    rx = C["room"][0]
+    clear = [u for u in bays if u + 0.85 < rx and not door[0] < u < door[1]]   # the windows the shop is behind
+    WZ = (1.1, 3.35); EW = (-4.35, -1.05)                 # the big windows' glass (z), the east window's (y)
+    bm_box(P["wall"], 0.0, door[0], -0.3, 0.0, 0.0, top)
+    wall_holes(lambda a, b_, za, zb: bm_box(P["wall"], a, b_, -0.3, 0.0, za, zb), door[1], L, 0.0, top, [(u - 0.85, u + 0.85, *WZ) for u in clear])
     bm_box(P["wall"], door[0], door[1], -0.3, 0.0, dz + 0.45, top)
-    bm_box(P["wall"], 0.0, 0.3, -5.4, 0.0, 0.0, top)
-    bm_box(P["dark"], door[0], door[1], -2.5, -2.4, 0.0, dz + 0.45)                    # the shop inside (phase 2)
-    bm_box(P["cream"], door[0] - 0.02, door[1] + 0.02, -2.5, 0.0, 0.0, 0.02)
-    bm_box(P["dark"], door[0] - 0.1, door[0], -2.5, -0.3, 0.0, dz + 0.45); bm_box(P["dark"], door[1], door[1] + 0.1, -2.5, -0.3, 0.0, dz + 0.45)
-    bm_box(P["dark"], door[0], door[1], -2.5, -0.3, dz + 0.45, dz + 0.55)
+    wall_holes(lambda a, b_, za, zb: bm_box(P["wall"], 0.0, 0.3, a, b_, za, zb), -5.4, 0.0, 0.0, top, [(*EW, *WZ)])
+    bm_box(P["cream"], door[0] - 0.02, door[1] + 0.02, -0.3, 0.0, 0.0, 0.06)          # the threshold
+    icc_interior(door, dz, clear, WZ, EW)
     for s in (0, 1):                                      # the jambs, the transom with its curtain, the leaves open inwards
         xj = door[s]; sg = 1 if s == 0 else -1
         bm_box(P["cream"], xj - 0.16 * (1 - s), xj + 0.16 * s, -0.3, 0.12, 0.0, dz + 0.5)
@@ -1310,8 +1532,6 @@ def ice_cream_cones():
     bm_box(P["cream"], door[0] - 0.16, door[1] + 0.16, -0.3, 0.12, dz, dz + 0.08)
     bm_box(P["cream"], door[0] - 0.2, door[1] + 0.2, -0.3, 0.14, dz + 0.45, dz + 0.55)
     bm_box(P["white"], door[0] + 0.05, door[1] - 0.05, -0.2, -0.18, dz + 0.08, dz + 0.45)
-    cols = [2.4 + k * (L - 0.2 - 2.4) / 6 for k in range(7)]     # the arcade's columns (every ~2.9 m)
-    bays = [(a + b_) / 2 for a, b_ in zip(cols, cols[1:])]
     for u in [0.25] + cols:                               # the pilasters on the front
         if door[0] - 0.3 < u < door[1] + 0.3 or u > L - 0.3:
             continue
@@ -1335,7 +1555,7 @@ def ice_cream_cones():
             continue
         bm_box(P["cream"], u - 1.1, u + 1.1, 0.0, 0.06, 0.0, 0.95)                       # the wainscot panel
         bm_box(P["cream"], u - 0.95, u + 0.95, 0.06, 0.09, 0.15, 0.8)
-        icc_window(P, u - 0.85, u + 0.85, 1.1, 3.35, logo=(i % 2 == 0))
+        icc_window(P, u - 0.85, u + 0.85, *WZ, logo=(i % 2 == 0), clear=u in clear)
     for u in bays:
         icc_window(P, u - 0.6, u + 0.6, 4.95, 7.3, logo=False, lights=2)
     for v0, v1 in ((1.05, 4.35),):                        # the east face: one wide window (photo 1), a small balcony above
@@ -1343,7 +1563,7 @@ def ice_cream_cones():
         for j in range(3):
             a = v0 + (v1 - v0) * j / 3
             bm_box(P["cream"], -0.09, -0.06, -(a + (v1 - v0) / 3) + 0.12, -a - 0.12, 0.15, 0.8)
-        icc_window(P, v0, v1, 1.1, 3.35, logo=True, face=-1)
+        icc_window(P, v0, v1, *WZ, logo=True, face=-1, clear=True)
         icc_window(P, 2.1, 3.3, 4.95, 7.3, logo=False, face=-1, lights=2)
         bm_box(P["cream"], -0.9, 0.0, -3.7, -1.7, 4.45, 4.6)
         for (a, b_) in (((-0.85, -1.75), (-0.85, -3.65)), ((-0.85, -1.75), (-0.05, -1.75)), ((-0.85, -3.65), (-0.05, -3.65))):
@@ -1595,6 +1815,8 @@ def cams():
         "wbz_icc_side": ((*wbp(-1.0, -110.0), 1.6), (*wbp(-10.0, -112.8), 3.6), 18),   # the gazebo, the sign post, the east face (photo 1)
         "wbz_icc_stair": ((*wbp(-4.0, -125.0), 6.5), (*wbp(-11.5, -117.0), 4.0), 20),   # the stair's top and the deck
         "wbz_icc_arcade": ((*wbp(-11.4, -114.4), 1.6), (*wbp(-28.0, -113.2), 2.6), 16),  # along the arcade (photo 3)
+        "wbz_icc_in": ((*wbp(-10.3, -109.9), 1.6), (*wbp(-17.4, -109.0), 1.9), 16),      # inside: the counter from the east window (photo 4)
+        "wbz_icc_in2": ((*wbp(-19.4, -111.1), 1.6), (*wbp(-13.0, -108.3), 1.7), 16),     # inside: back along the counter to the return (photo 6)
         "wbz_aerial": ((*wbp(70.0, -10.0), 75.0), (*wbp(0.0, -58.0), 0.0), 32),
     }
 
