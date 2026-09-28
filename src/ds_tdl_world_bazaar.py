@@ -27,7 +27,7 @@ upper floors 3.0 m), the arches at the end (springing 8.0 m), the tower and furn
 styles (drawn at random from what the photos show, with the Confectionery and House of Greetings corners placed by
 the photos, not surveyed).
 """
-import sys, math, argparse, pathlib, time, random
+import sys, math, json, argparse, pathlib, time, random
 
 try:
     import bpy, bmesh
@@ -313,11 +313,12 @@ def shop(name, w, st, room=None):
     bm_box(P["sign"], bx - 0.03, bx + 0.03, 0.35, 1.15, 2.95, 3.55)
     bm_box(P["brass"], bx - 0.04, bx + 0.04, 0.33, 1.17, 2.93, 2.97); bm_box(P["brass"], bx - 0.04, bx + 0.04, 0.33, 1.17, 3.53, 3.57)
     bm_box(P["trim"], 0.4, w - 0.4, -0.3, 0.14, 3.2, 3.95)                           # fascia
-    sl = min(w - 1.4, max(2.0, len(st.get("sign") or "xxxxxxxx") * 0.24))
+    sign_sz = min(0.3, (w - 1.5) / (0.62 * max(8, len(st.get("sign") or "")))) if st.get("sign") else 0.3
+    sl = min(w - 1.4, max(2.0, len(st.get("sign") or "xxxxxxxx") * sign_sz * 0.66 + 0.5))
     bm_box(P["sign"], w / 2 - sl / 2, w / 2 + sl / 2, 0.14, 0.18, 3.32, 3.83)
     bm_box(P["trim"], -0.05, w + 0.05, -0.3, 0.32, 3.95, 4.2)
     if st.get("sign"):
-        text(f"ST_WBZ_{name}_signtext", st["sign"], 0.3, (w / 2, 0.2, 3.58), (math.pi / 2, 0, math.pi), "letters", 0.015)
+        text(f"ST_WBZ_{name}_signtext", st["sign"], sign_sz, (w / 2, 0.2, 3.58), (math.pi / 2, 0, math.pi), "letters", 0.015)
     if st["awning"]:                                     # a sloping awning over the shopfront (striped or plain)
         k = 0; x = 0.5
         while x < w - 0.5:
@@ -623,10 +624,24 @@ SPECIAL = {
 
 
 CORNER = 4.2
+# the shops and restaurants OSM places in World Bazaar (plateau_data/disneyland_osm.json points, in the WB frame):
+# (x, y, the sign, the shop's theme). Each goes on the shop front nearest to it (within 14 m)
+REAL_SHOPS = [(-14.9, -103.0, "PASTRY PALACE", "sweets"), (-20.1, -35.6, "GRAND EMPORIUM", "apparel"),
+              (-17.0, -82.8, "PENNY ARCADE", "cards"), (15.9, -101.4, "DISNEY & CO.", "plush"),
+              (25.8, -40.5, "WORLD BAZAAR CONFECTIONERY", "sweets"), (23.7, -70.7, "HOUSE OF GREETINGS", "cards"),
+              (56.8, -51.0, "EASTSIDE CAFE", "home"), (-43.0, -47.8, "CENTER STREET COFFEEHOUSE", "home"),
+              (16.3, -89.6, "DISNEY GALLERY", "cards"), (-17.1, -71.6, "TOWN CENTER FASHIONS", "apparel"),
+              (-17.3, -76.6, "HARRINGTON'S JEWELRY & WATCHES", "apparel"), (19.2, -113.3, "REFRESHMENT CORNER", "sweets"),
+              (46.5, -111.0, "HOME STORE", "home"), (48.7, -77.0, "MAGIC SHOP", "cards"),
+              (13.3, -28.9, "MAIN STREET DAILY", "cards"), (17.0, -79.5, "SILHOUETTE STUDIO", "cards"),
+              (-26.1, -8.7, "CAMERA CENTER", "cards"), (50.7, -81.8, "GREAT AMERICAN WAFFLE CO.", "sweets"),
+              (-45.6, -77.5, "TOY STATION", "plush"), (-34.4, -111.5, "SWEETHEART CAFE", "sweets"),
+              (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
 
 
 def build_shops(seed=7):
     rng = random.Random(seed)
+    used = set()
     for fid, p0, p1 in FRONTS:
         d = (p1[0] - p0[0], p1[1] - p0[1]); L = math.hypot(*d); ang = math.degrees(math.atan2(d[1], d[0]))
         widths = []
@@ -646,6 +661,11 @@ def build_shops(seed=7):
                 else:
                     st = random_style(rng, prev); wd = v
                 prev = st["wall"]
+                a_ = math.radians(ang); mx, my = p0[0] + (x + wd / 2) * math.cos(a_), p0[1] + (x + wd / 2) * math.sin(a_)
+                best = min(((math.hypot(sx - mx, sy - my), k) for k, (sx, sy, _, _) in enumerate(REAL_SHOPS) if k not in used), default=None)
+                if best and best[0] < 14.0:                  # the real shop on this front
+                    used.add(best[1]); _, _, nm, th = REAL_SHOPS[best[1]]
+                    st["sign"] = nm; st["theme"] = th
                 # the room: CORNER m clear of each end of the front (the next front's shops reach back 9 m from the
                 # corner), only 4 m deep within 9.2 m of an end, 7.5 m elsewhere
                 rx0 = max(0.0, CORNER - x); rx1 = min(wd, L - CORNER - x)
@@ -654,6 +674,78 @@ def build_shops(seed=7):
                 with frame(f"SHOP_{fid}_{i}", x, 0.0, 0.0):
                     shop(f"{fid}_{i}", wd, st, room)
                 x += wd
+
+
+# ---------------------------------------------------------------- the blocks' outer walls (seen from the plaza and the park)
+BLOCKS = (365357846, 72216851, 196943265, 72216845)   # OSM: the four shop blocks either side of Main Street
+
+
+def to_wb(p):
+    a = math.radians(WB["ang"]); dx, dy = p[0] + 521.3, p[1] - 891.2
+    return (dx * math.cos(a) + dy * math.sin(a), -dx * math.sin(a) + dy * math.cos(a))
+
+
+def seg_dist(p, a, b):
+    ax, ay = a; bx, by = b; dx, dy = bx - ax, by - ay; L2 = dx * dx + dy * dy or 1e-9
+    t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / L2))
+    return math.hypot(p[0] - ax - dx * t, p[1] - ay - dy * t)
+
+
+def outer_run(name, L, H, wall, trim, rng):
+    """One outside wall of a block (x 0..L, +y out): a plinth, arched ground-floor windows (some lit displays), a string
+    course, upper windows with caps, pilasters, a bracketed cornice and a parapet -- the same family as the shop fronts."""
+    P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display")}
+    bm_box(P["wall"], 0, L, -0.3, 0, 0, H)
+    bm_box(P["trim"], 0, L, 0, 0.12, 0, 0.5)
+    nb = max(1, round(L / 4.0)) if L >= 2.5 else 0
+    for k in range(nb):
+        x0, x1 = L * k / nb, L * (k + 1) / nb; m = (x0 + x1) / 2
+        bm_box(P["trim"], x0, x0 + 0.35, 0, 0.14, 0, H - 0.4)
+        if x1 - x0 > 2.2:
+            bm_prism(P["trim"], arch_opening(m - 0.95, m + 0.95, 0.5, 2.9, 0.55, 12), 0.0, 0.1, "xz")
+            bm_prism(P["display" if rng.random() < 0.4 else "glass"], arch_opening(m - 0.8, m + 0.8, 0.6, 2.85, 0.45, 10), 0.1, 0.12, "xz")
+            for z0 in (4.6,) + ((7.4,) if H > 10 else ()):
+                bm_box(P["trim"], m - 0.62, m + 0.62, 0, 0.09, z0 - 0.12, z0 + 1.95)
+                bm_box(P["glass"], m - 0.5, m + 0.5, 0.09, 0.11, z0, z0 + 1.8)
+                bm_box(P["trim"], m - 0.75, m + 0.75, 0, 0.28, z0 + 1.85, z0 + 2.05)
+    bm_box(P["trim"], 0, L, 0, 0.12, 3.7, 3.95)
+    bm_box(P["trim"], -0.05, L + 0.05, 0, 0.4, H - 0.4, H - 0.1)
+    x = 0.4
+    while x < L - 0.3:
+        bm_box(P["trim"], x - 0.06, x + 0.06, 0, 0.34, H - 0.75, H - 0.4); x += 0.85
+    bm_box(P["wall"], 0, L, -0.3, 0, H - 0.1, H + 0.7)
+    bm_box(P["trim"], -0.05, L + 0.05, -0.35, 0.06, H + 0.7, H + 0.82)
+    for k, bm_ in P.items():
+        if not len(bm_.verts):
+            bm_.free(); continue
+        obj_bm(f"ST_WBZ_{name}_{k}", bm_, {"wall": wall, "trim": trim, "glass": "win_dark", "display": "display"}[k])
+
+
+def build_block_walls():
+    """Every edge of the four blocks that is not a shop front on the covered street gets an outer wall, and the block a
+    flat roof at the OSM height (8.5 / 8.85 m) behind the shops' own fronts."""
+    ways = {w["id"]: w for w in json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))["ways"]}
+    rng = random.Random(5)
+    walk = WALK + [WALK[0]]
+    for bid in BLOCKS:
+        w = ways.get(bid)
+        if not w:
+            continue
+        pts = [to_wb(p) for p in w["pts"][:-1]]
+        area = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts)))
+        if area > 0:
+            pts = pts[::-1]                               # clockwise: each wall's +y is outside
+        H = float(str(w["tags"].get("height", "8.5")).replace("m", ""))
+        prism(f"ST_WBZ_block{bid}_roof", [pts], H - 0.2, H, "shingle")
+        for i in range(len(pts)):
+            a, b = pts[i], pts[(i + 1) % len(pts)]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            if L < 0.8 or min(seg_dist(mid, walk[j], walk[j + 1]) for j in range(len(walk) - 1)) < 2.5:
+                continue                                  # a shop front on the street (the shops build those)
+            wall = "w_" + rng.choice(list(PALETTE)); trim = "t_" + rng.choice(["white", "cream", "teal", "dkgreen", "maroon"])
+            with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
+                outer_run(f"block{bid}_{i}", L, H, wall, trim, rng)
 
 
 # ================================================================ 3. paving and street furniture
@@ -729,6 +821,7 @@ def build(context=True):
     with frame("WBZ_frame", WB["x"], WB["y"], WB["ang"]):
         build_roof()
         build_shops()
+        build_block_walls()
         build_street()
     out = dict(en_cams)
     for name, (loc, tgt, lens) in cams().items():
@@ -749,6 +842,7 @@ def export_objects(merged):
     with frame("WBZ_frame", WB["x"], WB["y"], WB["ang"]):
         build_roof()
         build_shops()
+        build_block_walls()
         build_street()
     B.root.location = (EN.P0[0], EN.P0[1], 0.0)
     bpy.context.view_layer.update()

@@ -22,7 +22,7 @@ TDL_PARK_WAY = 1282875870          # 東京ディズニーランド (tourism=the
 TDS_PARK_WAY = 203538370           # 東京ディズニーシー: its contents are drawn by the DisneySea layers
 MAIHAMA_STATION = "舞浜"
 POI_REACH = 90.0
-MODEL_KEYS = {72216847: "dlwbroof"}
+MODEL_KEYS = {72216847: "dlwbroof", 365357846: "dlwbroof", 72216851: "dlwbroof", 196943265: "dlwbroof", 72216845: "dlwbroof"}
 PLACE_MODEL_KEYS = {"東京ディズニーランドホテル": "mhtdlhotel"}   # -> ds_tdl_hotel.py   # World Bazaar's glass roof -> ds_tdl_world_bazaar.py
 DEFAULT_H, OTHER_H = 12.0, 10.0    # estimates for untagged buildings (m)
 JR_Z = 10.0                        # Keiyo Line viaduct height above the promenade datum (estimate)
