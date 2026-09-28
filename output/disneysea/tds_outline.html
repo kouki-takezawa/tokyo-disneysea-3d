@@ -1924,6 +1924,7 @@ async function init3D() {
     cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix();
     intro = null; ctl.enabled = true; ctl.update();
     document.body.classList.remove("intro");
+    show("walk");   // the opening ends by stepping down into the walk
   };
   const zoomEase = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
   const stepIntro = now => {
@@ -3214,6 +3215,6 @@ addEventListener("keydown", e => {
 new ResizeObserver(() => { if (three.active && three.ready) three.resize(); else resize(); }).observe(vp);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
-show("walk");   // every visit starts walking (the view in the URL is only for sharing)
+show("orbit");   // every visit opens with the opening; the tap leads into the walk (the view in the URL is only for sharing)
 })();
 </script>
