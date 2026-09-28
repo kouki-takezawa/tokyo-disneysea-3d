@@ -225,6 +225,12 @@ def part_tdl_hotel():
     return HT.export_objects(merged)
 
 
+def part_tdl_plaza_buildings():
+    import ds_tdl_station, ds_tdl_entrance, ds_tdl_plaza_buildings as PB
+    importlib.reload(ds_tdl_station); importlib.reload(ds_tdl_entrance); importlib.reload(PB)
+    return PB.export_objects(merged)
+
+
 def part_tracks():
     import ds_tdl_station, ds_tracks as TK
     importlib.reload(ds_tdl_station); importlib.reload(TK)
@@ -357,8 +363,8 @@ def main():
             render_checks(part, args.samples)
             continue
         objs = {"water": part_water, "aquasphere": part_aquasphere, "plaza": part_plaza, "volcano": part_volcano,
-                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tdl_world_bazaar": part_tdl_world_bazaar, "tdl_hotel": part_tdl_hotel, "tracks": part_tracks, "bb_castle": part_bb_castle, "cinderella": part_cinderella, "tdl_water": part_tdl_water, "train": part_train}[part]()
-        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_water", "tdl_station", "tdl_entrance", "tdl_world_bazaar", "tdl_hotel", "tracks")))
+                "tdl_station": part_tdl_station, "tdl_entrance": part_tdl_entrance, "tdl_world_bazaar": part_tdl_world_bazaar, "tdl_hotel": part_tdl_hotel, "tdl_plaza_buildings": part_tdl_plaza_buildings, "tracks": part_tracks, "bb_castle": part_bb_castle, "cinderella": part_cinderella, "tdl_water": part_tdl_water, "train": part_train}[part]()
+        export(objs, OUT / f"{part}.glb", materials=(part not in ("water", "tdl_water", "tdl_station", "tdl_entrance", "tdl_world_bazaar", "tdl_hotel", "tdl_plaza_buildings", "tracks")))
 
 
 if __name__ == "__main__":

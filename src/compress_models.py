@@ -17,7 +17,7 @@ WEB = MODELS / "web"
 SKIP = {"woody"}                                        # the walker is loaded from its own Draco .glb
 # models no script reads back and too big for git uncompressed (tdl_hotel is ~70 MB): only models/web/ is committed
 # (.gitignore); regenerate the plain file with export_models.py before compressing again
-WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar"}
+WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar", "tdl_plaza_buildings"}
 
 
 def compress(src, dst):

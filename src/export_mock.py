@@ -234,7 +234,8 @@ def main():
               ("tdl_station", "maihama", ["mhstation"]),                    # ds_tdl_station.py: replaces the station building's box
               ("tdl_entrance", "disneyland", []),                           # ds_tdl_entrance.py: gates, World Bazaar front, plaza
               ("tdl_world_bazaar", "disneyland", ["dlwbroof"]),
-              ("tdl_hotel", "maihama", ["mhtdlhotel"]),                     # ds_tdl_hotel.py: 東京ディズニーランドホテル (replaces its box)             # ds_tdl_world_bazaar.py: Main / Center Street under the glass roof
+              ("tdl_hotel", "maihama", ["mhtdlhotel"]),
+              ("tdl_plaza_buildings", "disneyland", ["dlplazab"]),         # ds_tdl_plaza_buildings.py: the buildings round the plaza, Monsters, Inc.                     # ds_tdl_hotel.py: 東京ディズニーランドホテル (replaces its box)             # ds_tdl_world_bazaar.py: Main / Center Street under the glass roof
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)

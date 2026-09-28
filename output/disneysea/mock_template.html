@@ -657,7 +657,7 @@ $("ly-all-off").addEventListener("click", () => setAllLayers(false));
 const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
-  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["trees3d", "木(OSM の木の位置)"],
+  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "木(OSM の木の位置)"],
   ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
@@ -1654,6 +1654,12 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_hotel_brick: { color: 0x8a3e2c, roughness: 0.9 }, ST_hotel_paving1: { color: 0xc98a7c, roughness: 0.85 }, ST_hotel_paving2: { color: 0xb8b2a8, roughness: 0.85 },
   ST_hotel_leaf: { color: 0x3a6a2c, roughness: 1, flatShading: true }, ST_hotel_flpurple: { color: 0x5c2a80, roughness: 0.9 },
   ST_hotel_lamp: { color: 0xfff3d6, emissive: 0xffd88a, emissiveIntensity: 1.0 },
+  // 広場まわりの建物 (ds_tdl_plaza_buildings.py): meshes PB_<material>
+  ST_pb_cream: { color: 0xe8d9b4, roughness: 0.8 }, ST_pb_sand: { color: 0xdcc08f, roughness: 0.8 }, ST_pb_pink: { color: 0xdcaaa0, roughness: 0.8 },
+  ST_pb_tan: { color: 0xcdb08a, roughness: 0.85 }, ST_pb_white: { color: 0xf1efe6, roughness: 0.6 }, ST_pb_green: { color: 0x2d5646, roughness: 0.6 },
+  ST_pb_slate: { color: 0x48556b, roughness: 0.55 }, ST_pb_awning: { color: 0xf0ead8, roughness: 0.85 }, ST_pb_glass: { color: 0x1a2229, roughness: 0.2 },
+  ST_pb_display: { color: 0xead8b4, emissive: 0x6b5330, emissiveIntensity: 0.6, roughness: 0.3 }, ST_pb_blue: { color: 0x1d5cc0, roughness: 0.4 },
+  ST_pb_dome: { color: 0xc8e2ea, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }, ST_pb_iron: { color: 0x1d2323, roughness: 0.5, metalness: 0.4 },
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
   TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_paving2: { color: 0x9c6a5c, roughness: 0.9 }, TG_slate2: { color: 0x656c72, roughness: 0.9 }, TG_band: { color: 0xd8cdb8, roughness: 0.8 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
@@ -1908,7 +1914,7 @@ async function loadModels(T, scene, root, list = D.models) {
     await new Promise(next => loader.load(m.src, gltf => {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
-        const nm = /^(EN|TK|WZ|HO)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
+        const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (o.name.startsWith("WS_water")) { o.material = makeWater(T); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
@@ -2336,13 +2342,13 @@ async function init3D() {
     aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
-    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland",
+    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland", dlplazab: "disneyland",
     mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhtdlhotel: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
-    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0",
+    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhtdlhotel: "--muted", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   for (const [k, arr] of Object.entries(groups)) {

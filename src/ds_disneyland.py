@@ -23,6 +23,7 @@ TDS_PARK_WAY = 203538370           # 東京ディズニーシー: its contents a
 MAIHAMA_STATION = "舞浜"
 POI_REACH = 90.0
 MODEL_KEYS = {72216847: "dlwbroof", 365357846: "dlwbroof", 72216851: "dlwbroof", 196943265: "dlwbroof", 72216845: "dlwbroof"}
+MODEL_KEYS.update({i: "dlplazab" for i in (203538205, 119894892, 217617126, 196942899, 1297667569, 217842047, 97767471, 1338996038, 1338996037, 1292415139, 218553048, 203538203, 1295097122, 1338996034, 1298497967, 217930681)})   # -> ds_tdl_plaza_buildings.py
 PLACE_MODEL_KEYS = {"東京ディズニーランドホテル": "mhtdlhotel"}   # -> ds_tdl_hotel.py   # World Bazaar's glass roof -> ds_tdl_world_bazaar.py
 DEFAULT_H, OTHER_H = 12.0, 10.0    # estimates for untagged buildings (m)
 JR_Z = 10.0                        # Keiyo Line viaduct height above the promenade datum (estimate)
