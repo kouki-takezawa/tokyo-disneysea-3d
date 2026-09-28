@@ -635,6 +635,23 @@ REAL_SHOPS = [(-14.9, -103.0, "PASTRY HOUSE", "sweets"), (-20.1, -35.6, "GRAND E
               (17.0, -79.5, "SILHOUETTE STUDIO", "cards"), (-26.1, -8.7, "CAMERA CENTER", "cards"),
               (50.7, -81.8, "GREAT AMERICAN WAFFLE CO.", "sweets"), (-45.6, -77.5, "TOY STATION", "plush"),
               (-34.4, -111.5, "SWEETHEART CAFE", "sweets"), (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
+# the real shops' fronts where a photo shows them (Commons, World Bazaar category; the rest keep a varied style)
+SHOP_STYLE = {
+    "CAMERA CENTER": dict(wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
+                          porch_sign="CAMERA CENTER", signmat="t_dkgreen", balcony=False, oriel=False),
+    "CENTER STREET COFFEEHOUSE": dict(wall="brick", trim="cream", floors=2, roof="pediment", date="1892", win="arch",
+                                      awning=("aw_green", None), win_awn=True, signmat="iron", balcony=False, oriel=False),
+    "DISNEY & CO.": dict(wall="brick", trim="white", floors=3, roof="mansard", roofmat="t_dkgreen", turret=1, balcony=True,
+                         win="arch", awning=None, signmat="t_maroon", oriel=False),
+    "HOME STORE": dict(wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
+                       signmat="t_blue", balcony=False, oriel=False),
+    "GRAND EMPORIUM": dict(wall="blue", trim="white", floors=3, roof="parapet", win="arch", awning=("aw_red", "aw_white"),
+                           porch=True, porch_sign="GRAND EMPORIUM", signmat="aw_red", balcony=False, oriel=False),
+    "PASTRY HOUSE": dict(wall="blue", trim="white", floors=3, roof="pediment", date="1897", win="rect",
+                         awning=("aw_blue", "aw_white"), signmat="t_blue", balcony=False, oriel=False),
+    "SILHOUETTE STUDIO": dict(wall="cream", trim="dkgreen", floors=2, roof="pediment", date="1894", win="pair", awning=None,
+                              signmat="t_dkgreen", balcony=False, oriel=False),
+}
 # (Ice Cream Cones and the Refreshment Corner are the castle end's corner buildings, build_exit; Restaurant Hokusai's
 #  street entrance is placed by estimate -- OSM has no point for it)
 
@@ -666,6 +683,7 @@ def build_shops(seed=7):
                 if best and best[0] < 14.0:                  # the real shop on this front
                     used.add(best[1]); _, _, nm, th = REAL_SHOPS[best[1]]
                     st["sign"] = nm; st["theme"] = th
+                    st.update(SHOP_STYLE.get(nm, {}))
                 # the room: CORNER m clear of each end of the front (the next front's shops reach back 9 m from the
                 # corner), only 4 m deep within 9.2 m of an end, 7.5 m elsewhere
                 rx0 = max(0.0, CORNER - x); rx1 = min(wd, L - CORNER - x)
