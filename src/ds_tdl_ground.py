@@ -246,38 +246,30 @@ def add_planter(meshes, T, q, curb="TG_curb", soil="TG_soil"):
             meshes[soil].add(np.column_stack([c[:, :2], z]), n)
 
 
-RINGS = (14.0, 22.0, 30.0, 38.0, 46.0, 54.0, 70.0, 78.0, 90.0, 104.0, 120.0, 140.0, 165.0)   # radii round the gates' centre (22 / 38 / 70 / 78 as the entrance's lines)
-SECTORS, BAND_W = 36, 0.45
+PANEL_RINGS = (14.0, 26.0, 38.0, 52.0, 66.0, 80.0, 94.0, 108.0, 122.0, 138.0, 154.0, 170.0)   # m round the gates' centre
+PANEL_ARC, LINE_W = 15.0, 1.0                     # a panel ~10 m along its ring; the pale lines between panels
 
 
 def paving_pattern(zone, name):
-    """The plaza's paving pattern (photos: brick in two tones laid in rings round the gates, pale inlaid bands): the zone
-    split into annular sectors about GATE_C, alternate sectors in the second tone, pale bands along the ring and ray
-    lines. Returns [(material, polygon)]."""
-    from shapely.geometry import Point, LineString
+    """The plaza's paving (the official park map): pink, with rounded-rectangle panels outlined by pale cream lines,
+    laid in rings round the gates' centre (inside and outside the gates). Returns [(material, polygon)]:
+    the panels in the pink (alternate rings a shade apart), the lines in TG_band."""
     cx, cy = GATE_C
-    bands = []
-    for r in RINGS:
-        bands.append(Point(cx, cy).buffer(r + BAND_W / 2, 128).difference(Point(cx, cy).buffer(r - BAND_W / 2, 128)))
-    for k in range(SECTORS):
-        a = 2 * math.pi * k / SECTORS
-        bands.append(LineString([(cx + RINGS[0] * math.cos(a), cy + RINGS[0] * math.sin(a)),
-                                 (cx + RINGS[-1] * math.cos(a), cy + RINGS[-1] * math.sin(a))]).buffer(BAND_W / 2, cap_style=2))
-    band = unary_union(bands).intersection(zone)
-    rest = zone.difference(band)
-    alt = []
-    for i in range(len(RINGS) - 1):
-        for k in range(SECTORS):
-            if (i + k) % 2:
-                continue
-            a0, a1 = 2 * math.pi * k / SECTORS, 2 * math.pi * (k + 1) / SECTORS
-            n = 12
-            outer = [(cx + RINGS[i + 1] * math.cos(a0 + (a1 - a0) * t / n), cy + RINGS[i + 1] * math.sin(a0 + (a1 - a0) * t / n)) for t in range(n + 1)]
-            inner = [(cx + RINGS[i] * math.cos(a1 - (a1 - a0) * t / n), cy + RINGS[i] * math.sin(a1 - (a1 - a0) * t / n)) for t in range(n + 1)]
-            alt.append(Polygon(outer + inner))
-    alt = unary_union(alt).intersection(rest)
-    base = rest.difference(alt)
-    return [(name, base), (name + "2", alt), ("TG_band", band)]
+    panels = [[], []]
+    for i in range(len(PANEL_RINGS) - 1):
+        r0, r1 = PANEL_RINGS[i], PANEL_RINGS[i + 1]
+        n = max(6, round(2 * math.pi * (r0 + r1) / 2 / PANEL_ARC))
+        for k in range(n):
+            a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+            m = 8
+            outer = [(cx + r1 * math.cos(a0 + (a1 - a0) * t / m), cy + r1 * math.sin(a0 + (a1 - a0) * t / m)) for t in range(m + 1)]
+            inner = [(cx + r0 * math.cos(a1 - (a1 - a0) * t / m), cy + r0 * math.sin(a1 - (a1 - a0) * t / m)) for t in range(m + 1)]
+            cell = Polygon(outer + inner).buffer(-(LINE_W / 2 + 0.9), join_style=2).buffer(0.9, resolution=4)   # rounded corners
+            if not cell.is_empty:
+                panels[i % 2].append(cell)
+    p0 = unary_union(panels[0]).intersection(zone); p1 = unary_union(panels[1]).intersection(zone)
+    band = zone.difference(p0).difference(p1)
+    return [(name, p0), (name + "2", p1), ("TG_band", band)]
 
 
 def build():

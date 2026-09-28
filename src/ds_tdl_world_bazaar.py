@@ -743,6 +743,13 @@ def build_block_walls():
             mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
             if L < 0.8 or min(seg_dist(mid, walk[j], walk[j + 1]) for j in range(len(walk) - 1)) < 2.5:
                 continue                                  # a shop front on the street (the shops build those)
+            ny = (b[0] - a[0]) / L                         # the wall's outward normal's y (towards the plaza: +y)
+            if ny > 0.5 and mid[1] > -30.0:
+                if 11.5 < abs(mid[0]) < 36.0 and abs(mid[1]) < 1.5:
+                    continue                              # the arcade shops beside the entrance (ds_tdl_entrance.wb_shops)
+                with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
+                    EN.arcade_front(f"block{bid}_{i}", 0.0, L)   # facing the plaza: the same arcade building (user, 2026-09-28)
+                continue
             wall = "w_" + rng.choice(list(PALETTE)); trim = "t_" + rng.choice(["white", "cream", "teal", "dkgreen", "maroon"])
             with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                 outer_run(f"block{bid}_{i}", L, H, wall, trim, rng)

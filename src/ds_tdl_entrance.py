@@ -509,13 +509,17 @@ def wb_hall():
 
 
 def wb_shops(s):
-    """The shops either side (OSM 365357846 / 72216851, 8.85 m), x = 12.25 .. 35.5 on side s: cream walls, an arcade
-    in front (y 0 .. 2.8, columns, arches, a balustrade with ball finials on its roof), paired arched windows upstairs,
-    a maroon mansard to 8.85 m with round dormers (photo and the sunset photo)."""
+    """The shops either side (OSM 365357846 / 72216851, 8.85 m), x = 12.25 .. 35.5 on side s."""
+    arcade_front(f"shop{s}", 12.25, 35.5, s)
+
+
+def arcade_front(name, x0, x1, s=1):
+    """A World Bazaar arcade building from x0 to x1 (mirrored by s = -1), front on y = 0 facing +y: cream walls, an
+    arcade in front (y 0 .. 2.8, columns, arches, a balustrade with ball finials on its roof), paired arched windows
+    upstairs, a maroon mansard to 8.85 m with round dormers (photo and the sunset photo)."""
     X = lambda a, b: (min(s * a, s * b), max(s * a, s * b))
-    x0, x1 = 12.25, 35.5
-    box(f"ST_WB_shop{s}_wall", (*X(x0, x1), -8.0, 0.0, 0.0, 7.0), "cream")
-    box(f"ST_WB_shop{s}_cornice", [(*X(x0, x1), 0.0, 0.1, 6.55, 6.95), (*X(x0, x1), 0.0, 0.3, 6.95, 7.15), (*X(x0, x1), 0.0, 0.4, 7.15, 7.3)], "trim", 0.02)
+    box(f"ST_WB_{name}_wall", (*X(x0, x1), -8.0, 0.0, 0.0, 7.0), "cream")
+    box(f"ST_WB_{name}_cornice", [(*X(x0, x1), 0.0, 0.1, 6.55, 6.95), (*X(x0, x1), 0.0, 0.3, 6.95, 7.15), (*X(x0, x1), 0.0, 0.4, 7.15, 7.3)], "trim", 0.02)
     bm = bmesh.new()                                      # mansard: steep front, flat top
     V = lambda x, y, z: bm.verts.new((s * x, y, z))
     a, b_, c, d = V(x0, 0.25, 7.3), V(x1, 0.25, 7.3), V(x1, -1.1, 8.85), V(x0, -1.1, 8.85)
@@ -523,8 +527,9 @@ def wb_shops(s):
     g, h = V(x1, -8.0, 7.3), V(x0, -8.0, 7.3)
     for q in ((a, b_, c, d), (d, c, e, f), (b_, g, e, c), (a, d, f, h)):
         bm.faces.new(q if s > 0 else q[::-1])
-    obj_bm(f"ST_WB_shop{s}_mansard", bm, "mauve")
-    xs = [13.6 + k * (x1 - 13.6) / 7 for k in range(8)]
+    obj_bm(f"ST_WB_{name}_mansard", bm, "mauve")
+    nx = max(2, round((x1 - x0 - 1.35) / 3.3))
+    xs = [x0 + 1.35 + k * (x1 - x0 - 1.35) / nx for k in range(nx + 1)]
     bmc, bmp, bma, bmd, bmo, bmr = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
     bmf, bmw, bmh, bmt, bmb = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
     for x in xs:
@@ -536,7 +541,7 @@ def wb_shops(s):
         m = s * (xa + xb) / 2
         bm_box(bmw, m - 1.0, m + 1.0, 0.0, 0.03, 0.3, 3.1)                     # shopfront: frame, glass
         bm_box(bmo, m - 0.9, m + 0.9, 0.03, 0.06, 0.4, 3.0)
-    for k in (1, 3, 5):                                   # windows upstairs, a dormer over each
+    for k in range(1, nx, 2):                             # windows upstairs, a dormer over each
         m = s * (xs[k] + xs[k + 1]) / 2
         paired_window(bmf, bmo, bmh, m, 0.0, 5.0, 6.35, 1.35)
         bm_box(bmd, m - 0.7, m + 0.7, -0.6, 0.55, 7.2, 8.3)
@@ -544,9 +549,9 @@ def wb_shops(s):
         bm_lathe(bmd, [(0.3, 0), (0.42, 0), (0.42, 0.08), (0.3, 0.08)], 20, T(m, 0.55, 7.75) @ R(-math.pi / 2, "X"))
         bm_lathe(bmo, [(0, 0), (0.31, 0), (0.31, 0.02), (0, 0.02)], 20, T(m, 0.54, 7.75) @ R(-math.pi / 2, "X"))
     ax0, ax1 = sorted((s * (xs[0] - 0.3), s * (xs[-1] + 0.3)))
-    box(f"ST_WB_shop{s}_arcade", [(ax0, ax1, 2.4, 3.2, 3.85, 4.1), (ax0 - 0.08, ax1 + 0.08, 2.35, 3.3, 4.1, 4.35),
+    box(f"ST_WB_{name}_arcade", [(ax0, ax1, 2.4, 3.2, 3.85, 4.1), (ax0 - 0.08, ax1 + 0.08, 2.35, 3.3, 4.1, 4.35),
                                   (ax0, ax1, 0.0, 2.8, 4.15, 4.3), (ax0, ax1, 0.0, 2.5, 3.8, 3.85)], "trim", 0.015)
-    box(f"ST_WB_shop{s}_arcade_floor", (ax0, ax1, 0.0, 3.3, 0.0, 0.04), "tile")
+    box(f"ST_WB_{name}_arcade_floor", (ax0, ax1, 0.0, 3.3, 0.0, 0.04), "tile")
     for x in xs:                                          # balustrade on the arcade roof, ball finials on alternate posts
         bm_box(bmt, s * x - 0.22, s * x + 0.22, 2.58, 3.02, 4.35, 5.2)
     for i, x in enumerate(xs):
@@ -558,7 +563,7 @@ def wb_shops(s):
                             ("dormers", bmd, "trim", False), ("glass", bmo, "win_dark", False), ("finials", bmr, "trim", True),
                             ("frames", bmw, "trim", False), ("window_frames", bmf, "trim", False), ("hoods", bmh, "trim", False),
                             ("balustrade", bmt, "trim", False), ("balusters", bmb, "trim", False)):
-        obj_bm(f"ST_WB_shop{s}_{nm}", bm_, mt, smooth=sm)
+        obj_bm(f"ST_WB_{name}_{nm}", bm_, mt, smooth=sm)
 
 
 def wb_people():
