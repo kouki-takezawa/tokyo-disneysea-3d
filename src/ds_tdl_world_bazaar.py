@@ -626,17 +626,17 @@ SPECIAL = {
 CORNER = 4.2
 # the shops and restaurants OSM places in World Bazaar (plateau_data/disneyland_osm.json points, in the WB frame):
 # (x, y, the sign, the shop's theme). Each goes on the shop front nearest to it (within 14 m)
-REAL_SHOPS = [(-14.9, -103.0, "PASTRY PALACE", "sweets"), (-20.1, -35.6, "GRAND EMPORIUM", "apparel"),
-              (-17.0, -82.8, "PENNY ARCADE", "cards"), (15.9, -101.4, "DISNEY & CO.", "plush"),
+REAL_SHOPS = [(-14.9, -103.0, "PASTRY HOUSE", "sweets"), (-20.1, -35.6, "GRAND EMPORIUM", "apparel"),
+              (-17.0, -82.8, "RESTAURANT HOKUSAI", "home"), (15.9, -101.4, "DISNEY & CO.", "plush"),
               (25.8, -40.5, "WORLD BAZAAR CONFECTIONERY", "sweets"), (23.7, -70.7, "HOUSE OF GREETINGS", "cards"),
               (56.8, -51.0, "EASTSIDE CAFE", "home"), (-43.0, -47.8, "CENTER STREET COFFEEHOUSE", "home"),
-              (16.3, -89.6, "DISNEY GALLERY", "cards"), (-17.1, -71.6, "TOWN CENTER FASHIONS", "apparel"),
-              (-17.3, -76.6, "HARRINGTON'S JEWELRY & WATCHES", "apparel"), (19.2, -113.3, "REFRESHMENT CORNER", "sweets"),
+              (-17.1, -71.6, "TOWN CENTER FASHIONS", "apparel"), (-17.3, -76.6, "HARRINGTON'S JEWELRY & WATCHES", "apparel"),
               (46.5, -111.0, "HOME STORE", "home"), (48.7, -77.0, "MAGIC SHOP", "cards"),
-              (13.3, -28.9, "MAIN STREET DAILY", "cards"), (17.0, -79.5, "SILHOUETTE STUDIO", "cards"),
-              (-26.1, -8.7, "CAMERA CENTER", "cards"), (50.7, -81.8, "GREAT AMERICAN WAFFLE CO.", "sweets"),
-              (-45.6, -77.5, "TOY STATION", "plush"), (-34.4, -111.5, "SWEETHEART CAFE", "sweets"),
-              (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
+              (17.0, -79.5, "SILHOUETTE STUDIO", "cards"), (-26.1, -8.7, "CAMERA CENTER", "cards"),
+              (50.7, -81.8, "GREAT AMERICAN WAFFLE CO.", "sweets"), (-45.6, -77.5, "TOY STATION", "plush"),
+              (-34.4, -111.5, "SWEETHEART CAFE", "sweets"), (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
+# (Ice Cream Cones and the Refreshment Corner are the castle end's corner buildings, build_exit; Restaurant Hokusai's
+#  street entrance is placed by estimate -- OSM has no point for it)
 
 
 def build_shops(seed=7):
@@ -744,6 +744,8 @@ def build_block_walls():
             if L < 0.8 or min(seg_dist(mid, walk[j], walk[j + 1]) for j in range(len(walk) - 1)) < 2.5:
                 continue                                  # a shop front on the street (the shops build those)
             ny = (b[0] - a[0]) / L                         # the wall's outward normal's y (towards the plaza: +y)
+            if mid[1] < -105.0 and (abs(mid[0]) < 30.0 and ny < -0.5 or math.hypot(abs(mid[0]) - 9.8, mid[1] + 113.5) < 5.5):
+                continue                                  # the exit's corner buildings (build_exit)
             if ny > 0.5 and mid[1] > -30.0:
                 if 11.5 < abs(mid[0]) < 36.0 and abs(mid[1]) < 1.5:
                     continue                              # the arcade shops beside the entrance (ds_tdl_entrance.wb_shops)
@@ -753,6 +755,148 @@ def build_block_walls():
             wall = "w_" + rng.choice(list(PALETTE)); trim = "t_" + rng.choice(["white", "cream", "teal", "dkgreen", "maroon"])
             with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                 outer_run(f"block{bid}_{i}", L, H, wall, trim, rng)
+
+
+# ---------------------------------------------------------------- the castle end: the two corner buildings (the user's photos)
+def veranda_level(P, L, z0, z1, d, rail=True):
+    """One storey of a Victorian veranda along x 0..L (depth d, +y out): paired white columns every ~3.3 m on
+    pedestals, scalloped fretwork arches between them, a floor slab, a turned white balustrade (upper storey)."""
+    n = max(1, round(L / 3.3))
+    for k in range(n + 1):
+        x = L * k / n
+        for dx in ((-0.18, 0.18) if 0 < k < n else (0.0,)):
+            bm_box(P["white"], x + dx - 0.2, x + dx + 0.2, d - 0.4, d, z0, z0 + 0.7)
+            column_bm(P["white"], x + dx, d - 0.2, z0 + 0.7, z1 - z0 - 1.15, 0.1, 10)
+        bm_box(P["white"], x - 0.32, x + 0.32, d - 0.5, d + 0.05, z1 - 0.45, z1 - 0.25)
+        if k < n:
+            x0, x1 = x + 0.3, L * (k + 1) / n - 0.3
+            bm_prism(P["white"], arch_band(x0, x1, z1 - 1.0, 0.55, 0.12, 14, leg=0.3), d - 0.2, d - 0.1, "xz")
+            for j in range(6):                            # the fretwork drops
+                xx = x0 + (x1 - x0) * (j + 0.5) / 6
+                bm_lathe(P["white"], [(0, 0), (0.05, 0), (0.03, -0.25), (0, -0.3)], 6, T(xx, d - 0.15, z1 - 0.25))
+    bm_box(P["white"], -0.1, L + 0.1, 0.0, d + 0.1, z1 - 0.25, z1)
+    if rail:
+        bm_box(P["white"], 0.0, L, d - 0.25, d - 0.1, z0, z0 + 0.1)
+        EN.baluster_run(P["white"], P["white"], (0.0, d - 0.18), (L, d - 0.18), z0, z0 + 1.0, 0.2)
+
+
+def gazebo_corner(P, cx, cy, face_ang):
+    """The octagonal two-storey corner pavilion by the arches (photos): white paired columns, fretwork, a balcony with a
+    teal iron railing, stairs down to the street, an octagonal roof and a white lantern cupola with a finial."""
+    r = 4.2; z1, z2 = 4.2, 8.4
+    ring = lambda rr: [(cx + rr * math.cos(math.pi / 8 + 2 * math.pi * k / 8), cy + rr * math.sin(math.pi / 8 + 2 * math.pi * k / 8)) for k in range(8)]
+    bm_prism(P["white"], ring(r + 0.2), 0.0, 0.35, "xy")
+    bm_prism(P["white"], ring(r + 0.3), z1 - 0.3, z1, "xy")
+    bm_prism(P["white"], ring(r + 0.35), z2 - 0.35, z2, "xy")
+    for k in range(8):
+        a = math.pi / 8 + 2 * math.pi * k / 8
+        for za, zb in ((0.35, z1 - 0.3), (z1, z2 - 0.35)):
+            for da in (-0.05, 0.05):
+                x, y = cx + r * math.cos(a + da), cy + r * math.sin(a + da)
+                bm_box(P["white"], x - 0.18, x + 0.18, y - 0.18, y + 0.18, za, za + 0.6)
+                column_bm(P["white"], x, y, za + 0.6, zb - za - 0.9, 0.09, 10)
+        a2 = a + math.pi / 8
+        for j in (-1, 0, 1):
+            bm_lathe(P["white"], [(0, 0), (0.12, 0), (0.06, -0.35), (0, -0.45)], 6,
+                     T(cx + (r - 0.1) * math.cos(a2) + j * 0.8 * -math.sin(a2), cy + (r - 0.1) * math.sin(a2) + j * 0.8 * math.cos(a2), z2 - 0.35))
+    for k in range(8):                                    # the balcony's teal railing
+        a0, a1 = math.pi / 8 + 2 * math.pi * k / 8, math.pi / 8 + 2 * math.pi * (k + 1) / 8
+        (x0, y0), (x1, y1) = (cx + r * math.cos(a0), cy + r * math.sin(a0)), (cx + r * math.cos(a1), cy + r * math.sin(a1))
+        L = math.hypot(x1 - x0, y1 - y0); ang = math.atan2(y1 - y0, x1 - x0)
+        bmesh.ops.create_cube(P["teal"], size=1.0, matrix=T((x0 + x1) / 2, (y0 + y1) / 2, z1 + 1.0) @ R(ang, "Z") @ Matrix.Diagonal((L, 0.06, 0.08, 1)))
+        m_ = int(L / 0.14)
+        for j in range(m_):
+            t = (j + 0.5) / m_
+            bm_box(P["teal"], x0 + (x1 - x0) * t - 0.012, x0 + (x1 - x0) * t + 0.012, y0 + (y1 - y0) * t - 0.012, y0 + (y1 - y0) * t + 0.012, z1, z1 + 1.0)
+    bm_lathe(P["green"], [(r + 0.5, 0), (r * 0.45, 1.3), (0.01, 1.35)], 8, T(cx, cy, z2) @ R(math.pi / 8, "Z"))
+    for k in range(8):                                    # the lantern
+        a = 2 * math.pi * k / 8
+        bm_box(P["white"], cx + 1.2 * math.cos(a) - 0.07, cx + 1.2 * math.cos(a) + 0.07, cy + 1.2 * math.sin(a) - 0.07, cy + 1.2 * math.sin(a) + 0.07, z2 + 0.8, z2 + 2.2)
+    bm_lathe(P["white"], [(0, 0), (1.5, 0), (1.5, 0.15), (1.1, 0.6), (0.3, 1.0), (0.12, 1.1), (0.2, 1.4), (0.05, 2.0), (0, 2.1)], 16, T(cx, cy, z2 + 2.2))
+    bm_lathe(P["white"], [(0, 0), (1.35, 0), (1.35, 0.2), (0, 0.2)], 16, T(cx, cy, z2 + 0.6))
+    globe_lamp_bm(P["lamp"], cx, cy, z1 - 0.9, 0.22)
+    ux, uy = math.cos(face_ang), math.sin(face_ang)      # stairs down to the street, a teal railing on the open side
+    px, py = -uy, ux
+    sx0, sy0 = cx + ux * (r + 0.6) - px * 3.0, cy + uy * (r + 0.6) - py * 3.0
+    for k in range(14):
+        t = k / 14
+        bx, by = sx0 + px * (t * 5.6), sy0 + py * (t * 5.6)
+        bmesh.ops.create_cube(P["white"], size=1.0, matrix=T(bx + px * 0.2, by + py * 0.2, (k + 1) * z1 / 28) @ R(math.atan2(py, px), "Z") @ Matrix.Diagonal((0.4, 1.3, (k + 1) * z1 / 14, 1)))
+    for k in range(16):
+        t = k / 15
+        bx, by = sx0 + px * (t * 5.6) + ux * 0.65, sy0 + py * (t * 5.6) + uy * 0.65
+        bm_box(P["teal"], bx - 0.015, bx + 0.015, by - 0.015, by + 0.015, t * z1, t * z1 + 1.0)
+    L = 5.6; mx, my = sx0 + px * 2.8 + ux * 0.65, sy0 + py * 2.8 + uy * 0.65
+    bmesh.ops.create_cube(P["teal"], size=1.0, matrix=T(mx, my, z1 / 2 + 1.0) @ R(math.atan2(py, px), "Z") @ R(-math.atan2(z1, L), "Y") @ Matrix.Diagonal((math.hypot(L, z1), 0.07, 0.07, 1)))
+
+
+def exit_building(P, L, wall, sign, umbrellas):
+    """The building's face towards the hub (x 0..L, +y out): the wall (brick or painted), two storeys of tall windows
+    with white frames, a two-storey white veranda in front, the sign board between the storeys, a green mansard with a
+    dormer; for the Refreshment Corner, red-and-white umbrellas over tables in white planters in front."""
+    H = 9.0; d = 3.0
+    bm_box(P[wall], 0, L, -0.3, 0, 0, H)
+    n = max(1, round(L / 3.3))
+    for k in range(n):
+        m = L * (k + 0.5) / n
+        for z0, h in ((0.3, 3.2), (4.6, 2.9)):
+            bm_prism(P["white"], arch_opening(m - 0.9, m + 0.9, z0 - 0.1, z0 + h - 0.5, 0.5, 10), 0.0, 0.1, "xz")
+            bm_prism(P["glass"], arch_opening(m - 0.75, m + 0.75, z0, z0 + h - 0.55, 0.4, 10), 0.1, 0.12, "xz")
+            bm_box(P["white"], m - 0.02, m + 0.02, 0.12, 0.14, z0, z0 + h - 0.6)
+    bm_box(P["white"], 0, L, 0.0, 0.15, 4.05, 4.3)
+    veranda_level(P, L, 0.0, 4.3, d, rail=False)
+    veranda_level(P, L, 4.3, 8.4, d, rail=True)
+    bm_box(P["green"], -0.2, L + 0.2, -0.3, d + 0.35, 8.4, 8.55)
+    bm_box(P["white"], -0.25, L + 0.25, d - 0.1, d + 0.4, 8.1, 8.45)
+    V = lambda x, y, z: P["green"].verts.new((x, y, z))
+    a, b_, c, e = V(0, 0.2, H), V(L, 0.2, H), V(L, -1.8, H + 2.6), V(0, -1.8, H + 2.6)
+    P["green"].faces.new((a, b_, c, e))
+    bm_box(P["white"], -0.1, L + 0.1, -0.2, 0.35, H - 0.3, H)
+    m = L / 2
+    bm_box(P["white"], m - 1.6, m + 1.6, -1.0, 0.3, H, H + 1.8)
+    bm_prism(P["white"], [(m - 1.9, H + 1.8), (m + 1.9, H + 1.8), (m, H + 2.9)], -1.0, 0.4, "xz")
+    bm_lathe(P["white"], [(0.3, 0), (0.45, 0), (0.45, 0.06), (0.3, 0.06)], 16, T(m, 0.32, H + 1.0) @ R(-math.pi / 2, "X"))
+    bm_box(P["iron"], 0.5, L - 0.5, -0.9, -0.85, H + 2.6, H + 3.2)
+    bm_box(P["sign"], m - 2.6, m + 2.6, d + 0.4, d + 0.45, 3.55, 4.15)
+    text(f"ST_WBZ_exit_{sign}", sign, 0.34, (m, d + 0.47, 3.85), (math.pi / 2, 0, math.pi), "t_white", 0.015)
+    if umbrellas:
+        for k in range(max(1, int(L / 3.4))):
+            ux = 1.7 + k * 3.4
+            bm_box(P["white"], ux - 1.1, ux + 1.1, d + 4.2, d + 4.9, 0.0, 0.8)
+            bm_box(P["leaf"], ux - 1.0, ux + 1.0, d + 4.25, d + 4.85, 0.8, 1.1)
+            bm_lathe(P["iron"], [(0, 0), (0.04, 0), (0.04, 2.2), (0, 2.2)], 6, T(ux, d + 2.3, 0))
+            for q in range(12):
+                a0 = 2 * math.pi * q / 12; a1 = 2 * math.pi * (q + 1) / 12
+                bm_prism(P["aw_red" if q % 2 else "aw_white"], [(ux, d + 2.3), (ux + 1.4 * math.cos(a0), d + 2.3 + 1.4 * math.sin(a0)),
+                                                                 (ux + 1.4 * math.cos(a1), d + 2.3 + 1.4 * math.sin(a1))], 2.2, 2.3, "xy")
+            bm_lathe(P["wood"], [(0, 0), (0.45, 0), (0.45, 0.04), (0, 0.04)], 12, T(ux, d + 2.3, 0.72))
+
+
+EXIT_MATS = {"white": "t_white", "teal": "t_teal", "green": "t_dkgreen", "brick": "brick", "w_mint": "w_mint", "glass": "win_dark",
+             "iron": "iron", "sign": "aw_red", "lamp": "lamp", "aw_red": "aw_red", "aw_white": "aw_white", "wood": "wood", "leaf": "leaf"}
+
+
+def build_exit():
+    """The castle end's corner buildings (the user's photos): east the Refreshment Corner (red brick, veranda,
+    umbrellas), west Ice Cream Cones (mint, veranda, the round sign on a post); an octagonal pavilion on each corner by
+    the arches."""
+    for s_, wall, sign, umb in ((1, "brick", "REFRESHMENT CORNER", True), (-1, "w_mint", "ICE CREAM CONES", False)):
+        x0 = 29.0 if s_ > 0 else -12.5
+        with frame(f"EXIT_{s_}", x0, -115.3, 180.0):
+            Q = {k: bmesh.new() for k in EXIT_MATS}
+            exit_building(Q, 16.5, wall, sign, umb)
+            if s_ < 0:                                    # the round ICE CREAM CONES sign on a post (photo)
+                bm_lathe(Q["iron"], [(0, 0), (0.08, 0), (0.06, 4.2), (0, 4.2)], 8, T(15.0, 6.0, 0))
+                bm_lathe(Q["sign"], [(0, 0), (0.7, 0), (0.7, 0.1), (0, 0.1)], 24, T(15.0, 6.0, 4.9) @ R(-math.pi / 2, "X"))
+            for k, bm_ in Q.items():
+                if len(bm_.verts):
+                    obj_bm(f"ST_WBZ_exit{s_}_{k}", bm_, EXIT_MATS[k], smooth=(k == "lamp"))
+                else:
+                    bm_.free()
+        G = {k: bmesh.new() for k in ("white", "teal", "green", "lamp")}
+        gazebo_corner(G, s_ * 9.8, -113.8, math.radians(-90.0 + s_ * 45.0))
+        for k, bm_ in G.items():
+            obj_bm(f"ST_WBZ_exitgazebo{s_}_{k}", bm_, EXIT_MATS[k], smooth=(k == "lamp"))
 
 
 # ================================================================ 3. paving and street furniture
@@ -812,6 +956,7 @@ def cams():
     return {
         "wbz_street": ((*wbp(1.5, -13.0), 1.65), (*wbp(0.0, -100.0), 5.5), 20),     # towards the castle end
         "wbz_castle": ((*wbp(-2.0, -70.0), 1.65), (*wbp(0.0, END_Y), 6.0), 22),    # the three arches
+        "wbz_exit": ((*wbp(0.0, -150.0), 1.7), (*wbp(0.0, -100.0), 6.5), 16),     # from the hub back into World Bazaar (the user's photo)
         "wbz_crossing": ((*wbp(5.0, -30.0), 1.7), (*wbp(-14.0, -54.0), 6.0), 18),   # the towers and Center Street
         "wbz_corner": ((*wbp(-3.0, -26.0), 1.7), (*wbp(12.0, -38.0), 5.5), 20),     # the Confectionery corner
         "wbz_back": ((*wbp(0.0, -40.0), 1.6), (*wbp(0.0, WB_BACK), 6.5), 22),        # back towards the entrance
@@ -829,6 +974,7 @@ def build(context=True):
         build_roof()
         build_shops()
         build_block_walls()
+        build_exit()
         build_street()
     out = dict(en_cams)
     for name, (loc, tgt, lens) in cams().items():
@@ -850,6 +996,7 @@ def export_objects(merged):
         build_roof()
         build_shops()
         build_block_walls()
+        build_exit()
         build_street()
     B.root.location = (EN.P0[0], EN.P0[1], 0.0)
     bpy.context.view_layer.update()
