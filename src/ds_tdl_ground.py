@@ -246,15 +246,55 @@ def add_planter(meshes, T, q, curb="TG_curb", soil="TG_soil"):
             meshes[soil].add(np.column_stack([c[:, :2], z]), n)
 
 
+RINGS = (14.0, 22.0, 30.0, 38.0, 46.0, 54.0, 70.0, 78.0, 90.0, 104.0, 120.0, 140.0, 165.0)   # radii round the gates' centre (22 / 38 / 70 / 78 as the entrance's lines)
+SECTORS, BAND_W = 36, 0.45
+
+
+def paving_pattern(zone, name):
+    """The plaza's paving pattern (photos: brick in two tones laid in rings round the gates, pale inlaid bands): the zone
+    split into annular sectors about GATE_C, alternate sectors in the second tone, pale bands along the ring and ray
+    lines. Returns [(material, polygon)]."""
+    from shapely.geometry import Point, LineString
+    cx, cy = GATE_C
+    bands = []
+    for r in RINGS:
+        bands.append(Point(cx, cy).buffer(r + BAND_W / 2, 128).difference(Point(cx, cy).buffer(r - BAND_W / 2, 128)))
+    for k in range(SECTORS):
+        a = 2 * math.pi * k / SECTORS
+        bands.append(LineString([(cx + RINGS[0] * math.cos(a), cy + RINGS[0] * math.sin(a)),
+                                 (cx + RINGS[-1] * math.cos(a), cy + RINGS[-1] * math.sin(a))]).buffer(BAND_W / 2, cap_style=2))
+    band = unary_union(bands).intersection(zone)
+    rest = zone.difference(band)
+    alt = []
+    for i in range(len(RINGS) - 1):
+        for k in range(SECTORS):
+            if (i + k) % 2:
+                continue
+            a0, a1 = 2 * math.pi * k / SECTORS, 2 * math.pi * (k + 1) / SECTORS
+            n = 12
+            outer = [(cx + RINGS[i + 1] * math.cos(a0 + (a1 - a0) * t / n), cy + RINGS[i + 1] * math.sin(a0 + (a1 - a0) * t / n)) for t in range(n + 1)]
+            inner = [(cx + RINGS[i] * math.cos(a1 - (a1 - a0) * t / n), cy + RINGS[i] * math.sin(a1 - (a1 - a0) * t / n)) for t in range(n + 1)]
+            alt.append(Polygon(outer + inner))
+    alt = unary_union(alt).intersection(rest)
+    base = rest.difference(alt)
+    return [(name, base), (name + "2", alt), ("TG_band", band)]
+
+
 def build():
     P = plan()
     zones = [("TG_paving", P["out"]), ("TG_slate", P["inn"]), ("TG_gate", P["gate"])]
     station = unary_union([Polygon(o).buffer(0) for r in DL.DATA["relations"] if r["id"] == STATION_REL for o in DL.outer_rings(r)])
     T = Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds, flats=[(station, STATION_GROUND, 4.0, 22.0)])
-    meshes = {n: Mesh(n) for n in ("TG_paving", "TG_slate", "TG_gate", "TG_curb", "TG_soil", "TG_edge")}
+    meshes = {n: Mesh(n) for n in ("TG_paving", "TG_paving2", "TG_slate", "TG_slate2", "TG_band", "TG_gate", "TG_curb", "TG_soil", "TG_edge")}
     pl_lines = unary_union([q.exterior for q in P["planters"]])
     for name, g in zones:
-        if not g.is_empty:
+        if g.is_empty:
+            continue
+        if name in ("TG_paving", "TG_slate"):              # the pattern: annular sectors in two tones, pale stone bands between
+            for mat, piece in paving_pattern(g, name):
+                if not piece.is_empty:
+                    add_zone(meshes, T, mat, piece, avoid=pl_lines)
+        else:
             add_zone(meshes, T, name, g, avoid=pl_lines)
     for q in P["planters"]:
         add_planter(meshes, T, q)

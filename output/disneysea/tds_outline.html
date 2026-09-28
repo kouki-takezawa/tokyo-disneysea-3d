@@ -1655,7 +1655,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_hotel_leaf: { color: 0x3a6a2c, roughness: 1, flatShading: true }, ST_hotel_flpurple: { color: 0x5c2a80, roughness: 0.9 },
   ST_hotel_lamp: { color: 0xfff3d6, emissive: 0xffd88a, emissiveIntensity: 1.0 },
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
-  TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
+  TG_paving: { color: 0x8d6459, roughness: 0.9 }, TG_slate: { color: 0x565f66, roughness: 0.9 }, TG_paving2: { color: 0x9c6a5c, roughness: 0.9 }, TG_slate2: { color: 0x656c72, roughness: 0.9 }, TG_band: { color: 0xd8cdb8, roughness: 0.8 }, TG_gate: { color: 0xa39e90, roughness: 0.85 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
   // ホテル周辺の道 (ds_tdl_hotel_ground.py): meshes TH_<part>
   TH_road: { color: 0x40444a, roughness: 0.95 }, TH_path: { color: 0x958b7d, roughness: 0.9 }, TH_plaza: { color: 0x8d6459, roughness: 0.9 },
@@ -1673,7 +1673,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_mast: { color: 0x8a9095, roughness: 0.5, metalness: 0.5 }, ST_canopy: { color: 0xdcdedf, roughness: 0.6 }, ST_deck_top: { color: 0x3a3a3a, roughness: 1 },
   ST_barrier: { color: 0xb4b9b9, roughness: 0.5, metalness: 0.2 },
 };
-function makeSkyEnv(T, renderer) {
+function makeSkyEnv(T, renderer, withSun = true) {
   const sc = new T.Scene();
   sc.add(new T.Mesh(new T.SphereGeometry(500, 32, 16), new T.ShaderMaterial({
     side: T.BackSide, depthWrite: false,
@@ -1681,7 +1681,7 @@ function makeSkyEnv(T, renderer) {
     fragmentShader: "varying vec3 vP; void main(){ float h = normalize(vP).y; vec3 hor = vec3(0.86,0.90,0.94), top = vec3(0.30,0.52,0.82), gnd = vec3(0.30,0.32,0.30); vec3 c = h > 0. ? mix(hor, top, pow(h,0.5)) : mix(hor, gnd, min(1.,-h*3.)); gl_FragColor = vec4(c,1.); }",
   })));
   const sun = new T.Mesh(new T.SphereGeometry(30, 16, 8), new T.MeshBasicMaterial({ color: new T.Color(14, 13, 11) }));
-  sun.position.set(-300, 400, 300); sc.add(sun);
+  sun.position.set(-300, 400, 300); if (withSun) sc.add(sun);
   const pm = new T.PMREMGenerator(renderer);
   const tex = pm.fromScene(sc, 0.02).texture;
   pm.dispose();
@@ -1816,9 +1816,9 @@ function makeSpray(T, n = 700) {
 function addLights(T, scene) {   // the solid parts (Blender models, trains) share one sky and sun
   if (!three.skyEnv) three.skyEnv = makeSkyEnv(T, three.renderer);
   if (!three.lit) {
-    scene.environment = three.skyEnv;   // the sky reflected in every solid material (gold, glass, slate, paint)
-    three.hemi = new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.55); scene.add(three.hemi);
-    const sun = new T.DirectionalLight(0xfff4e0, 1.05); sun.position.set(-300, 600, 500); scene.add(sun); scene.add(sun.target); three.sun = sun;
+    three.skyEnvDim = makeSkyEnv(T, three.renderer, false);   // the sky without the sun, reflected by the models' shiny materials (reflectEnv)
+    three.hemi = new T.HemisphereLight(0xdfe8f0, 0x5a5448, 0.8); scene.add(three.hemi);
+    const sun = new T.DirectionalLight(0xfff4e0, 0.95); sun.position.set(-300, 600, 500); scene.add(sun); scene.add(sun.target); three.sun = sun;
     if (SHADOWS) {   // a shadow box that follows the view (three.shadowTick), redrawn only when the view moves
       const r = three.renderer; r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; r.shadowMap.autoUpdate = false;
       sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
@@ -1828,6 +1828,15 @@ function addLights(T, scene) {   // the solid parts (Blender models, trains) sha
   }
 }
 const SHADOWS = !matchMedia("(pointer: coarse)").matches;   // phones and tablets: no shadows (speed)
+// the sky in a material, as much as it is shiny: metal and glass get it fully, matt paint and paving almost none
+// (all of it on every surface over-lights the flat ground: the page has no tone mapping)
+function reflectEnv(mat) {
+  if (!three.skyEnvDim || mat.envMap) return mat;
+  const shine = Math.max(mat.metalness || 0, 1 - (mat.roughness ?? 1));
+  if (shine < 0.25) return mat;
+  mat.envMap = three.skyEnvDim; mat.envMapIntensity = Math.min(1, 0.25 + shine); mat.needsUpdate = true;
+  return mat;
+}
 const SUN_DIR = [-300, 600, 500], SUN_LEN = Math.hypot(...SUN_DIR);
 // patterns drawn on the solid materials from world position (no UVs needed): brick courses, slate shingles, paving
 // tiles, floor planks, a faint mottle on render and on plants; the pattern darkens / tints the material's own colour
@@ -1906,7 +1915,7 @@ async function loadModels(T, scene, root, list = D.models) {
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
         else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
-        else if (key) o.material = patternize(T, new T.MeshStandardMaterial({ side: T.DoubleSide, envMapIntensity: 0.7, ...MODEL_MAT[key] }), key);
+        else if (key) o.material = reflectEnv(patternize(T, new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] }), key));
         if (SHADOWS && o.material && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; }
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {
@@ -2424,6 +2433,7 @@ async function init3D() {
   };
   window.TDS_FOCUS = three.focus;
   window.TDS_SKIP = () => three.skipIntro();   // for checking: skip the opening
+  window.TDS_MODELS = () => Object.keys(three.models);   // for checking: the models loaded so far
   window.TDS_STATS = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lines: renderer.info.render.lines,
     geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() });   // for checking load
 
