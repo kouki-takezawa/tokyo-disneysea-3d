@@ -107,8 +107,8 @@ def arc_point(a_deg, r=None):
     return ARC["cx"] + r * math.cos(a), ARC["cy"] + r * math.sin(a)
 
 
-def lace(bm, x0, z0, x1, z1, depth, n, y0, y1):
-    """Bargeboard with a scalloped lower edge from (x0, z0) to (x1, z1), in the xz plane, extruded y0..y1."""
+def lace(bm, x0, z0, x1, z1, depth, n, y0, y1, plane="xz"):
+    """Bargeboard with a scalloped lower edge from (x0, z0) to (x1, z1), in the xz plane (or yz), extruded y0..y1."""
     L = math.hypot(x1 - x0, z1 - z0); ux, uz = (x1 - x0) / L, (z1 - z0) / L; nx, nz = uz, -ux   # n points below
     top = [(x0, z0), (x1, z1)]
     bot = []
@@ -118,7 +118,34 @@ def lace(bm, x0, z0, x1, z1, depth, n, y0, y1):
             s = math.sin(math.pi * j / 6)
             d = depth * (0.55 + 0.45 * s)
             bot.append((x0 + ux * L * t + nx * d, z0 + uz * L * t + nz * d))
-    bm_prism(bm, top + bot, y0, y1, "xz")
+    bm_prism(bm, top + bot, y0, y1, plane)
+
+
+def bracket(bm, xp, x_out, z_top, drop, y, t=0.05, plane="xz"):
+    """A scroll-cut corbel under a beam (photos: at every pillar head): the corner between the pillar face xp and the
+    beam underside z_top, cut by a quarter circle, with a small curl at the tip; in the xz plane (or yz) at y."""
+    s = 1 if x_out > xp else -1; L = abs(x_out - xp)
+    pts = [(xp, z_top)] + [(x_out - s * L * math.sin(math.radians(a)), z_top - drop + drop * math.cos(math.radians(a))) for a in range(0, 91, 10)]
+    bm_prism(bm, pts, y - t, y + t, plane)
+    bm_lathe(bm, [(0, 0), (0.06, 0), (0.06, 2 * t + 0.02), (0, 2 * t + 0.02)], 8,
+             (T(xp + s * 0.07, y - t - 0.01, z_top - drop + 0.07) @ R(-math.pi / 2, "X")) if plane == "xz"
+             else (T(y - t - 0.01, xp + s * 0.07, z_top - drop + 0.07) @ R(math.pi / 2, "Y")))
+
+
+def hexa(bm, P):
+    """A closed six-faced solid from 8 corners: P[0:4] the bottom loop, P[4:8] the top loop above them."""
+    v = [bm.verts.new(p) for p in P]
+    for q in ((0, 1, 2, 3), (7, 6, 5, 4), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0)):
+        bm.faces.new([v[i] for i in q])
+
+
+def on_slope(bm, x0, x1, f0, f1, s, h, lift, t, eave_z=4.55, ridge_z=7.0):
+    """A thin panel lying on a bay's main roof slope: f = 0 at the ridge .. 1 at the eaves (y = s (h + 0.3) f)."""
+    e = h + 0.3; n = (0, s * (ridge_z - eave_z), e); L = math.hypot(n[1], n[2]); n = (0, n[1] / L, n[2] / L)
+    def P(x, f, o):
+        return (x, s * e * f + n[1] * o, ridge_z - (ridge_z - eave_z) * f + n[2] * o)
+    hexa(bm, [P(x0, f0, lift), P(x1, f0, lift), P(x1, f1, lift), P(x0, f1, lift),
+              P(x0, f0, lift + t), P(x1, f0, lift + t), P(x1, f1, lift + t), P(x0, f1, lift + t)])
 
 
 def text_mesh(name, body, size, loc, rot, mat, extrude=0.01):
@@ -616,7 +643,7 @@ def valance(bm, x0, x1, y, z, depth=0.35, n_per_m=2.2):
 def bay_module(name, w, N, curve):
     """One gate bay in curve coordinates (x along the arc 0..w, y towards the plaza, z up), then Array N and bend."""
     h = ARC["half"]
-    parts = {k: bmesh.new() for k in ("trim", "mint", "slate", "iron", "booth", "green_sign", "lamp", "magenta", "gold", "screen")}
+    parts = {k: bmesh.new() for k in ("trim", "mint", "slate", "iron", "booth", "green_sign", "lamp", "magenta", "gold", "screen", "hall_glass")}
     for s in (-1, 1):
         y = s * (h - 0.6)
         bm_box(parts["trim"], 0, w, y - 0.3, y + 0.3, 3.7, 4.55)                        # beam
@@ -630,7 +657,12 @@ def bay_module(name, w, N, curve):
         bm_lathe(parts["gold"], [(0.28, 0), (0.34, 0), (0.34, 0.06), (0.28, 0.06)], 20, T(w / 2, yf + s * 0.03, 5.05) @ R(-s * math.pi / 2, "X"))
         lace(parts["trim"], w / 2 - ga - 0.1, 4.55, w / 2, gz + 0.05, 0.22, 5, min(yf, yf + s * 0.1), max(yf, yf + s * 0.1))
         lace(parts["trim"], w / 2, gz + 0.05, w / 2 + ga + 0.1, 4.55, 0.22, 5, min(yf, yf + s * 0.1), max(yf, yf + s * 0.1))
-        bm_lathe(parts["gold"], [(0, 0), (0.07, 0), (0.05, 0.3), (0.09, 0.35), (0, 0.7)], 8, T(w / 2, yf, gz))  # finial
+        # the gable's spire (photos: a tall cream spike with a gold tip on every bay), the king post's pendant under
+        # the apex, and an arched collar across the gable in front of the mint board
+        bm_lathe(parts["trim"], [(0, 0), (0.1, 0), (0.1, 0.18), (0.06, 0.3), (0.09, 0.45), (0.035, 0.75), (0.015, 1.45), (0, 1.5)], 8, T(w / 2, yf, gz - 0.05))
+        bm_lathe(parts["gold"], [(0, -0.05), (0.05, 0), (0, 0.05)], 8, T(w / 2, yf, gz + 1.0))
+        bm_lathe(parts["trim"], [(0, 0), (0.05, 0), (0.08, 0.12), (0.05, 0.3), (0.06, 0.55), (0, 0.62)], 8, T(w / 2, yf + s * 0.08, gz - 0.62))
+        bm_prism(parts["trim"], arch_band(w / 2 - ga * 0.62, w / 2 + ga * 0.62, 4.62, ga * 0.36, 0.08, 14), min(yf, yf + s * 0.07), max(yf, yf + s * 0.07), "xz")
         bm_box(parts["green_sign"], w / 2 - 0.85, w / 2 + 0.85, y + s * 0.06, y + s * 0.1, 2.85, 3.3)
         # roof: the main slope (eaves -> ridge) and the bay's small gable roof
         e_y, e_z, r_z = s * (h + 0.3), 4.55, 7.0
@@ -640,6 +672,13 @@ def bay_module(name, w, N, curve):
         for x0, x1 in ((w / 2 - ga - 0.25, w / 2), (w / 2 + ga + 0.25, w / 2)):
             q = [parts["slate"].verts.new(p) for p in ((x0, yf + s * 0.25, 4.45), (x1, yf + s * 0.25, gz + 0.12), (x1, yr, gz + 0.12), (x0, yr, 4.45 + (7.0 - 4.45) * (1 - abs(yr) / h) * 0.0))]
             parts["slate"].faces.new(q)
+        # a skylight on the upper slope, above the bay gable's roof (glass panes in a cream frame, iron glazing bars)
+        on_slope(parts["trim"], 0.55, w - 0.55, 0.06, 0.3, s, h, 0.02, 0.08)
+        on_slope(parts["hall_glass"], 0.65, w - 0.65, 0.08, 0.28, s, h, 0.1, 0.02)
+        nb = max(2, int((w - 1.3) / 0.55))
+        for k in range(nb + 1):
+            xb = 0.65 + (w - 1.3) * k / nb
+            on_slope(parts["iron"], xb - 0.025, xb + 0.025, 0.08, 0.28, s, h, 0.1, 0.05)
     bm_box(parts["trim"], 0, w, -h + 0.2, h - 0.2, 3.95, 4.02)                               # ceiling
     turnstile_row(parts, 0.55, w - 0.55, 0.0)                                              # the lanes
     for s in (-1, 1):                                                                       # scalloped valances under the beams
@@ -659,7 +698,7 @@ def bay_module(name, w, N, curve):
         if k == "slate":
             sd = o.modifiers.new("Solidify", "SOLIDIFY"); sd.thickness = 0.12; sd.offset = -1
         array_mod(o, N, (w, 0, 0)); bend(o, curve); out.append(o)
-    c = obj_bm(f"ST_Gate_{name}_cresting", cres, "iron"); array_mod(c, max(1, int(w / 0.45)), (0.45, 0, 0), "Cres")
+    c = obj_bm(f"ST_Gate_{name}_cresting", cres, "trim")         # photos: cream cresting on the ridge; array_mod(c, max(1, int(w / 0.45)), (0.45, 0, 0), "Cres")
     array_mod(c, N, (w, 0, 0)); bend(c, curve)
     for s in (-1, 1):
         y = s * (h - 0.6) + s * 0.11
@@ -678,6 +717,8 @@ def bay_module(name, w, N, curve):
         bm_box(bmp, -0.4, 0.4, y - 0.4, y + 0.4, 3.5, 3.72)
         for dy in (-1, 1):
             bm_box(bmm, -0.18, 0.18, y + dy * 0.28 - 0.01, y + dy * 0.28 + 0.01, 0.9, 3.2)
+        for dx in (-1, 1):                                # scroll brackets under the beam, both ways along the arc
+            bracket(bmp, dx * 0.28, dx * 0.95, 3.7, 0.55, y)
     for k, bm in (("pillars", bmp), ("panels", bmm)):
         o = obj_bm(f"ST_Gate_{name}_{k}", bm, "trim" if k == "pillars" else "mint")
         array_mod(o, N + 1, (w, 0, 0)); bend(o, curve)
@@ -698,6 +739,7 @@ def pavilion(name, a_deg, w, d, eave, apex, deck=None, sign=False, spires=False)
             bm_box(bm, px - 0.55, px + 0.55, py - 0.55, py + 0.55, eave - 0.9, eave - 0.7)
             for dx in (-1, 1):
                 bm_box(bmm, px + dx * 0.4 - 0.01, px + dx * 0.4 + 0.01, py - 0.22, py + 0.22, 1.1, eave - 1.3)
+                bracket(bm, px + dx * 0.4, px + dx * 1.25, eave - 0.9, 0.8, py, 0.06)   # the big scroll corbels (photos)
         obj_bm(f"ST_Pav_{name}_piers", bm, "trim"); obj_bm(f"ST_Pav_{name}_panels", bmm, "mint")
         box(f"ST_Pav_{name}_entablature", [(-hw, hw, -hd, -hd + 0.6, eave - 0.7, eave), (-hw, hw, hd - 0.6, hd, eave - 0.7, eave),
                                             (-hw, -hw + 0.6, -hd, hd, eave - 0.7, eave), (hw - 0.6, hw, -hd, hd, eave - 0.7, eave)], "trim", 0.02)
@@ -721,6 +763,7 @@ def pavilion(name, a_deg, w, d, eave, apex, deck=None, sign=False, spires=False)
             for xa, za, xb, zb in ((-gw - 0.35, eave - 0.1, 0, apex + 0.15), (0, apex + 0.15, gw + 0.35, eave - 0.1)):
                 lace(bml, xa, za, xb, zb, 0.32, 7, min(yf, yf + s * 0.12), max(yf, yf + s * 0.12))
             bm_lathe(bml, [(0, 0), (0.1, 0), (0.07, 0.5), (0.12, 0.55), (0, 1.1)], 8, T(0, yf, apex + 0.1))
+            bm_lathe(bml, [(0, 0), (0.07, 0), (0.12, 0.18), (0.07, 0.45), (0.09, 0.8), (0, 0.9)], 8, T(0, yf + s * 0.1, apex - 0.85))  # pendant
         obj_bm(f"ST_Pav_{name}_gable", bmt, "trim"); obj_bm(f"ST_Pav_{name}_tympanum", bmg, "mint"); obj_bm(f"ST_Pav_{name}_lace", bml, "trim")
         # roof: hip with a flat deck (or a point), and a cross gable over each face
         def roof(bm):
@@ -737,13 +780,41 @@ def pavilion(name, a_deg, w, d, eave, apex, deck=None, sign=False, spires=False)
                     q = [V(xe, yf, eave - 0.05), V(0, yf, apex + 0.1), V(0, yr, apex + 0.1), V(xe, yr, eave - 0.05)]
                     bm.faces.new(q)
         roof_obj(f"ST_Pav_{name}_roof", roof, "slate", 0.18)
+        ew, ed = hw + 0.9, hd + 0.9                       # a lace valance under the eaves all round (photos)
+        bmv = bmesh.new()
+        for s in (-1, 1):
+            for xa, xb in ((-ew, -(gw + 0.45)), (gw + 0.45, ew)):
+                lace(bmv, xa, eave, xb, eave, 0.28, max(2, int((xb - xa) / 0.6)), s * ed - 0.04, s * ed + 0.04)
+            lace(bmv, -ed, eave, ed, eave, 0.28, max(2, int(2 * ed / 0.6)), s * ew - 0.04, s * ew + 0.04, "yz")
+        obj_bm(f"ST_Pav_{name}_valance", bmv, "trim")
         if deck:                                          # railing on the deck, spires
             tw, td = hw * 0.45, hd * 0.28
             box(f"ST_Pav_{name}_deckrail", [(-tw, tw, -td, -td + 0.05, deck + 0.8, deck + 0.86), (-tw, tw, td - 0.05, td, deck + 0.8, deck + 0.86),
-                                            (-tw, -tw + 0.05, -td, td, deck + 0.8, deck + 0.86), (tw - 0.05, tw, -td, td, deck + 0.8, deck + 0.86)], "iron")
+                                            (-tw, -tw + 0.05, -td, td, deck + 0.8, deck + 0.86), (tw - 0.05, tw, -td, td, deck + 0.8, deck + 0.86)], "trim")
             for yy in (-td + 0.02, td - 0.02):
-                bar = box(f"ST_Pav_{name}_deckbars{yy:+.0f}", (-tw, -tw + 0.03, yy - 0.015, yy + 0.015, deck, deck + 0.8), "iron")
+                bar = box(f"ST_Pav_{name}_deckbars{yy:+.0f}", (-tw, -tw + 0.03, yy - 0.015, yy + 0.015, deck, deck + 0.8), "trim")
                 array_mod(bar, int(2 * tw / 0.15) + 1, (0.15, 0, 0))
+            bmu = bmesh.new()                             # posts with urn finials at the corners and the middles
+            for px in (-tw, 0.0, tw):
+                for py in (-td, td):
+                    bm_box(bmu, px - 0.08, px + 0.08, py - 0.08, py + 0.08, deck, deck + 0.95)
+                    bm_lathe(bmu, [(0, 0), (0.07, 0), (0.12, 0.1), (0.1, 0.22), (0.04, 0.26), (0.06, 0.32), (0, 0.4)], 10, T(px, py, deck + 0.95))
+            obj_bm(f"ST_Pav_{name}_deckposts", bmu, "trim", smooth=True)
+            lw, ld = tw * 0.55, td * 0.55                 # the skylight: a glazed lantern on the deck
+            box(f"ST_Pav_{name}_lantern_frame", [(-lw - 0.05, lw + 0.05, -ld - 0.05, ld + 0.05, deck, deck + 0.12)], "trim")
+            box(f"ST_Pav_{name}_lantern_glass", (-lw, lw, -ld, ld, deck + 0.12, deck + 0.5), "hall_glass")
+            def lantern(bm):
+                V = lambda x, y, z: bm.verts.new((x, y, z))
+                a, b_, c, e = V(-lw - 0.08, -ld - 0.08, deck + 0.5), V(lw + 0.08, -ld - 0.08, deck + 0.5), V(lw + 0.08, ld + 0.08, deck + 0.5), V(-lw - 0.08, ld + 0.08, deck + 0.5)
+                ta, tb = V(-lw * 0.5, 0, deck + 0.95), V(lw * 0.5, 0, deck + 0.95)
+                for q in ((a, b_, tb, ta), (b_, c, tb), (c, e, ta, tb), (e, a, ta)):
+                    bm.faces.new(q)
+            roof_obj(f"ST_Pav_{name}_lantern_roof", lantern, "hall_glass", 0.03)
+            bmb = bmesh.new()
+            for k in range(9):
+                x = -lw + 2 * lw * k / 8
+                bm_box(bmb, x - 0.02, x + 0.02, -ld - 0.02, ld + 0.02, deck + 0.12, deck + 0.52)
+            obj_bm(f"ST_Pav_{name}_lantern_bars", bmb, "hall_iron")
         if spires:
             bm = bmesh.new()
             for sx in (-1, 1):
@@ -759,9 +830,23 @@ def pavilion(name, a_deg, w, d, eave, apex, deck=None, sign=False, spires=False)
                 text(f"ST_Pav_{name}_signtext{s}", "Tokyo Disneyland", 0.36, (0, yf + s * 0.14, eave + 1.02), rot, "letters", 0.03)
                 Mm = T(0, yf, eave + 2.25) @ R(-s * math.pi / 2, "X")
                 bm = bmesh.new(); bm_lathe(bm, [(0.3, 0), (0.42, 0), (0.42, 0.1), (0.3, 0.1)], 28, Mm); obj_bm(f"ST_Pav_{name}_medring{s}", bm, "gold")
+                bm = bmesh.new()                          # light bulbs round the oval's rim, as on the World Bazaar sign
+                for k in range(36):
+                    t_ = 2 * math.pi * k / 36
+                    bm_lathe(bm, [(0, -0.045), (0.045, 0), (0, 0.045)], 6, T(2.28 * math.cos(t_), yf + s * 0.18, eave + 1.05 + 0.545 * math.sin(t_)))
+                obj_bm(f"ST_Pav_{name}_signbulbs{s}", bm, "bulb", smooth=True)
+                for sx in (-1, 1):                        # gold scrolls curling off the oval's ends and a crest on top
+                    P = [(sx * (2.35 + a), yf + s * 0.08, eave + 1.05 - 0.3 + z) for a, z in scroll_pts(0.5, 0.45, 0.15, 0.08, 10)]
+                    curve_obj(f"ST_Pav_{name}_signscroll{s}{sx}", P, "gold", 0.045)
+                bm = bmesh.new()
+                bm_prism(bm, [(-0.55, eave + 1.62), (0.55, eave + 1.62), (0.3, eave + 1.78), (0.12, eave + 1.95), (0, eave + 2.02), (-0.12, eave + 1.95), (-0.3, eave + 1.78)],
+                         min(yf, yf + s * 0.08), max(yf, yf + s * 0.08), "xz")
+                obj_bm(f"ST_Pav_{name}_signcrest{s}", bm, "gold")
                 bm = bmesh.new(); bm_lathe(bm, [(0, 0), (0.31, 0), (0.31, 0.05), (0, 0.05)], 28, Mm); obj_bm(f"ST_Pav_{name}_med{s}", bm, "blue_disc")
             for s in (-1, 1):
                 b = box(f"ST_Pav_{name}_entrance{s}", (-hw * 0.38 - 2.3, -hw * 0.38 - 0.7, s * (hd - 0.3) - 0.03, s * (hd - 0.3) + 0.03, eave - 1.75, eave - 1.3), "green_sign")
+                array_mod(b, 2, (hw * 0.76 + 3.0, 0, 0))
+                b = box(f"ST_Pav_{name}_entrance_frame{s}", (-hw * 0.38 - 2.36, -hw * 0.38 - 0.64, s * (hd - 0.3) - s * 0.05 - 0.02, s * (hd - 0.3) - s * 0.05 + 0.02, eave - 1.81, eave - 1.24), "gold")
                 array_mod(b, 2, (hw * 0.76 + 3.0, 0, 0))
                 rot = (math.pi / 2, 0, math.pi) if s > 0 else (math.pi / 2, 0, 0)
                 tm = text_mesh(f"ST_Pav_{name}_entrance_text{s}", "ENTRANCE", 0.2, (-hw * 0.38 - 1.5, s * (hd - 0.3 + 0.04), eave - 1.52), rot, "white")
@@ -964,6 +1049,17 @@ def build_plaza(context=True):
             globe_lamp_bm(bmg, x + 0.5 * math.cos(a), y + 0.5 * math.sin(a), 3.75, 0.2)
         globe_lamp_bm(bmg, x, y, 4.05, 0.22)
     obj_bm("ST_Plaza_lampposts", bmp, "iron", smooth=True); obj_bm("ST_Plaza_globes", bmg, "lamp", smooth=True)
+    # round flower beds at the feet of the lamp posts before and behind the central pavilion (ESTIMATE from the plan's
+    # "花壇": a cream stone kerb 2.4 m across, a mound of clipped green edged with red and white flowers)
+    bmk, bmh, bmr, bmw = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    for x, y in posts[4:]:
+        bm_lathe(bmk, [(0.95, 0), (1.2, 0), (1.2, 0.42), (1.1, 0.48), (0.95, 0.48)], 32, T(x, y, 0))
+        bm_lathe(bmh, [(0.32, 0.3), (0.95, 0.3), (0.95, 0.5), (0.7, 0.72), (0.32, 0.8)], 24, T(x, y, 0))
+        for k in range(20):                               # clumps round the kerb, red and white by turns
+            a_ = 2 * math.pi * k / 20
+            globe_lamp_bm(bmr if k % 2 else bmw, x + 0.8 * math.cos(a_), y + 0.8 * math.sin(a_), 0.56, 0.15)
+    obj_bm("ST_Plaza_bed_kerbs", bmk, "stone"); obj_bm("ST_Plaza_bed_green", bmh, "hedge", smooth=True)
+    obj_bm("ST_Plaza_bed_red", bmr, "flowers_red", smooth=True); obj_bm("ST_Plaza_bed_white", bmw, "flower_white", smooth=True)
 
 
 # ================================================================ scene
@@ -975,6 +1071,8 @@ def cams():
     return {
         "gate_out": ((pav[0] + ou[0] * 32, pav[1] + ou[1] * 32, 1.7), (pav[0], pav[1], 6.0), 24),
         "gate_in": ((pav[0] - ou[0] * 17, pav[1] - ou[1] * 17, 1.7), (pav[0], pav[1], 6.0), 20),
+        "gate_detail": ((pav[0] + ou[0] * 12 + ou[1] * 17, pav[1] + ou[1] * 12 - ou[0] * 17, 1.7), (pav[0] + ou[1] * 13, pav[1] - ou[0] * 13, 5.0), 24),
+        "gate_sign": ((pav[0] + ou[0] * 14, pav[1] + ou[1] * 14, 1.7), (pav[0], pav[1], 7.8), 35),
         "gates_arc": ((ARC["cx"] + 5, ARC["cy"] + 10, 2.0), (arc_point(160)[0], arc_point(160)[1], 4.0), 20),
         "wb_photo": ((*wbp(0.0, 20.3), 1.65), (*wbp(0.0, 4.6), 6.4), 19),      # as the user's photo: just outside the bed's fence
         "wb_front": ((*wbp(-30.0, 42.0), 1.7), (*wbp(0.0, 0.0), 7.5), 24),     # the whole front, beside the flowerbed
