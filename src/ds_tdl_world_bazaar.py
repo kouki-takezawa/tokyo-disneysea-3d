@@ -23,7 +23,7 @@ Frame: the World Bazaar frame of ds_tdl_entrance (WB): +x along the entrance fro
 +y towards the plaza, so Main Street runs to -y.
 
 ESTIMATES: the heights of the roof (eaves 12.1 m, ridge 16.2 m, from the front photo), the shops (ground floor 4.2 m,
-upper floors 3.0 m), the arches at the end (springing 8.0 m), the tower and furniture sizes, the shops' widths and
+upper floors 3.0 / 2.65 / 2.3 m, lower each floor up as the park's forced perspective), the arches at the end (springing 8.0 m), the tower and furniture sizes, the shops' widths and
 styles (drawn at random from what the photos show, with the Confectionery and House of Greetings corners placed by
 the photos, not surveyed).
 """
@@ -243,15 +243,27 @@ def build_roof():
 
 
 # ================================================================ 2. the shops: one front per shop, styles from the photos
+UPPER = (3.0, 2.65, 2.3)     # the upper floors' heights: lower each floor up (the park's forced perspective)
+
+
+def finial_bm(bm, x, y, z, h):
+    """A turned finial: a ball on a waisted stem, a spike on top."""
+    s = h / 0.7
+    bm_lathe(bm, [(0, 0), (0.07 * s, 0), (0.035 * s, 0.12 * s), (0.03 * s, 0.25 * s), (0.08 * s, 0.33 * s), (0.08 * s, 0.39 * s),
+                  (0.03 * s, 0.46 * s), (0.015 * s, 0.7 * s), (0, 0.72 * s)], 8, T(x, y, z))
+
+
 def shop(name, w, st, room=None):
     """One shop in the current frame: x 0..w along the street, the front on y = 0 facing +y (the street), z up.
     room = (x0, x1, depth): the part of the ground floor that is a real shop you can see into and walk into (clear
     windows, an open door, shop_interior); outside it the ground floor is solid behind a lit display backdrop."""
     wall = "brick" if st["wall"] == "brick" else "w_" + st["wall"]; trim = "t_" + st["trim"]
-    fl = st["floors"]; gf, fh = 4.2, 3.0
-    H = gf + fh * (fl - 1) + 0.3
+    fl = st["floors"]; gf = 4.2
+    fhs = UPPER[:fl - 1]                                 # forced perspective: each floor up is lower than the one below
+    zf = [gf + sum(fhs[:k]) for k in range(len(fhs))]    # the upper floors' levels
+    H = gf + sum(fhs) + 0.3
     P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display", "door", "iron", "roof", "sign", "flowers", "aw1", "aw2",
-                                  "shopglass", "brass", "lamp", "lit")}
+                                  "shopglass", "brass", "lamp", "lit", "shutter", "wa1", "wa2", "quoin")}
     rng = random.Random(name)
     if room and room[1] - room[0] < 2.8:
         room = None
@@ -306,6 +318,15 @@ def shop(name, w, st, room=None):
         for k in range(1, 2 * n):                        # transom lights
             x = a + (b_ - a) * k / (2 * n)
             bm_box(P["trim"], x - 0.02, x + 0.02, -0.3, -0.18, 2.5, 3.05)
+    if st.get("portal") and w >= 6.0:                    # an arcade front: a tall round-arched portal round the door
+        pa, pb = dx - 1.35, dx + 1.35
+        bm_prism(P["trim"], arch_band(pa, pb, 3.2, 1.35, 0.35, 18, leg=3.2), 0.05, 0.3, "xz")
+        bm_prism(P["glass"], [(pa, 3.2), (pb, 3.2)] + seg_arc(dx, 3.2, pb - pa, 1.35, 18)[0], -0.25, -0.2, "xz")
+        for sx in (-1, 1):
+            bm_box(P["brass"], dx + sx * 1.5 - 0.05, dx + sx * 1.5 + 0.05, 0.3, 0.36, 0.3, 4.5)
+            globe_lamp_bm(P["lamp"], dx + sx * 1.5, 0.36, 4.7, 0.12)
+        for x_, z_ in seg_arc(dx, 3.2, pb - pa + 0.35, 1.52, 11)[0]:   # a row of bulbs round the arch
+            globe_lamp_bm(P["lamp"], x_, 0.33, z_, 0.05)
     # a hanging blade sign on an iron bracket, beside the fascia
     bx = w - 0.75 if dx < w / 2 else 0.75
     bm_box(P["iron"], bx - 0.03, bx + 0.03, 0.12, 1.25, 3.62, 3.68)
@@ -330,12 +351,20 @@ def shop(name, w, st, room=None):
     xs = [0.4 + (w - 0.8) * (i + 0.5) / nwin for i in range(nwin)]
     ww = min(1.05, (w - 0.8) / nwin - 0.65)
     oriel = st["oriel"] and w >= 5.0 and fl >= 2
+    ww0 = ww
     for f in range(1, fl):
-        z0 = gf + fh * (f - 1) + 0.65; z1 = z0 + 1.95
-        bm_box(P["trim"], 0, w, 0.0, 0.1, gf + fh * (f - 1) - 0.05, gf + fh * (f - 1) + 0.12)
+        fh = fhs[f - 1]; ww_ = ww0 * (0.55 + 0.45 * fh / 3.0)
+        z0 = zf[f - 1] + 0.22 * fh; z1 = z0 + 0.65 * fh
+        bm_box(P["trim"], 0, w, 0.0, 0.1, zf[f - 1] - 0.05, zf[f - 1] + 0.12)
+        if st.get("pilasters"):                          # flat pilasters between the bays, a capital under the course above
+            for k in range(1, nwin):
+                x = (xs[k - 1] + xs[k]) / 2
+                bm_box(P["trim"], x - 0.14, x + 0.14, 0.0, 0.1, zf[f - 1] + 0.12, zf[f - 1] + fh - 0.05)
+                bm_box(P["trim"], x - 0.2, x + 0.2, 0.0, 0.16, zf[f - 1] + fh - 0.3, zf[f - 1] + fh - 0.05)
         for x in xs:
             if oriel and abs(x - w / 2) < 1.3:
                 continue
+            ww = ww_
             gk = "lit" if rng.random() < 0.22 else "glass"   # a lamp on in some of the rooms upstairs
             if f == 1 and not st["balcony"] and rng.random() < 0.5:   # a flower box under the window
                 bm_box(P["trim"], x - ww / 2 - 0.1, x + ww / 2 + 0.1, 0.0, 0.32, z0 - 0.42, z0 - 0.22)
@@ -353,8 +382,23 @@ def shop(name, w, st, room=None):
             bm_box(P["trim"], x - 0.02, x + 0.02, 0.1, 0.12, z0, z1 - 0.1)
             bm_box(P["trim"], x - ww / 2, x + ww / 2, 0.1, 0.12, z0 + 1.15, z0 + 1.19)
             bm_box(P["trim"], x - ww / 2 - 0.2, x + ww / 2 + 0.2, 0.0, 0.2, z0 - 0.22, z0 - 0.1)
-            if st["win_awn"] and st["awning"]:
-                bm_prism(P["aw1"], [(0.05, z1 + 0.5), (0.75, z1 + 0.05), (0.75, z1 - 0.05), (0.05, z1 + 0.4)], x - ww / 2 - 0.1, x + ww / 2 + 0.1, "yz")
+            if st.get("shutters") and st["win"] != "arch":  # louvred shutters folded back beside the window
+                for sx in (-1, 1):
+                    xa = x + sx * (ww / 2 + 0.16)
+                    bm_box(P["shutter"], xa - ww / 4, xa + ww / 4, 0.0, 0.06, z0, z1)
+                    zz = z0 + 0.12
+                    while zz < z1 - 0.1:
+                        bm_box(P["shutter"], xa - ww / 4 + 0.04, xa + ww / 4 - 0.04, 0.06, 0.08, zz, zz + 0.04); zz += 0.13
+            if st["win_awn"] and f <= 2:                  # a small striped awning over the window
+                aw = st.get("wawn") or st["awning"] or ("aw_green", "aw_white")
+                d_ = 0.55 * fh / 3.0 + 0.2; xa = x - ww / 2 - 0.12; k = 0
+                while xa < x + ww / 2 + 0.11:
+                    xb = min(xa + 0.22, x + ww / 2 + 0.12)
+                    key = "wa1" if (k % 2 == 0 or aw[1] is None) else "wa2"
+                    bm_prism(P[key], [(0.05, z1 + 0.42), (d_, z1 + 0.02), (d_, z1 - 0.1), (d_ - 0.03, z1 - 0.1), (d_ - 0.03, z1 + 0.0),
+                                      (0.05, z1 + 0.37)], xa, xb, "yz")
+                    xa = xb; k += 1
+                P["_wawn"] = aw
     if oriel:                                             # a bay window over the upper floors
         m = w / 2
         bay = [(m - 1.3, 0.0), (m + 1.3, 0.0), (m + 0.85, 0.75), (m - 0.85, 0.75)]
@@ -362,9 +406,17 @@ def shop(name, w, st, room=None):
         bm_prism(P["trim"], [(m - 1.4, 0.0), (m + 1.4, 0.0), (m + 0.9, 0.85), (m - 0.9, 0.85)], gf + 0.15, gf + 0.35, "xy")
         bm_prism(P["trim"], [(m - 1.45, 0.0), (m + 1.45, 0.0), (m + 0.92, 0.9), (m - 0.92, 0.9)], H - 0.5, H - 0.3, "xy")
         for f in range(1, fl):
-            z0 = gf + fh * (f - 1) + 0.65
-            bm_box(P["glass"], m - 0.65, m + 0.65, 0.75, 0.77, z0, z0 + 1.9)
-            bm_box(P["trim"], m - 0.03, m + 0.03, 0.77, 0.79, z0, z0 + 1.9)
+            fh = fhs[f - 1]; z0 = zf[f - 1] + 0.22 * fh
+            bm_box(P["glass"], m - 0.65, m + 0.65, 0.75, 0.77, z0, z0 + 0.63 * fh)
+            bm_box(P["trim"], m - 0.03, m + 0.03, 0.77, 0.79, z0, z0 + 0.63 * fh)
+            for sx in (-1, 1):                            # the bay's side lights
+                bm_box(P["glass"], m + sx * 1.08 - 0.02, m + sx * 1.08 + 0.02, 0.15, 0.6, z0, z0 + 0.63 * fh)
+        if st.get("bay_roof", True):                      # a little tent roof and a finial over the bay
+            v = [P["roof"].verts.new(q) for q in ((m - 1.45, 0.0, H - 0.3), (m + 1.45, 0.0, H - 0.3), (m + 0.92, 0.9, H - 0.3),
+                                                   (m - 0.92, 0.9, H - 0.3), (m, 0.35, H + 0.55))]
+            for a_, b2 in ((0, 1), (1, 2), (2, 3), (3, 0)):
+                P["roof"].faces.new((v[a_], v[b2], v[4]))
+            finial_bm(P["brass"], m, 0.35, H + 0.5, 0.35)
     elif st["balcony"] and fl >= 2:                      # a balcony on the first floor: slab, iron railing, flowers
         bm_box(P["trim"], 0.4, w - 0.4, 0.0, 0.95, gf - 0.02, gf + 0.12)
         bm_box(P["iron"], 0.45, w - 0.45, 0.86, 0.92, gf + 0.98, gf + 1.04)
@@ -377,8 +429,18 @@ def shop(name, w, st, room=None):
         x = 0.7
         while x < w - 0.7:
             bm_box(P["flowers"], x, x + 0.45, 0.7, 0.9, gf + 0.95, gf + 1.2); x += 0.7
-    # cornice with brackets
+    if st.get("quoins"):                                 # quoins up both corners above the shopfront
+        z = gf + 0.15; k = 0
+        while z < H - 0.85:
+            L_ = 0.55 if k % 2 == 0 else 0.35
+            for x0, x1 in ((0.4, 0.4 + L_), (w - 0.4 - L_, w - 0.4)):
+                bm_box(P["quoin"], x0, x1, 0.0, 0.06, z, z + 0.26)
+            z += 0.32; k += 1
+    # cornice with brackets, a row of dentils under it
     bm_box(P["trim"], 0, w, 0.0, 0.1, H - 0.75, H - 0.3)
+    x = 0.2
+    while x < w - 0.2:
+        bm_box(P["trim"], x, x + 0.1, 0.1, 0.2, H - 0.42, H - 0.3); x += 0.2
     bm_box(P["trim"], -0.08, w + 0.08, 0.0, 0.45, H - 0.3, H)
     x = 0.45
     while x < w - 0.3:
@@ -419,16 +481,35 @@ def shop(name, w, st, room=None):
             P["roof"].faces.new(v)
         bm_lathe(P["trim"], [(0.32, 0), (0.45, 0), (0.45, 0.08), (0.32, 0.08)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
         bm_lathe(P["glass"], [(0, 0), (0.33, 0), (0.33, 0.02), (0, 0.02)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
-    if st.get("turret") is not None:                     # a corner tower with a round window and a dome
+    if st.get("cresting", rf in ("mansard", "parapet")):  # iron cresting along the top, gilt finials at the ends
+        zc_, yc_ = (H + 2.0, -1.2) if rf == "mansard" else (H + 0.87, -0.17) if rf == "parapet" else (None, None)
+        if zc_ is not None:
+            bm_box(P["iron"], 0.1, w - 0.1, yc_ - 0.02, yc_ + 0.02, zc_ + 0.4, zc_ + 0.44)
+            x = 0.2
+            while x < w - 0.15:
+                bm_box(P["iron"], x - 0.012, x + 0.012, yc_ - 0.012, yc_ + 0.012, zc_, zc_ + 0.4)
+                bm_box(P["iron"], x + 0.05, x + 0.1, yc_ - 0.012, yc_ + 0.012, zc_ + 0.44, zc_ + 0.56); x += 0.3
+            for x in (0.15, w - 0.15):
+                finial_bm(P["brass"], x, yc_, zc_, 0.7)
+    if st.get("turret") is not None:                     # an octagonal corner tower: round window, bell roof, finial
         tx = st["turret"]; t0, t1 = (0.0, 2.8) if tx == 0 else (w - 2.8, w)
-        tz = H + 0.6
-        bm_box(P["wall"], t0, t1, -2.8, 0.2, H, tz)
-        bm_box(P["trim"], t0 - 0.1, t1 + 0.1, -2.9, 0.4, tz - 0.3, tz)
+        tz = H + 1.2; TY = -1.75                          # (set back behind the glass roof's side glazing)
         m = (t0 + t1) / 2
+        bm_lathe(P["wall"], [(0, H), (1.45, H), (1.45, tz), (0, tz)], 8, T(m, TY, 0) @ R(math.pi / 8, "Z"))
+        bm_lathe(P["trim"], [(0, tz - 0.35), (1.6, tz - 0.35), (1.6, tz), (0, tz)], 8, T(m, TY, 0) @ R(math.pi / 8, "Z"))
         bm_lathe(P["trim"], [(0.45, 0), (0.62, 0), (0.62, 0.1), (0.45, 0.1)], 24, T(m, 0.2, H - 1.3) @ R(-math.pi / 2, "X"))
         bm_lathe(P["glass"], [(0, 0), (0.46, 0), (0.46, 0.03), (0, 0.03)], 24, T(m, 0.2, H - 1.3) @ R(-math.pi / 2, "X"))
-        prof = [(1.5 * math.cos(math.pi / 2 * i / 8), 0.55 * math.sin(math.pi / 2 * i / 8)) for i in range(9)]
-        bm_lathe(P["roof"], [(0, 0)] + prof, 16, T(m, -1.3, tz))
+        for k in range(8):                               # a small arched window in each face of the drum
+            a_ = 2 * math.pi * k / 8
+            c_, s_ = math.cos(a_), math.sin(a_)
+            if s_ < -0.5:
+                continue                                 # (the back faces are hidden in the roof)
+            v = [P["glass"].verts.new((m + 1.36 * c_ - s_ * dx_, TY + 1.36 * s_ + c_ * dx_, z)) for dx_, z in
+                 ((-0.25, H + 0.15), (0.25, H + 0.15), (0.25, tz - 0.55), (-0.25, tz - 0.55))]
+            P["glass"].faces.new(v)
+        prof = [(1.6, 0.0), (1.25, 0.35), (1.15, 0.7), (1.05, 1.0), (0.75, 1.3), (0.35, 1.55), (0.12, 1.65), (0, 1.7)]
+        bm_lathe(P["roof"], [(0, 0)] + prof, 8, T(m, TY, tz) @ R(math.pi / 8, "Z"))
+        finial_bm(P["brass"], m, TY, tz + 1.65, 0.9)
     if st.get("porch"):                                  # a corner porch (the Confectionery): columns, balcony, sign
         d = 2.4
         bm_box(P["trim"], 0.2, w - 0.2, 0.0, d, gf - 0.1, gf + 0.25)
@@ -445,7 +526,11 @@ def shop(name, w, st, room=None):
             "shopglass": "shopglass", "brass": "brass", "lamp": "lamp", "lit": "display",
             "roof": P.pop("_roofmat", None) or st.get("roofmat", "shingle"), "sign": st.get("signmat", "t_maroon"),
             "flowers": "flowers_red", "aw1": st["awning"][0] if st["awning"] else "aw_green",
-            "aw2": (st["awning"][1] or "aw_white") if st["awning"] else "aw_white"}
+            "aw2": (st["awning"][1] or "aw_white") if st["awning"] else "aw_white",
+            "shutter": st.get("shuttermat", "t_dkgreen" if st["trim"] != "dkgreen" else "t_maroon"),
+            "quoin": "t_" + ("cream" if st["wall"] == "brick" else "white" if st["trim"] != "white" else "cream")}
+    wa = P.pop("_wawn", None) or ("aw_green", "aw_white")
+    mats["wa1"] = wa[0]; mats["wa2"] = wa[1] or wa[0]
     for k, bm_ in P.items():
         if len(bm_.verts):
             obj_bm(f"ST_WBZ_{name}_{k}", bm_, mats[k])
@@ -605,9 +690,11 @@ def random_style(rng, prev):
     roof = rng.choice(["parapet", "parapet", "mansard", "gable", "pediment"])
     return dict(wall=wall, trim=trim, floors=2 if roof == "mansard" else rng.choice([2, 3, 3, 3]), roof=roof,
                 win=rng.choice(["rect", "arch", "pair"]), balcony=rng.random() < 0.35, oriel=rng.random() < 0.25,
-                awning=awning, win_awn=rng.random() < 0.3, door=rng.choice(["mid", "left", "right"]),
+                awning=awning, win_awn=rng.random() < 0.45, door=rng.choice(["mid", "left", "right"]),
                 signmat=rng.choice(["t_maroon", "t_dkgreen", "t_blue", "t_teal"]), roofmat=rng.choice(["shingle", "mauve", "t_dkgreen"]),
-                theme=rng.choice(THEMES))
+                theme=rng.choice(THEMES), pilasters=rng.random() < 0.35, shutters=rng.random() < 0.25,
+                quoins=wall in ("brick", "stone", "cream", "sand") and rng.random() < 0.6, portal=rng.random() < 0.07,
+                wawn=rng.choice([("aw_green", "aw_white"), ("aw_red", "aw_white"), ("aw_blue", "aw_white"), ("aw_green", None)]))
 
 
 # the corner shops from the photos (by front and position: 0 = the first shop from p0, -1 = the last)
@@ -637,20 +724,41 @@ REAL_SHOPS = [(-14.9, -103.0, "PASTRY HOUSE", "sweets"), (-20.1, -35.6, "GRAND E
               (-34.4, -111.5, "SWEETHEART CAFE", "sweets"), (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
 # the real shops' fronts where a photo shows them (Commons, World Bazaar category; the rest keep a varied style)
 SHOP_STYLE = {
-    "CAMERA CENTER": dict(wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
+    "CAMERA CENTER": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
                           porch_sign="CAMERA CENTER", signmat="t_dkgreen", balcony=False, oriel=False),
     "CENTER STREET COFFEEHOUSE": dict(wall="brick", trim="cream", floors=2, roof="pediment", date="1892", win="arch",
                                       awning=("aw_green", None), win_awn=True, signmat="iron", balcony=False, oriel=False),
-    "DISNEY & CO.": dict(wall="brick", trim="white", floors=3, roof="mansard", roofmat="t_dkgreen", turret=1, balcony=True,
+    "DISNEY & CO.": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=3, roof="mansard", roofmat="t_dkgreen", turret=1, balcony=True,
                          win="arch", awning=None, signmat="t_maroon", oriel=False),
-    "HOME STORE": dict(wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
+    "HOME STORE": dict(win_awn=False, portal=False, wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
                        signmat="t_blue", balcony=False, oriel=False),
-    "GRAND EMPORIUM": dict(wall="blue", trim="white", floors=3, roof="parapet", win="arch", awning=("aw_red", "aw_white"),
+    "GRAND EMPORIUM": dict(win_awn=False, portal=False, wall="blue", trim="white", floors=3, roof="parapet", win="arch", awning=("aw_red", "aw_white"),
                            porch=True, porch_sign="GRAND EMPORIUM", signmat="aw_red", balcony=False, oriel=False),
-    "PASTRY HOUSE": dict(wall="blue", trim="white", floors=3, roof="pediment", date="1897", win="rect",
+    "PASTRY HOUSE": dict(win_awn=True, wawn=("aw_blue", "aw_white"), portal=False, wall="blue", trim="white", floors=3, roof="pediment", date="1897", win="rect",
                          awning=("aw_blue", "aw_white"), signmat="t_blue", balcony=False, oriel=False),
-    "SILHOUETTE STUDIO": dict(wall="cream", trim="dkgreen", floors=2, roof="pediment", date="1894", win="pair", awning=None,
+    "SILHOUETTE STUDIO": dict(win_awn=False, portal=False, wall="cream", trim="dkgreen", floors=2, roof="pediment", date="1894", win="pair", awning=None,
                               signmat="t_dkgreen", balcony=False, oriel=False),
+    # no photo of these: each its own front by estimate, in the street's manner (A4: a yellow arcade front with a round-arched
+    # portal and bulbs, the neighbours in mint with striped window awnings; the others from the photos' vocabulary)
+    "TOY STATION": dict(wall="yellow", trim="maroon", floors=3, roof="parapet", win="arch", portal=True, awning=None,
+                        win_awn=True, wawn=("aw_red", "aw_white"), signmat="t_maroon", balcony=False, oriel=False, pilasters=True),
+    "EASTSIDE CAFE": dict(wall="cream", trim="dkgreen", floors=2, roof="mansard", roofmat="t_dkgreen", win="arch",
+                          awning=("aw_green", "aw_white"), win_awn=False, balcony=True, oriel=False, pilasters=True, quoins=True),
+    "TOWN CENTER FASHIONS": dict(wall="sage", trim="white", floors=3, roof="parapet", win="pair", oriel=True, balcony=False,
+                                 awning=None, win_awn=True, wawn=("aw_green", "aw_white"), signmat="t_dkgreen"),
+    "HARRINGTON'S JEWELRY & WATCHES": dict(wall="stone", trim="dkgreen", floors=3, roof="parapet", win="rect", awning=None,
+                                           win_awn=False, signmat="brass", balcony=False, oriel=False, pilasters=True, quoins=True),
+    "MAGIC SHOP": dict(wall="lilac", trim="maroon", floors=3, roof="gable", win="arch", awning=("aw_red", None), win_awn=False,
+                       signmat="t_maroon", balcony=False, oriel=True, shutters=False),
+    "GREAT AMERICAN WAFFLE CO.": dict(wall="yellow", trim="blue", floors=2, roof="mansard", roofmat="shingle", win="rect",
+                                      awning=("aw_red", "aw_white"), win_awn=True, wawn=("aw_red", "aw_white"), balcony=False,
+                                      oriel=False, shutters=True, signmat="t_blue"),
+    "SWEETHEART CAFE": dict(wall="pink", trim="white", floors=2, roof="mansard", roofmat="mauve", win="arch",
+                            awning=("aw_red", "aw_white"), win_awn=False, balcony=True, oriel=False, signmat="t_maroon"),
+    "BIBBIDI BOBBIDI BOUTIQUE": dict(wall="lilac", trim="white", floors=3, roof="pediment", turret=1, win="arch", awning=None,
+                                     win_awn=True, wawn=("aw_blue", "aw_white"), balcony=False, oriel=True, signmat="t_blue"),
+    "RESTAURANT HOKUSAI": dict(wall="sand", trim="dkgreen", floors=3, roof="parapet", win="pair", awning=("aw_green", None),
+                               win_awn=False, shutters=True, balcony=False, oriel=False, signmat="t_dkgreen", quoins=True),
 }
 # (Ice Cream Cones and the Refreshment Corner are the castle end's corner buildings, build_exit; Restaurant Hokusai's
 #  street entrance is placed by estimate -- OSM has no point for it)
@@ -665,7 +773,7 @@ def build_shops(seed=7):
         first = SPECIAL.get((fid, 0)); last = SPECIAL.get((fid, -1))
         rest = L - (first["w"] if first else 0) - (last["w"] if last else 0)
         while rest > 0.1:
-            wd = rng.choice([5.5, 6.5, 7.0, 8.0, 9.5])
+            wd = rng.choice([4.8, 5.5, 6.2, 7.0, 8.0])     # narrow fronts, as along the street in the photos
             if rest - wd < 4.5:
                 wd = rest
             widths.append(wd); rest -= wd
