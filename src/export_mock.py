@@ -242,6 +242,7 @@ def main():
               ("tdl_plaza_buildings", "disneyland", ["dlplazab"]),         # ds_tdl_plaza_buildings.py: the buildings round the plaza, Monsters, Inc.                     # ds_tdl_hotel.py: 東京ディズニーランドホテル (replaces its box)             # ds_tdl_world_bazaar.py: Main / Center Street under the glass roof
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_plaza_ground", "disneyland", []),                       # ds_tdl_plaza_ground.py: the plaza hub's paving and planters, WB exit to the castle gate (plain Python)
+              ("tdl_plaza_center", "disneyland", []),                       # ds_tdl_plaza_center.py: the Partners statue, the Plaza Garden stage, fences, lamps, benches (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)

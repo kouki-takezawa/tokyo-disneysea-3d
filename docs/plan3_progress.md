@@ -7,8 +7,8 @@
 | 0 | 資料(OSM・航空写真・Commons) → `docs/plaza/README.md` | 済 3939f88 |
 | 1 | アイスクリームコーン外観 | 済 086882c |
 | 2 | アイスクリームコーン店内 | 済(e2736d3 + 残りの確認) |
-| 3 | プラザの地面(新規 `ds_tdl_plaza_ground.py`、Blender なし)→ モックをユーザーに見せる | 済(commit) |
-| 4 | 中央: パートナーズ像・ステージ2つ・街灯・ベンチ・柵 | 未 |
+| 3 | プラザの地面(新規 `ds_tdl_plaza_ground.py`、Blender なし)→ モックをユーザーに見せる | 済 a47e016 |
+| 4 | 中央: パートナーズ像・ステージ2つ・街灯・ベンチ・柵(新規 `ds_tdl_plaza_center.py`) | 済 |
 | 5 | 周りの建物(新規 `ds_tdl_plaza_hub.py`) | 未 |
 | 6 | つなぎ目・散歩で駅→城を確認・圧縮・README・本番反映 | 未 |
 
@@ -43,11 +43,28 @@
 - Playwright確認: `python -m http.server`配信、`TDS_WALK(-477,794,-2.753,-0.05)`でWB出口から城向き(南158°)、`TDS_FOCUS(-427,687,0.5,190,0.6,1.35)`で俯瞰。俯瞰図は航空写真の放射状パターンとよく一致。Wキーで歩行、フォールなし・引っかかりなし(ただしモデル読み込みが重くメインスレッドが詰まるため移動量は小さい)。
 - モデル読み込みの注意: このモックは全モデル(~19個)をメインスレッドで1個ずつ同期読み込みするため、`tdl_plaza_ground`の読み込みに70〜90秒かかることがある。散歩モードで開始すると比較的早く読み込まれる。`page.screenshot()`のタイムアウトは長め(120秒)にすること。
 
+## フェーズ4でやったこと
+
+新規 `src/ds_tdl_plaza_center.py`(plain Python、Blender不要)→ `output/disneysea/models/tdl_plaza_center.json`(33.6k 三角形、頂点約6.7万、Draco後 0.16 MB)。フェーズ3の `tdl_plaza_ground.json` の三角形を読み戻し、実際に作られた舗装・花壇(他モデルで切り抜いた後の形)の上に置く。高さもその三角形から取る。
+- パートナーズ像: HUB_C (-427,687) の円形花壇(半径約6.4m、重心は HUB_C から0.7m)の中央。台座は明るい石の多段円柱(下段 r2.05・h0.85 → 段 → 胴 r1.30 → コーニス、上面 z=2.87)、正面にブロンズ銘板。像はブロンズ色の低ポリ人型(ウォルト約1.9m、右手を上げて前を指す、左手でミッキーの手をつなぐ。ミッキーは左側、約1.1m)。向きは WB 出口 (-477,794) 方向(方位 115°=北西寄り、城を背に)。写真なし・一般知識のみ。
+- ステージ「プラザガーデン」(12028823101): 専用wayはないが、ノードのすぐ脇に芝生72241312の南縁を回る barrier=wall の2本の弧(1298497935〜42)と3か所の steps(1298497922〜27)がある → 2段の弧状ステージと解釈(推定)。1段目=2本の壁の間 +0.30m、2段目=内側の壁〜芝生 +0.60m(どちらも散歩のSTEP 0.55m以内の段差なので上がれる)、stepsの位置に踏み段。地面が0.7m傾いているので天端は地面に沿わせた(平らだと前縁が0.76mになり上がれなかった)。
+- ステージ「キャッスルフォアコート」(6293190962, (-411,655)): cinderella モデル(build_forecourt の城前ステージ)の南端 y=649.3 から6.4m北の点=観客側の広場を指すノードと判断。ステージは既存なので作らない(重複なし)。
+- 柵: HUB_C から80m以内の花壇の縁石の上に低い鉄柵(濃緑、縁石上0.55m、支柱約1.5m間隔+上下2本の横桟、両面描画の縦板なので軽い)。支柱1261本・延長約1.9km。ステージが芝生に接する所は省略。
+- 街灯59本(濃緑の柱+白い球グローブ、3.8m)・ベンチ48基(濃緑すのこ+鋳鉄の脇)を花壇の縁に沿って自動配置(舗装の上だけ、花壇・ステージ・像の花壇の周りは避ける、ベンチは花壇を背に道向き)。位置は推定(実物の測量なし)。
+- 当たり判定は既存の仕組み(急な面=壁、平らな面=床)のまま。Playwrightで確認: 像の花壇に向かって歩くと中心から6.9m(柵の外)で止まる。ステージは南から歩いて1段目→2段目に上がり、芝生の縁で止まる。
+- 登録: `export_mock.py` の MODELS に `tdl_plaza_center`(layer disneyland)、`mock_template.html` に `PC_*` 材質。
+- 確認画像(scratchpad): `p4_walk_statue.png`(WB側から像と城)、`p4_statue_close.png`、`p4_stage.png`、`p4_focus.png`(俯瞰)。
+
+残り: 像は低ポリで顔・服の細部なし。プラザガーデンの実際の姿(屋根や背景の有無)は写真がなく未確認。街灯・ベンチの本当の位置は不明(自動配置)。柵の意匠(唐草・フープ)は省略。周りの建物はフェーズ5。
+
+手順: `python src/ds_tdl_plaza_ground.py`(地面を作り直したら)→ `python src/ds_tdl_plaza_center.py` → `python src/export_mock.py`。
+
 ## 手順メモ
 
 ```
 python src/ds_tdl_plaza_ground.py  # -> output/disneysea/models/tdl_plaza_ground.json + 要約
 python src/ds_ground.py tdl_land_ground   # cut_models適用後の再生成(1分程度)
+python src/ds_tdl_plaza_center.py  # -> tdl_plaza_center.json(地面の三角形を読むので地面の後)
 python src/export_mock.py          # 圧縮(models/web/)と tds_outline.html まで
 git push → Vercel 自動デプロイ → gh api repos/kouki-takezawa/tokyo-disneysea-3d/commits/<sha>/statuses
 ```
