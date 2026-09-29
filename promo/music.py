@@ -1,7 +1,7 @@
 """The promo film's music: an original music-box waltz in F major with a harp and a string pad, and the sounds of the film
-(the book landing, pages turning, the dive, the volcano, the castle, fireworks, the book closing), timed to promo.html.
+(the book landing, pages turning, the dive, the volcano, the castle, fireworks, the book closing), timed to promo/promo.html.
 
-    python tools/promo/music.py    # -> output/disneysea/promo/music.m4a (about 50 s; the page plays it, record.py lays it under the film)
+    python promo/music.py    # -> promo/music.m4a (about 50 s; the page plays it, record.py lays it under the film)
 
 Everything is synthesised here with numpy (no samples), from a fixed seed, so it comes out the same every time.
 """
@@ -12,7 +12,7 @@ import numpy as np
 from scipy.signal import butter, fftconvolve, sosfilt
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "output" / "disneysea" / "promo" / "music.m4a"
+OUT = ROOT / "promo" / "music.m4a"
 SR = 44100
 DUR = 50.0
 rng = np.random.default_rng(20260929)

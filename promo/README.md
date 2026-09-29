@@ -2,9 +2,10 @@
 
 モックのオープニングの「飛び出す絵本」を使った、約 50 秒の宣伝用の動画。
 モックの操作画面は映さず、絵本を開いて中に入り、紙の切り絵でできた世界を旅する。
+アプリとは別物で、このフォルダはリポジトリに置くだけ(Vercel が配信するのは `output/disneysea/` だけなので、公開サイトには出ない)。
 
-- 動画: [`docs/promo/promo.mp4`](promo.mp4)(1920×1080・30fps・約 50 秒・音つき)
-- ブラウザで再生: https://tokyo-disneysea-3d.vercel.app/promo.html(押すと音楽つきで流れる。動画と同じ絵を、その場で描く)
+- 見かた: ブラウザでその場で描いて再生する(押すと音楽つきで流れる)。リポジトリの直下で `python -m http.server` を動かし、http://localhost:8000/promo/promo.html を開く
+- MP4 が要るときだけ `promo/record.py` で書き出す(1920×1080・30fps・音つき。書き出した MP4 はコミットしない)
 
 ## 流れ
 
@@ -20,20 +21,20 @@
 | 41–46 秒 | 光が明けると、机の上の本の中のお城(同じ構図でつなぐ)。カメラが引き、切り絵がたたまれ、本が閉じる | |
 | 45.5–50 秒 | 表紙の上にタイトル「Disney Adventure」、キャッチコピー、URL、出典 | 絵本をひらいて、ふたつのパークを 3D で冒険しよう。 |
 
-絵はすべて `promo.html` の中でコードで描いている(モックの `popbook` と同じ水彩・インク・紙の描き方。本の見開きの地図は `mock_data.json` の両パークの外形)。
-音楽もオリジナルで、`tools/promo/music.py` が numpy で合成する(オルゴールのワルツ、ハープ、弦のパッド、本・ページ・噴火・花火などの音。ヘ長調・3/4 拍子)。
+絵はすべて `promo/promo.html` の中でコードで描いている(モックの `popbook` と同じ水彩・インク・紙の描き方。本の見開きの地図は `mock_data.json` の両パークの外形)。
+音楽もオリジナルで、`promo/music.py` が numpy で合成する(オルゴールのワルツ、ハープ、弦のパッド、本・ページ・噴火・花火などの音。ヘ長調・3/4 拍子)。
 
 ## 作り直す
 
 ```
 pip install playwright imageio-ffmpeg numpy scipy
-python tools/promo/music.py    # 音楽 → output/disneysea/promo/music.m4a
-python tools/promo/record.py   # 動画 → docs/promo/promo.mp4(1 コマずつ撮るので、Chromium のソフトウェア描画で 40 分ほど)
-python tools/promo/record.py --stills 7,17,38   # 何秒目かの静止画だけ(見た目の確認用)
+python promo/music.py    # 音楽 → promo/music.m4a
+python promo/record.py   # MP4 が要るときだけ → promo/promo.mp4(1 コマずつ撮るので、Chromium のソフトウェア描画で 50 分ほど)
+python promo/record.py --stills 7,17,38   # 何秒目かの静止画だけ(見た目の確認用)
 ```
 
-- `promo.html` は時間だけから 1 コマを描く(`PROMO.frameAt(ms)`)。乱数も固定なので、何度作っても同じ絵になる。
-- 字幕・タイミング: `promo.html` の `CAPS`(字幕)、`frameAt`(場面の切り替え・白い光)、`world` の `K`(カメラの道すじ)。音の出るタイミングは `music.py` の末尾にまとめてある。場面の時間を変えたら両方そろえる。
+- `promo/promo.html` は時間だけから 1 コマを描く(`PROMO.frameAt(ms)`)。乱数も固定なので、何度作っても同じ絵になる。
+- 字幕・タイミング: `promo/promo.html` の `CAPS`(字幕)、`frameAt`(場面の切り替え・白い光)、`world` の `K`(カメラの道すじ)。音の出るタイミングは `promo/music.py` の末尾にまとめてある。場面の時間を変えたら両方そろえる。
 - Playwright の Chromium がない端末では `--chromium <実行ファイル>`、cdn.jsdelivr.net に届かない端末では `--three <three.min.js 0.147.0>`、ブラウザがプロキシの証明書を信頼しない端末では `--proxy-fonts`(Web フォントを Python から取る)。
 
 ## 注意

@@ -1,13 +1,13 @@
-"""Render the promo film (output/disneysea/promo.html) frame by frame into an MP4.
+"""Render the promo film (promo/promo.html) frame by frame into an MP4.
 
 The page draws each frame from the time alone (PROMO.frameAt(ms)), so the film comes out the same however slow the machine is.
-Serves output/disneysea over a local HTTP server, drives headless Chromium with Playwright, pipes the screenshots into ffmpeg,
-and lays the music (tools/promo/music.py) under it.
+Serves the repository over a local HTTP server (the page reads output/disneysea/mock_data.json), drives headless Chromium with Playwright, pipes the screenshots into ffmpeg,
+and lays the music (promo/music.py) under it.
 
     pip install playwright imageio-ffmpeg numpy
-    python tools/promo/music.py                       # -> output/disneysea/promo/music.m4a
-    python tools/promo/record.py                      # -> docs/promo/promo.mp4 (1920x1080, 30 fps, about 50 s)
-    python tools/promo/record.py --stills 3,8,15,30   # only a few frames as JPEG, to check the look
+    python promo/music.py                             # -> promo/music.m4a
+    python promo/record.py                            # -> promo/promo.mp4 (1920x1080, 30 fps, about 50 s)
+    python promo/record.py --stills 3,8,15,30   # only a few frames as JPEG, to check the look
 
 --three FILE serves three.min.js from a local file (for machines that cannot reach cdn.jsdelivr.net).
 """
@@ -23,7 +23,6 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[2]
-SITE = ROOT / "output" / "disneysea"
 THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"
 
 
@@ -32,7 +31,7 @@ def serve():
         def log_message(self, *a):
             pass
 
-    handler = functools.partial(Quiet, directory=str(SITE))
+    handler = functools.partial(Quiet, directory=str(ROOT))
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
@@ -40,7 +39,7 @@ def serve():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(ROOT / "docs" / "promo" / "promo.mp4"))
+    ap.add_argument("--out", default=str(ROOT / "promo" / "promo.mp4"))
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--start", type=float, default=0, help="seconds")
     ap.add_argument("--end", type=float, default=None, help="seconds (default: the whole film)")
@@ -52,7 +51,7 @@ def main():
     a = ap.parse_args()
 
     srv = serve()
-    url = f"http://127.0.0.1:{srv.server_address[1]}/promo.html?record"
+    url = f"http://127.0.0.1:{srv.server_address[1]}/promo/promo.html?record"
     with sync_playwright() as p:
         br = p.chromium.launch(executable_path=a.chromium or None, args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
         pg = br.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
@@ -99,7 +98,7 @@ def main():
         out = Path(a.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         end = a.end if a.end is not None else dur
-        music = SITE / "promo" / "music.m4a"
+        music = ROOT / "promo" / "music.m4a"
         cmd = [ff, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(a.fps), "-c:v", "mjpeg", "-i", "-"]
         if music.exists():
             cmd += ["-ss", f"{a.start:.3f}", "-i", str(music), "-c:a", "copy", "-shortest"]

@@ -7,6 +7,9 @@
 !/tools/
 !/vercel.json
 !/docs/
+# the promo film: kept in the repository, not part of the app (Vercel serves output/disneysea only)
+!/promo/
+/promo/*.mp4
 
 !/src/
 
@@ -38,8 +41,6 @@
 !/output/disneysea/train.html
 !/output/disneysea/train_model.js
 !/output/disneysea/water_mock.html
-!/output/disneysea/promo.html
-!/output/disneysea/promo/
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
 # kept only as the Draco copy in models/web/ (src/compress_models.py WEB_ONLY)

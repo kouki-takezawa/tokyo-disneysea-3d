@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark only">
-<title>絵本の冒険 PV</title>
+<title>絵本の冒険</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cinzel+Decorative:wght@700&family=Kiwi+Maru:wght@400;500&display=swap">
@@ -55,7 +55,7 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
 // The promo film: a pop-up book on a candlelit desk opens, the camera dives through its paper curtains into the book, and travels
 // a paper-craft world (the canal harbour, the volcano, the turning globe, a forest, the castle under fireworks); a match cut on the
 // castle brings it back to the book, which closes on the title. Everything is drawn here, as in the mock's opening pop-up book.
-// Time drives everything (PROMO.frameAt(ms)), so tools/promo/record.py can render it frame by frame; opened in a browser it plays live.
+// Time drives everything (PROMO.frameAt(ms)), so promo/record.py can render it frame by frame; opened in a browser it plays live.
 (async () => {
   "use strict";
   const q = new URLSearchParams(location.search), REC = q.has("record");
@@ -82,7 +82,7 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
   await Promise.all(["600 40px Cinzel", "700 40px 'Cinzel Decorative'"].map(f => document.fonts.load(f).catch(() => {}))
     .concat(document.fonts.load("500 40px 'Kiwi Maru'", CAPS.map(c => c[2]).join("") + $("end").textContent).catch(() => {})));
   let D = {};
-  try { D = await (await fetch("mock_data.json")).json(); } catch (e) { /* the map page is painted without the park outlines */ }
+  try { D = await (await fetch("../output/disneysea/mock_data.json")).json(); } catch (e) { /* the map page is painted without the park outlines */ }
 
   const T = THREE;
   const cv = $("cv");
@@ -961,7 +961,7 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
   if (REC) { frameAt(0); document.body.dataset.ready = "1"; return; }
   // live: press to play, in time with the music if it is there
   const play = $("play"); play.hidden = false; frameAt(0);
-  const audio = new Audio("promo/music.m4a");
+  const audio = new Audio("music.m4a");
   play.onclick = () => {
     play.hidden = true;
     let t0 = performance.now(), useAudio = false;

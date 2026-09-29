@@ -18,7 +18,7 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | パーツごとの作り方・数値・確認の結果 | [docs/parts.md](docs/parts.md) |
 | Blender の使い方・コマンド・参考動画 | [docs/blender.md](docs/blender.md) |
 | 作業ルールと確認の記録 | [docs/log.md](docs/log.md) |
-| 宣伝用の動画(絵本の冒険)の中身と作り直し方 | [docs/promo/README.md](docs/promo/README.md) |
+| 宣伝用の動画(絵本の冒険)の中身と作り直し方 | [promo/README.md](promo/README.md) |
 | 電車の仕様 / プラザの資料 / 計画 3 の進み具合 | [docs/train/spec.md](docs/train/spec.md) / [docs/plaza/README.md](docs/plaza/README.md) / [docs/plan3_progress.md](docs/plan3_progress.md) |
 
 ## クイックスタート
@@ -27,10 +27,11 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 
 ```
 src/                 Python のスクリプトすべて(データ取得・加工、モックの書き出し、Blender 用)。コマンドはリポジトリの直下から python src/… で実行する
-tools/               確認用の道具(Blender なしのスモークテスト、航空写真との重ね合わせ)と、宣伝用の動画の書き出し(tools/promo/)
+tools/               確認用の道具(Blender なしのスモークテスト、航空写真との重ね合わせ)
 plateau_data/        元データ(OSM の抜き出し・DEM・階段・水面・火山・テクスチャ)。名前は歴史的なもので、PLATEAU のデータは使っていない
 output/disneysea/    公開するモック(Vercel がこのフォルダをそのまま配信)。mock_template.html が元、tds_outline.html は書き出し結果
   models/            モックに載せる 3D モデル(glTF を JSON に埋め込んだもの)
+promo/               宣伝用の動画(絵本の冒険)と、その書き出しの道具。アプリには含めない(公開しない)
 docs/                詳細文書(status / mock / pipeline / parts / blender / log)と、README・文書で使う画像
 ```
 
