@@ -37,6 +37,9 @@
 !/output/disneysea/tds_outline.html
 !/output/disneysea/train.html
 !/output/disneysea/train_model.js
+!/output/disneysea/manifest.webmanifest
+!/output/disneysea/sw.js
+!/output/disneysea/icons/
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
 # kept only as the Draco copy in models/web/ (src/compress_models.py WEB_ONLY)
