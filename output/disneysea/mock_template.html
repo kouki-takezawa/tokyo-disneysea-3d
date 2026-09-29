@@ -156,15 +156,6 @@ body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-si
   border:1px solid var(--rule)}
 .ridebtn.off{background:#c0392b}
 body.photo .ridebtn{display:none!important}
-.skypop{position:absolute;left:10px;top:50px;z-index:6;width:min(360px,calc(100% - 20px));padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;box-shadow:0 2px 10px rgba(0,0,0,.14)}
-.skyrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.skyrow .mono{font-size:11px;color:var(--muted)}
-.skypop input[type=range]{width:100%;margin:2px 0}
-.skystrip{display:flex;height:22px;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
-.skystrip i{flex:1 1 0;cursor:pointer}
-.skystrip i.cur{outline:2px solid var(--ink);outline-offset:-2px}
-.skyticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:-3px}
-body.photo .skypop{display:none!important}
 .toast{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:8;pointer-events:none;
   background:var(--ink);color:var(--paper);font-size:12.5px;padding:6px 12px;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.2);white-space:nowrap}
 
@@ -364,14 +355,6 @@ body.intro .introfx{opacity:1}
       <button class="btn only-orbit" id="btnFollow" aria-pressed="false" title="リゾートラインの電車をカメラで追う(F)">電車を追う</button>
       <button class="btn only-orbit" id="btnSwap" hidden title="もう一方の電車を追う(T)">2本目へ</button>
       <button class="btn only-3d" id="btnPhoto" title="操作部品を隠す(H)">写真</button>
-      <button class="btn only-3d" id="btnSky" aria-expanded="false" title="空の時刻(0〜24時)">空 <span class="mono" id="skyLbl">13:00</span></button>
-    </div>
-    <div class="skypop glass only-3d" id="skyPop" hidden>
-      <div class="skyrow"><b id="skyPhase">昼</b><span class="mono" id="skyInfo"></span></div>
-      <input type="range" id="skyRange" min="0" max="24" step="0.25" value="13" aria-label="時刻(0〜24時)">
-      <div class="skystrip" id="skyStrip" role="group" aria-label="0時から24時までの空"></div>
-      <div class="skyticks mono"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
-      <div class="skyrow"><button class="btn" id="skyNow">今の時刻</button><button class="btn" id="skyPlay" aria-pressed="false">▶ 進める</button><button class="btn" id="skyNoon">昼</button></div>
     </div>
     <div class="hud tc only-walk"><span class="compass glass mono" id="compass">北 0°</span></div>
     <div class="hud tr only-plan" id="northWrap">
@@ -1552,11 +1535,8 @@ function sunTimes(date = new Date()) {   // sunrise / sunset (h) where the sun c
 }
 const hhmm = h => { const m = Math.round(h * 60) % 1440; return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`; };
 const jstHour = () => { const d = new Date(); return ((d.getUTCHours() + 9) % 24) + d.getUTCMinutes() / 60; };
-const SKY = { hour: 13, cur: null, envQ: null };
-{ const q = new URLSearchParams(location.search).get("t");   // ?t=19:30 (or 19.5) opens at that hour, ?t=now at the real Japan time
-  const m = q && q.match(/^(\d{1,2})(?::(\d\d))?$/), f = q && parseFloat(q);
-  SKY.hour = q === "now" ? jstHour() : m ? Math.min(24, +m[1] + (+m[2] || 0) / 60) : f >= 0 && f <= 24 ? f : 13;
-  SKY.cur = skyCalc(SKY.hour); }
+const SKY = { hour: 12, cur: null, envQ: null };
+SKY.cur = skyCalc(SKY.hour);   // the sky is fixed at noon (12:00)
 function makeSkyEnv(T, renderer, withSun = true, s = SKY.cur) {
   const v3 = a => new T.Vector3(...a), gnd = mixRGB([0.05, 0.06, 0.09], [0.30, 0.32, 0.30], s.day);
   const sc = new T.Scene();
@@ -1573,7 +1553,7 @@ function makeSkyEnv(T, renderer, withSun = true, s = SKY.cur) {
   pm.dispose();
   return tex;
 }
-// a big sky ball round the camera: gradient, sun, moon, stars; below the horizon it is the paper (by day) or a dark ground (by night)
+// a big sky ball round the camera (radius well inside the walking camera's far plane of 4000 m, or the middle of the view is cut out): gradient, sun, moon, stars; below the horizon it is the paper (by day) or a dark ground (by night)
 function makeSkyDome(T) {
   const u = n => ({ value: new T.Vector3(...n) });
   const mat = new T.ShaderMaterial({
@@ -1595,7 +1575,7 @@ function makeSkyDome(T) {
         gl_FragColor = vec4(c, 1.);
       }`,
   });
-  const mesh = new T.Mesh(new T.SphereGeometry(4200, 48, 24), mat);
+  const mesh = new T.Mesh(new T.SphereGeometry(1500, 48, 24), mat);
   mesh.frustumCulled = false; mesh.renderOrder = -10;
   return { mesh, mat };
 }
@@ -3913,39 +3893,6 @@ function setPhoto(v) {
 }
 $("btnPhoto").onclick = () => setPhoto(true);
 $("photoExit").onclick = () => setPhoto(false);
-/* ---------- the sky panel: time of day, 0:00 - 24:00 ---------- */
-{
-  const rng = $("skyRange"), strip = $("skyStrip"), rgb = a => `rgb(${a.map(v => Math.round(v * 255)).join(",")})`;
-  const st = sunTimes();
-  const cells = [];
-  for (let h = 0; h <= 24; h++) {   // one cell per hour: zenith over horizon colour, as the sky looks from the ground
-    const c = skyCalc(h), i = document.createElement("i");
-    i.style.background = `linear-gradient(${rgb(c.zen)},${rgb(c.hor)})`;
-    i.title = `${h}時 ${c.phase}(太陽高度 ${Math.round(c.el)}°)`;
-    i.onclick = () => setHour(h);
-    strip.appendChild(i); cells.push(i);
-  }
-  function setHour(h) {
-    SKY.hour = h = Math.min(24, Math.max(0, h)); SKY.cur = skyCalc(h);
-    rng.value = h; $("skyLbl").textContent = hhmm(h);
-    $("skyPhase").textContent = `${hhmm(h)} ${SKY.cur.phase}`;
-    $("skyInfo").textContent = `太陽高度 ${Math.round(SKY.cur.el)}° ・ 日の出 ${st.rise != null ? hhmm(st.rise) : "-"} 日の入 ${st.set != null ? hhmm(st.set) : "-"}`;
-    cells.forEach((c, i) => c.classList.toggle("cur", i === Math.round(h)));
-    applySky();
-  }
-  window.TDS_SETHOUR = setHour;   // for checking: TDS_SETHOUR(19.5)
-  let timer = 0;
-  const play = on => {
-    clearInterval(timer); $("skyPlay").setAttribute("aria-pressed", on); $("skyPlay").textContent = on ? "■ 止める" : "▶ 進める";
-    if (on) timer = setInterval(() => setHour(SKY.hour >= 24 ? 0 : SKY.hour + 0.1), 100);   // a whole day in 40 s
-  };
-  rng.oninput = () => { play(false); setHour(+rng.value); };
-  $("skyNow").onclick = () => { play(false); setHour(Math.round(jstHour() * 4) / 4); };
-  $("skyNoon").onclick = () => { play(false); setHour(13); };
-  $("skyPlay").onclick = () => play($("skyPlay").getAttribute("aria-pressed") !== "true");
-  $("btnSky").onclick = () => { const p = $("skyPop"); p.hidden = !p.hidden; $("btnSky").setAttribute("aria-expanded", !p.hidden); };
-  setHour(SKY.hour);
-}
 // the view lives in the URL (#map/x,y,scale  #orbit/target,camera  #walk/x,y,yaw,pitch,view) so it can be shared
 function stateHash() {
   if (mode === "plan") return `#map/${((W / 2 - ox) / sc).toFixed(1)},${((oy - H / 2) / sc).toFixed(1)},${sc.toFixed(3)}`;
