@@ -1810,7 +1810,97 @@ async function init3D() {
   };
   three.finishGrow = () => { for (const [obj, g] of growing) { obj.scale.y = 1; g.done?.(); } growing.clear(); };
 
-  // the opening: close on the station, the layers rise, pull back over the park, the title; a tap anywhere ends it
+
+  // the magic book: it floats in, opens by itself, and the park (a pop-up picture book) rises from its pages
+  const BOOK_IN_MS = 1300, BOOK_OPEN_MS = 2400;
+  let BOOK_PULL = 1.7;   // how far the camera starts back (more on a narrow screen)
+  const book = (() => {
+    const pw = PB[2] - PB[0], ph2 = PB[3] - PB[1], W = Math.max(pw, ph2) * 0.85, hw = W / 2, dep = W * 0.8, pgH = W * 0.028, cvH = W * 0.008;
+    const grp = new T.Group(), mats = [];
+    const mk = (c, map) => { const m = new T.MeshBasicMaterial({ color: c, map: map || null, transparent: true }); mats.push(m); return m; };
+    const box = (w, h, d, m, x, y, z, parent) => { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x, y, z); parent.add(b); return b; };
+    const paint = (w, h, fn) => { const c = document.createElement("canvas"); c.width = w; c.height = h; fn(c.getContext("2d"), w, h); const t = new T.CanvasTexture(c); t.anisotropy = 4; return t; };
+    const pageTex = mirror => paint(512, 640, (g, w, h) => {   // a picture-book page: cream paper, a gold frame, a little castle
+      const gr = g.createLinearGradient(mirror ? w : 0, 0, mirror ? 0 : w, 0); gr.addColorStop(0, "#fbf1d6"); gr.addColorStop(1, "#efdcae");
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#c99a3c"; g.lineWidth = 3; g.strokeRect(26, 26, w - 52, h - 52); g.lineWidth = 1; g.strokeRect(36, 36, w - 72, h - 72);
+      g.fillStyle = "rgba(201,154,60,.75)";
+      if (mirror) {
+        g.beginPath(); g.moveTo(150, 330); g.lineTo(150, 250); g.lineTo(175, 250); g.lineTo(175, 220); g.lineTo(200, 190); g.lineTo(225, 220); g.lineTo(225, 250);
+        g.lineTo(290, 250); g.lineTo(290, 180); g.lineTo(320, 130); g.lineTo(350, 180); g.lineTo(350, 250); g.lineTo(375, 250); g.lineTo(375, 330); g.closePath(); g.fill();
+        g.fillStyle = "#e9b44c"; for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(90 + Math.random() * 330, 80 + Math.random() * 170, 2 + Math.random() * 3, 0, 6.3); g.fill(); }
+      } else {
+        g.strokeStyle = "rgba(122,96,48,.55)"; g.lineWidth = 3;
+        for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(84, 110 + i * 46); g.lineTo(w - 84 - (i % 3 === 2 ? 90 : 0), 110 + i * 46); g.stroke(); }
+      }
+    });
+    const coverTex = paint(512, 640, (g, w, h) => {   // the cover: deep violet leather, a gold frame and sun, the title
+      const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, "#4b2a80"); gr.addColorStop(1, "#2b1650");
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.strokeStyle = "#e0b04a"; g.lineWidth = 6; g.strokeRect(24, 24, w - 48, h - 48); g.lineWidth = 2; g.strokeRect(40, 40, w - 80, h - 80);
+      g.save(); g.translate(w / 2, h * 0.42); g.fillStyle = "#e9b44c";
+      for (let i = 0; i < 16; i++) { g.rotate(Math.PI / 8); g.beginPath(); g.moveTo(60, -8); g.lineTo(140, 0); g.lineTo(60, 8); g.closePath(); g.fill(); }
+      g.beginPath(); g.arc(0, 0, 52, 0, 6.3); g.fillStyle = "#f6d77e"; g.fill(); g.lineWidth = 4; g.strokeStyle = "#b78628"; g.stroke(); g.restore();
+      g.textAlign = "center"; g.fillStyle = "#f6dc8e"; g.font = "600 34px Cinzel, serif"; g.fillText("DISNEY", w / 2, h * 0.78);
+      g.font = "700 44px 'Cinzel Decorative', Cinzel, serif"; g.fillText("ADVENTURE", w / 2, h * 0.78 + 56);
+    });
+    const leather = mk(0x33195e), leatherDk = mk(0x23113f), paper = mk(0xf1e3bd), gold = mk(0xd9a83e);
+    const mkCover = mk(0xffffff, coverTex);
+    mkCover.side = T.DoubleSide;
+    const buildSide = (parent, sign, mirror) => {
+      const cx = sign * hw / 2;
+      box(hw, cvH, dep + 10, leather, cx, -pgH - cvH / 2, 0, parent);   // cover board
+      box(hw - 8, pgH, dep - 6, paper, cx - sign * 2, -pgH / 2, 0, parent);   // the pages
+      box(hw + 1, cvH * 0.6, 5, gold, cx, -pgH - cvH / 2, dep / 2 + 5, parent); box(hw + 1, cvH * 0.6, 5, gold, cx, -pgH - cvH / 2, -dep / 2 - 5, parent);
+      const top = new T.Mesh(new T.PlaneGeometry(hw - 22, dep - 24), mk(0xffffff, pageTex(mirror)));   // the open page
+      top.rotation.x = -Math.PI / 2; top.position.set(cx - sign * 3, 0.4, 0); parent.add(top);
+      if (sign < 0) {   // the outside of the cover: on the underside of the left board, which turns up when the book is closed
+        const c = new T.Mesh(new T.PlaneGeometry(hw - 10, dep), mkCover);
+        c.rotation.x = Math.PI / 2; c.position.set(cx, -pgH - cvH - 0.4, 0); parent.add(c);
+      }
+    };
+    grp.position.set(cxp, -0.6, -cyp);
+    const right = new T.Group(); buildSide(right, 1, false); grp.add(right);
+    const left = new T.Group(); buildSide(left, -1, true); grp.add(left);
+    box(10, pgH + cvH * 2, dep + 10, leatherDk, 0, -(pgH + cvH * 2) / 2 + pgH, 0, grp);
+    left.rotation.z = -Math.PI;
+    // the glow and the sparkles that rise out of the pages
+    const spr = (size, draw) => new T.CanvasTexture(paint(size, size, draw).image);
+    const glowTex = spr(128, (g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); r.addColorStop(0, "rgba(255,244,200,1)"); r.addColorStop(.35, "rgba(255,214,120,.55)"); r.addColorStop(1, "rgba(255,190,90,0)"); g.fillStyle = r; g.fillRect(0, 0, w, w); });
+    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
+    glow.scale.setScalar(W * 1.1); glow.position.set(0, pgH + W * 0.05, 0); grp.add(glow);
+    const N = 90, pos = new Float32Array(N * 3), seed = [];
+    for (let i = 0; i < N; i++) seed.push({ x: (Math.random() - .5) * hw * 1.6, z: (Math.random() - .5) * dep * .8, s: .05 + Math.random() * .25, o: Math.random() });
+    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pos, 3));
+    const starTex = spr(64, (g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); r.addColorStop(0, "rgba(255,250,225,1)"); r.addColorStop(.3, "rgba(255,214,120,.7)"); r.addColorStop(1, "rgba(255,200,100,0)"); g.fillStyle = r; g.fillRect(0, 0, w, w); });
+    const pm = new T.PointsMaterial({ map: starTex, size: W * 0.03, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const pts = new T.Points(geo, pm); pts.frustumCulled = false; grp.add(pts);
+    const eo = k => 1 - Math.pow(1 - k, 3), eio = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    return {
+      grp, W,
+      step(el, fade) {   // el: ms since the start; fade: 1 = fully there, 0 = gone
+        const a = eo(Math.min(1, el / BOOK_IN_MS)), o = a * fade;
+        const k = Math.min(1, Math.max(0, (el - BOOK_IN_MS) / BOOK_OPEN_MS)), open = eio(k);
+        grp.scale.setScalar(0.72 + 0.28 * a);
+        grp.position.y = -0.6 + (1 - a) * 60 + (el < BOOK_IN_MS + BOOK_OPEN_MS ? Math.sin(el / 420) * 5 * (1 - open) : 0);
+        grp.position.x = cxp - hw / 2 * (1 - open);   // closed, the book sits in the middle; opening, the spine stays put
+        left.rotation.z = -Math.PI * (1 - open);
+        left.position.y = Math.sin(Math.PI * open) * W * 0.02;
+        mats.forEach(m => m.opacity = o);
+        grp.visible = o > 0.001;
+        const gl = Math.sin(Math.PI * Math.min(1, k * 1.15)) * 0.9 + (k >= 1 ? 0.18 : 0);
+        glow.material.opacity = Math.min(1, gl) * fade; glow.position.y = pgH + W * 0.05 + open * W * 0.05;
+        pm.opacity = Math.min(1, (a * 0.6 + open * 0.6)) * fade;
+        const p = geo.attributes.position.array;
+        for (let i = 0; i < N; i++) { const q = seed[i], u = ((el / 1000) * q.s + q.o) % 1; p[i * 3] = q.x + Math.sin(u * 9 + i) * 14; p[i * 3 + 1] = pgH + u * W * (0.25 + 0.35 * open); p[i * 3 + 2] = q.z; }
+        geo.attributes.position.needsUpdate = true;
+      },
+      dispose() { scene.remove(grp); },
+    };
+  })();
+  scene.add(book.grp); book.grp.visible = false;
+
+  // the opening: the book opens, the park rises out of it, the title; once "Tap to start" shows, a tap ends it
   let intro = null, modelsStarted = false;
   const startModels = () => { if (modelsStarted) return; modelsStarted = true; if (D.models && D.models.length) loadModels(T, scene, root); };
   const rise = done => { three.grow(root, RISE_MS); if (growing.has(root)) growing.get(root).done = done; else done(); };
@@ -1908,12 +1998,21 @@ async function init3D() {
     toast("");
     if (mode === "walk") { document.body.classList.remove("intro"); root.scale.y = 1; startModels(); return; }
     if (!withIntro) { document.body.classList.remove("intro"); rise(startModels); return; }
-    intro = { el: 0, last: 0, t: ctl.target.clone() };
+    intro = { el: 0, last: 0, t: ctl.target.clone(), rising: false, ready: false, riseAt: 0 };
+    BOOK_PULL = cam.aspect < 1 ? 2.5 : 1.7;
+    intro.len = cam.position.distanceTo(intro.t);   // the camera starts pulled back so the whole book is in frame
+    cam.position.sub(intro.t).multiplyScalar(BOOK_PULL).add(intro.t);
     ctl.enabled = false; cam.lookAt(intro.t);
-    rise(() => {   // up: the models, then the title
+    root.scale.y = 0.001;   // the park is not there yet: the book comes first
+    book.step(0, 1); three.dirty = true;
+  };
+  const riseFromBook = () => {   // the book is open: the park pops up out of its pages, then the models, then the title
+    intro.rising = true; intro.riseAt = intro.el;
+    rise(() => {
       startModels();
       if (!intro) return;
       logo.hidden = false; requestAnimationFrame(() => { logo.classList.add("show"); dust.start(); });
+      intro.ready = true;   // only now does a tap count
     });
   };
   const endIntro = () => {   // the tap: zoom down onto the station; the controls come back when it lands
@@ -1924,6 +2023,7 @@ async function init3D() {
   };
   const landIntro = () => {
     cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix();
+    book.dispose();
     intro = null; ctl.enabled = true; ctl.update();
     document.body.classList.remove("intro");
     show("walk");   // the opening ends by stepping down into the walk
@@ -1932,12 +2032,16 @@ async function init3D() {
   const stepIntro = now => {
     const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;   // slow frames cannot skip it
     const z = intro.zoom;
-    if (!z) {   // circling the park slowly under the title
-      cam.position.sub(intro.t).applyAxisAngle(new T.Vector3(0, 1, 0), dt * 0.00005).add(intro.t); cam.lookAt(intro.t);
+    if (!z) {   // circling the park slowly: over the book, then under the title
+      book.step(intro.el, 1);
+      if (!intro.rising && intro.el >= BOOK_IN_MS + BOOK_OPEN_MS * 0.55) riseFromBook();
+      const pull = 1 + (BOOK_PULL - 1) * (1 - (intro.rising ? Math.min(1, (intro.el - intro.riseAt) / RISE_MS) : 0));   // back to the usual distance as the park rises
+      cam.position.sub(intro.t).applyAxisAngle(new T.Vector3(0, 1, 0), dt * 0.00005).setLength(intro.len * pull).add(intro.t); cam.lookAt(intro.t);
       return;
     }
     z.el += dt;
     const k = Math.min(1, z.el / ZOOM_MS), e = zoomEase(k);
+    book.step(intro.el, 1 - Math.min(1, k * 2.5));
     ctl.target.lerpVectors(z.t0, z.t, Math.min(1, e * 1.35));   // the eye settles on the station first, the camera follows
     cam.position.lerpVectors(z.p0, z.p, e);
     cam.position.y += Math.sin(Math.PI * e) * 40;
@@ -1946,11 +2050,11 @@ async function init3D() {
     if (k >= 1) landIntro();
   };
   document.addEventListener("pointerdown", () => {   // a tap anywhere: down to the station
-    if (!intro || intro.zoom) return;
+    if (!intro || intro.zoom || !intro.ready) return;   // taps before "Tap to start" appears do nothing
     three.finishGrow(); startModels(); endIntro();
   }, true);
   three.skipIntro = () => {   // walking needs the real heights at once
-    if (intro) { if (intro.zoom) { cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix(); } intro = null; document.body.classList.remove("intro"); hideLogo(); ctl.enabled = true; }
+    if (intro) { if (intro.zoom) { cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix(); } book.dispose(); intro = null; document.body.classList.remove("intro"); hideLogo(); ctl.enabled = true; }
     if (!modelsStarted) { three.finishGrow(); root.scale.y = 1; startModels(); }
     else three.finishGrow();
   };
