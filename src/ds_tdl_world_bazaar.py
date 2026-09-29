@@ -27,6 +27,11 @@ Sources (looked at only; nothing copied into the repository):
     corner, two balconies with red fascias and navy railings, cream rusticated floors under rose-and-white awnings, the
     navy-and-gold sign, the Mickey head on the corner, the tower with its flag; on the jut of the OSM block 196943265
     beside Center Street's east exit, facing out. The covered way beside it (OSM 1338996034) is a lower glass hall.
+  * Sweetheart Cafe (the user's photos 2026-09-29): the round tower with its porch, two drums and the ribbed bronze
+    dome; teal cast-iron columns under scalloped arches with fan fretwork, the balcony with globe lamps, red-framed
+    arched windows, pink striped awnings, dormers in a grey-green mansard with cresting, the red oval bulb sign;
+    inside cream walls, chandeliers and the pink-panelled counter. On the OSM block 72216845's corner west of Ice
+    Cream Cones (the block's round bulge is the tower's porch).
 
 Frame: the World Bazaar frame of ds_tdl_entrance (WB): +x along the entrance front (left to right from the plaza),
 +y towards the plaza, so Main Street runs to -y.
@@ -138,6 +143,14 @@ def wbz_materials(M):
     M["gaw_navy"] = P("st_wbz_gaw_navy", (0.07, 0.13, 0.36), 0.45)
     M["gaw_rose"] = P("st_wbz_gaw_rose", (0.84, 0.50, 0.44), 0.8)
     M["gaw_gold"] = P("st_wbz_gaw_gold", (0.95, 0.66, 0.20), 0.35, Metallic=0.5)
+    # the Sweetheart Cafe (the user's photos 2026-09-29): apricot walls, dark teal iron, the grey-green mansard, the
+    # bronze dome; cream walls inside
+    mat, nt, b = _principled("st_wbz_swc_wall", (0.95, 0.83, 0.64), 0.75); _mottle(nt, b, (0.95, 0.83, 0.64), 6.0, 0.95, 0.02)
+    M["swc_wall"] = mat
+    M["swc_teal"] = P("st_wbz_swc_teal", (0.08, 0.24, 0.24), 0.45)
+    M["swc_roof"] = P("st_wbz_swc_roof", (0.38, 0.46, 0.42), 0.6)
+    M["swc_dome"] = P("st_wbz_swc_dome", (0.34, 0.32, 0.22), 0.45, Metallic=0.4)
+    M["swc_in"] = P("st_wbz_swc_in", (0.96, 0.91, 0.77), 0.7)
     return M
 
 
@@ -976,14 +989,12 @@ SHOP_STYLE = {
                                            win_awn=False, signmat="brass", balcony=False, oriel=False, pilasters=True, quoins=True),
     "MAGIC SHOP": dict(wall="lilac", trim="maroon", floors=3, roof="gable", win="arch", awning=("aw_red", None), win_awn=False,
                        signmat="t_maroon", balcony=False, oriel=True, shutters=False),
-    "SWEETHEART CAFE": dict(wall="pink", trim="white", floors=2, roof="mansard", roofmat="mauve", win="arch",
-                            awning=("aw_red", "aw_white"), win_awn=False, balcony=True, oriel=False, signmat="t_maroon"),
     "BIBBIDI BOBBIDI BOUTIQUE": dict(wall="lilac", trim="white", floors=3, roof="pediment", turret=1, win="arch", awning=None,
                                      win_awn=True, wawn=("aw_blue", "aw_white"), balcony=False, oriel=True, signmat="t_blue"),
     "RESTAURANT HOKUSAI": dict(wall="sand", trim="dkgreen", floors=3, roof="parapet", win="pair", awning=("aw_green", None),
                                win_awn=False, shutters=True, balcony=False, oriel=False, signmat="t_dkgreen", quoins=True),
 }
-# (Ice Cream Cones and the Refreshment Corner are the castle end's corner buildings, build_exit; Restaurant Hokusai's
+# (Ice Cream Cones, the Sweetheart Cafe and the Refreshment Corner are the castle end's corner buildings, build_exit; Restaurant Hokusai's
 #  street entrance is placed by estimate -- OSM has no point for it)
 
 
@@ -1073,8 +1084,10 @@ def outer_run(name, L, H, wall, trim, rng):
         obj_bm(f"ST_WBZ_{name}_{k}", bm_, {"wall": wall, "trim": trim, "glass": "win_dark", "display": "display"}[k])
 
 
-GAZEBO_CUT = {72216845: (lambda p: p[1] < -110.5 and -15.0 < p[0] < -6.0, [(-9.4, -112.0), (-11.9, -112.0), (-11.9, -115.3)]),
-              196943265: (lambda p: p[1] < -109.5 and 5.0 < p[0] < 15.0, [(14.6, -115.3), (14.6, -108.5), (8.9, -108.5)])}
+# (the second cut on 72216845: the Sweetheart Cafe has its own mansard over the corner, sweetheart_cafe)
+GAZEBO_CUT = {72216845: [(lambda p: p[1] < -110.5 and -15.0 < p[0] < -6.0, [(-9.4, -112.0), (-11.9, -112.0), (-11.9, -115.3)]),
+                         (lambda p: p[1] < -105.5 and -51.0 < p[0] < -29.7, [(-29.6, -112.0), (-29.6, -104.8), (-48.2, -104.8)])],
+              196943265: [(lambda p: p[1] < -109.5 and 5.0 < p[0] < 15.0, [(14.6, -115.3), (14.6, -108.5), (8.9, -108.5)])]}
 
 
 def build_block_walls():
@@ -1094,11 +1107,11 @@ def build_block_walls():
         H = float(str(w["tags"].get("height", "8.5")).replace("m", ""))
         roof = pts
         if bid in GAZEBO_CUT:                             # the roof stops short of the corner gazebos (they have their own)
-            cut, new = GAZEBO_CUT[bid]
-            raw = [to_wb(p) for p in w["pts"][:-1]]
-            k0 = next(i for i, p in enumerate(raw) if cut(p))
-            raw = [p for p in raw if not cut(p)]
-            roof = raw[:k0] + new + raw[k0:]
+            roof = [to_wb(p) for p in w["pts"][:-1]]
+            for cut, new in GAZEBO_CUT[bid]:
+                k0 = next(i for i, p in enumerate(roof) if cut(p))
+                roof = [p for p in roof if not cut(p)]
+                roof = roof[:k0] + new + roof[k0:]
         prism(f"ST_WBZ_block{bid}_roof", [roof], H - 0.2, H, "shingle")
         for i in range(len(pts)):
             a, b = pts[i], pts[(i + 1) % len(pts)]
@@ -1109,6 +1122,8 @@ def build_block_walls():
             ny = (b[0] - a[0]) / L                         # the wall's outward normal's y (towards the plaza: +y)
             if mid[1] < -105.0 and (abs(mid[0]) < 30.0 and ny < -0.5 or math.hypot(abs(mid[0]) - 9.8, mid[1] + 113.5) < 5.5):
                 continue                                  # the exit's corner buildings (build_exit)
+            if mid[1] < -104.0 and -51.0 < mid[0] < -29.7:
+                continue                                  # the Sweetheart Cafe (sweetheart_cafe)
             if bid == 196943265 and math.hypot(mid[0] - GAW_EDGE[0][0], mid[1] - GAW_EDGE[0][1]) < GAW_EDGE[1]:
                 continue                                  # the Great American Waffle Company (waffle_company)
             if ny > 0.5 and mid[1] > -30.0:
@@ -1390,11 +1405,12 @@ def xform_new(P, M, fn):
             v.tag = False
 
 
-def icc_counter(bmk, L, body, cols, signs=(), cases=(), rng=None):
+def icc_counter(bmk, L, body, cols, signs=(), cases=(), rng=None, band="icc_salmon", goods="cones"):
     """One run of the serving counter (photos 4..6) in local terms: u 0..L along it, the guests' face on v = 0 (+v is
     the guests' side), z up. The white counter (body: u range) with pink panels and rose diamonds, white columns on it
     carrying a fretwork frieze with brackets, a salmon band with white frames and oval medallions, a white cornice;
-    signs: the oval menu signs (u); cases: the glass cases of cones on the counter (u0, u1)."""
+    signs: the oval menu signs (u); cases: the glass cases on the counter (u0, u1) with cones or (goods "cakes") cakes;
+    band: the band's material (the Sweetheart Cafe's is cream)."""
     b0, b1 = body
     bm_box(bmk("t_white"), b0, b1, -0.6, 0.0, 0.06, 0.95)
     bm_box(bmk("t_cream"), b0, b1, -0.55, -0.05, 0.0, 0.06)
@@ -1425,7 +1441,7 @@ def icc_counter(bmk, L, body, cols, signs=(), cases=(), rng=None):
             bm_lathe(bmk("t_white"), [(0, 0), (0.03, 0), (0.02, -0.14), (0, -0.18)], 6, T(a + (b_ - a) * j / 6, -0.2, zc - 0.02))
         globe_lamp_bm(bmk("lamp"), (a + b_) / 2, -0.4, zc - 0.05, 0.06)
     bm_box(bmk("t_white"), 0.0, L, -0.62, 0.05, zc, zc + 0.15)                     # the beam
-    bm_box(bmk("icc_salmon"), 0.0, L, -0.62, 0.0, zc + 0.15, 3.35)                 # the band
+    bm_box(bmk(band), 0.0, L, -0.62, 0.0, zc + 0.15, 3.35)                         # the band
     for z0 in (zc + 0.15, 3.29):
         bm_box(bmk("t_white"), 0.0, L, 0.0, 0.05, z0, z0 + 0.06)
     for c in cols:
@@ -1448,7 +1464,11 @@ def icc_counter(bmk, L, body, cols, signs=(), cases=(), rng=None):
         bm_box(bmk("brass"), a, b_, -0.55, -0.05, 1.42, 1.44)
         for v in (-0.4, -0.2):
             u = a + 0.12
-            while u < b_ - 0.1:
+            while goods == "cakes" and u < b_ - 0.1:
+                bm_lathe(bmk(rng.choice(("m_brown", "m_pink", "m_white", "m_yellow", "icc_waffle"))),
+                         [(0, 0), (0.065, 0), (0.065, 0.07), (0, 0.07)], 10, T(u, v, 1.06))
+                u += 0.17
+            while goods == "cones" and u < b_ - 0.1:
                 bm_lathe(bmk("icc_waffle"), [(0, 0), (0.005, 0), (0.04, 0.13), (0, 0.13)], 8, T(u, v, 1.08))
                 bm_lathe(bmk(rng.choice(("m_pink", "m_white", "m_brown", "m_green", "m_yellow", "icc_pink"))),
                          [(0, -0.05)] + [(0.05 * math.sin(math.pi * i / 6), -0.05 * math.cos(math.pi * i / 6)) for i in range(1, 6)] + [(0, 0.05)],
@@ -1762,7 +1782,8 @@ def ice_cream_cones():
 
 def build_exit():
     """The castle end's corner buildings (the user's photos): east the Refreshment Corner (red brick, veranda,
-    umbrellas) with an octagonal pavilion on its corner by the arches; west Ice Cream Cones (ice_cream_cones)."""
+    umbrellas) with an octagonal pavilion on its corner by the arches; west Ice Cream Cones (ice_cream_cones) and on the
+    corner beyond it the Sweetheart Cafe (sweetheart_cafe)."""
     with frame("EXIT_1", 29.0, -115.3, 180.0):
         Q = {k: bmesh.new() for k in EXIT_MATS}
         exit_building(Q, 16.5, "brick", "REFRESHMENT CORNER", True)
@@ -1777,6 +1798,8 @@ def build_exit():
         obj_bm(f"ST_WBZ_exitgazebo1_{k}", bm_, EXIT_MATS[k], smooth=(k == "lamp"))
     with frame("ICC", ICC["x"], ICC["y"], 180.0):
         ice_cream_cones()
+    with frame("SWC", SWC["x"], SWC["y"], 180.0):
+        sweetheart_cafe()
     with frame("GAW", GAW["x"], GAW["y"], GAW["ang"]):
         waffle_company()
 
@@ -2103,6 +2126,482 @@ def waffle_company():
 
 
 # ================================================================ 3. paving and street furniture
+# ---------------------------------------------------------------- Sweetheart Cafe (the user's photos 2026-09-29)
+# West of Ice Cream Cones on the same block (OSM 72216845, the point WB (-34.4, -111.5)), its corner towards
+# Adventureland. Its own frame (SWC): origin where Ice Cream Cones ends (WB (-29.6, -112.0)), turned 180 deg as ICC:
+# +x west along the front that faces the hub, +y out towards the hub. The OSM outline takes in the arcades, so the
+# walls stand 3.4 m behind it: the front (x 0 .. C) meets the west face (from C on along SWC_DW, LW long) at an obtuse
+# angle, and the round tower stands in front of that corner (the block's round bulge, radius ~4.3 = the tower's porch).
+# From the photos: dark teal cast-iron columns under wide scalloped arches with white fan fretwork in cream spandrels;
+# the balcony on the arcade with a dark iron railing and globe lamps on posts; apricot walls, white trim; red-framed
+# arched windows with fanlights, pink-and-white striped awnings upstairs, the window heads rising as dormers into a
+# grey-green mansard with iron cresting; the tower: a round porch, a storey of awninged windows, a white cornice, a
+# narrower drum of small arched windows, a pink band and a ribbed bronze dome with a finial; the red oval sign with
+# bulbs over the door; planters; umbrellas on the west terrace. Inside (photos 6..8): cream walls, red pilaster
+# strips, chandeliers, a white counter with pink panels under a fretwork canopy, the menu boards hung over it.
+SWC = dict(x=-29.6, y=-112.0, C=(12.7, 0.0), LW=9.35, TC=(13.2, 2.7), RP=3.9, cv=3.0, z1=4.45, zc=7.35, top=9.4, back=-7.2)
+_dw = math.hypot(0.633, -0.774)
+SWC_DW = (0.633 / _dw, -0.774 / _dw)                     # along the west face, away from the corner
+SWC_NW = (-SWC_DW[1], SWC_DW[0])                          # the west face's outward normal
+SWC_JOG = (-49.9, -104.9)                                 # (WB) where the block's outline goes on past the café
+SWC_MATS = {"wall": "swc_wall", "white": "t_white", "cream": "t_cream", "teal": "swc_teal", "iron": "swc_teal", "navy": "swc_teal",
+            "red": "aw_red", "awhite": "aw_white", "pink": "icc_pink", "glass": "win_dark", "shopglass": "shopglass",
+            "gold": "gaw_gold", "lamp": "lamp", "walk": "walk", "roof": "swc_roof", "dome": "swc_dome", "leaf": "leaf"}
+
+
+def swc_off(o):
+    """The corner of the front and the west face with both walls moved out by o (SWC frame)."""
+    (cx, cy), (nx, ny) = SWC["C"], SWC_NW
+    return (cx + (o - (o - cy) * ny) / nx, o)
+
+
+def swc_west(o, y):
+    """The point at y (SWC) on the west face's wall moved out by o."""
+    (cx, cy), (nx, ny) = SWC["C"], SWC_NW
+    return (cx + (o - (y - cy) * ny) / nx, y)
+
+
+def circ_t(p, d, c, r, far):
+    """Where the line p + t d (d a unit vector) crosses the circle (c, r): the far or the near crossing's t."""
+    fx, fy = p[0] - c[0], p[1] - c[1]
+    b = fx * d[0] + fy * d[1]; disc = math.sqrt(max(0.0, b * b - (fx * fx + fy * fy - r * r)))
+    return -b + disc if far else -b - disc
+
+
+def arch_fill(bm, u0, u1, zs, rise, ztop, v0, v1):
+    """The wall over an arch (u0 .. u1, springing zs) up to ztop: the spandrels, v0 .. v1 thick."""
+    pts, _ = seg_arc((u0 + u1) / 2, zs, u1 - u0, rise, 16)
+    bm_prism(bm, pts + [(u0, ztop), (u1, ztop)], v0, v1, "xz")
+
+
+def swc_column(P, x, y, z0, z1):
+    """The arcade's dark teal cast-iron column (photo 5): a square base, a slender shaft with a ring low down, a leafy
+    capital under a square abacus."""
+    bm_box(P["teal"], x - 0.2, x + 0.2, y - 0.2, y + 0.2, z0, z0 + 0.5)
+    bm_box(P["teal"], x - 0.24, x + 0.24, y - 0.24, y + 0.24, z0 + 0.5, z0 + 0.58)
+    H = z1 - z0 - 0.58
+    bm_lathe(P["teal"], [(0, 0), (0.14, 0), (0.14, 0.08), (0.1, 0.14), (0.1, 0.9), (0.13, 0.95), (0.13, 1.0), (0.095, 1.05),
+                         (0.085, H - 0.5), (0.11, H - 0.45), (0.12, H - 0.4), (0.2, H - 0.18), (0.24, H - 0.12), (0, H - 0.12)], 12, T(x, y, z0 + 0.58))
+    bm_box(P["teal"], x - 0.26, x + 0.26, y - 0.26, y + 0.26, z1 - 0.12, z1)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        bm_box(P["teal"], x + 0.22 * math.cos(a) - 0.035, x + 0.22 * math.cos(a) + 0.035, y + 0.22 * math.sin(a) - 0.035,
+               y + 0.22 * math.sin(a) + 0.035, z1 - 0.34, z1 - 0.22)
+
+
+def swc_bay(P, u0, u1, v, zs=2.8, rise=0.8, ztop=4.2):
+    """One bay of the arcade's frieze between two columns (u0, u1 on the line v; photos 2, 5): cream spandrels over a
+    wide segmental arch, the arch's white moulding with its scalloped edge, white fan fretwork in the spandrels."""
+    arch_fill(P["wall"], u0, u1, zs, rise, ztop, v - 0.06, v + 0.06)
+    bm_prism(P["white"], arch_band(u0, u1, zs, rise, 0.1, 16), v + 0.06, v + 0.1, "xz")
+    bm_box(P["white"], u0, u1, v + 0.06, v + 0.1, ztop - 0.12, ztop)
+    cx = (u0 + u1) / 2
+    _, (zo, Rr, half) = seg_arc(cx, zs, u1 - u0, rise, 16)
+    n = max(5, int((u1 - u0) / 0.26))
+    for k in range(n):                                    # the scallops: half discs hanging off the arch
+        t = half - 2 * half * (k + 0.5) / n
+        bm_lathe(P["white"], [(0, 0), (0.09, 0), (0.09, 0.04), (0, 0.04)], 8,
+                 T(cx + Rr * math.sin(t), v + 0.06, zo + Rr * math.cos(t)) @ R(-math.pi / 2, "X"))
+    for k in range(11):                                   # the fan: rays from the arch's centre out to the frieze's edges
+        t = -half - 0.3 + (2 * half + 0.6) * k / 10
+        dx, dz = math.sin(t), math.cos(t)
+        s = min((ztop - 0.12 - zo) / dz if dz > 1e-3 else 99.0,
+                ((u1 - 0.1 if dx > 0 else u0 + 0.1) - cx) / dx if abs(dx) > 1e-3 else 99.0)
+        s0 = Rr + 0.12
+        if s > s0 + 0.1:
+            bar(P["white"], (cx + s0 * dx, v + 0.08, zo + s0 * dz), (cx + s * dx, v + 0.08, zo + s * dz), 0.035, 0.03)
+
+
+def swc_window(P, u, w, z0, zs, glass="glass", awning=True, hood=False):
+    """An arched window in the wall plane v = 0 (+v out): a white surround with a sill and a keystone, the red sash with
+    glazing bars and a fanlight; upstairs the pink-and-white striped awning under the arch (photos 1, 9) and (hood) the
+    dormer that carries the window's head up through the cornice into the mansard."""
+    u0, u1 = u - w / 2, u + w / 2; r = w / 2
+    bm_prism(P["white"], arch_band(u0 - 0.03, u1 + 0.03, zs, r + 0.03, 0.15, 16, leg=zs - z0 + 0.03), 0.0, 0.09, "xz")
+    bm_box(P["white"], u0 - 0.26, u1 + 0.26, 0.0, 0.15, z0 - 0.2, z0 - 0.04)
+    bm_box(P["white"], u - 0.09, u + 0.09, 0.0, 0.13, zs + r - 0.02, zs + r + 0.24)
+    bm_prism(P[glass], arch_opening(u0, u1, z0, zs, r, 16), -0.02, 0.01, "xz")
+    bm_prism(P["red"], arch_band(u0 + 0.06, u1 - 0.06, zs, r - 0.06, 0.06, 16, leg=zs - z0), 0.0, 0.05, "xz")
+    bm_box(P["red"], u0, u1, 0.0, 0.05, z0, z0 + 0.07)
+    bm_box(P["red"], u0, u1, 0.0, 0.05, zs - 0.03, zs + 0.03)
+    bm_box(P["red"], u - 0.03, u + 0.03, 0.0, 0.05, z0, zs + r - 0.05)
+    for zz in (z0 + (zs - z0) / 3, z0 + 2 * (zs - z0) / 3):
+        bm_box(P["red"], u0, u1, 0.01, 0.04, zz - 0.015, zz + 0.015)
+    for a in (math.pi / 4, 3 * math.pi / 4):
+        bar(P["red"], (u, 0.025, zs), (u + (r - 0.05) * math.cos(a), 0.025, zs + (r - 0.05) * math.sin(a)), 0.03)
+    if awning:
+        za = zs + 0.02; drop, out = 0.5, 0.6
+        a0, a1 = u0 - 0.1, u1 + 0.1; n = max(4, round((a1 - a0) / 0.14)); s = (a1 - a0) / n
+        for k in range(n):
+            m = P["pink"] if k % 2 == 0 else P["awhite"]
+            p, q = a0 + k * s, a0 + (k + 1) * s
+            lo = [(p, 0.05, za), (q, 0.05, za), (q, out, za - drop), (p, out, za - drop)]
+            bm_loft(m, lo, [(x, y, z + 0.025) for x, y, z in lo])
+            bm_box(m, p, q, out - 0.02, out, za - drop - 0.18, za - drop)
+            bm_lathe(m, [(0, 0), (s / 2, 0), (s / 2, 0.02), (0, 0.02)], 8, T((p + q) / 2, out - 0.02, za - drop - 0.18) @ R(-math.pi / 2, "X"))
+    if hood:
+        zd = SWC["zc"] + 0.95
+        bm_box(P["wall"], u0 - 0.35, u1 + 0.35, -1.3, 0.0, SWC["zc"] - 0.3, zd)
+        bm_prism(P["white"], arch_band(u0 - 0.2, u1 + 0.2, zs, r + 0.2, 0.14, 16, leg=0.35), 0.0, 0.12, "xz")
+        bm_box(P["white"], u0 - 0.5, u1 + 0.5, -1.3, 0.22, zd, zd + 0.14)
+        bm_box(P["roof"], u0 - 0.42, u1 + 0.42, -1.3, 0.14, zd + 0.14, zd + 0.3)
+        bm_lathe(P["white"], [(0, 0), (0.12, 0), (0.08, 0.1), (0.14, 0.25), (0.04, 0.4), (0, 0.45)], 8, T(u, 0.0, zd + 0.3))
+
+
+def swc_door(P, u, w, zs):
+    """The café's door (photos 1, 5): red jambs, a white arched surround, a fanlight; the glazed red leaves stand open
+    inwards (the walk goes in)."""
+    u0, u1 = u - w / 2, u + w / 2; r = w / 2
+    bm_prism(P["white"], arch_band(u0 - 0.03, u1 + 0.03, zs, r + 0.03, 0.15, 16, leg=zs + 0.03), 0.0, 0.09, "xz")
+    bm_box(P["white"], u - 0.09, u + 0.09, 0.0, 0.13, zs + r - 0.02, zs + r + 0.24)
+    for a in (u0, u1 - 0.08):
+        bm_box(P["red"], a, a + 0.08, -0.3, 0.02, 0.0, zs)
+    bm_box(P["red"], u0, u1, -0.3, 0.02, zs - 0.05, zs + 0.05)
+    bm_prism(P["shopglass"], arch_opening(u0, u1, zs, zs, r, 16), -0.17, -0.14, "xz")
+    bm_prism(P["red"], arch_band(u0 + 0.06, u1 - 0.06, zs, r - 0.06, 0.06, 16), -0.2, -0.1, "xz")
+    for a in (math.pi / 4, 3 * math.pi / 4):
+        bar(P["red"], (u, -0.15, zs), (u + (r - 0.05) * math.cos(a), -0.15, zs + (r - 0.05) * math.sin(a)), 0.03)
+    bm_box(P["red"], u - 0.02, u + 0.02, -0.18, -0.12, zs, zs + r - 0.05)
+    bm_box(P["cream"], u0, u1, -0.3, 0.05, 0.0, 0.06)     # the threshold
+    for xj, sg in ((u0, 1), (u1, -1)):                    # the leaves, open against the reveals
+        xa = xj + sg * 0.12; ya, yb = -1.12, -0.32; zt = zs - 0.05
+        for q in ((ya, ya + 0.08, 0.0, zt), (yb - 0.08, yb, 0.0, zt), (ya, yb, 0.0, 0.12), (ya, yb, zt - 0.1, zt), (ya, yb, 0.85, 0.93)):
+            bm_box(P["red"], xa - 0.025, xa + 0.025, *q)
+        bm_box(P["shopglass"], xa - 0.01, xa + 0.01, ya + 0.08, yb - 0.08, 0.12, zt - 0.1)
+
+
+def swc_rail(P, p0, p1, z0, h=1.0):
+    """The balcony's dark iron railing from p0 to p1 (2D): top, middle and bottom rails, close bars, rings."""
+    (x0, y0), (x1, y1) = p0, p1
+    L = math.hypot(x1 - x0, y1 - y0)
+    if L < 0.05:
+        return
+    bar(P["teal"], (x0, y0, z0 + h), (x1, y1, z0 + h), 0.07, 0.05)
+    for zz, w in ((z0 + 0.1, 0.04), (z0 + h - 0.22, 0.03)):
+        bar(P["teal"], (x0, y0, zz), (x1, y1, zz), w)
+    n = max(1, int(L / 0.12))
+    for j in range(n):
+        t = (j + 0.5) / n; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        bm_box(P["teal"], x - 0.011, x + 0.011, y - 0.011, y + 0.011, z0 + 0.1, z0 + h)
+        if j % 4 == 2:                                    # a ring between the upper rails every half metre
+            bm_lathe(P["teal"], [(0.06, 0), (0.08, 0), (0.08, 0.02), (0.06, 0.02)], 10,
+                     T(x, y, z0 + h - 0.11) @ R(math.atan2(y1 - y0, x1 - x0), "Z") @ R(-math.pi / 2, "X"))
+
+
+def swc_lamp(P, x, y, z0):
+    """A globe lamp on a post standing on the balcony's railing (photo 1)."""
+    bm_lathe(P["teal"], [(0, 0), (0.07, 0), (0.07, 0.15), (0.04, 0.25), (0.035, 1.35), (0.06, 1.4), (0.06, 1.46), (0, 1.46)], 8, T(x, y, z0))
+    globe_lamp_bm(P["lamp"], x, y, z0 + 1.62, 0.16)
+
+
+def swc_cresting(P, p0, p1, z):
+    """The iron cresting along the top of the mansard (photos 1, 9): rails, spear bars, posts with balls."""
+    (x0, y0), (x1, y1) = p0, p1
+    L = math.hypot(x1 - x0, y1 - y0)
+    bar(P["teal"], (x0, y0, z + 0.05), (x1, y1, z + 0.05), 0.05)
+    bar(P["teal"], (x0, y0, z + 0.4), (x1, y1, z + 0.4), 0.03)
+    n = max(1, int(L / 0.11))
+    for j in range(n + 1):
+        t = j / n; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        bm_box(P["teal"], x - 0.01, x + 0.01, y - 0.01, y + 0.01, z, z + (0.55 if j % 2 else 0.45))
+    m = max(1, round(L / 1.4))
+    for j in range(m + 1):
+        t = j / m; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        bm_box(P["teal"], x - 0.04, x + 0.04, y - 0.04, y + 0.04, z, z + 0.62)
+        globe_lamp_bm(P["teal"], x, y, z + 0.7, 0.07)
+
+
+def swc_planter(P, u, v):
+    """A cream planter box with a teal foot and a clipped box hedge (photos 1, 2; no round topiary)."""
+    bm_box(P["teal"], u - 0.57, u + 0.57, v - 0.3, v + 0.3, 0.0, 0.1)
+    bm_box(P["cream"], u - 0.55, u + 0.55, v - 0.28, v + 0.28, 0.1, 0.62)
+    bm_box(P["white"], u - 0.58, u + 0.58, v - 0.31, v + 0.31, 0.62, 0.68)
+    for a in (-0.3, 0.3):
+        bm_box(P["white"], u + a - 0.18, u + a + 0.18, v + 0.28, v + 0.29, 0.2, 0.52)
+    bm_box(P["leaf"], u - 0.5, u + 0.5, v - 0.23, v + 0.23, 0.68, 1.05)
+
+
+def swc_face(P, L, cols, rail, ground, up, planters=()):
+    """One face of the café in its own terms (u 0 .. L along it, +v out, the wall's face at v = 0): the wall (holes for
+    the door and the clear windows), plinth, pilasters and panels downstairs; the arcade (columns on v = cv, the
+    scalloped bays, the ceiling, the fascia with dentils); the balcony (railing from rail[0] to rail[1], lamps at the
+    columns); upstairs the arched windows with awnings in their dormers, pilasters, the cornice broken by the dormers.
+    ground: (u, kind, w, z0, zs) with kind "door", "clear" (real glass, the room behind) or "win" (dark glass)."""
+    zc, z1, cv = SWC["zc"], SWC["z1"], SWC["cv"]
+    holes = [(u - w / 2, u + w / 2, z0, zs + w / 2) for u, kind, w, z0, zs in ground if kind != "win"]
+    wall_holes(lambda a, b_, za, zb: bm_box(P["wall"], a, b_, -0.3, 0.0, za, zb), 0.0, L, 0.0, z1, holes)
+    for a, b_, za, zb in holes:
+        arch_fill(P["wall"], a, b_, zb - (b_ - a) / 2, (b_ - a) / 2, zb, -0.3, 0.0)
+    bm_box(P["wall"], 0.0, L, -0.3, 0.0, z1, zc)
+    bm_box(P["white"], 0.0, L, 0.0, 0.06, 0.0, 0.22)
+    bm_box(P["white"], 0.0, L, 0.0, 0.12, 3.9, 4.2)
+    us = sorted(g[0] for g in ground)
+    for a in [0.2] + [(p + q) / 2 for p, q in zip(us, us[1:])] + ([L - 0.2] if L - us[-1] > 1.5 else []):
+        bm_box(P["white"], a - 0.16, a + 0.16, 0.0, 0.09, 0.22, 3.9)
+    for u, kind, w, z0, zs in ground:
+        if kind == "door":
+            swc_door(P, u, w, zs)
+            continue
+        bm_box(P["cream"], u - w / 2 - 0.15, u + w / 2 + 0.15, 0.0, 0.04, 0.22, z0 - 0.24)
+        bm_box(P["white"], u - w / 2, u + w / 2, 0.04, 0.06, 0.32, z0 - 0.34)
+        swc_window(P, u, w, z0, zs, glass="shopglass" if kind == "clear" else "glass", awning=False)
+    # the arcade
+    bm_box(P["walk"], 0.0, L, 0.0, cv + 0.5, 0.0, 0.06)
+    for u in cols:
+        swc_column(P, u, cv, 0.06, 2.95)
+    for a, b_ in zip(cols, cols[1:]):
+        swc_bay(P, a, b_, cv)
+    bm_box(P["cream"], 0.0, L, 0.0, cv + 0.3, 4.2, z1 - 0.1)
+    bm_box(P["white"], 0.0, L, cv - 0.06, cv + 0.4, 4.05, z1 - 0.02)
+    bm_box(P["cream"], 0.0, L, 0.0, cv + 0.4, z1 - 0.1, z1)
+    for k in range(int(L / 0.25)):
+        u = 0.12 + k * 0.25
+        bm_box(P["white"], u - 0.05, u + 0.05, cv + 0.3, cv + 0.38, 3.96, 4.05)
+    swc_rail(P, (rail[0], cv + 0.25), (rail[1], cv + 0.25), z1)
+    for u in cols:
+        if rail[0] - 0.01 <= u <= rail[1] + 0.01:
+            swc_lamp(P, u, cv + 0.25, z1)
+    for u in planters:
+        swc_planter(P, u, cv + 0.85)
+    # upstairs
+    bm_box(P["white"], 0.0, L, 0.0, 0.08, z1, z1 + 0.14)
+    for u in up:
+        swc_window(P, u, 1.2, 4.95, 6.6, hood=True)
+    for a in [0.2] + [(p + q) / 2 for p, q in zip(up, up[1:])] + [L - 0.2]:
+        bm_box(P["white"], a - 0.15, a + 0.15, 0.0, 0.08, z1 + 0.14, zc - 0.1)
+    cur = 0.0
+    for a, b_ in [(u - 0.95, u + 0.95) for u in sorted(up)] + [(L, L)]:
+        if a > cur:
+            bm_box(P["white"], cur, a, 0.0, 0.4, zc - 0.1, zc + 0.25)
+            bm_box(P["white"], cur, a, 0.0, 0.2, zc - 0.25, zc - 0.1)
+            for k in range(int((a - cur) / 0.3)):
+                x = cur + 0.15 + k * 0.3
+                bm_box(P["white"], x - 0.05, x + 0.05, 0.2, 0.32, zc - 0.22, zc - 0.1)
+        cur = b_
+
+
+def swc_tower(P):
+    """The round tower on the corner (photos 1, 3, 9, 10), in the SWC frame: the round porch (teal columns, scalloped
+    bays, the balcony with its railing and lamps), a twelve-sided drum of two storeys (red-framed arched windows, the
+    upper ones under striped awnings), the white bracketed cornice, a narrower drum of small arched windows, the pink
+    band with white dentils, the ribbed bronze dome and its finial."""
+    tx, ty = SWC["TC"]; RP, cv, z1 = SWC["RP"], SWC["cv"], SWC["z1"]; C = SWC["C"]
+    ring = lambda r, n, a0=0.0: [(tx + r * math.cos(a0 + 2 * math.pi * k / n), ty + r * math.sin(a0 + 2 * math.pi * k / n)) for k in range(n)]
+    pol = lambda r, a: (tx + r * math.cos(a), ty + r * math.sin(a))
+
+    def ends(v, r):                                       # the angles where the lines v out of the two faces meet circle r
+        uf = circ_t((0.0, v), (1.0, 0.0), (tx, ty), r, False)
+        pw = (C[0] + v * SWC_NW[0], C[1] + v * SWC_NW[1]); tw = circ_t(pw, SWC_DW, (tx, ty), r, True)
+        a0 = math.atan2(v - ty, uf - tx); a1 = math.atan2(pw[1] + tw * SWC_DW[1] - ty, pw[0] + tw * SWC_DW[0] - tx)
+        return a0, (a1 - 2 * math.pi if a1 > a0 else a1)
+    # the porch: from the front arcade's last column round to the west arcade's first
+    aF, aW = ends(cv, RP)
+    nb = 6
+    angs = [aF + (aW - aF) * k / nb for k in range(nb + 1)]
+    bm_prism(P["walk"], ring(RP + 0.45, 32), 0.0, 0.06, "xy")
+    for a in angs:
+        swc_column(P, *pol(RP, a), 0.06, 2.95)
+    for k in range(nb):
+        (x0, y0), (x1, y1) = pol(RP, angs[k]), pol(RP, angs[k + 1])
+        Lc = math.hypot(x1 - x0, y1 - y0); M = T(x0, y0, 0.0) @ R(math.atan2(y1 - y0, x1 - x0), "Z")
+        xform_new(P, M, lambda: swc_bay(P, 0.0, Lc, 0.0))
+        if k == 0:                                        # the round medallion hung in the first bay (photo 1)
+            Md = T(Lc / 2, 0.12, 3.15) @ R(-math.pi / 2, "X")
+            xform_new(P, M, lambda: (bm_lathe(P["gold"], [(0, 0), (0.45, 0), (0.45, 0.06), (0, 0.06)], 24, Md),
+                                     bm_lathe(P["red"], [(0, 0.06), (0.38, 0.06), (0.38, 0.08), (0, 0.08)], 24, Md),
+                                     bm_lathe(P["gold"], [(0.2, 0.08), (0.24, 0.08), (0.24, 0.1), (0.2, 0.1)], 24, Md)))
+    bm_prism(P["white"], ring(RP + 0.4, 32), 4.05, z1 - 0.02, "xy")
+    bm_prism(P["cream"], ring(RP + 0.3, 32), z1 - 0.1, z1, "xy")
+    nd = int(2 * math.pi * (RP + 0.34) / 0.25)
+    for k in range(nd):
+        x, y = pol(RP + 0.34, 2 * math.pi * k / nd)
+        bm_box(P["white"], x - 0.05, x + 0.05, y - 0.05, y + 0.05, 3.96, 4.05)
+    rr = RP + 0.25                                        # the balcony's railing round the porch, the lamps
+    r0, r1 = ends(cv + 0.25, rr)
+    n = max(2, int(abs(r1 - r0) / math.radians(10)))
+    for k in range(n):
+        swc_rail(P, pol(rr, r0 + (r1 - r0) * k / n), pol(rr, r0 + (r1 - r0) * (k + 1) / n), z1)
+    for a in angs[1:-1]:
+        swc_lamp(P, *pol(rr, a), z1)
+    # the drum: two storeys, twelve sides (a side faces the hub)
+    r2 = 2.7; a15 = math.radians(15); ap2 = r2 * math.cos(a15)
+    bm_prism(P["wall"], ring(r2, 12, a15), 0.0, 8.3, "xy")
+    bm_prism(P["white"], ring(r2 + 0.06, 12, a15), 0.0, 0.22, "xy")
+    bm_prism(P["white"], ring(r2 + 0.1, 12, a15), 3.9, 4.2, "xy")
+    bm_prism(P["white"], ring(r2 + 0.08, 12, a15), z1, z1 + 0.14, "xy")
+    for d in (180, 150, 120, 90, 60, 30, 0, -30):
+        a = math.radians(d)
+        M = T(tx + ap2 * math.cos(a), ty + ap2 * math.sin(a), 0.0) @ R(a - math.pi / 2, "Z")
+        xform_new(P, M, lambda: (swc_window(P, 0.0, 1.0, 0.8, 2.45, awning=False), swc_window(P, 0.0, 1.0, 4.95, 6.6)))
+    for d in range(-45, 200, 30):                         # pilasters on the drum's corners
+        x, y = pol(r2, math.radians(d))
+        bm_box(P["white"], x - 0.1, x + 0.1, y - 0.1, y + 0.1, 0.22, 3.9)
+        bm_box(P["white"], x - 0.1, x + 0.1, y - 0.1, y + 0.1, z1 + 0.14, 7.9)
+    bm_prism(P["white"], ring(3.0, 12, a15), 7.95, 8.3, "xy")      # the cornice and its brackets
+    bm_prism(P["white"], ring(3.15, 12, a15), 8.3, 8.45, "xy")
+    for k in range(24):
+        x, y = pol(2.82, 2 * math.pi * k / 24)
+        bm_box(P["white"], x - 0.06, x + 0.06, y - 0.06, y + 0.06, 7.72, 7.95)
+    # the upper drum, its windows and pilasters
+    r3 = 2.2; ap3 = r3 * math.cos(a15)
+    bm_prism(P["wall"], ring(r3, 12, a15), 8.45, 11.1, "xy")
+    for k in range(12):
+        a = 2 * math.pi * k / 12
+        M = T(tx + ap3 * math.cos(a), ty + ap3 * math.sin(a), 0.0) @ R(a - math.pi / 2, "Z")
+        xform_new(P, M, lambda: swc_window(P, 0.0, 0.6, 9.05, 10.15, awning=False))
+        x, y = pol(r3, a + a15)
+        bm_box(P["white"], x - 0.09, x + 0.09, y - 0.09, y + 0.09, 8.45, 11.1)
+    bm_prism(P["white"], ring(2.5, 24), 11.05, 11.22, "xy")
+    bm_prism(P["pink"], ring(2.4, 24), 11.22, 11.65, "xy")
+    for k in range(40):
+        x, y = pol(2.43, 2 * math.pi * k / 40)
+        bm_box(P["white"], x - 0.05, x + 0.05, y - 0.05, y + 0.05, 11.36, 11.5)
+    bm_prism(P["white"], ring(2.55, 24), 11.65, 11.76, "xy")
+    # the dome: bell-shaped, ribbed, the finial
+    zd = 11.76
+    prof = [(2.45, 0.0), (2.56, 0.35), (2.52, 0.9), (2.3, 1.5), (1.9, 2.15), (1.3, 2.75), (0.7, 3.25), (0.3, 3.58), (0.15, 3.72)]
+    hd = prof[-1][1]
+    bm_lathe(P["dome"], [(0, 0)] + prof + [(0, hd)], 24, T(tx, ty, zd))
+    for k in range(16):
+        a = 2 * math.pi * k / 16
+        for (ra, za), (rb, zb) in zip(prof, prof[1:]):
+            bar(P["teal"], (tx + (ra + 0.03) * math.cos(a), ty + (ra + 0.03) * math.sin(a), zd + za),
+                (tx + (rb + 0.03) * math.cos(a), ty + (rb + 0.03) * math.sin(a), zd + zb), 0.07, 0.05)
+    bm_lathe(P["gold"], [(2.52, 1.1), (2.56, 1.1), (2.54, 1.22), (2.5, 1.22)], 24, T(tx, ty, zd))
+    bm_lathe(P["teal"], [(0, 0), (0.24, 0), (0.24, 0.2), (0.14, 0.28), (0.14, 0.5), (0.22, 0.62), (0.22, 0.7), (0.1, 0.8),
+                         (0.2, 0.95), (0.2, 1.1), (0.08, 1.22), (0.05, 1.9), (0, 2.0)], 12, T(tx, ty, zd + hd))
+
+
+def swc_interior(door, clear):
+    """The café behind the door (photos 6..8), in the SWC frame: a room x 0.3 .. 12.3, y -0.3 .. -6.8 (the tower and the
+    west face's windows stay dark), cream tiles with a brown border, cream walls with red pilaster strips and white
+    trim, chandeliers; the white counter with pink panels under its fretwork canopy across the back, the menu boards
+    hung over it, cases of cakes, shelves of bottles behind; the queue rail."""
+    x0, x1, y0, y1 = 0.3, 12.3, -0.3, -6.8; top = 3.9
+    P = {}
+
+    def bmk(k):
+        if k not in P:
+            P[k] = bmesh.new()
+        return P[k]
+    rng = random.Random("swc_in")
+    bm_box(bmk("t_cream"), x0, x1, y1, y0, 0.0, 0.055)
+    for a, b_, c, d in ((x0 + 0.5, x1 - 0.5, y0 - 0.62, y0 - 0.5), (x0 + 0.5, x1 - 0.5, y1 + 0.5, y1 + 0.62),
+                        (x0 + 0.5, x0 + 0.62, y1 + 0.5, y0 - 0.5), (x1 - 0.62, x1 - 0.5, y1 + 0.5, y0 - 0.5)):
+        bm_box(bmk("wood"), a, b_, c, d, 0.055, 0.06)
+    bm_box(bmk("t_white"), x0, x1, y1, y0, top, top + 0.05)
+    holes = [(door[0] - door[1] / 2, door[0] + door[1] / 2, 0.0, 2.5 + door[1] / 2)] + [(u - 0.8, u + 0.8, 0.8, 3.25) for u in clear]
+    wall_holes(lambda a, b_, za, zb: bm_box(bmk("swc_in"), a, b_, y0 - 0.03, y0, za, zb), x0, x1, 0.055, top, holes)
+    for a, b_, za, zb in holes:
+        r = (b_ - a) / 2
+        arch_fill(bmk("swc_in"), a, b_, zb - r, r, zb, y0 - 0.03, y0)
+        bm_prism(bmk("t_white"), arch_band(a - 0.02, b_ + 0.02, zb - r, r + 0.02, 0.1, 16, leg=zb - r - za + 0.02), y0 - 0.07, y0 - 0.03, "xz")
+    bm_box(bmk("swc_in"), x0 - 0.15, x0, y1, y0, 0.0, top)
+    bm_box(bmk("swc_in"), x1, x1 + 0.15, y1, y0, 0.0, top)
+    bm_box(bmk("swc_in"), x0, x1, y1 - 0.15, y1, 0.0, top)
+    for a, b_, c, d in ((x0, x1, y0 - 0.14, y0), (x0, x1, y1, y1 + 0.14), (x0, x0 + 0.14, y1, y0), (x1 - 0.14, x1, y1, y0)):
+        bm_box(bmk("t_white"), a, b_, c, d, top - 0.2, top)
+        bm_box(bmk("t_white"), a, b_, c, d, 0.055, 0.2)
+    for y in (-2.0, -4.2):                                # red pilaster strips on the side walls (photo 6)
+        for x, s in ((x0, 1), (x1, -1)):
+            bm_box(bmk("aw_red"), min(x, x + s * 0.03), max(x, x + s * 0.03), y - 0.14, y + 0.14, 0.3, top - 0.3)
+            bm_box(bmk("t_white"), min(x, x + s * 0.04), max(x, x + s * 0.04), y - 0.2, y + 0.2, top - 0.3, top - 0.2)
+    for u in (door[0] - 1.45, door[0] + 1.45):
+        bm_box(bmk("aw_red"), u - 0.14, u + 0.14, y0 - 0.06, y0 - 0.03, 0.3, top - 0.3)
+    cy = -5.0; ux0, ux1 = 1.2, 11.0                       # the counter across the back, facing the door
+    cols = [0.2 + (ux1 - ux0 - 0.4) * k / 4 for k in range(5)]
+    xform_new(P, T(ux0, cy, 0.0), lambda: icc_counter(bmk, ux1 - ux0, (0.0, ux1 - ux0), cols, signs=[],
+                                                     cases=[(cols[0] + 0.3, cols[1] - 0.3), (cols[1] + 0.3, cols[2] - 0.3), (cols[3] + 0.3, cols[4] - 0.3)],
+                                                     rng=rng, band="swc_in", goods="cakes"))
+    for a, b_ in zip(cols[:-1], cols[1:]):               # the menu boards hung over it (photo 8)
+        x = ux0 + (a + b_) / 2
+        bm_box(bmk("t_cream"), x - 0.55, x + 0.55, cy + 0.33, cy + 0.37, 1.85, 2.3)
+        bm_box(bmk("brass"), x - 0.58, x + 0.58, cy + 0.32, cy + 0.36, 1.82, 1.86)
+        bm_lathe(bmk("icc_pink"), [(0, 0), (0.3, 0), (0.3, 0.04), (0, 0.04)], 16, T(x, cy + 0.33, 2.38) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.0, 0.5, 1, 1)))
+        for s in (-1, 1):
+            bm_box(bmk("brass"), x + s * 0.45 - 0.01, x + s * 0.45 + 0.01, cy + 0.34, cy + 0.36, 2.3, top)
+    bm_box(bmk("t_white"), ux0, ux1, y1, y1 + 0.45, 0.055, 1.0)   # the back bench and its shelves of bottles
+    for z in (1.6, 2.2):
+        bm_box(bmk("t_white"), ux0, ux1, y1, y1 + 0.3, z, z + 0.04)
+        x = ux0 + 0.1
+        while x < ux1 - 0.1:
+            bm_lathe(bmk(rng.choice(("m_green", "m_yellow", "m_pink", "m_white", "m_orange"))),
+                     [(0, 0), (0.04, 0), (0.04, 0.18), (0.015, 0.24), (0, 0.24)], 6, T(x, y1 + 0.15, z + 0.04))
+            x += 0.12
+    for x in (3.2, 6.8, 10.3):
+        chandelier(bmk, x, -2.6, top)
+    ra, rb, ry = 2.0, 6.0, -3.5
+    for k in range(5):
+        x = ra + (rb - ra) * k / 4
+        bm_lathe(bmk("brass"), [(0, 0), (0.14, 0), (0.14, 0.03), (0.03, 0.06), (0.025, 0.95), (0.04, 0.98), (0, 1.0)], 10, T(x, ry, 0.06))
+    bar(bmk("aw_red"), (ra, ry, 0.9), (rb, ry, 0.9), 0.04)
+    for k, bm_ in P.items():
+        obj_bm(f"ST_WBZ_swc_in_{k}", bm_, k, smooth=(k == "lamp"))
+
+
+def to_swc(p):
+    """WB -> the café's frame."""
+    return (SWC["x"] - p[0], SWC["y"] - p[1])
+
+
+def sweetheart_cafe():
+    C = SWC["C"]; cv, zc, top, back = SWC["cv"], SWC["zc"], SWC["top"], SWC["back"]
+    P = {k: bmesh.new() for k in SWC_MATS}
+    tx, ty = SWC["TC"]
+    # ---- the front: three bays from Ice Cream Cones to the porch (window, door, window: photo 1)
+    uf = circ_t((0.0, cv), (1.0, 0.0), (tx, ty), SWC["RP"], False)
+    cols = [0.75 + (uf - 0.75) * k / 3 for k in range(4)]
+    bays = [(a + b_) / 2 for a, b_ in zip(cols, cols[1:])]
+    uf_r = circ_t((0.0, cv + 0.25), (1.0, 0.0), (tx, ty), SWC["RP"] + 0.25, False)
+    door = (bays[1], 1.7)
+    swc_face(P, C[0], cols, (0.0, uf_r), [(bays[0], "clear", 1.6, 0.8, 2.45), (bays[1], "door", 1.7, 0.0, 2.5), (bays[2], "clear", 1.6, 0.8, 2.45)],
+             bays, planters=[cols[0] + 0.1, cols[1], cols[2]])
+    swc_interior(door, [bays[0], bays[2]])
+    # ---- the west face: from the porch on to the block's next jog (three bays), the terrace's umbrellas in front
+    LW = SWC["LW"]
+    pw = (C[0] + cv * SWC_NW[0], C[1] + cv * SWC_NW[1]); tw = circ_t(pw, SWC_DW, (tx, ty), SWC["RP"], True)
+    pr = (C[0] + (cv + 0.25) * SWC_NW[0], C[1] + (cv + 0.25) * SWC_NW[1]); tr = circ_t(pr, SWC_DW, (tx, ty), SWC["RP"] + 0.25, True)
+    wcols = [tw + (LW - 0.3 - tw) * k / 3 for k in range(4)]
+    wbays = [(a + b_) / 2 for a, b_ in zip(wcols, wcols[1:])]
+    MW = T(C[0], C[1], 0.0) @ R(math.atan2(SWC_DW[1], SWC_DW[0]), "Z")
+    xform_new(P, MW, lambda: swc_face(P, LW, wcols, (tr, LW), [(u, "win", 1.6, 0.8, 2.45) for u in wbays], wbays))
+    xform_new(P, MW, lambda: [gaw_umbrella(P, u, cv + 3.0) for u in wbays])
+    ew = swc_west(0.0, back); eo = to_swc(SWC_JOG)
+    ea = (C[0] + LW * SWC_DW[0] + (cv + 0.45) * SWC_NW[0], C[1] + LW * SWC_DW[1] + (cv + 0.45) * SWC_NW[1])
+    for p0, p1 in ((ew, eo), (eo, ea)):                   # the end: a wall on to where the block's outer wall goes on
+        plate(P["wall"], p0, p1, 0.0, 8.5, 0.3)
+        plate(P["white"], p0, p1, 8.3, 8.6, 0.4)
+    # ---- the mansard over both faces, its cornice and cresting; the tower
+    poly = lambda o: [(0.0, o), swc_off(o), swc_west(o, back), (0.0, back)]
+    bm_loft(P["roof"], [(x, y, zc + 0.2) for x, y in poly(0.4)], [(x, y, top) for x, y in poly(-1.3)])
+    q = poly(-1.3)
+    for p0, p1 in ((q[0], q[1]), (q[1], q[2])):
+        plate(P["white"], p0, p1, top - 0.08, top + 0.1, 0.3)
+        swc_cresting(P, p0, p1, top + 0.1)
+    swc_tower(P)
+    # ---- the sign over the door (photo 5): the red oval with a gold rim and bulbs, cream letters; the menu stand
+    ud = door[0]; zs_ = 3.45; ys = cv + 0.12
+    Mo = T(ud, ys, zs_) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.0, 0.56, 1, 1))
+    bm_lathe(P["gold"], [(0, 0), (0.92, 0), (0.92, 0.06), (0, 0.06)], 32, Mo)
+    bm_lathe(P["red"], [(0, 0.06), (0.8, 0.06), (0.8, 0.08), (0, 0.08)], 32, Mo)
+    for k in range(30):
+        a = 2 * math.pi * k / 30
+        globe_lamp_bm(P["lamp"], ud + 0.86 * math.cos(a), ys + 0.08, zs_ + 0.86 * 0.56 * math.sin(a), 0.035)
+    text("ST_WBZ_swc_sign1", "SWEETHEART", 0.15, (ud, ys + 0.1, zs_ + 0.17), (math.pi / 2, 0, math.pi), "t_cream", 0.01)
+    text("ST_WBZ_swc_sign2", "CAFE", 0.24, (ud, ys + 0.1, zs_ - 0.08), (math.pi / 2, 0, math.pi), "t_cream", 0.012)
+    text("ST_WBZ_swc_sign3", "meiji", 0.08, (ud, ys + 0.1, zs_ - 0.33), (math.pi / 2, 0, math.pi), "gaw_gold", 0.006)
+    mx = cols[1] - 1.0; my = cv + 0.9                   # (to the right of the door, photo 1)
+    bm_box(P["teal"], mx - 0.05, mx + 0.05, my - 0.05, my + 0.05, 0.0, 0.9)
+    bm_box(P["cream"], mx - 0.35, mx + 0.35, my - 0.12, my + 0.12, 0.9, 1.75)
+    bm_box(P["white"], mx - 0.3, mx + 0.3, my + 0.12, my + 0.14, 1.0, 1.6)
+    bm_prism(P["cream"], [(mx - 0.4, 1.75), (mx + 0.4, 1.75), (mx, 2.0)], my - 0.14, my + 0.14, "xz")
+    for k, bm_ in P.items():
+        if len(bm_.verts):
+            obj_bm(f"ST_WBZ_swc_{k}", bm_, SWC_MATS[k], smooth=(k in ("lamp", "dome")))
+        else:
+            bm_.free()
+
+
 def build_street():
     prism("ST_WBZ_walk", [WALK], -0.02, 0.04, "walk")
     bm, bme = bmesh.new(), bmesh.new()
@@ -2158,6 +2657,11 @@ def gawp(x, y):
     return wbp(GAW["x"] + x * math.cos(a) - y * math.sin(a), GAW["y"] + x * math.sin(a) + y * math.cos(a))
 
 
+def swcp(x, y):
+    """The Sweetheart Cafe's frame (SWC) -> the mock's local metres."""
+    return wbp(SWC["x"] - x, SWC["y"] - y)
+
+
 def cams():
     return {
         "wbz_street": ((*wbp(1.5, -13.0), 1.65), (*wbp(0.0, -100.0), 5.5), 20),     # towards the castle end
@@ -2180,6 +2684,11 @@ def cams():
         "wbz_gaw": ((*gawp(1.5, 21.0), 1.7), (*gawp(4.5, 0.0), 5.8), 20),             # the Waffle Company's front (photo 3)
         "wbz_gaw_corner": ((*gawp(16.0, 10.0), 1.7), (*gawp(6.0, 0.5), 4.2), 20),     # its south-east corner (photo 5)
         "wbz_gaw_porch": ((*gawp(13.0, -1.2), 1.6), (*gawp(7.0, 1.6), 2.4), 18),     # along the veranda's return (photo 4)
+        "wbz_swc": ((*swcp(19.0, 19.0), 1.7), (*swcp(8.5, 2.0), 6.0), 18),            # the Sweetheart Cafe from the hub (photo 1)
+        "wbz_swc_west": ((*swcp(30.0, 8.0), 1.7), (*swcp(15.0, -0.5), 6.0), 18),      # its west face and the tower (photo 10)
+        "wbz_swc_sign": ((*swcp(3.6, 7.5), 1.6), (*swcp(5.0, 3.0), 3.6), 18),         # up at the sign over the door (photo 5)
+        "wbz_swc_roof": ((*swcp(26.0, 16.0), 22.0), (*swcp(8.0, -3.0), 6.0), 20),     # from above: the mansard, the joins to the block
+        "wbz_swc_in": ((*swcp(5.0, -0.9), 1.6), (*swcp(7.5, -5.5), 1.8), 16),        # inside: the counter (photo 8)
         "wbz_aerial": ((*wbp(70.0, -10.0), 75.0), (*wbp(0.0, -58.0), 0.0), 32),
     }
 
