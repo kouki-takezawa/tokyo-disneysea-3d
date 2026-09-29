@@ -1496,11 +1496,13 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_mast: { color: 0x8a9095, roughness: 0.5, metalness: 0.5 }, ST_canopy: { color: 0xdcdedf, roughness: 0.6 }, ST_deck_top: { color: 0x3a3a3a, roughness: 1 },
   ST_barrier: { color: 0xb4b9b9, roughness: 0.5, metalness: 0.2 },
 };
-// ランドの地面をエリアごとに塗る (ds_ground.py: TL_<kind>_<land>)。道・駐車場・線路敷は灰色のまま
-const LAND_GROUND = { wb: 0xb84a42, adv: 0x4f8f3f, west: 0x8c4c36, critter: 0xdcb93a, fan: 0x2f9d94, toon: 0xdc8fab, tom: 0x3f70bd };
-const LAND_SHADE = { paving: 1, ground: 0.92, grass: 0.8, wood: 0.6, rock: 0.85, earth: 0.9 };
+// ランドの舗装・地面をエリアごとに塗る (ds_ground.py: TL_<kind>_<land>)。色はテーマランドごとの地面色(ワールドバザール=赤、アドベンチャーランド=緑、
+// ウエスタンランド=赤茶、クリッターカントリー=黄、ファンタジーランド=青緑、トゥモローランド=青)を、実物のくすんだ舗装の明るさに落とした推定値
+// (写真は取得できていない。トゥーンタウンは資料がなく明るい灰ベージュ)。芝・林・岩場・工事地・道路・駐車場・線路敷は元の色のまま(TL_<kind>で一致)
+const LAND_GROUND = { wb: 0x9c6a5f, adv: 0x7d8a63, west: 0x93705c, critter: 0xb5a274, fan: 0x93ad9c, toon: 0xb4aa9b, tom: 0x8797ab };
+const LAND_SHADE = { paving: 1, ground: 0.95 };
 for (const [lk, c] of Object.entries(LAND_GROUND)) for (const [k, f] of Object.entries(LAND_SHADE))
-  MODEL_MAT[`TL_${k}_${lk}`] = { color: [16, 8, 0].reduce((a, sh) => a | Math.round((c >> sh & 255) * f) << sh, 0), roughness: k === "wood" || k === "grass" ? 1 : 0.9 };
+  MODEL_MAT[`TL_${k}_${lk}`] = { color: [16, 8, 0].reduce((a, sh) => a | Math.round((c >> sh & 255) * f) << sh, 0), roughness: 0.9 };
 /* ---------- the sky over 24 hours (0:00 - 24:00, Japan time) ----------
    The sun's height and direction come from the date and Maihama's position; how the sky looks (colours, light, stars)
    is read off SKY_KEYS by the sun's height, so dawn and dusk come at the right hour in every season.
