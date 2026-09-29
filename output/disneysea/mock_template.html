@@ -567,7 +567,7 @@ const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
   ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "植え込みの刈り込み"],
-  ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
+  ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_gateway", "舞浜駅〜ボン・ヴォヤージュ〜ランド・ステーション"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
 ];
@@ -1472,6 +1472,11 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   TH_road: { color: 0x40444a, roughness: 0.95 }, TH_path: { color: 0x958b7d, roughness: 0.9 }, TH_plaza: { color: 0x8d6459, roughness: 0.9 },
   TH_curb: { color: 0xc9bb9f, roughness: 0.8 }, TH_soil: { color: 0x4d6b38, roughness: 1 }, TH_edge: { color: 0x7a746b, roughness: 0.9 },
   TH_floor: { color: 0xa39e90, roughness: 0.85 },
+  // 舞浜駅〜ボン・ヴォヤージュ〜ランド・ステーション (ds_tdl_gateway.py): GW_<ground> like TH_, GB_<building> shares the station's ST_ colours
+  GW_road: { color: 0x40444a, roughness: 0.95 }, GW_path: { color: 0x958b7d, roughness: 0.9 }, GW_plaza: { color: 0x8d6459, roughness: 0.9 },
+  GW_curb: { color: 0xc9bb9f, roughness: 0.8 }, GW_soil: { color: 0x4d6b38, roughness: 1 }, GW_edge: { color: 0x7a746b, roughness: 0.9 },
+  ST_leather: { color: 0x7a4a2a, roughness: 0.6 }, ST_leather2: { color: 0x4a2c18, roughness: 0.6 }, ST_teal: { color: 0x2f7f86, roughness: 0.55 },
+  ST_red: { color: 0xa5262c, roughness: 0.55 }, ST_deck: { color: 0xb3ab9c, roughness: 0.9 },
   // ランド・シーの地面 (ds_ground.py): meshes TL_<kind>
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
@@ -1862,7 +1867,7 @@ function lodTick() {
 /* Planting beds: the models carry each bed as a flat green sheet a little below its curb. Here it becomes a clipped shrub mass:
    the sheet is lifted by 0.4-0.8 m (varying across the park), the outline gets a rounded shoulder and walls down to the soil, and the
    material is a procedural leaf texture (clumps, leaves, dark gaps, lighter tips) with a bump and darker roots. */
-const HEDGE_KEY = /^(TG_soil|TH_soil|PZ_Soil)/;
+const HEDGE_KEY = /^(TG_soil|TH_soil|GW_soil|PZ_Soil)/;
 function hedgeHeight(x, z) { return 0.6 + 0.16 * Math.sin(x * 0.23 + 1.7) * Math.cos(z * 0.19) + 0.12 * Math.sin(x * 0.61 + z * 0.47) + 0.06 * Math.sin(x * 1.7 - z * 1.3); }   // 0.26-0.94 m
 function shrubify(T, o) {
   const g = o.geometry, pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count;
@@ -1962,7 +1967,7 @@ function prepModel(T, scene) {
       scene.traverse(o => {
         if (!o.isMesh) return;
         if (/^PZ_(Trunk|Canopy)/.test(o.name)) { o.visible = false; return; }   // the plaza model's trees: no trees (the user's request)
-        const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
+        const nm = /^(EN|TK|WZ|HO|PB|GB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (HEDGE_KEY.test(o.name)) shrubify(T, o);   // planting beds: raised, clipped shrub masses
         else if (o.name.startsWith("WS_water")) { o.material = makeWater(T, { real: true, waves: 0.16 }); }

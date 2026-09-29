@@ -242,6 +242,7 @@ def main():
               ("tdl_plaza_buildings", "disneyland", ["dlplazab"]),         # ds_tdl_plaza_buildings.py: the buildings round the plaza, Monsters, Inc.                     # ds_tdl_hotel.py: 東京ディズニーランドホテル (replaces its box)             # ds_tdl_world_bazaar.py: Main / Center Street under the glass roof
               ("tdl_ground", "disneyland", []),                             # ds_tdl_ground.py: the entrance plaza's paving, curbs and planters (plain Python)
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
+              ("tdl_gateway", "maihama", []),                               # ds_tdl_gateway.py: 舞浜駅南口〜ボン・ヴォヤージュ〜ランド・ステーションの地面・歩道橋・ボン・ヴォヤージュ(plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)
               ("tracks", "maihama", ["mhline", "mhjr"]),
@@ -288,9 +289,9 @@ def main():
     # shows a tree or clipped shrubs in each): a tree in each bed (a row along the long ones), clipped shrubs at the ends
     shrubs = []
     try:
-        import ds_tdl_ground, ds_tdl_hotel_ground
+        import ds_tdl_ground, ds_tdl_hotel_ground, ds_tdl_gateway
         from shapely.geometry import LineString, Point
-        beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"])
+        beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"]) + list(ds_tdl_gateway.plan()["planters"])
         for q in beds:
             if q.is_empty or q.area < 3.0:
                 continue
