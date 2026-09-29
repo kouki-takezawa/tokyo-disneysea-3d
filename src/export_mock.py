@@ -42,6 +42,11 @@ def L(line):
     return [[round(x, 1), round(y, 1)] for x, y in line]
 
 
+# Directions the user confirmed by eye (way id -> "start" | "end": which end is the top). Checked before the DEM
+# guess; the stair gets basis "user". Filled in from tools/stair_check.py pictures / the user's own knowledge.
+STAIR_UP_OVERRIDE = {}
+
+
 def resolve_stairs(paths):
     """Stairs whose direction ds_levels could not tell ("unknown": the DEM just past both ends differs by < 0.1 m).
     Look farther: the DEM 6, 10 and 15 m beyond each end. If the difference has the same sign at all three and
@@ -59,6 +64,13 @@ def resolve_stairs(paths):
         if not s or s["basis"] != "unknown":
             continue
         l = p["l"]
+        ov = STAIR_UP_OVERRIDE.get(s.get("id"))
+        if ov:
+            s["basis"] = "user"
+            if ov != s["up"] and p.get("z"):
+                p["z"] = p["z"][::-1]
+            s["up"] = ov
+            continue
         diffs = [LV.dem(*beyond(l, True, d)) - LV.dem(*beyond(l, False, d)) for d in (6, 10, 15)]
         if joins_tunnel(l[-1], p) != joins_tunnel(l[0], p):
             up = "start" if joins_tunnel(l[-1], p) else "end"
