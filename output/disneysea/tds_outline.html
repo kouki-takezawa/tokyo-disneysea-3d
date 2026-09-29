@@ -4,6 +4,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light only">
 <meta name="theme-color" content="#F8FAF8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ディズニー3D">
 <title>ディズニーパーク3Dモデル</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -207,6 +212,21 @@ body.coarse .search{font-size:16px;padding:9px 10px}
 body.coarse .tip{max-width:min(300px,calc(100% - 16px))}
 body.coarse .pbtn span,body.coarse .keys-sec{display:none}
 .grip{display:none}
+/* phones held sideways: a slimmer bar and side panel, the stick and buttons clear of the notch, the ride button up out of the thumbs' way */
+@media (orientation:landscape) and (max-height:520px) and (pointer:coarse){
+  body.coarse .top{height:44px}
+  body.coarse .btn{height:34px}
+  body.coarse .seg button{padding:5px 13px}
+  .panel{position:static;width:min(260px,38vw);max-height:none;padding-left:env(safe-area-inset-left);border-radius:0;box-shadow:none;border-top:0;border-right:1px solid var(--rule)}
+  .grip{display:none}
+  .joy{left:calc(18px + env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom));width:104px;height:104px}
+  .joy i{width:46px;height:46px;margin:-23px 0 0 -23px}
+  .runbtn{right:calc(18px + env(safe-area-inset-right));bottom:calc(24px + env(safe-area-inset-bottom));width:64px;height:64px}
+  .ridebtn{bottom:auto;top:10px;padding:8px 18px;font-size:13px}
+  body.coarse .hud.tc{bottom:130px}
+  body.coarse #minimap{width:112px;height:80px}
+  .toast{top:46px}
+}
 /* opening (first 3D view): cinema bars, a warm vignette, then the title; no controls until it is tapped */
 body.intro .top, body.intro .panel, body.intro .hud, body.intro .cross, body.intro .aim, body.intro .joy, body.intro .runbtn{display:none!important}
 .letterbox{position:absolute;inset:0;z-index:10;pointer-events:none}
@@ -3305,7 +3325,11 @@ async function init3D() {
     if (ride) { rideBtn.hidden = false; rideBtn.disabled = false; rideBtn.classList.add("off"); rideBtn.textContent = `降りる(${ride.o.tr.ja}の電車)`; return; }
     rideBtn.classList.remove("off");
     const near = Math.hypot(wk.x - rideSt.x, -wk.z - rideSt.y) < NEAR_ST;
-    if (!near) { rideBtn.hidden = true; return; }
+    if (!near) {   // far away: the button is still there; it takes Woody to the platform
+      rideBtn.hidden = false; rideBtn.disabled = false; rideBtn.dataset.far = "1";
+      rideBtn.textContent = `電車に乗る(${RIDE_ST.replace("・ステーション", "駅")}へ移動)`; return;
+    }
+    delete rideBtn.dataset.far;
     const [dt, o] = nextArrival();
     rideBtn.hidden = false;
     if (dt === 0) { rideBtn.disabled = false; rideBtn.textContent = `電車に乗る(${o.tr.ja})`; rideBtn.dataset.train = o.tr.id; }
@@ -3321,17 +3345,25 @@ async function init3D() {
     ride.th = th; three.rideTick(); updateRideBtn();
     toast(`${o.tr.ja}の電車に乗りました。車内を歩けます(「降りる」で ${RIDE_ST.replace("・ステーション", "駅")} のホームへ)`, 4200);
   }
-  function alight() {
-    wk.dist = ride.dist; ride = null;
+  function toPlatform() {   // stand Woody on the station's platform
     const [x, y] = ridePlat;
     wk.x = x; wk.z = -y;
     const bz = RL.at(RL.stations.find(st => st.n === RIDE_ST)?.s ?? 0)[4];   // the beam top there (level through the station)
     wk.y = groundAt(wk.x, wk.z, bz + CAR_FLOOR + 0.3) ?? bz + CAR_FLOOR;
-    placeCamera(); updateRideBtn();
+    placeCamera();
+  }
+  function alight() {
+    wk.dist = ride.dist; ride = null;
+    toPlatform(); updateRideBtn();
     toast(`${RIDE_ST}のホームに降りました`);
   }
   rideBtn.onclick = () => {
     if (ride) return alight();
+    if (rideBtn.dataset.far) {   // from anywhere: go to the platform, and board at once if a train is standing there
+      toPlatform(); toast(`${RIDE_ST.replace("・ステーション", "駅")}のホームに来ました`);
+      const [dt, o] = nextArrival(); if (dt === 0) board(o); else updateRideBtn();
+      return;
+    }
     const o = (three.trains || []).find(o => String(o.tr.id) === rideBtn.dataset.train);
     if (o && RL.state(o.tr, RL.now()).stop === RIDE_ST) board(o); else updateRideBtn();
   };
@@ -3656,13 +3688,27 @@ async function init3D() {
       }) ? 1 : 0;
     return animSeen;
   };
+  // adaptive resolution: if drawn frames keep coming slower than ~24 fps, step the pixel ratio down (and free memory); never back up
+  let pr = PIXEL_RATIO, slow = 0, aqAt = 0;
+  const PR_MIN = coarse ? 0.75 : 1;
+  function autoQuality(now, dt) {
+    if (dt > 0.5 || now - aqAt < 2500 || three.anim || intro) return;
+    if (dt > 1 / 24) slow++; else slow = Math.max(0, slow - 2);
+    if (slow < 20 || pr <= PR_MIN) return;
+    slow = 0; aqAt = now;
+    pr = Math.max(PR_MIN, Math.round(pr * 0.8 * 100) / 100);
+    renderer.setPixelRatio(pr); three.resize();
+    if (pr <= 1) three.tight = true;
+    console.info("auto quality: pixel ratio", pr);
+  }
+  document.addEventListener("visibilitychange", () => { last = performance.now(); slow = 0; three.dirty = true; });
   (function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(), dt = (now - last) / 1000; last = now;
-    if (!three.active || three.lost) return;
+    if (!three.active || three.lost || document.hidden) return;   // a hidden tab draws nothing (battery, and iOS drops the GPU of pages it thinks idle)
     if (growing.size) stepGrow(now); else growLast = 0;
     let moved = false;
-    if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else moved = ctl.update();
+    if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(Math.min(dt, 0.1)); else if (fol.tr) followTick(now); else moved = ctl.update();
     if (now - lodLast > 500) { lodLast = now; lodTick(); }
     if (three.walking) three.woodyTick?.(Math.min(dt, 0.1));
     FX_TIME.value = now / 1000;
@@ -3678,6 +3724,7 @@ async function init3D() {
     if (intro && three.popCovers?.()) return;   // hidden behind the pop-up book
     drawLast = now; three.dirty = false; three.draws = (three.draws || 0) + 1;
     renderer.render(scene, cam);
+    autoQuality(now, dt);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
   })();
   three.ready = true;
@@ -3815,4 +3862,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
 resize();
 show("orbit");   // every visit opens with the opening; the tap leads into the walk (the view in the URL is only for sharing)
 })();
+</script>
+<script>
+if ("serviceWorker" in navigator && location.protocol === "https:") addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 </script>
