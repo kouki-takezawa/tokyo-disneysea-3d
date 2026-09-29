@@ -3,23 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mickey 3D Mock</title>
+<title>King Mickey 3D Mock</title>
 <style>
-  html,body{margin:0;height:100%;overflow:hidden;background:#20242e;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif}
+  html,body{margin:0;height:100%;overflow:hidden;background:#3f5fa8;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif}
   canvas{display:block}
   #ui{position:fixed;top:12px;left:12px;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 24px)}
   #ui button{padding:7px 12px;border-radius:999px;border:1px solid #fff5;background:#0007;color:#fff;font-size:13px;backdrop-filter:blur(6px);cursor:pointer}
-  #ui button[aria-pressed=true]{background:#c0392bdd}
-  #hint{position:fixed;bottom:10px;left:0;right:0;text-align:center;color:#fffa;font-size:11px;pointer-events:none;text-shadow:0 0 4px #000}
+  #ui button[aria-pressed=true]{background:#c9a227dd;color:#111}
+  #hint{position:fixed;bottom:10px;left:0;right:0;text-align:center;color:#fffc;font-size:11px;pointer-events:none;text-shadow:0 0 4px #000}
 </style>
 </head>
 <body>
 <div id="ui">
-  <button id="bWave" aria-pressed="true">手を振る</button>
-  <button id="bJump" aria-pressed="false">ジャンプ</button>
+  <button id="bRaise" aria-pressed="false">キーブレードを掲げる</button>
   <button id="bSpin" aria-pressed="false">回転</button>
 </div>
-<div id="hint">ドラッグで回転 / ホイールでズーム / 頭はマウスを目で追います</div>
+<div id="hint">ドラッグで回転 / ホイールでズーム / 顔はマウスを目で追います</div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 <script>
@@ -28,209 +27,262 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-{ // studio backdrop: soft vertical gradient
+{ // product-photo backdrop: blue gradient fading to pale at the floor
   const c=document.createElement('canvas'); c.width=2; c.height=256; const g=c.getContext('2d');
-  const gr=g.createLinearGradient(0,0,0,256); gr.addColorStop(0,'#5d7db0'); gr.addColorStop(.55,'#a9bfdc'); gr.addColorStop(1,'#e8eef7');
+  const gr=g.createLinearGradient(0,0,0,256); gr.addColorStop(0,'#3b5cae'); gr.addColorStop(.6,'#7f9bd6'); gr.addColorStop(1,'#c9d4ee');
   g.fillStyle=gr; g.fillRect(0,0,2,256);
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; scene.background=t;
 }
-const camera = new THREE.PerspectiveCamera(35, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(3.2,4.2,11.5);
+const camera = new THREE.PerspectiveCamera(32, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(2.2,3.4,12);
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.target.set(0,2.5,0); controls.enableDamping=true; controls.minDistance=4; controls.maxDistance=24;
-controls.maxPolarAngle=Math.PI*0.52;
+controls.target.set(0,2.3,0); controls.enableDamping=true; controls.minDistance=4; controls.maxDistance=24;
+controls.maxPolarAngle=Math.PI*0.53;
 
-/* environment for soft reflections (a tiny studio with emissive panels) */
+/* studio environment for reflections */
 {
-  const env=new THREE.Scene(); env.background=new THREE.Color(0x4a5a72);
-  const mk=(w,h,x,y,z,i)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:new THREE.Color(i,i,i*.95),side:THREE.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);env.add(m);};
-  mk(10,6,-8,6,6,4); mk(8,8,8,4,-4,2.2); mk(14,3,0,10,0,3); mk(20,20,0,-6,0,.5);
+  const env=new THREE.Scene(); env.background=new THREE.Color(0x2e4378);
+  const mk=(w,h,x,y,z,i,col=[1,1,.95])=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:new THREE.Color(col[0]*i,col[1]*i,col[2]*i),side:THREE.DoubleSide}));m.position.set(x,y,z);m.lookAt(0,0,0);env.add(m);};
+  mk(10,7,-7,6,7,3.2); mk(8,8,8,4,-3,1.4,[.8,.9,1.2]); mk(14,3,0,10,0,2.4); mk(20,20,0,-6,0,.35,[.7,.8,1]);
   const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(env,0.04).texture; pm.dispose();
 }
-/* lights */
-const key=new THREE.DirectionalLight(0xfff2e0,1.9); key.position.set(-5,9,8); key.castShadow=true;
+const key=new THREE.DirectionalLight(0xfff4e6,2.0); key.position.set(-4,9,9); key.castShadow=true;
 key.shadow.mapSize.set(2048,2048); Object.assign(key.shadow.camera,{left:-6,right:6,top:8,bottom:-3,near:1,far:30}); key.shadow.bias=-0.0003; key.shadow.radius=4;
 scene.add(key);
-const rim=new THREE.DirectionalLight(0x9cc4ff,1.4); rim.position.set(6,5,-8); scene.add(rim);
-scene.add(new THREE.HemisphereLight(0xdfeaff,0x6a7a90,0.35));
-
-/* floor */
+const rim=new THREE.DirectionalLight(0xa9c6ff,1.6); rim.position.set(6,6,-7); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xdfe8ff,0x4a5a80,0.45));
 {
-  const floor=new THREE.Mesh(new THREE.CircleGeometry(30,64).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0xdfe6f0,roughness:.85}));
+  const floor=new THREE.Mesh(new THREE.CircleGeometry(30,64).rotateX(-Math.PI/2),new THREE.MeshStandardMaterial({color:0xc4cfe8,roughness:.9}));
   floor.receiveShadow=true; scene.add(floor);
 }
 
-/* ---------------- Mickey ---------------- */
-const BLACK=new THREE.MeshPhysicalMaterial({color:0x050507,roughness:.5,clearcoat:.35,clearcoatRoughness:.4,envMapIntensity:.35});
-const WHITE=new THREE.MeshPhysicalMaterial({color:0xeeeeea,roughness:.55,clearcoat:.2,envMapIntensity:.5});
-const RED  =new THREE.MeshPhysicalMaterial({color:0xc4111b,roughness:.6,clearcoat:.15,envMapIntensity:.4});
-const YELL =new THREE.MeshPhysicalMaterial({color:0xf2b705,roughness:.4,clearcoat:.5,clearcoatRoughness:.25,envMapIntensity:.45});
-const BUTTON=new THREE.MeshPhysicalMaterial({color:0xfff8e0,roughness:.3,clearcoat:.8});
-const SOLE =new THREE.MeshStandardMaterial({color:0x6b4b12,roughness:.7});
+/* ---------------- materials (vinyl figure finish) ---------------- */
+const P=(o)=>new THREE.MeshPhysicalMaterial(o);
+const SKINBLACK=P({color:0x0c0c0e,roughness:.62,clearcoat:.08,clearcoatRoughness:.6,envMapIntensity:.3});
+const COAT =P({color:0x0e0e12,roughness:.42,clearcoat:.3,clearcoatRoughness:.45,envMapIntensity:.5});   // a little glossier than the skin, like leather
+const GLOVE=P({color:0x111114,roughness:.5,clearcoat:.2,clearcoatRoughness:.45,envMapIntensity:.4});
+const SILVER=P({color:0xc9ccd2,metalness:1,roughness:.32});
+const GOLD =P({color:0xd4a73a,metalness:1,roughness:.34,envMapIntensity:.8});
+const REDM =P({color:0xc41a1a,roughness:.35,clearcoat:.6});
+const SKIN={color:0xf5c39e,roughness:.6,clearcoat:.15,clearcoatRoughness:.6,envMapIntensity:.4};
 
-const mickey=new THREE.Group(); scene.add(mickey);
-const ell=(mat,rx,ry,rz,x=0,y=0,z=0,parent=mickey,seg=48)=>{
-  const m=new THREE.Mesh(new THREE.SphereGeometry(1,seg,seg/2),mat); m.scale.set(rx,ry,rz); m.position.set(x,y,z); m.castShadow=m.receiveShadow=true; parent.add(m); return m;};
-const lathe=(mat,pts,seg=64)=>{const m=new THREE.Mesh(new THREE.LatheGeometry(pts.map(p=>new THREE.Vector2(p[0],p[1])),seg),mat); m.castShadow=m.receiveShadow=true; return m;};
-const tube=(mat,pts,r,seg=48,parent=mickey)=>{const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p))),seg,r,12,false),mat); m.castShadow=true; parent.add(m); return m;};
-const smooth=(pts,n=40)=>{const c=new THREE.SplineCurve(pts.map(p=>new THREE.Vector2(p[0],p[1]))); return c.getPoints(n).map(p=>[p.x,p.y]);};
+const king=new THREE.Group(); scene.add(king);
+const ell=(mat,rx,ry,rz,x=0,y=0,z=0,parent=king,seg=48)=>{
+  const m=new THREE.Mesh(new THREE.SphereGeometry(1,seg,seg/2),mat); m.scale.set(rx,ry,rz); m.position.set(x,y,z); parent.add(m); return m;};
+const smooth=(pts,n=40)=>new THREE.SplineCurve(pts.map(p=>new THREE.Vector2(p[0],p[1]))).getPoints(n);
+const tube=(mat,pts,r,parent=king,seg=64,rs=10)=>{const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p=>new THREE.Vector3(...p))),seg,r,rs,false),mat); parent.add(m); return m;};
 
-/* -- body: pear shape (black chest, red shorts) -- */
-const bodyProfile=smooth([[0,1.12],[.5,1.16],[.78,1.32],[.84,1.62],[.74,1.95],[.58,2.28],[.4,2.55],[.3,2.78],[0,2.85]],50);
-const body=lathe(BLACK,bodyProfile); body.scale.z=.86; mickey.add(body);
-const shortsProfile=smooth([[0,1.09],[.52,1.13],[.8,1.3],[.865,1.62],[.79,1.98],[.66,2.14],[0,2.14]],50);
-const shorts=lathe(RED,shortsProfile); shorts.scale.z=.86; mickey.add(shorts);
-const rAt=y=>{ // shorts radius at height y (front z includes the .86 flatten)
-  for(let i=1;i<shortsProfile.length;i++){const a=shortsProfile[i-1],b=shortsProfile[i]; if(y>=a[1]&&y<=b[1]) return a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]);} return .7;};
-for(const s of[-1,1]){ // two big buttons on the front
-  const y=1.72,x=s*.36, r=rAt(y), z=Math.sqrt(Math.max(0,r*r-x*x))*.86;
-  const b=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),BUTTON); b.scale.set(.15,.19,.05); b.position.set(x,y,z+.005);
-  b.lookAt(x*1.6,y,z+1); b.castShadow=true; mickey.add(b);
+/* ---------------- coat ---------------- */
+const COAT_Z=.82;   // coat is flattened front-to-back
+const coatPts=smooth([[0,.62],[.9,.6],[1.08,.68],[1.02,.95],[.86,1.35],[.72,1.75],[.62,2.05],[.46,2.28],[.3,2.4],[0,2.42]],60);
+const coat=new THREE.Mesh(new THREE.LatheGeometry(coatPts,72),COAT); coat.scale.z=COAT_Z; king.add(coat);
+const coatR=y=>{for(let i=1;i<coatPts.length;i++){const a=coatPts[i-1],b=coatPts[i]; if((y-a.y)*(y-b.y)<=0&&a.y!==b.y) return a.x+(b.x-a.x)*(y-a.y)/(b.y-a.y);} return 0;};
+const front=(x,y,off=.012)=>{const r=coatR(y); return Math.sqrt(Math.max(0,r*r-x*x))*COAT_Z+off;};
+// hem wave: a thick rolled edge
+{
+  const pts=[]; for(let i=0;i<=96;i++){const a=i/96*Math.PI*2, r=1.07+Math.sin(a*7)*.015; pts.push(new THREE.Vector3(Math.sin(a)*r,.66+Math.sin(a*5)*.02,Math.cos(a)*r*COAT_Z));}
+  const hem=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),160,.07,10,true),COAT); king.add(hem);
+  // silver chain trim just above the hem
+  for(let i=0;i<64;i++){const a=i/64*Math.PI*2, r=coatR(.8)+.02; const b=new THREE.Mesh(new THREE.TorusGeometry(.028,.011,6,12),SILVER);
+    b.position.set(Math.sin(a)*r,.8,Math.cos(a)*r*COAT_Z); b.rotation.set(0,a+(i%2?Math.PI/2:0),0); king.add(b);}
 }
-/* -- tail -- */
-tube(BLACK,[[0,1.35,-.65],[0,1.15,-.95],[.1,.95,-1.15],[.25,1.1,-1.3]],.055);
+// front opening: a seam with the zipper
+{
+  const ys=[]; for(let y=.72;y<=2.22;y+=.05) ys.push(y);
+  tube(SILVER,ys.map(y=>[0,y,front(0,y,.018)]),.022,king,80,8);
+  for(const y of ys){ const t=new THREE.Mesh(new THREE.BoxGeometry(.075,.018,.02),SILVER); t.position.set(0,y,front(0,y,.03)); king.add(t);}
+  const pull=(y)=>{const g=new THREE.Group(); g.position.set(0,y,front(0,y,.05));
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.05,.014,8,20),SILVER); g.add(ring);
+    const tab=new THREE.Mesh(new THREE.BoxGeometry(.07,.16,.025),SILVER); tab.position.y=-.12; g.add(tab); king.add(g); return g;};
+  pull(2.02); pull(.9);
+}
+// collar and hood (a soft roll round the neck, the hood lying behind)
+{
+  const collar=new THREE.Mesh(new THREE.TorusGeometry(.42,.13,16,48),COAT); collar.rotation.x=Math.PI/2; collar.position.y=2.36; collar.scale.set(1,1.05,1); king.add(collar);
+  ell(COAT,.62,.5,.36,0,2.35,-.48); ell(COAT,.5,.42,.3,0,2.05,-.62);
+}
+// chest cords with tassels, a looped chain between them, little silver Mickey emblems at the collar
+{
+  for(const s of[-1,1]){
+    const x0=s*.3, cord=[[x0,2.3,front(x0,2.3,.05)],[s*.36,2.05,front(s*.36,2.05,.06)],[s*.4,1.78,front(s*.4,1.78,.06)],[s*.42,1.6,front(s*.42,1.6,.06)]];
+    tube(SILVER,cord,.026,king,40,8);
+    const tas=new THREE.Group(); tas.position.set(s*.42,1.52,front(s*.42,1.52,.07)); king.add(tas);
+    const bead=new THREE.Mesh(new THREE.SphereGeometry(.05,16,12),SILVER); bead.position.y=.06; tas.add(bead);
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(.07,.2,16),SILVER); cone.rotation.x=Math.PI; cone.position.y=-.06; tas.add(cone);
+    // Mickey emblem
+    const em=new THREE.Group(); em.position.set(s*.3,2.3,front(s*.3,2.3,.07)); em.lookAt(s*.6,2.3,4); king.add(em);
+    const d=(r,x,y)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.025,20),SILVER); m.rotation.x=Math.PI/2; m.position.set(x,y,0); em.add(m);};
+    d(.055,0,0); d(.035,-.055,.055); d(.035,.055,.055);
+  }
+  const pts=[]; for(let i=0;i<=20;i++){const u=i/20, x=-.3+.6*u, y=2.28-.32*Math.sin(u*Math.PI); pts.push([x,y,front(x,y,.06)]);}
+  tube(SILVER,pts,.018,king,60,6);
+  const pts2=[]; for(let i=0;i<=20;i++){const u=i/20, x=-.34+.68*u, y=2.2-.5*Math.sin(u*Math.PI); pts2.push([x,y,front(x,y,.06)]);}
+  tube(SILVER,pts2,.016,king,60,6);
+}
 
-/* -- legs & shoes -- */
+/* ---------------- legs & shoes ---------------- */
 for(const s of[-1,1]){
-  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.13,.15,.85,20),BLACK); leg.position.set(s*.34,.83,.04); leg.castShadow=true; mickey.add(leg);
-  const sock=new THREE.Mesh(new THREE.CylinderGeometry(.16,.15,.16,24),WHITE); sock.position.set(s*.34,.53,.04); mickey.add(sock);
-  const shoe=ell(YELL,.36,.26,.72,s*.36,.26,.36); shoe.rotation.y=s*.16;
-  const toe=ell(YELL,.34,.22,.32,s*.36+s*.1,.24,.86); toe.rotation.y=s*.16;
-  const sole=ell(SOLE,.365,.04,.75,s*.36,.03,.36); sole.rotation.y=s*.16;
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.16,.18,.4,20),SKINBLACK); leg.position.set(s*.4,.55,.1); king.add(leg);
+  const shoe=ell(SKINBLACK,.44,.34,.62,s*.46,.32,.35,king,48); shoe.rotation.y=s*.18;
 }
 
-/* -- arms with white gloves -- */
-function makeHand(side){
+/* ---------------- arms ---------------- */
+function makeGlove(side,open){
   const h=new THREE.Group();
-  const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.155,.115,.16,28),WHITE); cuff.position.y=-.03; cuff.castShadow=true; h.add(cuff);
-  ell(WHITE,.19,.2,.145,0,-.24,0,h,32);
-  for(let i=0;i<3;i++){ // three fingers, fanned
-    const a=(i-1)*.28, f=new THREE.Mesh(new THREE.CapsuleGeometry(.056,.13,8,16),WHITE);
-    f.position.set(Math.sin(a)*-.02+(i-1)*.085,-.43,0.005); f.rotation.z=-a; f.castShadow=true; h.add(f);
+  const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.19,.15,.14,28),GLOVE); cuff.position.y=-.02; h.add(cuff);
+  ell(GLOVE,.21,.21,.17,0,-.23,0,h,32);
+  for(let i=0;i<3;i++){
+    const f=new THREE.Mesh(new THREE.CapsuleGeometry(.068,open?.16:.08,8,16),GLOVE);
+    if(open){ f.position.set((i-1)*.1,-.47,.02); f.rotation.set(-.25,0,(i-1)*-.18); }
+    else { f.position.set((i-1)*.1,-.38,.14); f.rotation.x=-1.5; }   // curled round a grip
+    h.add(f);
   }
-  const th=new THREE.Mesh(new THREE.CapsuleGeometry(.06,.12,8,16),WHITE); th.position.set(side*.2,-.26,.03); th.rotation.z=side*-1.0; th.castShadow=true; h.add(th);
-  for(const dx of[-.07,0,.07]){ // the three back-of-hand lines
-    const l=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(dx,-.14,.135),new THREE.Vector3(dx*1.2,-.27,.146),new THREE.Vector3(dx*1.3,-.37,.12)]),10,.011,6),BLACK); h.add(l);
-  }
+  const th=new THREE.Mesh(new THREE.CapsuleGeometry(.07,.12,8,16),GLOVE); th.position.set(side*.2,-.26,.08); th.rotation.set(-.5,0,side*-.9); h.add(th);
   return h;
 }
 const arms={};
 for(const s of[-1,1]){
-  const shoulder=new THREE.Group(); shoulder.position.set(s*.72,2.28,0); mickey.add(shoulder);
-  ell(BLACK,.15,.15,.15,0,0,0,shoulder,24);
-  const up=new THREE.Group(); shoulder.add(up);
-  const ua=new THREE.Mesh(new THREE.CylinderGeometry(.1,.11,.62,18),BLACK); ua.position.y=-.31; ua.castShadow=true; up.add(ua);
-  const elbow=new THREE.Group(); elbow.position.y=-.62; up.add(elbow);
-  ell(BLACK,.11,.11,.11,0,0,0,elbow,20);
-  const fa=new THREE.Mesh(new THREE.CylinderGeometry(.09,.1,.5,18),BLACK); fa.position.y=-.25; fa.castShadow=true; elbow.add(fa);
-  const hand=makeHand(s); hand.position.y=-.5; elbow.add(hand);
-  arms[s]={shoulder,up,elbow,hand};
+  const sh=new THREE.Group(); sh.position.set(s*.52,2.15,0); king.add(sh);
+  ell(COAT,.2,.2,.2,0,0,0,sh,24);
+  const up=new THREE.Group(); sh.add(up);
+  const ua=new THREE.Mesh(new THREE.CylinderGeometry(.15,.17,.55,20),COAT); ua.position.y=-.27; up.add(ua);
+  const el=new THREE.Group(); el.position.y=-.55; up.add(el);
+  ell(COAT,.16,.16,.16,0,0,0,el,20);
+  const fa=new THREE.Mesh(new THREE.CylinderGeometry(.22,.15,.5,22,1,true),COAT); fa.position.y=-.26; el.add(fa);   // sleeve flares at the cuff
+  const inner=new THREE.Mesh(new THREE.CircleGeometry(.21,22),SKINBLACK); inner.rotation.x=Math.PI/2; inner.position.y=-.5; el.add(inner);
+  const hand=makeGlove(s, s>0); hand.position.y=-.5; el.add(hand);
+  arms[s]={sh,up,el,hand};
 }
 
-/* -- head -- */
-const head=new THREE.Group(); head.position.set(0,3.55,0); mickey.add(head);
-const skull=ell(BLACK,1.04,.96,.96,0,0,0,head,64);
-const earL=ell(BLACK,.64,.64,.26,-.92,.98,-.1,head,48), earR=ell(BLACK,.64,.64,.26,.92,.98,-.1,head,48);
-earL.rotation.y=.35; earR.rotation.y=-.35;
-// neck
-const neck=new THREE.Mesh(new THREE.CylinderGeometry(.24,.34,.4,20),BLACK); neck.position.set(0,-.85,0); mickey.add(neck); neck.position.y=3.0;
+/* ---------------- Kingdom Key D ---------------- */
+const blade=new THREE.Group();
+{
+  const handle=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.5,20),SILVER); blade.add(handle);
+  const wrap=new THREE.Mesh(new THREE.CylinderGeometry(.068,.068,.3,20),P({color:0x222226,roughness:.6})); blade.add(wrap);
+  // rounded square guard
+  const rr=(w,h,r,n=12)=>{const pts=[],c=[[w/2-r,h/2-r,0],[-w/2+r,h/2-r,1],[-w/2+r,-h/2+r,2],[w/2-r,-h/2+r,3]];
+    for(const [cx,cy,q] of c) for(let i=0;i<=n;i++){const a=(q+i/n)*Math.PI/2; pts.push(new THREE.Vector3(cx+Math.cos(a)*r,cy+Math.sin(a)*r,0));} return pts;};
+  const guard=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rr(.8,.72,.1),true),96,.045,10,true),SILVER);
+  guard.position.x=-.3; blade.add(guard);
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(.3,.07,.07),SILVER); bar.position.set(-.16,.3,0); blade.add(bar);
+  const bar2=bar.clone(); bar2.position.y=-.3; blade.add(bar2);
+  const collar=new THREE.Mesh(new THREE.CylinderGeometry(.09,.08,.14,20),SILVER); collar.position.y=.36; blade.add(collar);
+  const red=new THREE.Mesh(new THREE.CylinderGeometry(.085,.085,.07,20),REDM); red.position.y=.46; blade.add(red);
+  const pom=new THREE.Mesh(new THREE.CylinderGeometry(.08,.07,.1,20),SILVER); pom.position.y=-.29; blade.add(pom);
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.05,.058,2.0,20),GOLD); shaft.position.y=1.5; blade.add(shaft);
+  // the teeth: a crown on one side of the tip
+  const tip=new THREE.Group(); tip.position.y=2.38; blade.add(tip);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.07,16,12),GOLD); cap.position.y=.13; tip.add(cap);
+  const base=new THREE.Mesh(new THREE.BoxGeometry(.5,.1,.05),GOLD); base.position.set(.27,-.02,0); tip.add(base);
+  for(const [x,h] of [[.08,.2],[.28,.26],[.48,.2]]){
+    const p=new THREE.Mesh(new THREE.BoxGeometry(.07,h,.05),GOLD); p.position.set(x,h/2,0); tip.add(p);
+    const b=new THREE.Mesh(new THREE.SphereGeometry(.045,12,10),GOLD); b.position.set(x,h+.02,0); tip.add(b);
+  }
+  const low=new THREE.Mesh(new THREE.BoxGeometry(.12,.16,.05),GOLD); low.position.set(.5,-.12,0); tip.add(low);
+  // keychain: gold links and a Mickey-head token
+  let y=-.36; const links=new THREE.Group(); blade.add(links);
+  const hook=new THREE.Mesh(new THREE.TorusGeometry(.05,.016,8,18),GOLD); hook.position.y=y; links.add(hook);
+  for(let i=0;i<5;i++){y-=.1; const l=new THREE.Mesh(new THREE.TorusGeometry(.045,.012,8,16),GOLD); l.position.y=y; l.rotation.y=i%2?Math.PI/2:0; l.scale.y=1.3; links.add(l);}
+  const token=new THREE.Group(); token.position.y=y-.14; links.add(token);
+  const d=(r,x,yy)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.03,24),GOLD); m.rotation.x=Math.PI/2; m.position.set(x,yy,0); token.add(m);};
+  d(.08,0,0); d(.05,-.085,.085); d(.05,.085,.085);
+  blade.userData.chain=links;
+}
+arms[-1].hand.add(blade);
+blade.position.set(0,-.3,.1);
+// the blade is aimed in world space (out and up to his right), whatever the arm does; the chain hangs straight down
+const _q=new THREE.Quaternion(), _qa=new THREE.Quaternion(), _qb=new THREE.Quaternion(), _dir=new THREE.Vector3(), _up=new THREE.Vector3(0,1,0);
+function aimBlade(dir, face){
+  _qa.setFromUnitVectors(_up,_dir.copy(dir).normalize());
+  _qb.setFromAxisAngle(_up,face); _qa.multiply(_qb);                    // turn the guard round the shaft
+  _q.setFromRotationMatrix(new THREE.Matrix4().extractRotation(king.matrixWorld)); _qa.premultiply(_q);
+  blade.parent.getWorldQuaternion(_qb); blade.quaternion.copy(_qb.invert().multiply(_qa));
+}
+const AIM={x:-.75,y:.62,z:.35};
 
-/* face: chin ellipsoid gets the mouth painted with a shader; upper lobes carry the eyes */
-const FACE={c:new THREE.Vector3(0,-.32,.5),r:new THREE.Vector3(.8,.64,.6)};
-const SKIN={color:0xf1b98c,roughness:.6,clearcoat:.12,envMapIntensity:.45};
-const faceMat=new THREE.MeshPhysicalMaterial(SKIN), lobeMat=new THREE.MeshPhysicalMaterial(SKIN);
+/* ---------------- head ---------------- */
+const head=new THREE.Group(); head.position.set(0,3.35,.05); king.add(head);
+ell(SKINBLACK,1.0,.95,.95,0,0,0,head,64);
+const earL=ell(SKINBLACK,.6,.6,.2,-.92,.98,-.12,head,48), earR=ell(SKINBLACK,.6,.6,.2,.92,.98,-.12,head,48);
+earL.rotation.y=.38; earR.rotation.y=-.38;
+const neck=new THREE.Mesh(new THREE.CylinderGeometry(.3,.36,.4,20),SKINBLACK); neck.position.y=2.55; king.add(neck);
+
+const FACE={c:new THREE.Vector3(0,-.3,.46),r:new THREE.Vector3(.78,.62,.6)};
+const faceMat=P(SKIN), lobeMat=P(SKIN);
 faceMat.onBeforeCompile=sh=>{
   sh.uniforms.fc={value:FACE.c}; sh.uniforms.fr={value:FACE.r};
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vHP; uniform vec3 fc,fr;')
     .replace('#include <begin_vertex>','#include <begin_vertex>\nvHP=fc+fr*position;');
   sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
 varying vec3 vHP;
-float sdSeg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;return length(pa-ba*clamp(dot(pa,ba)/dot(ba,ba),0.,1.));}
 vec3 srgb(vec3 c){return pow(c,vec3(2.2));}`)
   .replace('#include <color_fragment>',`#include <color_fragment>
 {
-  vec2 p=vHP.xy; float front=smoothstep(.0,.25,vHP.z);
-  float ax=abs(p.x);
-  // smile: top edge curls up towards the cheeks, D-shaped mouth below it
-  float top=-.27+.16*pow(ax/.46,2.0);
-  float low=top-.30*sqrt(max(1.-pow(ax/.44,2.),0.));
+  vec2 p=vHP.xy; float front=smoothstep(.0,.25,vHP.z); float ax=abs(p.x);
+  // open smile: a wide upper lip curve and a rounder lower edge
+  float top=-.3+.14*pow(ax/.4,2.0);
+  float low=top-.26*sqrt(max(1.-pow(ax/.38,2.),0.));
   float aa=.006;
-  float inside=smoothstep(aa,-aa,p.y-top)*smoothstep(-aa,aa,p.y-low)*smoothstep(.445,.425,ax);
-  // tongue
-  float tg=length(vec2(p.x/.2,(p.y-(low+.06))/.09));
+  float inside=smoothstep(aa,-aa,p.y-top)*smoothstep(-aa,aa,p.y-low)*smoothstep(.385,.365,ax);
+  float tg=length(vec2(p.x/.19,(p.y-(low+.05))/.09));
   float tongue=smoothstep(1.03,.97,tg)*inside;
-  vec3 mouth=mix(srgb(vec3(.36,.05,.08)),srgb(vec3(.95,.42,.48)),tongue);
-  mouth*=mix(.75,1.,smoothstep(low,top,p.y));
+  vec3 mouth=mix(srgb(vec3(.42,.08,.1)),srgb(vec3(.96,.5,.55)),tongue);
   diffuseColor.rgb=mix(diffuseColor.rgb,mouth,inside*front);
-  // smile line incl. cheek creases beyond the corners
-  float ly=-.27+.16*pow(ax/.46,2.0);
-  float d=abs(p.y-ly)*(1./sqrt(1.+pow(.16*2.*ax/.46/.46,2.)));
-  float line=smoothstep(.02,.009,d)*smoothstep(.56,.50,ax)*smoothstep(.40,.46,ax+.0)+0.;
-  line=max(line, smoothstep(.02,.009,d)*step(ax,.45)*0.);
-  diffuseColor.rgb=mix(diffuseColor.rgb,srgb(vec3(.05,.03,.03)),line*front*.9);
-  // faint warm cheeks
-  float ch=smoothstep(.2,.0,length(vec2(ax-.5,p.y+.15)));
-  diffuseColor.rgb=mix(diffuseColor.rgb,srgb(vec3(.98,.62,.55)),ch*.35*front);
+  // cheek creases at the mouth corners
+  float cr=smoothstep(.016,.006,abs(length(vec2(ax-.44,p.y+.22))-.07))*step(.4,ax)*step(p.y,-.18);
+  diffuseColor.rgb=mix(diffuseColor.rgb,srgb(vec3(.55,.3,.22)),cr*front*.8);
+  float ch=smoothstep(.22,.0,length(vec2(ax-.48,p.y+.12)));
+  diffuseColor.rgb=mix(diffuseColor.rgb,srgb(vec3(.98,.66,.58)),ch*.3*front);
 }`);
 };
-const chin=new THREE.Mesh(new THREE.SphereGeometry(1,96,64),faceMat); chin.scale.copy(FACE.r); chin.position.copy(FACE.c); chin.castShadow=true; head.add(chin);
-const LOBE={r:new THREE.Vector3(.4,.52,.34)};
-for(const s of[-1,1]) ell(lobeMat,.4,.52,.34,s*.31,.2,.68,head,48);
-// bridge that fills the gap between the two lobes
-ell(lobeMat,.3,.32,.32,0,.12,.7,head,32);
-
-/* eyes */
+const chin=new THREE.Mesh(new THREE.SphereGeometry(1,96,64),faceMat); chin.scale.copy(FACE.r); chin.position.copy(FACE.c); head.add(chin);
+for(const s of[-1,1]) ell(lobeMat,.4,.5,.34,s*.3,.2,.66,head,48);
+ell(lobeMat,.3,.32,.32,0,.12,.68,head,32);
 const eyeGroups=[];
 for(const s of[-1,1]){
-  const g=new THREE.Group(); g.position.set(s*.19,.33,.93); head.add(g); eyeGroups.push(g);
-  const w=ell(new THREE.MeshPhysicalMaterial({color:0xffffff,roughness:.25,clearcoat:1,envMapIntensity:.4}),.17,.3,.12,0,0,0,g,40);
-  const pupil=ell(new THREE.MeshPhysicalMaterial({color:0x050505,roughness:.15,clearcoat:1}),.09,.16,.06,-s*.03,-.06,.085,g,32);
-  ell(new THREE.MeshBasicMaterial({color:0xffffff}),.022,.03,.012,-s*.03+.025,-.02,.14,g,12);
-  g.userData.pupil=pupil;
+  const g=new THREE.Group(); g.position.set(s*.19,.33,.92); head.add(g); eyeGroups.push(g);
+  ell(P({color:0xffffff,roughness:.35,clearcoat:.6,envMapIntensity:.3}),.16,.28,.1,0,0,0,g,40);
+  const pupil=ell(P({color:0x050505,roughness:.2,clearcoat:1}),.075,.13,.05,0,-.06,.075,g,32);
+  g.userData.pupil=pupil; g.userData.side=s;
 }
-/* nose: big glossy black oval */
-const nose=ell(new THREE.MeshPhysicalMaterial({color:0x040404,roughness:.12,clearcoat:1,clearcoatRoughness:.05}),.245,.18,.22,0,.0,1.02,head,48);
-ell(new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),.06,.03,.01,-.07,.08,1.235,head,16);
+// big round nose, sticking out
+ell(P({color:0x060607,roughness:.3,clearcoat:.8,clearcoatRoughness:.2}),.25,.19,.24,0,.0,1.04,head,48);
 
-mickey.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-mickey.position.y=0;
+king.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
 
 /* ---------------- animation ---------------- */
-const st={wave:true,jump:false,spin:false}, btn=(id,k)=>{const b=document.getElementById(id); b.onclick=()=>{st[k]=!st[k]; b.setAttribute('aria-pressed',st[k]);};};
-btn('bWave','wave'); btn('bJump','jump'); btn('bSpin','spin');
-const mouse=new THREE.Vector2(0,0);
-addEventListener('pointermove',e=>{mouse.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight*2-1));});
+const st={raise:false,spin:false};
+for(const [id,k] of [['bRaise','raise'],['bSpin','spin']]){const b=document.getElementById(id); b.onclick=()=>{st[k]=!st[k]; b.setAttribute('aria-pressed',st[k]);};}
+const mouse=new THREE.Vector2();
+addEventListener('pointermove',e=>mouse.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight*2-1)));
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-const clock=new THREE.Clock(); let blinkAt=2, jumpT=-1;
-document.getElementById('bJump').addEventListener('click',()=>{jumpT=0;});
-const lerp=(a,b,t)=>a+(b-a)*t, damp=(a,b,k,dt)=>lerp(a,b,1-Math.exp(-k*dt));
+const clock=new THREE.Clock(); let blinkAt=2;
+const damp=(a,b,k,dt)=>a+(b-a)*(1-Math.exp(-k*dt));
+const R=arms[-1], L=arms[1];
 function tick(){
   const dt=Math.min(clock.getDelta(),.05), t=clock.elapsedTime;
-  // breathing / sway
-  mickey.rotation.z=Math.sin(t*1.6)*.012; body.scale.y=shorts.scale.y=1+Math.sin(t*2)*.008;
-  // head follows the pointer, ears lag behind
-  const ty=mouse.x*.5, tx=-mouse.y*.25+.05;
-  head.rotation.y=damp(head.rotation.y,ty,6,dt); head.rotation.x=damp(head.rotation.x,tx,6,dt);
-  head.rotation.z=Math.sin(t*1.3)*.03;
-  earL.rotation.z=Math.sin(t*3+1)*.025; earR.rotation.z=-Math.sin(t*3)*.025;
-  for(const g of eyeGroups){const p=g.userData.pupil; p.position.x=lerp(p.position.x,(g.position.x>0?-.03:.03)+mouse.x*.05,.15); p.position.y=lerp(p.position.y,-.06+mouse.y*.06,.15);}
-  // blink
-  if(t>blinkAt){const k=(t-blinkAt)/.16; const s=k<1?1-Math.sin(k*Math.PI)*.92:1; eyeGroups.forEach(g=>g.scale.y=s); if(k>=1) blinkAt=t+2+Math.random()*3;}
-  // arms
-  const R=arms[1], L=arms[-1];
-  if(st.wave){R.up.rotation.z=damp(R.up.rotation.z,2.55+Math.sin(t*1.2)*.05,7,dt); R.elbow.rotation.z=damp(R.elbow.rotation.z,-.35+Math.sin(t*9)*.55,12,dt);}
-  else {R.up.rotation.z=damp(R.up.rotation.z,.28+Math.sin(t*1.6)*.02,6,dt); R.elbow.rotation.z=damp(R.elbow.rotation.z,-.2,6,dt);}
-  L.up.rotation.z=-.28-Math.sin(t*1.6+1)*.02; L.elbow.rotation.z=.2;
-  // jump: squash, stretch, hop
-  let y=0, sy=1;
-  if(jumpT>=0){jumpT+=dt; const u=jumpT/1.0; if(u<.18){sy=1-u/.18*.12;} else if(u<1){const v=(u-.18)/.82; y=Math.sin(v*Math.PI)*1.5; sy=1+Math.sin(v*Math.PI)*.06;} else {jumpT=-1; st.jump=false; document.getElementById('bJump').setAttribute('aria-pressed',false);}}
-  mickey.position.y=y; mickey.scale.set(1/Math.sqrt(sy),sy,1/Math.sqrt(sy));
-  if(st.spin) mickey.rotation.y+=dt*1.2; else mickey.rotation.y=damp(mickey.rotation.y,0,3,dt)%(Math.PI*2);
+  king.rotation.z=Math.sin(t*1.5)*.01;
+  head.rotation.y=damp(head.rotation.y,mouse.x*.45-.15,6,dt); head.rotation.x=damp(head.rotation.x,-mouse.y*.22+.06,6,dt);
+  head.rotation.z=.08+Math.sin(t*1.2)*.03;   // the figure's head tilt
+  for(const g of eyeGroups){const p=g.userData.pupil; p.position.x=damp(p.position.x,mouse.x*.05,8,dt); p.position.y=damp(p.position.y,-.06+mouse.y*.06,8,dt);}
+  if(t>blinkAt){const k=(t-blinkAt)/.16; eyeGroups.forEach(g=>g.scale.y=k<1?1-Math.sin(k*Math.PI)*.92:1); if(k>=1) blinkAt=t+2+Math.random()*3;}
+  // keyblade arm (his right): held out to the side, or raised overhead
+  const r=st.raise?{z:-2.6,x:-.2,ez:.2,ex:-.3}:{z:-1.05,x:-.55,ez:-.2,ex:-.9};
+  R.up.rotation.z=damp(R.up.rotation.z,r.z,5,dt); R.up.rotation.x=damp(R.up.rotation.x,r.x,5,dt);
+  R.el.rotation.z=damp(R.el.rotation.z,r.ez,5,dt); R.el.rotation.x=damp(R.el.rotation.x,r.ex,5,dt);
+  const want=st.raise?{x:-.12,y:1,z:.08}:{x:-.75,y:.62,z:.35};
+  for(const k of['x','y','z']) AIM[k]=damp(AIM[k],want[k],5,dt);
+  king.updateMatrixWorld(true); aimBlade(new THREE.Vector3(AIM.x,AIM.y,AIM.z), -.35);
+  { blade.updateMatrixWorld(true); blade.getWorldQuaternion(_qb); const c=blade.userData.chain; c.quaternion.copy(_qb.invert()); c.rotateZ(Math.sin(t*2.2)*.12); }
+  // open hand (his left): raised a little in front of the chest
+  L.up.rotation.z=.55+Math.sin(t*1.5)*.02; L.up.rotation.x=-.35; L.el.rotation.x=-1.0; L.el.rotation.z=.25;
+  L.hand.rotation.y=-.6;
+  if(st.spin) king.rotation.y+=dt*1.0; else king.rotation.y=damp(king.rotation.y,0,3,dt);
   controls.update(); renderer.render(scene,camera); requestAnimationFrame(tick);
 }
 tick();
