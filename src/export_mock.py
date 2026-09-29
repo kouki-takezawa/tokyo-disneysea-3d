@@ -244,6 +244,8 @@ def main():
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)
+              ("tdl_under", "disneyland", []),                              # ds_ground.py: the floor under the buildings (no white gaps where a model replaces a building)
+              ("tds_under", "paths", []),
               ("tracks", "maihama", ["mhline", "mhjr"]),
               ("bb_castle", "disneyland", []),
               ("cinderella", "disneyland", []),
@@ -289,7 +291,7 @@ def main():
     shrubs = []
     try:
         import ds_tdl_ground, ds_tdl_hotel_ground
-        from shapely.geometry import LineString, Point
+        from shapely.geometry import Point
         beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"])
         for q in beds:
             if q.is_empty or q.area < 3.0:

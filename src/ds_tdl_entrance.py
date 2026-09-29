@@ -4,7 +4,7 @@
   blender -b --python src/ds_tdl_entrance.py -- --cams none         # build + save the .blend only
   then open output/disneyland/entrance/tdl_entrance.blend (cameras CAM_*)
 
-Reference videos (README; WALT., the same creator as the station video): 「Blenderでディズニーエントランスをモデリング」
+Reference videos (docs/blender.md; WALT., the same creator as the station video): 「Blenderでディズニーエントランスをモデリング」
 (Shorts ARTD2DHt-x8, aNMlw8Z9Kjs). They model the World Bazaar entrance: the aerial photo as the plan guide, then the
 sign ("Tokyo Disneyland" / "Welcome", light bulbs round it), the medallion, the pillars with a fleur-de-lis on the
 pedestal, the beams, the arched frames, then the brick facade. This script keeps that order for the World Bazaar
@@ -47,7 +47,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, arc_curve, bend, T, R,
                             seg_arc, arch_opening, arch_band, ring_sector, cutter, curve_obj, scroll_pts, column_bm,
-                            globe_lamp_bm, text, hip, roof_obj, bevel_mod, _principled, _mottle)
+                            globe_lamp_bm, text, roof_obj, _principled, _mottle)
 
 OUT = ROOT / "output" / "disneyland" / "entrance"
 P0 = (-530.0, 915.0)

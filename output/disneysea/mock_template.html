@@ -1476,6 +1476,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
   TL_rock: { color: 0x9a7456, roughness: 1 }, TL_earth: { color: 0x9c8466, roughness: 1 },
+  TL_under: { color: 0x8f8a80, roughness: 0.95 },   // the floor under the buildings (ds_ground.py: tdl_under, tds_under)
   TL_edge: { color: 0x7a746b, roughness: 0.9 }, TL_rail: { color: 0x7d7064, roughness: 1 },
   // 線路 (ds_tracks.py): meshes TK_<material>
   ST_beam: { color: 0x9a978f, roughness: 0.9 }, ST_pier: { color: 0xa9a69e, roughness: 0.9 }, ST_viaduct: { color: 0x8f8e89, roughness: 0.9 },
@@ -1962,6 +1963,40 @@ float leafH(vec3 p){                                                   // height
   HEDGE_MAT = m; return m;
 }
 
+/* Brick paving: the Land / Sea paving and ground (TL_paving*, TL_ground*) get a procedural running-bond brick pattern in world plan (x, z),
+   so it needs no UVs. Bricks are 0.22 x 0.07 m with 8 mm joints, each with its own tone; the land's ground colour stays the base tint.
+   Where a pixel approaches the size of a brick (distance, grazing angles) the pattern fades to its average so it does not shimmer. */
+const BRICK_KEY = /^TL_(paving|ground)/;
+function brickify(m) {
+  if (m.userData.brick) return m; m.userData.brick = true;
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vBP;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvBP = (modelMatrix * vec4(transformed, 1.)).xyz;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+varying vec3 vBP;
+float bh(vec2 p){p=fract(p*vec2(.1031,.1030));p+=dot(p,p.yx+33.33);return fract((p.x+p.y)*p.x);}
+float bh1(vec2 p){return bh(p)*.6+bh(p*1.7+7.)*.4;}`)
+    .replace("#include <color_fragment>", `#include <color_fragment>
+{
+  vec2 q = vBP.xz / vec2(.22, .07);                  // brick units: 1 = one brick long / wide
+  float row = floor(q.y); q.x += mod(row, 2.) * .5;   // running bond: every other row shifted by half a brick
+  vec2 id = vec2(floor(q.x), row), f = fract(q);
+  vec2 jw = vec2(.008 / .22, .008 / .07);
+  vec2 e = min(f, 1. - f) / jw;
+  float mortar = 1. - smoothstep(.6, 1.4, min(e.x, e.y));
+  float tone = bh1(id), tone2 = bh(id * 3.1 + 11.);
+  vec3 brick = diffuseColor.rgb * (.78 + .34 * tone) * mix(vec3(1.), vec3(1.06, .96, .9), tone2 * .6);
+  vec3 joint = diffuseColor.rgb * .62 + vec3(.05);
+  vec2 qw = fwidth(vec2(q.x, q.y));
+  float fade = smoothstep(.22, .7, max(qw.x, qw.y));                                     // pixels near a brick in size: the average tone only
+  vec3 avg = mix(brick, joint, .16);
+  vec3 col = mix(mix(brick, joint, mortar), avg, fade);
+  col *= .96 + .08 * bh(floor(vBP.xz * .35));                                            // slow patchiness over metres
+  diffuseColor.rgb = col;
+}`);
+  };
+  m.needsUpdate = true; return m;
+}
 // materials for a loaded model (the GLBs carry geometry; the page gives the colours)
 function prepModel(T, scene) {
   {
@@ -1978,6 +2013,7 @@ function prepModel(T, scene) {
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
         else if (o.name.startsWith("AQ_Foam")) { o.material = makeFoam(T); o.add(makeSpray(T)); }
         else if (key) o.material = reflectEnv(new T.MeshStandardMaterial({ side: T.DoubleSide, ...MODEL_MAT[key] }));
+        if (BRICK_KEY.test(o.name) && o.material?.isMeshStandardMaterial) brickify(o.material);   // brick-pattern paving
         if (SHADOWS && o.material && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; }
         const vc = o.geometry.attributes.color;   // glTF vertex colours are linear; the page shows values as stored
         if (vc && MODEL_MAT[key]?.vertexColors) {

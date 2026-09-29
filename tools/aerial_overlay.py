@@ -8,7 +8,7 @@ Drawn: DisneySea buildings (coloured by land), Disneyland buildings, water, park
 the entrance / Maihama layers. A 10 m grid is drawn when the box is small.
 The photo predates Fantasy Springs (opened 2024): it cannot check that area.
 """
-import io, json, math, pathlib, re, sys, urllib.request
+import json, math, pathlib, re, sys, urllib.request
 from PIL import Image, ImageDraw
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent

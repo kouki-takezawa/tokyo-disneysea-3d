@@ -5,7 +5,7 @@
   python -c "import ds_tdl_bb_castle as b; b.make_textures()"      # repaint the textures (plain Python: Blender has no PIL)
 
 Sources (looked at only; nothing copied into the repository):
-  * Reference video (README): WALT.「美女と野獣 - blender short film」(CIx4qyGuVLY, the only non-Shorts one): it
+  * Reference video (docs/blender.md): WALT.「美女と野獣 - blender short film」(CIx4qyGuVLY, the only non-Shorts one): it
     films the enchanted rose under its glass dome, not the castle -> the rose is set on the pedestal in the courtyard.
   * Wikimedia Commons "Tokyo Disneyland Enchanted Tale of Beauty and the Beast" (2023-11, CC BY 2.0) and
     "Tokyo Disneyland (Oct 2020)" (CC BY-SA 4.0), "Disneyland Tokyo1234" (CC0), "Tokyo Disneyland under COVID-19"
@@ -60,8 +60,8 @@ except ImportError:
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
-from ds_tdl_station import (B, box, prism, bm_box, bm_lathe, bm_prism, obj_bm, array_mod, radial_array, T, R, seg_arc,
-                            _principled, _mottle, _bump, text)
+from ds_tdl_station import (B, box, bm_box, bm_lathe, obj_bm, T, R, seg_arc,
+                            _principled, _mottle, _bump)
 
 OUT = ROOT / "output" / "disneyland" / "bb_castle"
 GATE = (-622.0, 497.1)

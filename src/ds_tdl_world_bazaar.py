@@ -46,7 +46,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 import ds_tdl_entrance as EN
-from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, T, R, seg_arc, arch_opening, arch_band,
+from ds_tdl_station import (B, prism, bm_box, bm_prism, bm_lathe, obj_bm, T, R, seg_arc, arch_opening, arch_band,
                             column_bm, globe_lamp_bm, text, _principled, _mottle)
 from ds_tdl_entrance import frame, WB, WB_BACK
 

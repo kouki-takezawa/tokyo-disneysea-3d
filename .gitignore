@@ -7,6 +7,9 @@
 !/tools/
 !/vercel.json
 !/docs/
+# the promo film: kept in the repository, not part of the app (Vercel serves output/disneysea only)
+!/promo/
+/promo/*.mp4
 
 !/src/
 

@@ -41,7 +41,7 @@ except ImportError:
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
-from ds_tdl_station import B, obj_bm, bm_box, bm_lathe, bm_prism, T, R, _principled, _mottle, text
+from ds_tdl_station import B, obj_bm, bm_box, bm_lathe, bm_prism, _principled, _mottle
 
 OUT = ROOT / "output" / "disneyland" / "tracks"
 RL_STATIONS = False          # the other three Resort Line stations are built separately later (user, 2026-09-25)

@@ -7,8 +7,8 @@ a later pass can rebuild just those with real facade detail, matching the
 level of the reference models on Sketchfab (see ds_core docstring) without
 touching anything else.
 """
-import bpy, pathlib
-from ds_core import (DATA, get_collection, flat_material, extrude_footprint, extrude_loops, is_roof, ROOF_T,
+import pathlib
+from ds_core import (get_collection, flat_material, extrude_loops, is_roof, ROOF_T,
                       link, ways_with, height_for_way, nearest_port, multipolygons,
                       poly_centroid, ring_inside, in_park, PORT_COLOR, DETAIL_PRIORITY,
                       LANDMARK_SKIP, LANDMARK_SKIP_IDS)

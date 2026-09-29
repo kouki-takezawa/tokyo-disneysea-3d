@@ -4,6 +4,7 @@ needed; no trees). Nothing is built outside the parks. The method of ds_tdl_grou
 
   python src/ds_ground.py                  # both zones -> output/disneysea/models/{tdl_land_ground,tds_ground}.json
   python src/ds_ground.py tds_ground       # one zone
+  python src/ds_ground.py tdl_under tds_under   # the floor under the buildings (see below)
   python src/export_mock.py                # rebuilds the page; D.models picks the files up
 
 Zones (ZONES):
@@ -34,6 +35,11 @@ Mesh: every piece is cut into cells and triangulated (constrained Delaunay); the
 Heights: the GSI DEM5A on the mock's datum (ds_levels), smoothed; the DEM under buildings and water is not ground, so it is filled
   from the ground round them; flat under the entrance model (ds_tdl_ground); level with the Resort Line station's floor beside it;
   level with the DisneySea plaza model round it.
+Under the buildings (tdl_under, tds_under -> TL_under): the zones above leave the buildings' footprints open (a building's own mesh
+  stands there). But the mock hides an OSM building when a model replaces it (the hotel, the station, the plaza buildings ...), and a
+  model with courtyards, arcades or no floor then shows a white gap. So one more flat floor is laid under every building of 50 m2 and
+  more (and under the entrance / hotel areas, which the zones leave out), UNDER_DROP m below the ground so that a floor inside a
+  model (a walk-in shop, the station) stays on top and nothing z-fights. The gaps left in the parks are then only the water models'.
 ESTIMATES: widths, colours, the zones' edges. The ground inside the rides' buildings is not modelled.
 """
 import sys, json, math, base64, pathlib, time
@@ -58,6 +64,7 @@ W_FOOT, W_PED = 3.5, 8.0
 ROAD_W = {"service": 5.0, "living_street": 5.0, "track": 4.0, "residential": 7.0, "unclassified": 7.0, "tertiary": 10.0,
           "tertiary_link": 7.0, "secondary": 10.0, "secondary_link": 7.0, "primary": 12.0, "primary_link": 7.0, "trunk": 14.0,
           "trunk_link": 7.0, "motorway": 14.0, "motorway_link": 7.0}
+UNDER_DROP = 0.08                         # m: the floor under the buildings lies this far below the ground (models' own floors stay on top)
 FOOT_PX = 0.5
 FOOT_SIMPLIFY = 0.6                       # m: the models' footprints (raster outlines) are simplified this much
 SIMPLIFY = 0.3                            # m: the pieces' outlines are simplified this much (together, as a coverage)
@@ -66,6 +73,7 @@ KINDS = ("TL_paving", "TL_road", "TL_parking", "TL_rail", "TL_grass", "TL_wood",
 LAND_KINDS = ("TL_paving", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_ground")   # split by land in the Land zone: TL_<kind>_<land>
 LAND_KEYS = ("wb", "adv", "west", "critter", "fan", "toon", "tom")                       # ds_disneyland.LANDS order; the mock colours them
 LAND_SAMPLE = 8.0                                                                        # m: spacing of the points along the buildings' outlines
+UNDER = ("tdl_under", "tds_under")          # extra models: the floor under the buildings of each park
 ZONES = {
     "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=[]),
     "tds_ground": dict(cell=8.0, tile=64.0, water_models=["water"], cut_models=["water", "plaza", "aquasphere", "volcano"]),
@@ -396,8 +404,37 @@ def build(zone, region, extra):
     return P, meshes
 
 
+# ---------------------------------------------------------------- the floor under the buildings
+def build_under(zone, region, extra):
+    """One flat floor (mesh TL_under) under every building of SMALL_BUILDING m2 and more inside the park (`region`, which for the Land
+    also takes in the entrance and hotel areas the zones leave out), UNDER_DROP m below the ground."""
+    t0 = time.time()
+    if zone == "tdl_under":
+        region = unary_union([region, extra["done"]])
+    bl = [Polygon(w["pts"]).buffer(0) for w in src().ways.values() if w["closed"] and len(w["pts"]) >= 4 and is_building(w["tags"])]
+    bl += [src().mp(r) for r in src().rels.values() if is_building(r["tags"]) and len(r["members"]) < 400]
+    bl = unary_union([b for b in bl if not b.is_empty and b.area >= SMALL_BUILDING and b.intersects(region)]).intersection(region)
+    water = [model_footprint(m) for m in (["water"] if zone == "tds_under" else [WATER_MODEL_TDL])]
+    water = unary_union([g for g in water if g is not None and not g.is_empty])
+    floor = bl.difference(water) if not water.is_empty else bl
+    floor = unary_union([p for p in G._polys(floor) if p.area > 0.5])
+    flats = [(extra["station"], H.STATION_GROUND, H.STATION_FLAT_R0, H.STATION_FLAT_R1)]
+    if zone == "tds_under":
+        pz = model_footprint("plaza")
+        if pz is not None:
+            flats.append((pz, json.loads((ROOT / "plateau_data" / "disneysea_plaza.json").read_text(encoding="utf-8"))["ground"] + 0.045, 0.5, 12.0))
+    T = G.Terrain(region.bounds, void=unary_union([bl.buffer(H.BUILDING_MARGIN), water.buffer(1.0)]), flats=flats)
+    T.Z -= UNDER_DROP
+    print(f"  [{zone}] terrain {time.time() - t0:.0f} s, floor {floor.area:.0f} m2", flush=True)
+    m = G.Mesh("TL_under")
+    top_surface_cells(m, T, floor, 8.0, 64.0)
+    return floor, {"TL_under": m}
+
+
 def main():
-    want = [a for a in sys.argv[1:] if a in ZONES] or list(ZONES)
+    args = sys.argv[1:]
+    want = [a for a in args if a in ZONES] or ([] if any(a in UNDER for a in args) else list(ZONES))
+    want_under = [a for a in args if a in UNDER] or (list(UNDER) if not args else [])
     t0 = time.time()
     regions, extra = zone_regions()
     print(f"[ground] zones {time.time() - t0:.0f} s: " + ", ".join(f"{k} {v.area / 1e6:.2f} km2" for k, v in regions.items()), flush=True)
@@ -408,6 +445,11 @@ def main():
         print(f"[ground] {out.name} {out.stat().st_size / 1e6:.1f} MB, {n} triangles; areas m2:",
               {k[3:]: round(v.area) for k, v in P["zones"].items()}, "passages %.0f, cut by models %.0f" % (P["passage"].area, P["cut"].area),
               flush=True)
+    for zone in want_under:
+        floor, meshes = build_under(zone, regions["tdl_land_ground" if zone == "tdl_under" else "tds_ground"], extra)
+        out = MODELS_DIR / f"{zone}.json"
+        n = G.write_gltf(out, meshes)
+        print(f"[ground] {out.name} {out.stat().st_size / 1e6:.1f} MB, {n} triangles, floor {floor.area:.0f} m2 ({time.time() - t0:.0f} s)", flush=True)
 
 
 if __name__ == "__main__":

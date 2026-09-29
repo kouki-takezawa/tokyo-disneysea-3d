@@ -10,7 +10,6 @@ obj.location to the real-world anchor at the end, so bmesh scale/translate
 ops never need a custom pivot.
 """
 import bpy, bmesh
-from mathutils import Vector
 from ds_core import DATA, get_collection, flat_material, link
 
 

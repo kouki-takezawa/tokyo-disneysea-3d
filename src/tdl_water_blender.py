@@ -14,7 +14,7 @@ type, piers); only the data and the ground outline are the Land's:
 The scene ground is flat (0 m = the DisneySea promenade datum), so water sits at -freeboard; the DEM-based absolute
 levels are in the JSON for the mock.
 """
-import sys, math, json, time, argparse, pathlib, importlib, types
+import sys, json, time, argparse, pathlib, importlib, types
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
