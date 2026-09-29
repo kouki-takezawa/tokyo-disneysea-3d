@@ -1482,10 +1482,15 @@ def icc_interior(door, dz, clear, WZ, EW):
                                                      cases=[(cols[1] + 0.3, cols[2] - 0.3), (cols[2] + 0.3, cols[3] - 0.3)], rng=rng))
     Lr = cy - y1
     xform_new(P, T(ux0, y1, 0.005) @ R(math.pi / 2, "Z"), lambda: icc_counter(bmk, Lr, (0.0, Lr - 0.6), [0.25, Lr - 0.2], rng=rng))
+    # the glass hall's corner column (castle end) stands in the back wall: case it as a pier, white below, salmon above
+    hx = ICC["x"] + 24.5 / 2; hy = ICC["y"] - END_Y
+    for mat, z0, z1_ in (("t_white", 0.06, 2.4), ("icc_salmon", 2.4, top - 0.18), ("t_white", top - 0.18, top)):
+        bm_box(bmk(mat), hx - 0.4, hx + 0.4, y1, hy + 0.6, z0, z1_)
+    bm_box(bmk("t_white"), hx - 0.44, hx + 0.44, y1, hy + 0.64, 2.35, 2.47)
     # behind the counter: the work bench on the back wall, the machines on it, a framed picture (photo 5)
-    bm_box(bmk("icc_steel"), ux0 + 0.8, x1 - 0.3, y1, y1 + 0.65, 0.06, 0.92)
-    bm_box(bmk("icc_steel"), ux0 + 0.75, x1 - 0.25, y1, y1 + 0.7, 0.92, 0.96)
-    for x in (3.6, 4.6, 7.8, 8.8, 9.8):
+    bm_box(bmk("icc_steel"), hx + 0.45, x1 - 0.3, y1, y1 + 0.65, 0.06, 0.92)
+    bm_box(bmk("icc_steel"), hx + 0.45, x1 - 0.25, y1, y1 + 0.7, 0.92, 0.96)
+    for x in (3.75, 4.7, 7.8, 8.8, 9.8):
         bm_box(bmk("icc_steel"), x - 0.27, x + 0.27, y1 + 0.05, y1 + 0.55, 0.96, 1.62)
         bm_box(bmk("m_black"), x - 0.2, x + 0.2, y1 + 0.55, y1 + 0.57, 1.3, 1.52)
         for s_ in (-1, 1):
