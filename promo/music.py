@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from scipy.signal import butter, fftconvolve, sosfilt
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "promo" / "music.m4a"
 SR = 44100
 DUR = 50.0

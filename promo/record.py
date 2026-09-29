@@ -22,7 +22,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 THREE_URL = "https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"
 
 

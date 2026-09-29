@@ -52,8 +52,9 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
 </div>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script>
-// The promo film: a pop-up book on a candlelit desk opens, the camera dives through its paper curtains into the book, and travels
-// a paper-craft world (the canal harbour, the volcano, the turning globe, a forest, the castle under fireworks); a match cut on the
+// The promo film: a pop-up book on a candlelit desk opens on a map of both parks, its pop-ups standing where the places really are;
+// the camera dives into the book and flies over a paper-craft model of the parks built from the mock's data (the AquaSphere,
+// Mediterranean Harbor, the volcano, north over to Tokyo Disneyland, World Bazaar, the castle under fireworks); a match cut on the
 // castle brings it back to the book, which closes on the title. Everything is drawn here, as in the mock's opening pop-up book.
 // Time drives everything (PROMO.frameAt(ms)), so promo/record.py can render it frame by frame; opened in a browser it plays live.
 (async () => {
@@ -73,16 +74,17 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     [0.9, 4.4, "ある夜、ふしぎな絵本がひらきました。"],
     [5.4, 9.0, "ページの中には、夢の王国。"],
     [9.3, 11.3, "さあ、絵本の中へ――"],
-    [13.6, 17.8, "運河の港町を、ゴンドラとすすんで"],
+    [13.2, 16.6, "地球儀の広場から、港町へ"],
+    [17.2, 20.8, "ゴンドラのゆれる港をこえて"],
     [21.6, 24.8, "火を噴く山を見あげ"],
-    [25.6, 29.4, "まわる地球儀の広場をぬけて"],
-    [31.2, 34.4, "森の小道の、その先に……"],
+    [25.8, 29.6, "海をこえて、となりの王国へ"],
+    [31.0, 34.4, "ワールドバザールの先に……"],
     [36.0, 40.0, "お城の空に、光の花がひらく。"],
   ];
   await Promise.all(["600 40px Cinzel", "700 40px 'Cinzel Decorative'"].map(f => document.fonts.load(f).catch(() => {}))
     .concat(document.fonts.load("500 40px 'Kiwi Maru'", CAPS.map(c => c[2]).join("") + $("end").textContent).catch(() => {})));
-  let D = {};
-  try { D = await (await fetch("../output/disneysea/mock_data.json")).json(); } catch (e) { /* the map page is painted without the park outlines */ }
+  // both parks, simplified from the mock's data by promo/world_data.py (real positions: metres, +x east, +y north)
+  const D = window.WORLD_DATA || await (await fetch("world.json")).json();
 
   const T = THREE;
   const cv = $("cv");
@@ -176,17 +178,13 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     sh(g, O(g, x, base - bh - rh - 5, 5), C.gold);
   };
   const arts = {
-    mountains(g, w, h) {
-      const hills = () => { g.beginPath(); g.moveTo(0, h); g.bezierCurveTo(w * 0.1, h * 0.45, w * 0.2, h * 0.5, w * 0.32, h * 0.62);
-        g.bezierCurveTo(w * 0.5, h * 0.4, w * 0.62, h * 0.35, w * 0.72, h * 0.5); g.bezierCurveTo(w * 0.82, h * 0.3, w * 0.94, h * 0.35, w, h * 0.55); g.lineTo(w, h); g.closePath(); };
-      sh(g, hills, C.sage); hatch(g, hills, w * 0.5, h * 0.3, w, h, 9, 0.16);
-      const volcano = P(g, [[w * 0.06, h], [w * 0.16, h * 0.5], [w * 0.2, h * 0.38], [w * 0.235, h * 0.3], [w * 0.26, h * 0.34], [w * 0.3, h * 0.29],
-        [w * 0.33, h * 0.36], [w * 0.36, h * 0.46], [w * 0.4, h * 0.52], [w * 0.47, h]]);
-      sh(g, volcano, C.terra); hatch(g, volcano, w * 0.26, h * 0.3, w * 0.47, h, 6, 0.3);
+    volcano(g, w, h) {   // the volcano alone, for the book (it stands at its place on the map)
+      const q = [[.06, 1], [.16, .5], [.2, .38], [.235, .3], [.26, .34], [.3, .29], [.33, .36], [.36, .46], [.4, .52], [.47, 1]].map(([x, y]) => [(x - 0.06) / 0.41 * w, ((y - 0.29) / 0.71 * 0.94 + 0.06) * h]);
+      const v = P(g, q); sh(g, v, C.terra); hatch(g, v, w * 0.5, 0, w, h, 6, 0.3);
       g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.4; g.lineWidth = 1.6;
-      for (const [a, b, c, d] of [[.18, .55, .23, .7], [.26, .45, .3, .66], [.34, .5, .38, .72], [.22, .78, .28, .9], [.12, .8, .16, .92]]) { g.beginPath(); g.moveTo(w * a, h * b); g.lineTo(w * c, h * d); g.stroke(); }
+      for (const [a, b, c, d] of [[.3, .4, .38, .66], [.5, .3, .58, .6], [.68, .45, .74, .75], [.4, .72, .46, .9]]) { g.beginPath(); g.moveTo(w * a, h * b); g.lineTo(w * c, h * d); g.stroke(); }
       g.restore();
-      wash(g, P(g, [[w * 0.255, h * 0.34], [w * 0.27, h * 0.5], [w * 0.262, h * 0.64], [w * 0.249, h * 0.48]]), "#c46a3a", false);
+      wash(g, P(g, [[w * 0.47, h * 0.1], [w * 0.53, h * 0.3], [w * 0.5, h * 0.52], [w * 0.46, h * 0.3]]), "#c46a3a", false);
     },
     smoke(g, w, h) {
       const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.35, 0.62, 0.3], [0.62, 0.45, 0.36], [0.5, 0.7, 0.26]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
@@ -201,11 +199,6 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
       const hills = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.55); g.bezierCurveTo(w * 0.12, h * 0.2, w * 0.24, h * 0.3, w * 0.36, h * 0.45);
         g.bezierCurveTo(w * 0.5, h * 0.12, w * 0.64, h * 0.25, w * 0.76, h * 0.4); g.bezierCurveTo(w * 0.86, h * 0.2, w * 0.95, h * 0.3, w, h * 0.5); g.lineTo(w, h); g.closePath(); };
       sh(g, hills, "#93a79f"); hatch(g, hills, w * 0.3, h * 0.2, w, h, 10, 0.12);
-    },
-    foot(g, w, h) {
-      const bumps = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.5); for (let i = 0; i < 6; i++) g.quadraticCurveTo(w * (i + 0.5) / 6, h * (i % 2 ? 0.05 : 0.2), w * (i + 1) / 6, h * 0.55);
-        g.lineTo(w, h); g.closePath(); };
-      sh(g, bumps, C.moss); hatch(g, bumps, 0, h * 0.2, w, h, 8, 0.2);
     },
     castle(g, w, h) {
       const b = h - 4;
@@ -249,13 +242,6 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
       for (const [x, c] of [[w * 0.05, C.rose], [w * 0.09, C.ochre], [w * 0.93, C.rose], [w * 0.965, C.ochre]])
         for (let k = 0; k < 5; k++) sh(g, O(g, x + Math.cos(k * 1.257) * 8, h * 0.55 + Math.sin(k * 1.257) * 8, 6), c);
     },
-    sea(g, w, h) {   // the world's waves: a longer row, no flowers
-      const n = 12, sw = w / n, sea = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.4); for (let i = 0; i < n; i++) g.quadraticCurveTo(sw * i + sw / 2, h * (i % 2 ? 0.05 : 0.2), sw * (i + 1), h * 0.4); g.lineTo(w, h); g.closePath(); };
-      sh(g, sea, C.water); hatch(g, sea, 0, h * 0.5, w, h, 10, 0.14);
-      g.save(); g.strokeStyle = "#f3ead6"; g.lineWidth = 5; g.globalAlpha = 0.9;
-      for (let i = 0; i < n; i++) { g.beginPath(); g.arc(sw * i + sw * 0.62, h * 0.44, sw * 0.14, Math.PI, Math.PI * 1.9); g.stroke(); }
-      g.restore();
-    },
     gondola(g, w, h) {
       const hull = () => { g.beginPath(); g.moveTo(w * 0.04, h * 0.45); g.quadraticCurveTo(w * 0.5, h * 1.02, w * 0.96, h * 0.4); g.quadraticCurveTo(w * 0.5, h * 0.72, w * 0.04, h * 0.45); g.closePath(); };
       sh(g, hull, C.navy);
@@ -285,30 +271,6 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
         sh(g, P(g, [[X(w * 0.055), h * 0.64], [X(w * 0.07), h * 0.74], [X(w * 0.045), h * 0.74]]), C.gold);
       }
     },
-    valance(g, w, h) {   // the pelmet over the world's stage: scallops, folds, a gold fringe and tassels
-      const n = 9, sw = w / n, top = h * 0.42;
-      const shape = () => { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, top); for (let i = n - 1; i >= 0; i--) g.quadraticCurveTo(sw * i + sw / 2, h * 0.98, sw * i, top); g.closePath(); };
-      sh(g, shape, C.burg);
-      g.save(); shape(); g.clip(); g.strokeStyle = "rgba(40,10,15,.3)"; g.lineWidth = 4;
-      for (let i = 0; i < n * 3; i++) { const x = (i + 0.5) * sw / 3; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 3, h); g.stroke(); }
-      g.restore();
-      g.save(); g.strokeStyle = C.gold; g.lineWidth = 7; g.beginPath(); g.moveTo(w, top); for (let i = n - 1; i >= 0; i--) g.quadraticCurveTo(sw * i + sw / 2, h * 0.98 - 9, sw * i, top); g.stroke(); g.restore();
-      for (let i = 1; i < n; i++) { sh(g, O(g, sw * i, top + 6, 7), C.gold); sh(g, P(g, [[sw * i - 3, top + 10], [sw * i + 3, top + 10], [sw * i + 9, top + 46], [sw * i - 9, top + 46]]), C.gold); }
-      sh(g, R(g, 0, 0, w, h * 0.08), C.gold);
-    },
-    bridge(g, w, h) {   // a stone bridge over the canal, the camera passes under its arch
-      const deck = () => { g.beginPath(); g.moveTo(0, h * 0.3); g.lineTo(w, h * 0.3); g.lineTo(w, h); g.lineTo(w * 0.8, h);
-        g.bezierCurveTo(w * 0.78, h * 0.42, w * 0.22, h * 0.42, w * 0.2, h); g.lineTo(0, h); g.closePath(); };
-      sh(g, deck, C.stone); hatch(g, deck, w * 0.5, h * 0.3, w, h, 9, 0.18);
-      g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.5; g.lineWidth = 2.2;
-      for (let i = 0; i <= 12; i++) { const k = i / 12, x = w * 0.2 + k * w * 0.6, y = h - Math.sin(k * Math.PI) * h * 0.56;
-        const nx = (k - 0.5) * 0.7, ny = -Math.sin(k * Math.PI) * 0.9 - 0.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + nx * h * 0.12, y + ny * h * 0.12); g.stroke(); }
-      g.restore();
-      sh(g, R(g, 0, h * 0.06, w, h * 0.06), C.stone);
-      for (let x = w * 0.01; x < w; x += w / 44) sh(g, R(g, x, h * 0.12, w * 0.009, h * 0.18), C.stone);
-      sh(g, P(g, [[w * 0.47, h * 0.4], [w * 0.53, h * 0.4], [w * 0.515, h * 0.5], [w * 0.485, h * 0.5]]), C.sand);
-      for (const x of [0.08, 0.92]) { sh(g, R(g, w * x - 5, h * 0.0 + 4, 10, h * 0.08), C.brown); sh(g, O(g, w * x, 12, 11, 14), C.gold); }
-    },
     cloud(g, w, h) {
       const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.25, 0.62, 0.3], [0.45, 0.42, 0.4], [0.68, 0.5, 0.34], [0.82, 0.66, 0.24], [0.5, 0.7, 0.28]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
       ink(g, puff, 4); wash(g, puff, "#f6efe0", false);
@@ -321,7 +283,6 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
         g.lineTo(cx + Math.cos(c) * L, cy + Math.sin(c) * L); g.lineTo(cx + Math.cos(b + 0.13) * rr, cy + Math.sin(b + 0.13) * rr); } g.closePath(); };
       sh(g, rays, C.ochre); sh(g, O(g, cx, cy, rr), "#e2b35a");
     },
-    belltower(g, w, h) { tower(g, w / 2, h - 4, w * 0.62, h * 0.74, h * 0.18, C.sand, C.terra); },
   };
 
   // boxes: buildings with real depth (a painted front and side, a roof)
@@ -422,28 +383,47 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     (g => { g.fillStyle = "#5b1f27"; g.fillRect(0, 0, 256, 256); grain(g, 256, 256, 22);
       for (let i = 0; i < 60; i++) { g.strokeStyle = "rgba(20,5,8,.12)"; g.lineWidth = 1; g.beginPath(); const x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); g.lineTo(x + Math.random() * 12 - 6, y + Math.random() * 12 - 6); g.stroke(); } })(leatherC.getContext("2d"));
     const leather = lam({ map: tex(leatherC, 3) }), edge = lam({ color: 0xe2d2ab }), goldM = lam({ color: 0xc9a14e, emissive: 0x3a2808 });
+    // the map on the spread: both parks turned so that they lie across the two pages (Tokyo Disneyland left, Tokyo DisneySea right)
+    const SW = 1024, SH = 384;
+    const MAP = (() => {
+      const all = [...D.tds, ...D.tdl];
+      let b = null;
+      for (let a = 20; a <= 110; a++) {
+        const th = a * Math.PI / 180, c = Math.cos(th), sn = Math.sin(th), r = all.map(([x, y]) => [x * c - y * sn, x * sn + y * c]);
+        const x0 = Math.min(...r.map(q => q[0])), x1 = Math.max(...r.map(q => q[0])), y0 = Math.min(...r.map(q => q[1])), y1 = Math.max(...r.map(q => q[1]));
+        const sc = Math.min((SW - 170) / (x1 - x0), (SH - 90) / (y1 - y0));
+        if (!b || sc > b.sc) b = { th, c, sn, sc, x0, x1, y0, y1 };
+      }
+      const ox = (SW - (b.x1 - b.x0) * b.sc) / 2, oy = (SH - (b.y1 - b.y0) * b.sc) / 2 + 4;
+      return { th: b.th, M: (x, y) => { const rx = x * b.c - y * b.sn, ry = x * b.sn + y * b.c; return [ox + (rx - b.x0) * b.sc, oy + (b.y1 - ry) * b.sc]; } };
+    })();
+    const MB = (x, y) => { const [X, Y] = MAP.M(x, y); return [X / SW * 78.8 - 39.4, Y / SH * 29.6 - 14.8]; };   // a map point on the open book
     const spread = canvas(2048, 768);
     (g => {
-      const w = 2048, h = 768; g.scale(2, 2); const W2 = w / 2, H2 = h / 2;
+      const W2 = SW, H2 = SH; g.scale(2, 2);
       paper(g, W2, H2);
       const gut = g.createLinearGradient(W2 / 2 - 60, 0, W2 / 2 + 60, 0);
       gut.addColorStop(0, "rgba(90,60,30,0)"); gut.addColorStop(0.5, "rgba(90,60,30,.28)"); gut.addColorStop(1, "rgba(90,60,30,0)"); g.fillStyle = gut; g.fillRect(W2 / 2 - 60, 0, 120, H2);
       g.strokeStyle = C.gold; g.globalAlpha = 0.7; g.lineWidth = 2; g.strokeRect(18, 18, W2 / 2 - 36, H2 - 36); g.strokeRect(W2 / 2 + 18, 18, W2 / 2 - 36, H2 - 36);
       g.lineWidth = 0.8; g.strokeRect(24, 24, W2 / 2 - 48, H2 - 48); g.strokeRect(W2 / 2 + 24, 24, W2 / 2 - 48, H2 - 48); g.globalAlpha = 1;
-      const parks = [D.park, D.disneyland?.park].filter(Boolean), all = parks.flat();
-      if (all.length) {
-        const x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
-        const s = Math.min((W2 - 140) / (x1 - x0), (H2 - 100) / (y1 - y0)), ox = (W2 - (x1 - x0) * s) / 2, oy = (H2 - (y1 - y0) * s) / 2;
-        const M = ([x, y]) => [ox + (x - x0) * s, oy + (y1 - y) * s];
-        for (const p of parks) wash(g, P(g, p.map(M)), "#b9c29a");
-        for (const p of D.water || []) wash(g, P(g, p.map(M)), "#9fb7c0", false);
-        for (const p of parks) { g.setLineDash([5, 5]); ink(g, P(g, p.map(M)), 1.6); g.setLineDash([]); }
-        g.fillStyle = C.brown; g.textAlign = "center"; g.font = "italic 600 17px Cinzel, serif";
-        if (D.disneyland) { const [a, b] = M([-700, 1150]); g.fillText("Tokyo Disneyland", Math.max(120, a), Math.max(44, b)); }
-        const [c, d] = M([150, -420]); g.fillText("Tokyo DisneySea", Math.min(W2 - 120, c), Math.min(H2 - 30, d));
+      const M = ([x, y]) => MAP.M(x, y);
+      wash(g, P(g, D.tdl.map(M)), "#bcc49a"); wash(g, P(g, D.tds.map(M)), "#cbc39c");
+      for (const p of D.green) { P(g, p.map(M))(); g.fillStyle = "rgba(110,130,70,.35)"; g.fill(); }
+      for (const p of D.water) wash(g, P(g, p.map(M)), "#9fb7c0", false);
+      for (const p of D.islands) { P(g, p.map(M))(); g.fillStyle = "#cbc39c"; g.fill(); }
+      g.lineWidth = 0.5; g.strokeStyle = "rgba(74,53,38,.6)";
+      for (const b of D.buildings) { P(g, b.r.map(M))(); g.fillStyle = "rgba(150,105,70,.5)"; g.fill(); g.stroke(); }
+      for (const p of [D.tds, D.tdl]) { g.setLineDash([5, 5]); ink(g, P(g, p.map(M)), 1.6); g.setLineDash([]); }
+      g.fillStyle = C.brown; g.textAlign = "center"; g.font = "italic 600 17px Cinzel, serif";
+      for (const [p, name, below] of [[D.tdl, "Tokyo Disneyland", 0], [D.tds, "Tokyo DisneySea", 1]]) {
+        const q = p.map(M), cx = q.reduce((a, v) => a + v[0], 0) / q.length, ys = q.map(v => v[1]);
+        g.fillText(name, Math.min(W2 - 110, Math.max(110, cx)), below ? Math.min(H2 - 26, Math.max(...ys) + 20) : Math.max(40, Math.min(...ys) - 8));
       }
-      g.save(); g.translate(W2 - 66, 62); g.fillStyle = C.gold; g.globalAlpha = 0.8;
-      for (let i = 0; i < 8; i++) { g.rotate(Math.PI / 4); P(g, [[0, i % 2 ? -18 : -30], [5, 0], [0, 5], [-5, 0]])(); g.fill(); }
+      // a compass rose whose long point shows the real north
+      const [nx, ny] = M([0, 0]), [mx, my] = M([0, 100]), na = Math.atan2(my - ny, mx - nx) + Math.PI / 2;
+      g.save(); g.translate(W2 - 66, 62); g.rotate(na); g.fillStyle = C.gold; g.globalAlpha = 0.85;
+      for (let i = 0; i < 8; i++) { P(g, [[0, i ? (i % 2 ? -16 : -24) : -34], [5, 0], [0, 5], [-5, 0]])(); g.fill(); g.rotate(Math.PI / 4); }
+      g.fillStyle = C.burg; g.font = "700 13px Cinzel, serif"; g.fillText("N", 0, -38);
       g.restore();
     })(spread.getContext("2d"));
     const textPage = canvas(512, 384);
@@ -503,25 +483,31 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
       bk.add(cast(g)); return g;
     });
     const FLIP_AT = POP_IN_MS + POP_OPEN_MS * 0.7, FLIP_GAP = 280, UP_AT = FLIP_AT + FLIP_GAP * 2 + POP_FLIP_MS - 150;
-    const BOXES = [[-27.5, -1.6, 4.6, 3.6, 7.5, C.ochre, 3.2, 2, 2, 0, 400], [-22.8, -1, 4, 3.4, 5.6, C.rose, 2.8, 2, 2, 1, 450], [-18.2, -1.6, 5, 3.8, 9, C.sand, 3.6, 2, 3, 0, 500],
-      [-13.4, -0.9, 4.2, 3.4, 6.2, "#a7b6b8", 3, 2, 2, 1, 550], [-9.2, -1.6, 4.4, 3.6, 7.6, "#c9a3a0", 3.2, 2, 2, 0, 600]]
-      .map(([x, z, w, d, h, col, rh, cols, rows, door, delay]) => ["box", 0, h, x, z, delay, { quiet: 1, box: { w, d, h, col, roof: "gable", rh, cols, rows, door } }]);
-    const pieces = [["hillsBack", 78, 22, 0, -14.6, 0, { quiet: 1 }], ["mountains", 74, 24, 0, -11.8, 60], ["foot", 74, 9, 0, -9, 200, { quiet: 1 }],
-      ["castleBack", 26, 28, 12, -9.4, 120, { quiet: 1 }], ["castle", 13, 28, 12, -7, 170, { half: -1, yaw: 0.22 }], ["castle", 13, 28, 12, -7, 170, { half: 1, yaw: 0.22, quiet: 1 }],
-      ["harbor", 14, 14, -16, -6.5, 320, { half: -1, yaw: 0.18 }], ["harbor", 14, 14, -16, -6.5, 320, { half: 1, yaw: 0.18, quiet: 1 }],
-      ["box", 0, 8, 12, -3.6, 380, { quiet: 1, box: { w: 6, d: 3.4, h: 8, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }], ...BOXES,
-      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
+    // the pop-ups stand where they are on the map: the castle in Tokyo Disneyland; the volcano, the harbour, the globe in Tokyo DisneySea
+    const cP = MB(D.castle.x, D.castle.y), vP = MB(D.volcano.x, D.volcano.y), aP = MB(D.aquasphere.x, D.aquasphere.y), hP = MB(D.harbor.x, D.harbor.y), tP = MB(D.tot.x, D.tot.y);
+    const CS = 0.62, hues = [C.ochre, C.rose, C.sand, "#a7b6b8", "#c9a3a0"];
+    const HOUSES = D.buildings.filter(b => b.k === "s" && b.p === 0).map(b => ({ b, a: Math.abs(b.r.reduce((a, [x, y], i, r) => { const [u, v] = r[(i + 1) % r.length]; return a + x * v - u * y; }, 0) / 2) }))
+      .sort((p, q) => q.a - p.a).slice(0, 6).map(({ b }, i) => { const cx = b.r.reduce((a, v) => a + v[0], 0) / b.r.length, cy = b.r.reduce((a, v) => a + v[1], 0) / b.r.length, [x, z] = MB(cx, cy);
+        return ["box", 0, 0, x, z, 400 + i * 45, { quiet: 1, box: { w: 2.6 + (i % 3) * 0.4, d: 2.4, h: 3.6 + (i * 37 % 5) * 0.6, col: hues[i % 5], roof: "gable", rh: 1.8, cols: 2, rows: 2, door: i % 2 } }]; });
+    const TREES = [0.08, 0.3, 0.52, 0.7, 0.9].map((f, i) => { const [x, y] = D.trees[Math.floor(f * (D.trees.length - 1))], [bx, bz] = MB(x, y); return ["tree", 4.2, 6, bx, bz, 560 + i * 40]; });
+    const pieces = [["hillsBack", 78, 14, 0, -14.6, 0, { quiet: 1 }], ["volcano", 12, 10, vP[0], vP[1], 60],
+      ["castleBack", 26, 28, cP[0], cP[1] - 1.3, 120, { quiet: 1, s: CS }], ["castle", 13, 28, cP[0], cP[1], 170, { half: -1, yaw: 0.22, s: CS }], ["castle", 13, 28, cP[0], cP[1], 170, { half: 1, yaw: 0.22, quiet: 1, s: CS }],
+      ["harbor", 9, 8, hP[0], hP[1], 320, { half: -1, yaw: 0.18 }], ["harbor", 9, 8, hP[0], hP[1], 320, { half: 1, yaw: 0.18, quiet: 1 }],
+      ["box", 0, 0, cP[0], cP[1] + 1.7, 380, { quiet: 1, box: { w: 6 * CS, d: 3.4 * CS, h: 8 * CS, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }],
+      ["box", 0, 0, tP[0], tP[1], 420, { quiet: 1, box: { w: 2.4, d: 2.4, h: 9, col: "#a77462", roof: "flat", cols: 1, rows: 4, door: 0 } }], ...HOUSES,
+      ["pedestal", 9, 8, aP[0], aP[1], 470, { s: 0.7 }], ...TREES, ["tree", 7, 10, -35, 5, 560], ["tree", 7, 10, 35, 4, 620],
+      ["waves", 76, 4.6, 0, 11.4, 720], ["curtains", 80, 22, 0, 13.6, 900]]
       .map(([k, w, h, x, z, delay, o = {}]) => {
         const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
-        let m;
+        let m; const sc = o.s || 1;
         if (o.box) { m = makeBox(o.box); hinge.add(m); }
-        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k]); m.position.set(o.half ? o.half * w / 2 : 0, h / 2, 0); hinge.add(m); }
+        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k]); m.scale.setScalar(sc); m.position.set(o.half ? o.half * w * sc / 2 : 0, h * sc / 2, 0); hinge.add(m); }
         bk.add(hinge); hinge.visible = false;
-        return { k, hinge, m, delay, h, x, z, quiet: o.quiet, box: !!o.box, yaw: o.half ? -o.half * o.yaw : 0 };
+        return { k, hinge, m, delay, h: h * sc, x, z, quiet: o.quiet, box: !!o.box, yaw: o.half ? -o.half * o.yaw : 0 };
       });
     const byKey = k => pieces.find(p => p.k === k);
-    const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1]].map(([x, y, w, h, ph]) => {
-      const m = piece(w, h, arts.smoke); m.position.set(x, y, 0.15); byKey("mountains").hinge.add(m); return { m, y, x, ph };
+    const smokes = [[-0.2, 11.4, 3.6, 2.6, 0], [0.8, 13.8, 4.4, 3, 1.7], [-0.6, 16.4, 3.2, 2.3, 3.1]].map(([x, y, w, h, ph]) => {
+      const m = piece(w, h, arts.smoke); m.position.set(x, y, 0.15); byKey("volcano").hinge.add(m); return { m, y, x, ph };
     });
     const gl = canvas(512, 256);
     (g => { wash(g, R(g, 0, 0, 512, 256), "#6f93ab", false);
@@ -550,11 +536,11 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     leak.position.set(0, 3, 0); leak.scale.setScalar(96); leak.renderOrder = 5; sc.add(leak);
     const sparks = [];
     for (const p of pieces) if (p.k !== "curtains" && !p.quiet) burstList(sparks, (UP_AT + p.delay + POP_UP_MS * 0.6) / 1000, p.x, 1.5, p.z + 0.6, 16, 11, 9);
-    burstList(sparks, BURST_AT / 1000, 12, 24, -5, 110, 24, 12); burstList(sparks, (BURST_AT + 140) / 1000, -14, 12, -3, 60, 18, 9); burstList(sparks, (BURST_AT + 280) / 1000, 0, 10, -8, 60, 18, 9);
+    burstList(sparks, BURST_AT / 1000, cP[0], 17, cP[1], 110, 24, 12); burstList(sparks, (BURST_AT + 140) / 1000, hP[0], 8, hP[1], 60, 18, 9); burstList(sparks, (BURST_AT + 280) / 1000, aP[0], 8, aP[1], 60, 18, 9);
     for (let i = 0; i < 9; i++) burstList(sparks, (FIN_AT + i * 55) / 1000, -34 + i * 8.5, 1, 9, 24, 10, 26);
     const sp = pointsOf(sparks.length, 2.6, sc);
     const VN = 46, vp = pointsOf(VN, 2.2, sc), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 10, vz: (Math.random() - 0.5) * 6, vy: 15 + Math.random() * 12, g: Math.random() }));
-    const CRATER = new T.Vector3(-17.4, 17.3, -11.6);
+    const CRATER = new T.Vector3(vP[0], 9.7, vP[1] + 0.2);
     const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
     lava.position.copy(CRATER); lava.scale.setScalar(11); sc.add(lava);
     const punch = (el, at) => { const a = (el - at) / 1000; return a < 0 ? 0 : Math.exp(-a * 3.2); };
@@ -572,7 +558,7 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
         TGT.z + Math.cos(yaw) * Math.cos(pitch) * dd), look: TGT.clone(), fov: 32, d };
     };
     return {
-      sc, cm, view, BURST_AT, FIN_AT,
+      sc, cm, view, BURST_AT, FIN_AT, cP, aP,
       // el: the book's clock (ms); t: the film's clock (s); open/fold: override for the closing; camera: {pos, look, fov}
       step({ el, t, open: openOv, fold = 0, camera }) {
         const a = eo(clamp(el / POP_IN_MS)), open = openOv ?? eio(clamp((el - POP_IN_MS) / POP_OPEN_MS));
@@ -618,166 +604,158 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     };
   })();
 
-  // ================================================================ the world inside the book
+  // ================================================================ the world inside the book: both parks where they really are, made of paper
+  // map (x east, y north, metres) -> three (x, up, -y)
   const world = (() => {
-    const sc = new T.Scene(), cm = new T.PerspectiveCamera(50, RW / RH, 0.5, 2600);
+    const sc = new T.Scene(), cm = new T.PerspectiveCamera(50, RW / RH, 1, 12000);
     const FOG_DAY = new T.Color(0xe9dcc0), FOG_DUSK = new T.Color(0x3b3354);
-    sc.fog = new T.Fog(FOG_DAY.clone(), 260, 1100);
-    const RES = 2048;
+    sc.fog = new T.Fog(FOG_DAY.clone(), 450, 2300);
+    const V3 = (x, y, z) => new T.Vector3(x, y, z), at = (x, y, h = 0) => V3(x, h, -y);
+    const CEN = at(-150, 250);
     // the sky: a painted dome, and a dusk dome that fades in over it
     const skyC = (stops, blooms) => { const c = canvas(1024, 512), g = c.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 512);
       stops.forEach(([o, s]) => lg.addColorStop(o, s)); g.fillStyle = lg; g.fillRect(0, 0, 1024, 512);
       for (let i = 0; i < 70; i++) { const x = Math.random() * 1024, y = Math.random() * 260, rr = 30 + Math.random() * 90, b = g.createRadialGradient(x, y, 0, x, y, rr);
         b.addColorStop(0, blooms[i % blooms.length]); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
       fibres(g, 1024, 512); grain(g, 1024, 512, 8); return tex(c); };
-    const skyGeo = new T.SphereGeometry(1500, 48, 24);
+    const skyGeo = new T.SphereGeometry(5000, 48, 24);
     const skyDay = new T.Mesh(skyGeo, new T.MeshBasicMaterial({ map: skyC([[0, "#7fa6c4"], [0.3, "#a9c3d2"], [0.46, "#f0e2c2"], [0.5, "#f4dcb4"], [1, "#f4dcb4"]],
       ["rgba(255,250,235,.25)", "rgba(90,120,160,.12)"]), side: T.BackSide, fog: false, depthWrite: false }));
     const skyDusk = new T.Mesh(skyGeo, new T.MeshBasicMaterial({ map: skyC([[0, "#141a3c"], [0.25, "#2c2f5e"], [0.4, "#6b4f7c"], [0.47, "#e0906a"], [0.5, "#f2b27a"], [1, "#f2b27a"]],
       ["rgba(255,210,170,.08)", "rgba(20,20,60,.18)"]), side: T.BackSide, fog: false, transparent: true, opacity: 0, depthWrite: false }));
-    skyDay.renderOrder = -2; skyDusk.renderOrder = -1; sc.add(skyDay, skyDusk);
-    // stars
+    skyDay.renderOrder = -2; skyDusk.renderOrder = -1; skyDay.position.copy(CEN); skyDusk.position.copy(CEN); sc.add(skyDay, skyDusk);
     const starT = (() => { const c = canvas(64, 64), g = c.getContext("2d"), rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
       rg.addColorStop(0, "rgba(255,248,220,1)"); rg.addColorStop(0.2, "rgba(255,230,170,.5)"); rg.addColorStop(1, "rgba(255,220,150,0)"); g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
       g.fillStyle = "rgba(255,245,215,.9)"; g.beginPath(); g.moveTo(32, 2); g.lineTo(35, 29); g.lineTo(62, 32); g.lineTo(35, 35); g.lineTo(32, 62); g.lineTo(29, 35); g.lineTo(2, 32); g.lineTo(29, 29); g.closePath(); g.fill(); return tex(c); })();
-    const SN = 260, stP = new Float32Array(SN * 3);
-    for (let i = 0; i < SN; i++) { const a = -Math.PI * (0.05 + Math.random() * 0.9), e = 0.12 + Math.random() * 0.8;
-      stP[i * 3] = 60 + Math.cos(a) * Math.cos(e) * 1300; stP[i * 3 + 1] = Math.sin(e) * 1300; stP[i * 3 + 2] = -100 + Math.sin(a) * Math.cos(e) * 1300; }
+    const SN = 320, stP = new Float32Array(SN * 3);
+    for (let i = 0; i < SN; i++) { const a = Math.random() * 6.2832, e = 0.1 + Math.random() * 0.9;
+      stP[i * 3] = CEN.x + Math.cos(a) * Math.cos(e) * 4500; stP[i * 3 + 1] = Math.sin(e) * 4500; stP[i * 3 + 2] = CEN.z + Math.sin(a) * Math.cos(e) * 4500; }
     const stGeo = new T.BufferGeometry(); stGeo.setAttribute("position", new T.BufferAttribute(stP, 3));
-    const stars = new T.Points(stGeo, new T.PointsMaterial({ map: starT, size: 26, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    const stars = new T.Points(stGeo, new T.PointsMaterial({ map: starT, size: 70, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
     stars.frustumCulled = false; sc.add(stars);
 
     const hemi = new T.HemisphereLight(0xfff1dc, 0x8a7a5c, 0.62); sc.add(hemi);
     const key = new T.DirectionalLight(0xfff0d8, 0.95); sc.add(key, key.target);
     key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
-    Object.assign(key.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 10, far: 500 }); key.shadow.bias = -0.0005;
-    const castleLight = new T.PointLight(0xffc27a, 0, 160, 1.3); castleLight.position.set(100, 30, -150); sc.add(castleLight);
+    Object.assign(key.shadow.camera, { left: -260, right: 260, top: 260, bottom: -260, near: 10, far: 1200 }); key.shadow.bias = -0.0006;
 
-    // the ground: a sheet of the book's paper, lightly washed in green
-    const gC = canvas(1024, 1024);
-    (g => { g.fillStyle = "#d9d0ad"; g.fillRect(0, 0, 1024, 1024);
-      for (let i = 0; i < 60; i++) { const x = Math.random() * 1024, y = Math.random() * 1024, rr = 40 + Math.random() * 160, b = g.createRadialGradient(x, y, 0, x, y, rr);
-        b.addColorStop(0, Math.random() < 0.6 ? "rgba(140,160,100,.22)" : "rgba(200,170,120,.18)"); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
-      g.strokeStyle = "rgba(90,100,60,.18)"; g.lineWidth = 1.4;
-      for (let i = 0; i < 1400; i++) { const x = Math.random() * 1024, y = Math.random() * 1024; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2, y - 6); g.stroke(); }
-      fibres(g, 1024, 1024); grain(g, 1024, 1024, 10); })(gC.getContext("2d"));
-    const ground = new T.Mesh(new T.PlaneGeometry(3000, 3000), lam({ map: tex(gC, 40) }));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
-    // a path of stone wash from the canal to the castle
-    const pathC = canvas(256, 256);
-    (g => { g.fillStyle = "#d8c7a2"; g.fillRect(0, 0, 256, 256); g.strokeStyle = "rgba(110,80,50,.28)"; g.lineWidth = 1.5;
-      for (let y = 0; y < 256; y += 24) for (let x = (y / 24 % 2) * 20; x < 256; x += 40) { g.strokeRect(x, y, 40, 24); }
-      grain(g, 256, 256, 14); })(pathC.getContext("2d"));
-    const pathTex = tex(pathC); pathTex.wrapS = pathTex.wrapT = T.RepeatWrapping;
-    const pathPts = [[0, -106], [0, -116], [12, -104], [32, -118], [36, -138], [58, -150], [80, -160], [96, -168], [100, -178]].map(([x, z]) => new T.Vector3(x, 0.06, z));
-    {
-      const curve = new T.CatmullRomCurve3(pathPts), n = 160, pos = [], uv = [], idx = [];
-      for (let i = 0; i <= n; i++) { const p = curve.getPoint(i / n), tn = curve.getTangent(i / n), nx = -tn.z, nz = tn.x, hw = 4.5;
-        pos.push(p.x + nx * hw, 0.07, p.z + nz * hw, p.x - nx * hw, 0.07, p.z - nz * hw); uv.push(0, i * 0.6, 1, i * 0.6);
-        if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2); }
-      const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
-      const m = new T.Mesh(g, lam({ map: pathTex, side: T.DoubleSide })); m.receiveShadow = true; sc.add(m);
-    }
-
-    // ---- the camera's route: keys [time s, position, look at, fov]
-    const K = [
-      [11.5, [0, 13, 44], [0, 10, -20], 46], [13.4, [0, 10, 8], [0, 7, -40], 50], [15.8, [-6, 9.5, -22], [4, 6, -70], 52], [18.2, [5, 9.5, -52], [-4, 7, -100], 52],
-      [20.2, [0, 10, -80], [-8, 24, -200], 54], [22.5, [-4, 13, -100], [-40, 70, -250], 54], [24.6, [-11, 16, -98], [12, 24, -126], 50], [26.6, [24, 18, -90], [12, 24, -126], 50],
-      [28.6, [50, 20, -124], [12, 24, -126], 50], [30.4, [42, 12, -148], [74, 14, -170], 52], [32.3, [58, 10, -150], [100, 32, -192], 54], [34.3, [70, 13, -150], [100, 38, -195], 56],
-      [36.6, [80, 18, -143], [100, 50, -200], 58], [38.8, [87, 25, -133], [100, 60, -205], 58], [41.0, [93, 33, -124], [100, 52, -200], 56]];
-    const cPos = new T.CatmullRomCurve3(K.map(k => new T.Vector3(...k[1])), false, "catmullrom", 0.5);
-    const cLook = new T.CatmullRomCurve3(K.map(k => new T.Vector3(...k[2])), false, "catmullrom", 0.5);
-    const camAt = t => {
-      let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++;
-      const s = clamp((t - K[i][0]) / (K[i + 1][0] - K[i][0])), u = (i + s) / (K.length - 1);
-      const fov = K[i][3] + (K[i + 1][3] - K[i][3]) * sstep(0, 1, s);
-      return { pos: cPos.getPoint(u), look: cLook.getPoint(u), fov };
+    // ---- paper sheets: the ground, both parks, green, water, islands
+    const paperTex = (base, blooms, rep) => { const c = canvas(512, 512), g = c.getContext("2d"); g.fillStyle = base; g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 40; i++) { const x = Math.random() * 512, y = Math.random() * 512, rr = 30 + Math.random() * 100, b = g.createRadialGradient(x, y, 0, x, y, rr);
+        b.addColorStop(0, blooms[i % blooms.length]); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+      fibres(g, 512, 512); grain(g, 512, 512, 10); const t = tex(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(1 / rep, 1 / rep); return t; };
+    const ground = new T.Mesh(new T.PlaneGeometry(9000, 9000), lam({ map: (() => { const t = paperTex("#d6cda9", ["rgba(140,160,100,.1)", "rgba(200,170,120,.08)"], 1); t.repeat.set(40, 40); return t; })() }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(CEN.x, 0, CEN.z); ground.receiveShadow = true; sc.add(ground);
+    const shape = r => new T.Shape(r.map(([x, y]) => new T.Vector2(x, y)));
+    const sheet = (r, y, mat, depth = 0) => {
+      const g = depth ? new T.ExtrudeGeometry(shape(r), { depth, bevelEnabled: false }) : new T.ShapeGeometry(shape(r));
+      g.rotateX(-Math.PI / 2); const m = new T.Mesh(g, mat); m.position.y = y; m.receiveShadow = true; sc.add(m); return m;
     };
-    const camXZ = []; for (let t = 11.5; t <= 41; t += 0.1) { const c = camAt(t).pos; camXZ.push([c.x, c.z]); }
-    const nearCam = (x, z, d) => camXZ.some(([cx, cz]) => Math.hypot(cx - x, cz - z) < d);
-    const segD = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, k = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)); return Math.hypot(ax + dx * k - x, az + dz * k - z); };
-    const inSight = (x, z, d) => camXZ.some(([cx, cz], i) => i * 0.1 + 11.5 > 30 && segD(x, z, cx, cz, 100, -186) < d);   // between the camera and the castle
-    // pop-ups in the world: each stands up when the camera first comes near (worked out from the camera route above)
-    const pops = [];
-    const addPop = (obj, x, z, kind, o = {}) => {
-      const hinge = new T.Group(); hinge.position.set(x, o.y || 0, z); if (o.ry) hinge.rotation.y = o.ry;
-      const inner = new T.Group(); hinge.add(inner); inner.add(obj); sc.add(hinge);
-      const p = { hinge, inner, kind, at: o.at, R: o.R || 95, x, z, dur: o.dur || 0.9 }; pops.push(p); return p;
-    };
-    const flat = (W, H, art, x, z, o = {}) => { const m = piece(W, H, art, o.res || RES); m.position.y = H / 2; return addPop(m, x, z, "flat", o); };
-    const cross = (W, H, art, x, z, o = {}) => { const g = new T.Group(); const tx = cut(W, H, art, o.res || 1024);
-      for (const ry of [0, Math.PI / 2]) { const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: tx, alphaTest: 0.5, side: T.DoubleSide })); m.position.y = H / 2; m.rotation.y = ry; m.castShadow = m.receiveShadow = true; g.add(m); }
-      return addPop(g, x, z, "grow", o); };
-
-    // ---- the stage: curtains and a pelmet at the entrance of the world
-    flat(96, 26.4, arts.curtains, 0, 2, { at: 11.2 });
-    flat(96, 12, arts.valance, 0, 1.6, { at: 11.2, y: 20 });
-
-    // ---- the canal harbour
+    const landT = paperTex("#e6dcc0", ["rgba(160,170,120,.18)", "rgba(210,180,130,.18)", "rgba(255,250,235,.25)"], 60);
+    const edgeM = lam({ color: 0xcdbd98 });
+    for (const r of [D.tds, D.tdl]) sheet(r, 0, [lam({ map: landT }), edgeM], 1.2);
+    const greenM = lam({ map: paperTex("#a9b27f", ["rgba(90,110,60,.25)", "rgba(200,210,150,.2)"], 40) });
+    for (const r of D.green) sheet(r, 1.25, greenM);
     const waterC = canvas(512, 512);
     (g => { wash(g, R(g, 0, 0, 512, 512), "#7f9fb1", false); g.strokeStyle = "rgba(240,235,220,.5)"; g.lineWidth = 2.5;
       for (let i = 0; i < 70; i++) { const x = Math.random() * 512, y = Math.random() * 512, w = 20 + Math.random() * 40; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y - 6, x + w, y); g.stroke(); }
       grain(g, 512, 512, 8); })(waterC.getContext("2d"));
-    const waterTex = tex(waterC); waterTex.wrapS = waterTex.wrapT = T.RepeatWrapping; waterTex.repeat.set(3, 6);
-    const water = new T.Mesh(new T.PlaneGeometry(56, 102), lam({ map: waterTex })); water.rotation.x = -Math.PI / 2; water.position.set(0, 0.1, -57); water.receiveShadow = true; sc.add(water);
-    const stoneM = lam({ color: 0xcfc1a3 });
-    for (const x of [-28.6, 28.6]) { const w = new T.Mesh(new T.BoxGeometry(1.2, 1.5, 104), stoneM); w.position.set(x, 0.75, -57); sc.add(cast(w)); }
-    { const w = new T.Mesh(new T.BoxGeometry(58.4, 1.5, 1.2), stoneM); w.position.set(0, 0.75, -108.6); sc.add(cast(w)); }
-    const seaRows = [-14, -27, -40, -53, -66, -79, -92, -102].map((z, i) => { const p = flat(55, 3.4, arts.sea, 0, z, { res: 2048 }); p.ph = i * 1.3; return p; });
-    const gondolas = [[-20, -20.5, 1.0], [14, -46.5, -0.9], [-8, -93, 0.8]].map(([x0, z, v], i) => {
-      const m = piece(16, 6.8, arts.gondola, 1024); if (v < 0) m.scale.x = -1;
-      const g = new T.Group(); g.add(m); g.position.set(x0, 2.2, z); sc.add(g); return { g, m, x0, v, ph: i * 2.1 };
-    });
-    const hues = [C.ochre, C.rose, C.sand, "#a7b6b8", "#c9a3a0", C.sage, "#e0c79a", "#b7c3c9"];
-    let hi = 0;
-    for (const side of [-1, 1]) for (const row of [0, 1]) {
-      let z = -10 - row * 5;
-      while (z > -102) {
-        const w = 8.5 + Math.random() * 2.5, d = 8, h = (row ? 16 : 10) + Math.random() * 8, col = hues[hi++ % hues.length];
-        const box = makeBox({ w, d, h, col, roof: "gable", rh: 4.5, cols: 2 + (Math.random() < 0.4 ? 1 : 0), rows: 2 + Math.floor(h / 8), door: row ? 0 : 1, s: 2 });
-        if (!nearCam(side * (33.5 + row * 11), z - w / 2, 9)) addPop(box, side * (33.5 + row * 11), z - w / 2, "box", { ry: side < 0 ? Math.PI / 2 : -Math.PI / 2, R: 110 });
-        z -= w + 0.8;
-      }
-    }
-    cross(11, 48, arts.belltower, -49, -60, { R: 140 });
+    const waterTex = tex(waterC); waterTex.wrapS = waterTex.wrapT = T.RepeatWrapping; waterTex.repeat.set(1 / 45, 1 / 45);
+    const waterM = lam({ map: waterTex });
+    for (const r of D.water) sheet(r, 1.3, waterM);
+    for (const r of D.islands) sheet(r, 1.2, [lam({ map: landT }), edgeM], 0.35).position.y = 1.2;
+    // park outlines in ink
+    const inkLine = new T.LineBasicMaterial({ color: 0x4a3526, transparent: true, opacity: 0.55 });
+    for (const r of [D.tds, D.tdl]) sc.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(r.map(([x, y]) => V3(x, 1.25, -y))), inkLine));
 
-    // ---- the volcano and the hills: layered sheets far behind everything
-    const MX = 60, MZ = -250, MW = 420, MS = MW / 74;
-    flat(640, 180, arts.hillsBack, MX, -330, { at: 0 });
-    const mountains = flat(MW, 24 * MS, arts.mountains, MX, MZ, { at: 0 });
-    flat(430, 52, arts.foot, MX + 20, -222, { at: 0 });
-    const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1], [-14.8, 31, 5.4, 3.8, 4.4]].map(([x, y, w, h, ph]) => {
-      const m = piece(w * MS, h * MS, arts.smoke, 1024); m.position.set(MX + x * MS, y * MS, MZ + 0.6); sc.add(m); return { m, x: MX + x * MS, y: y * MS, ph };
+    // ---- the buildings: every footprint stands up as a paper box, coloured by its port / land; merged per material
+    const LAND = { s: [[C.ochre, C.terra], ["#a86a5a", "#6e4a30"], ["#a0785a", "#5a4632"], ["#8fa7b0", C.slate], ["#b7b9a0", "#6f9b95"], [C.sand, C.gold], ["#9aa071", "#6e5a3a"], ["#b8a9c2", "#6d6484"]],
+      l: [[C.rose, C.burg], ["#9aa071", "#6e5a3a"], ["#b28c66", C.brown], [C.sage, "#6e5a3a"], ["#c6b7cf", C.navy], ["#dcb86a", C.terra], ["#a9b8c2", C.slate], [C.stone, "#8a7a64"]] };
+    const wallTex = col => { const c = canvas(128, 128), g = c.getContext("2d");
+      wash(g, R(g, 0, 0, 128, 128), col, false); hatch(g, R(g, 0, 0, 128, 128), 70, 0, 128, 128, 7, 0.14);
+      for (let r = 0; r < 2; r++) for (let k = 0; k < 2; k++) { const x = 22 + k * 56, y = 26 + r * 58; wash(g, R(g, x, y, 22, 30), C.navy, false); ink(g, R(g, x, y, 22, 30), 1.5); }
+      grain(g, 128, 128, 10); const t = tex(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(1 / 9, 1 / 9); return t; };
+    const buckets = new Map(), edges = [];
+    const camPts = [];   // filled below from the camera route: boxes the camera would fly through are left out
+    const blocked = (x, z, h) => camPts.some(p => p.y < h + 6 && Math.hypot(p.x - x, p.z - z) < 16);
+    const addBuilding = (b, hmul = 1) => {
+      const h = Math.max(4, b.h * hmul), cx = b.r.reduce((a, v) => a + v[0], 0) / b.r.length, cy = b.r.reduce((a, v) => a + v[1], 0) / b.r.length;
+      if (blocked(cx, -cy, h)) return;
+      const g = new T.ExtrudeGeometry(shape(b.r), { depth: h, bevelEnabled: false }); g.rotateX(-Math.PI / 2); g.translate(0, 1.2, 0);
+      const key = b.k + b.p;
+      for (const gr of g.groups) { let bk = buckets.get(key + ":" + gr.materialIndex); if (!bk) buckets.set(key + ":" + gr.materialIndex, bk = { b, mi: gr.materialIndex, pos: [], nor: [], uv: [] });
+        bk.pos.push(g.attributes.position.array.slice(gr.start * 3, (gr.start + gr.count) * 3)); bk.nor.push(g.attributes.normal.array.slice(gr.start * 3, (gr.start + gr.count) * 3));
+        bk.uv.push(g.attributes.uv.array.slice(gr.start * 2, (gr.start + gr.count) * 2)); }
+      edges.push(new T.EdgesGeometry(g, 30).attributes.position.array);
+      g.dispose();
+    };
+    const cat = arrs => { const n = arrs.reduce((a, v) => a + v.length, 0), out = new Float32Array(n); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
+    const buildMeshes = () => {
+      for (const bk of buckets.values()) {
+        const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(cat(bk.pos), 3)); g.setAttribute("normal", new T.BufferAttribute(cat(bk.nor), 3)); g.setAttribute("uv", new T.BufferAttribute(cat(bk.uv), 2));
+        const [wall, roof] = LAND[bk.b.k][bk.b.p] || [C.stone, C.terra];
+        const m = new T.Mesh(g, bk.mi === 0 ? lam({ color: new T.Color(roof) }) : lam({ map: wallTex(wall) }));
+        m.castShadow = m.receiveShadow = true; sc.add(m);
+      }
+      const eg = new T.BufferGeometry(); eg.setAttribute("position", new T.BufferAttribute(cat(edges), 3));
+      sc.add(new T.LineSegments(eg, new T.LineBasicMaterial({ color: 0x4a3526, transparent: true, opacity: 0.6 })));
+    };
+
+    // ---- trees: crossed paper cut-outs, merged into two meshes (round trees, pines)
+    const treeMesh = (pts, W, H, art) => {
+      const tx = cut(W, H, art, 256), base = new T.PlaneGeometry(W, H).translate(0, H / 2, 0), parts = [];
+      pts.forEach(([x, y], i) => { const s = 0.8 + ((i * 53) % 10) / 20; for (const ry of [0, Math.PI / 2]) { const g = base.clone().scale(s, s, s).rotateY(ry + i).translate(x, 1.2, -y); parts.push(g); } });
+      const pos = cat(parts.map(g => g.attributes.position.array)), nor = cat(parts.map(g => g.attributes.normal.array)), uv = cat(parts.map(g => g.attributes.uv.array));
+      const idx = []; parts.forEach((g, k) => g.index.array.forEach(v => idx.push(v + k * 4)));
+      const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(pos, 3)); g.setAttribute("normal", new T.BufferAttribute(nor, 3)); g.setAttribute("uv", new T.BufferAttribute(uv, 2)); g.setIndex(idx);
+      const m = new T.Mesh(g, lam({ map: tx, alphaTest: 0.5, side: T.DoubleSide })); m.castShadow = m.receiveShadow = true; sc.add(m);
+    };
+
+    // ---- the volcano: a slope through its real contours (a little taller than life), painted, with ink lines along every other contour
+    const VO = at(D.volcano.x, D.volcano.y), VH = 1.3;
+    const VTOP = (() => {
+      const L = D.volcano.layers, N = 48, rings = [{ z: 0, r: L[0].r.map(r => r * 1.1) }, ...L.map(l => ({ z: l.z * VH, r: l.r }))];
+      const top = rings[rings.length - 1], craterZ = top.z - 4;
+      rings.push({ z: top.z + 1.5, r: top.r.map(r => r * 0.55) }, { z: craterZ, r: top.r.map(r => r * 0.3) });
+      const pos = [], uv = [], idx = [];
+      rings.forEach((rg, j) => { for (let k = 0; k <= N; k++) { const a = (k % N + 0.5) / N * 6.2832 - Math.PI, r = rg.r[k % N];
+        pos.push(VO.x + Math.cos(a) * r, rg.z + 1.2, VO.z - Math.sin(a) * r); uv.push(k / N * 8, rg.z / 14); } });
+      for (let j = 0; j < rings.length - 1; j++) for (let k = 0; k < N; k++) { const a = j * (N + 1) + k, b = a + N + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+      const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      const vc = canvas(512, 512);
+      (q => { const lg = q.createLinearGradient(0, 512, 0, 0); lg.addColorStop(0, "#8f7a62"); lg.addColorStop(0.35, "#a4624a"); lg.addColorStop(1, "#8c4a36"); q.fillStyle = lg; q.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 50; i++) { const x = Math.random() * 512, y = Math.random() * 512, rr = 20 + Math.random() * 70, b = q.createRadialGradient(x, y, 0, x, y, rr);
+          b.addColorStop(0, Math.random() < 0.5 ? "rgba(255,240,220,.12)" : "rgba(50,25,15,.12)"); b.addColorStop(1, "rgba(0,0,0,0)"); q.fillStyle = b; q.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+        q.strokeStyle = "rgba(74,53,38,.35)"; q.lineWidth = 2; for (let i = 0; i < 90; i++) { const x = Math.random() * 512, y = Math.random() * 512; q.beginPath(); q.moveTo(x, y); q.lineTo(x + 3, y + 24 + Math.random() * 30); q.stroke(); }
+        grain(q, 512, 512, 12); })(vc.getContext("2d"));
+      const vt = tex(vc); vt.wrapS = vt.wrapT = T.RepeatWrapping;
+      const m = new T.Mesh(g, lam({ map: vt, side: T.DoubleSide })); m.castShadow = m.receiveShadow = true; sc.add(m);
+      rings.slice(1, -2).forEach((rg, j) => { if (j % 2) return;
+        sc.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(rg.r.map((r, k) => { const a = (k + 0.5) / N * 6.2832 - Math.PI; return V3(VO.x + Math.cos(a) * r * 1.004, rg.z + 1.3, VO.z - Math.sin(a) * r * 1.004); })), inkLine)); });
+      return craterZ + 1.2;
+    })();
+    const CRATER = V3(VO.x, VTOP + 2, VO.z);
+    const smokes = [[0, 12, 34, 24, 0], [8, 30, 42, 29, 1.7], [-6, 50, 30, 21, 3.1], [10, 70, 38, 26, 4.4]].map(([x, y, w, h, ph]) => {
+      const m = piece(w, h, arts.smoke, 1024); m.position.set(CRATER.x + x, CRATER.y + y, CRATER.z); sc.add(m); return { m, x: CRATER.x + x, y: CRATER.y + y, ph };
     });
-    const CRATER = new T.Vector3(MX - 17.4 * MS, 17.3 * MS, MZ + 1);
     const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
     lava.position.copy(CRATER); sc.add(lava);
-    const VN = 160, vp = pointsOf(VN, 9, sc), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 60, vz: (Math.random() - 0.5) * 30, vy: 70 + Math.random() * 60, g: Math.random() }));
+    const VN = 180, vp = pointsOf(VN, 7, sc), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 50, vz: (Math.random() - 0.5) * 50, vy: 55 + Math.random() * 50, g: Math.random() }));
     const ERUPT = 21.4;
 
-    // ---- the sun and the clouds: theatre props hanging on strings
-    const stringM = new T.LineBasicMaterial({ color: 0x5a4632, transparent: true, opacity: 0.55 });
-    const hang = (obj, x, y, z, spread) => { const g = new T.Group(); g.position.set(x, y, z); g.add(obj);
-      for (const s of [-spread, spread]) g.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(s, 0, -0.2), new T.Vector3(s, 900, -0.2)]), stringM));
-      sc.add(g); return g; };
-    const sun = piece(90, 90, arts.sun, 1024); const sunG = hang(sun, 230, 240, -520, 20);
-    const clouds = [[-120, 150, -420, 110], [60, 175, -470, 130], [250, 130, -380, 90], [-20, 105, -300, 70], [150, 95, -280, 64], [-90, 80, -190, 50], [200, 70, -160, 44]].map(([x, y, z, w], i) => {
-      const m = piece(w, w * 0.45, arts.cloud, 1024); m.position.y = -w * 0.22; return { g: hang(m, x, y, z, w * 0.25), m, x, y, ph: i * 1.7 };
-    });
-
-    // ---- the plaza of the turning globe
-    const G = new T.Vector3(12, 0, -126);
+    // ---- the AquaSphere at the entrance of Tokyo DisneySea (drawn bigger than life, as a picture book would)
+    const G = at(D.aquasphere.x, D.aquasphere.y);
     const stoneC = canvas(512, 256);
     (g => { wash(g, R(g, 0, 0, 512, 256), C.stone, false); g.strokeStyle = "rgba(90,70,45,.35)"; g.lineWidth = 2;
       for (let y = 0; y < 256; y += 32) for (let x = (y / 32 % 2) * 32; x < 512; x += 64) g.strokeRect(x, y, 64, 32);
       grain(g, 512, 256, 12); })(stoneC.getContext("2d"));
     const stoneTex = tex(stoneC); stoneTex.wrapS = stoneTex.wrapT = T.RepeatWrapping;
     const plaza = new T.Group(); plaza.position.copy(G);
-    const basin = new T.Mesh(new T.CylinderGeometry(15, 15.6, 2.2, 64, 1, true), lam({ map: stoneTex, side: T.DoubleSide })); basin.position.y = 1.1; plaza.add(basin);
-    const rim = new T.Mesh(new T.TorusGeometry(15.3, 0.6, 10, 64), lam({ color: 0xd6c8a8 })); rim.rotation.x = Math.PI / 2; rim.position.y = 2.2; plaza.add(rim);
-    const pool = new T.Mesh(new T.CircleGeometry(15, 64), lam({ map: waterTex })); pool.rotation.x = -Math.PI / 2; pool.position.y = 1.6; plaza.add(pool);
+    const basin = new T.Mesh(new T.CylinderGeometry(15, 15.6, 2.4, 64, 1, true), lam({ map: stoneTex, side: T.DoubleSide })); basin.position.y = 1.2 + 1.2; plaza.add(basin);
+    const rim = new T.Mesh(new T.TorusGeometry(15.3, 0.6, 10, 64), lam({ color: 0xd6c8a8 })); rim.rotation.x = Math.PI / 2; rim.position.y = 3.6; plaza.add(rim);
+    const pool = new T.Mesh(new T.CircleGeometry(15, 64), waterM); pool.rotation.x = -Math.PI / 2; pool.position.y = 3; plaza.add(pool);
     const colTex = stoneTex.clone(); colTex.needsUpdate = true; colTex.repeat.set(2, 3);
-    const column = new T.Mesh(new T.CylinderGeometry(2.4, 3.4, 16, 32), lam({ map: colTex })); column.position.y = 9; plaza.add(column);
+    const column = new T.Mesh(new T.CylinderGeometry(2.4, 3.4, 14, 32), lam({ map: colTex })); column.position.y = 10; plaza.add(column);
     const cap = new T.Mesh(new T.CylinderGeometry(5.6, 3, 2, 32), lam({ color: 0xc9a14e, emissive: 0x3a2808 })); cap.position.y = 18; plaza.add(cap);
     const bigGlobe = new T.Mesh(new T.SphereGeometry(9, 48, 32), lam({}));
     { const gc = canvas(1024, 512), g = gc.getContext("2d"); wash(g, R(g, 0, 0, 1024, 512), "#6f93ab", false);
@@ -792,122 +770,156 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
     cast(plaza); sc.add(plaza);
     const FN = 180, fp = pointsOf(FN, 1.5, sc), fSeed = Array.from({ length: FN }, (_, i) => ({ a: i / FN * 6.2832 * 3 + Math.random(), o: Math.random(), v: 0.7 + Math.random() * 0.3 }));
 
-    // ---- the forest, the castle
-    const trees = [];
-    const nearPath = (x, z, d) => pathPts.some((p, i) => { const q = pathPts[i + 1]; if (!q) return false;
-      const dx = q.x - p.x, dz = q.z - p.z, k = clamp(((x - p.x) * dx + (z - p.z) * dz) / (dx * dx + dz * dz)); return Math.hypot(p.x + dx * k - x, p.z + dz * k - z) < d; });
-    for (let i = 0; i < 400 && trees.length < 70; i++) {
-      const x = -90 + Math.random() * 260, z = -110 - Math.random() * 110;
-      if (nearPath(x, z, 9) || nearCam(x, z, 20) || inSight(x, z, 16) || Math.hypot(x - G.x, z - G.z) < 44 || (x > 62 && x < 138 && z < -172) || (x > -30 && x < 30 && z > -112)) continue;
-      if (trees.some(t => Math.hypot(t.x - x, t.z - z) < 8)) continue;
-      const s = 0.8 + Math.random() * 0.6, pine = Math.random() < 0.45;
-      trees.push(cross(pine ? 11 * s : 15 * s, pine ? 24 * s : 21 * s, pine ? arts.pine : arts.tree, x, z, { res: 512, R: 90 }));
-    }
-    for (let i = 0; i < 26; i++) { const side = i % 2 ? 1 : -1, x = side * (62 + Math.random() * 40), z = -10 - Math.random() * 95, s = 0.8 + Math.random() * 0.5;
-      cross(15 * s, 21 * s, arts.tree, x, z, { res: 512, R: 110 }); }
-    const CX = 100, CZ = -190, CS = 2.6;
-    const castleParts = [
-      flat(26 * CS, 28 * CS, arts.castleBack, CX, CZ - 8, { at: 30.9, dur: 1.3 }),
-      (() => { const p = flat(13 * CS, 28 * CS, half("castle", -1), CX, CZ, { at: 31.1, dur: 1.3 }); p.inner.children[0].position.x = -13 * CS / 2; p.yaw = 0.22; return p; })(),
-      (() => { const p = flat(13 * CS, 28 * CS, half("castle", 1), CX, CZ, { at: 31.1, dur: 1.3 }); p.inner.children[0].position.x = 13 * CS / 2; p.yaw = -0.22; return p; })(),
-      addPop(makeBox({ w: 6 * CS, d: 3.4 * CS, h: 8 * CS, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1, s: 3 }), CX, CZ + 9.4, "box", { at: 31.3, dur: 1.3 }),
-    ];
+    // ---- Mermaid Lagoon's shell roof, the S.S. Columbia
+    { const M0 = at(D.mermaid.x, D.mermaid.y), r = D.mermaid.r;
+      const dome = new T.Mesh(new T.CylinderGeometry(r * 0.25, r, 14, 8), lam({ color: 0x7fa7a0 })); dome.position.set(M0.x, 8.2, M0.z);
+      const top = new T.Mesh(new T.ConeGeometry(r * 0.25, 8, 8), lam({ color: 0xc9a14e })); top.position.set(M0.x, 19, M0.z);
+      sc.add(cast(dome), cast(top)); sc.add(new T.LineSegments(new T.EdgesGeometry(dome.geometry), inkLine).translateX(M0.x).translateY(8.2).translateZ(M0.z)); }
+    { const hull = new T.ExtrudeGeometry(shape(D.ship), { depth: 9, bevelEnabled: false }); hull.rotateX(-Math.PI / 2); hull.translate(0, 1.2, 0);
+      const m = new T.Mesh(hull, [lam({ color: 0xece0c4 }), lam({ color: 0x34445f })]); sc.add(cast(m));
+      const cx = D.ship.reduce((a, v) => a + v[0], 0) / D.ship.length, cy = D.ship.reduce((a, v) => a + v[1], 0) / D.ship.length;
+      for (const k of [-1, 0, 1]) { const f = new T.Mesh(new T.CylinderGeometry(2.6, 2.6, 16, 16), lam({ color: 0x9a3a3a })); f.position.set(cx + k * 22, 18, -(cy + k * 3.4)); sc.add(cast(f)); } }
+
+    // ---- the castle: the book's cut-outs, standing where Cinderella Castle stands, facing World Bazaar
+    const pops = [];
+    const addPop = (obj, pos, ry, kind, o = {}) => {
+      const hinge = new T.Group(); hinge.position.copy(pos); hinge.rotation.y = ry;
+      const inner = new T.Group(); hinge.add(inner); inner.add(obj); sc.add(hinge);
+      const p = { hinge, inner, kind, at: o.at, dur: o.dur || 1.3, yaw: o.yaw || 0 }; pops.push(p); return p;
+    };
+    const CAST = at(D.castle.x, D.castle.y, 1.2), fdx = D.castle.face[0] - D.castle.x, fdy = D.castle.face[1] - D.castle.y, fl = Math.hypot(fdx, fdy);
+    const FACE = V3(fdx / fl, 0, -fdy / fl), CRY = Math.atan2(FACE.x, FACE.z), CS = 2.4;
+    const castlePiece = (W, H, art, x, z) => { const m = piece(W, H, art, 2048); m.position.set(x, H / 2, z); return m; };
+    addPop(castlePiece(26 * CS, 28 * CS, arts.castleBack, 0, 0), CAST.clone().addScaledVector(FACE, -8), CRY, "flat", { at: 30.9 });
+    addPop(castlePiece(13 * CS, 28 * CS, half("castle", -1), -13 * CS / 2, 0), CAST, CRY, "flat", { at: 31.1, yaw: 0.22 });
+    addPop(castlePiece(13 * CS, 28 * CS, half("castle", 1), 13 * CS / 2, 0), CAST, CRY, "flat", { at: 31.1, yaw: -0.22 });
+    addPop(makeBox({ w: 6 * CS, d: 3.4 * CS, h: 8 * CS, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1, s: 3 }), CAST.clone().addScaledVector(FACE, 9), CRY, "box", { at: 31.3 });
+    const castleLight = new T.PointLight(0xffc27a, 0, 260, 1.3); castleLight.position.copy(CAST).addScaledVector(FACE, 60).setY(40); sc.add(castleLight);
     const glows = [[0, 40], [-12, 30], [12, 30], [-25, 50], [25, 50], [0, 62]].map(([x, y]) => {
       const s = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,230,160,.9)"], [0.3, "rgba(255,190,90,.45)"], [1, "rgba(255,160,60,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
-      s.position.set(CX + x, y, CZ + 2); s.scale.setScalar(9); sc.add(s); return s; });
-    // gulls: two paper wings each
+      const side = V3(FACE.z, 0, -FACE.x); s.position.copy(CAST).addScaledVector(side, x).addScaledVector(FACE, 2).setY(y * CS / 2.6); s.scale.setScalar(9); sc.add(s); return s; });
+
+    // ---- labels: paper ribbons with the names of the ports and lands, floating over them
+    const ribbon = text => { const c = canvas(512, 128), g = c.getContext("2d");
+      const body = P(g, [[34, 26], [478, 26], [456, 64], [478, 102], [34, 102], [56, 64]]); sh(g, body, "#efe3c6");
+      g.fillStyle = C.burg; g.font = "500 44px 'Kiwi Maru', serif"; g.textAlign = "center"; g.textBaseline = "middle";
+      let fs = 44; while (g.measureText(text).width > 380 && fs > 20) { fs -= 2; g.font = `500 ${fs}px 'Kiwi Maru', serif`; }
+      g.fillText(text, 256, 66); return tex(c); };
+    const labels = D.labels.map(l => { const s = new T.Sprite(new T.SpriteMaterial({ map: ribbon(l.n), transparent: true, depthWrite: false, fog: false }));
+      s.position.copy(at(l.x, l.y, 46)); s.scale.set(64, 16, 1); s.renderOrder = 3; sc.add(s); return s; });
+
+    // ---- gondolas on the harbour, gulls, clouds and the sun on strings
+    const gondolas = [[165, -35, 0.9], [205, -10, -0.8], [120, -45, 0.7], [240, -60, -0.6]].map(([x, y, v], i) => {
+      const m = piece(16, 6.8, arts.gondola, 1024); const g = new T.Group(); g.add(m); g.position.copy(at(x, y, 4)); sc.add(g); return { g, x0: x, y0: y, v, ph: i * 2.1 };
+    });
     const gullM = lam({ color: 0xf3ecdc, side: T.DoubleSide });
     const wingG = new T.BufferGeometry(); wingG.setAttribute("position", new T.Float32BufferAttribute([0, 0, -0.6, 0, 0, 0.8, 2.6, 0.2, 0], 3)); wingG.computeVertexNormals();
-    const gulls = Array.from({ length: 7 }, (_, i) => { const g = new T.Group(), l = new T.Mesh(wingG, gullM), rw = new T.Mesh(wingG, gullM); rw.scale.x = -1; g.add(l, rw); g.scale.setScalar(1.4); sc.add(g);
-      return { g, l, rw, cx: (Math.random() - 0.5) * 30, cz: -25 - Math.random() * 70, r: 10 + Math.random() * 14, y: 14 + Math.random() * 10, w: (0.25 + Math.random() * 0.2) * (i % 2 ? 1 : -1), ph: Math.random() * 6.3 }; });
-    // fireflies over the forest at dusk
-    const FFN = 90, ff = pointsOf(FFN, 1.4, sc), ffSeed = Array.from({ length: FFN }, () => ({ x: 20 + Math.random() * 110, z: -120 - Math.random() * 60, y: 2 + Math.random() * 12, ph: Math.random() * 6.3, s: 0.3 + Math.random() * 0.5 }));
+    const gulls = Array.from({ length: 8 }, (_, i) => { const g = new T.Group(), l = new T.Mesh(wingG, gullM), rw = new T.Mesh(wingG, gullM); rw.scale.x = -1; g.add(l, rw); g.scale.setScalar(2); sc.add(g);
+      return { g, l, rw, c: at(120 + Math.random() * 140, -50 + Math.random() * 90), r: 14 + Math.random() * 20, y: 22 + Math.random() * 14, w: (0.25 + Math.random() * 0.2) * (i % 2 ? 1 : -1), ph: Math.random() * 6.3 }; });
+    const stringM = new T.LineBasicMaterial({ color: 0x5a4632, transparent: true, opacity: 0.55 });
+    const hang = (obj, p, spread) => { const g = new T.Group(); g.position.copy(p); g.add(obj);
+      for (const s of [-spread, spread]) g.add(new T.Line(new T.BufferGeometry().setFromPoints([V3(s, 0, -0.2), V3(s, 3000, -0.2)]), stringM));
+      sc.add(g); return g; };
+    const sun = piece(260, 260, arts.sun, 1024); const sunG = hang(sun, at(-900, 1400, 700), 60); sunG.lookAt(CEN.clone().setY(700));
+    const clouds = [[-600, 1200, 520, 320], [200, 1100, 470, 280], [600, 300, 380, 220], [-900, 300, 420, 240], [-300, -300, 360, 200], [500, -500, 400, 240], [-700, 800, 300, 180], [-100, 1300, 460, 260]]
+      .map(([x, y, h, w], i) => { const m = piece(w, w * 0.45, arts.cloud, 1024); m.position.y = -w * 0.22; const g = hang(m, at(x, y, h), w * 0.25); g.lookAt(CEN.clone().setY(h)); return { g, m, p: g.position.clone(), ph: i * 1.7 }; });
 
-    // ---- fireworks over the castle, and the sparks when the castle stands up
-    const FW = [[35.2, 78, 88, 0], [35.9, 122, 96, 1], [36.5, 100, 110, 2], [37.0, 70, 80, 3], [37.4, 130, 84, 0], [37.9, 92, 100, 4], [38.3, 112, 118, 1],
-      [38.7, 60, 92, 2], [39.0, 140, 98, 3], [39.25, 100, 124, 4], [39.5, 82, 106, 0], [39.7, 118, 108, 2], [40.0, 100, 96, 1]];
+    // ---- fireworks over the castle (seen from World Bazaar, they burst behind it)
+    const SIDE = V3(FACE.z, 0, -FACE.x);
+    const FW = [[35.2, -40, 110, 0], [35.9, 45, 125, 1], [36.5, 5, 150, 2], [37.0, -70, 100, 3], [37.4, 75, 105, 0], [37.9, -20, 135, 4], [38.3, 30, 160, 1],
+      [38.7, -90, 120, 2], [39.0, 95, 128, 3], [39.25, 0, 170, 4], [39.5, -45, 140, 0], [39.7, 50, 145, 2], [40.0, 0, 128, 1]]
+      .map(([t0, s, y, ci]) => { const p = CAST.clone().addScaledVector(FACE, -70).addScaledVector(SIDE, s); return [t0, p.x, y, p.z, ci]; });
     const FWC = [[[1, 0.8, 0.35], [1, 0.95, 0.7]], [[1, 0.45, 0.5], [1, 0.8, 0.8]], [[0.55, 0.8, 1], [0.9, 0.95, 1]], [[0.75, 1, 0.55], [1, 1, 0.8]], [[0.85, 0.55, 1], [1, 0.85, 1]]];
     const fwList = [];
-    for (const [t0, x, y, ci] of FW) {
-      const z = -212, n = 170;
-      for (let i = 0; i < n; i++) { const u = (i + Math.random()) / n, ph = Math.acos(1 - 2 * u), th = Math.random() * 6.2832, s = 34 * (0.72 + 0.28 * Math.random());
-        fwList.push({ t0: t0 + 0.9, x, y, z, vx: Math.sin(ph) * Math.cos(th) * s, vy: Math.cos(ph) * s, vz: Math.sin(ph) * Math.sin(th) * s * 0.6, life: 2.0 + Math.random() * 0.6, c: FWC[ci][i % 3 ? 0 : 1], g: 7 }); }
+    for (const [t0, x, y, z, ci] of FW) {
+      const n = 170;
+      for (let i = 0; i < n; i++) { const u = (i + Math.random()) / n, ph = Math.acos(1 - 2 * u), th = Math.random() * 6.2832, s = 40 * (0.72 + 0.28 * Math.random());
+        fwList.push({ t0: t0 + 0.9, x, y, z, vx: Math.sin(ph) * Math.cos(th) * s, vy: Math.cos(ph) * s, vz: Math.sin(ph) * Math.sin(th) * s, life: 2.0 + Math.random() * 0.6, c: FWC[ci][i % 3 ? 0 : 1], g: 8 }); }
     }
-    burstList(fwList, 31.9, CX, 40, CZ + 6, 140, 34, 14, COLS, 11);
-    burstList(fwList, 32.1, CX - 20, 20, CZ + 8, 60, 22, 10, COLS, 11); burstList(fwList, 32.25, CX + 20, 20, CZ + 8, 60, 22, 10, COLS, 11);
-    const fwp = pointsOf(fwList.length, 4.6, sc);
-    const rockets = pointsOf(FW.length * 6, 2.2, sc);
-    const fwFlash = FW.map(() => { const s = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,245,220,.9)"], [0.4, "rgba(255,220,160,.25)"], [1, "rgba(255,200,120,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 })); s.scale.setScalar(70); sc.add(s); return s; });
-    FW.forEach(([, x, y], i) => fwFlash[i].position.set(x, y, -212));
+    const CTOP = CAST.clone().setY(50);
+    burstList(fwList, 31.9, CTOP.x, 50, CTOP.z, 160, 44, 16, COLS, 12);
+    burstList(fwList, 32.1, CTOP.x + SIDE.x * 25, 26, CTOP.z + SIDE.z * 25, 70, 28, 12, COLS, 12); burstList(fwList, 32.25, CTOP.x - SIDE.x * 25, 26, CTOP.z - SIDE.z * 25, 70, 28, 12, COLS, 12);
+    const fwp = pointsOf(fwList.length, 5.5, sc);
+    const rockets = pointsOf(FW.length * 6, 3, sc);
+    const fwFlash = FW.map(([, x, y, z]) => { const s = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,245,220,.9)"], [0.4, "rgba(255,220,160,.25)"], [1, "rgba(255,200,120,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 })); s.scale.setScalar(90); s.position.set(x, y, z); sc.add(s); return s; });
 
-    // when each pop-up stands: the first moment the camera comes within its reach
-    for (const p of pops) if (p.at == null) {
-      p.at = 99;
-      for (let t = 11.0; t < 41; t += 0.05) { const c = camAt(Math.max(11.5, t)).pos; if (Math.hypot(c.x - p.x, c.z - p.z) < p.R) { p.at = Math.max(11.1, t); break; } }
-    }
+    // ---- the camera's route over the real map: the AquaSphere, Mediterranean Harbor, the volcano, north over to Tokyo Disneyland, World Bazaar, the castle
+    const B = at(D.castle.face[0], D.castle.face[1]);
+    const K = [
+      [11.5, [520, 110, -130], [361, 10, -36], 46], [13.6, [440, 45, -70], [361, 14, -36], 50], [15.6, [365, 50, 14], [220, 12, 10], 52], [17.8, [262, 22, 34], [120, 10, 40], 52],
+      [19.8, [160, 18, 44], [-20, 30, 100], 54], [21.8, [80, 26, 50], [-50, 45, 111], 54], [23.8, [20, 46, 20], [-50, 50, 111], 54], [25.8, [-40, 140, -60], [-200, 20, -330], 54],
+      [28.0, [-220, 190, -380], [-385, 20, -600], 55], [30.0, [-470, 120, -800], [-385, 30, -594], 55],
+      [32.0, [B.x + 10, 40, B.z + 20], [CAST.x, 40, CAST.z], 50], [34.2, [...CAST.clone().addScaledVector(FACE, 185).setY(26).toArray()], [CAST.x, 44, CAST.z], 54],
+      [36.6, [...CAST.clone().addScaledVector(FACE, 140).setY(30).toArray()], [CAST.x, 62, CAST.z], 58], [38.8, [...CAST.clone().addScaledVector(FACE, 118).setY(34).toArray()], [CAST.x, 74, CAST.z], 58],
+      [41.0, [...CAST.clone().addScaledVector(FACE, 108).setY(38).toArray()], [CAST.x, 60, CAST.z], 56]];
+    const cPos = new T.CatmullRomCurve3(K.map(k => V3(...k[1])), false, "catmullrom", 0.5);
+    const cLook = new T.CatmullRomCurve3(K.map(k => V3(...k[2])), false, "catmullrom", 0.5);
+    const camAt = t => {
+      let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++;
+      const s = clamp((t - K[i][0]) / (K[i + 1][0] - K[i][0])), u = (i + s) / (K.length - 1);
+      return { pos: cPos.getPoint(u), look: cLook.getPoint(u), fov: K[i][3] + (K[i + 1][3] - K[i][3]) * sstep(0, 1, s) };
+    };
+    for (let t = 11.5; t <= 41; t += 0.1) camPts.push(camAt(t).pos);
+    const nearCam = (x, z, d) => camPts.some(p => Math.hypot(p.x - x, p.z - z) < d);
+    for (const b of D.buildings) addBuilding(b);
+    buildMeshes();
+    const round = [], pines = [];
+    D.trees.forEach(([x, y], i) => { if (nearCam(x, -y, 14) || Math.hypot(x - D.castle.x, y - D.castle.y) < 40) return; (i % 3 ? round : pines).push([x, y]); });
+    treeMesh(round, 13, 17, arts.tree); treeMesh(pines, 9, 20, arts.pine);
 
     return {
-      sc, cm, CASTLE: new T.Vector3(CX, 0, CZ),
+      sc, cm,
       step(t) {
         const cam = camAt(t);
         cm.position.copy(cam.pos); cm.fov = cam.fov; cm.updateProjectionMatrix(); cm.lookAt(cam.look);
-        // dusk
-        const dusk = sstep(29.5, 35, t);
-        skyDusk.material.opacity = dusk; stars.material.opacity = sstep(32.5, 36, t) * 0.95;
+        const dusk = sstep(28.5, 34.5, t);
+        skyDusk.material.opacity = dusk; stars.material.opacity = sstep(31.5, 35, t) * 0.95;
         sc.fog.color.copy(FOG_DAY).lerp(FOG_DUSK, dusk);
-        hemi.intensity = 0.62 - 0.32 * dusk; hemi.color.setHex(0xfff1dc).lerp(new T.Color(0x7d86c0), dusk); hemi.groundColor.setHex(0x8a7a5c).lerp(new T.Color(0x3a2a3a), dusk);
-        key.intensity = 0.95 - 0.62 * dusk; key.color.setHex(0xfff0d8).lerp(new T.Color(0xff9a6a), dusk);
-        sunG.position.y = 240 - 200 * dusk; sun.rotation.z = t * 0.05;
-        const f = cam.look; key.position.set(f.x - 80, 150, f.z + 90); key.target.position.set(f.x, 0, f.z);
-        // pop-ups
+        hemi.intensity = 0.62 - 0.12 * dusk; hemi.color.setHex(0xfff1dc).lerp(new T.Color(0x7d86c0), dusk); hemi.groundColor.setHex(0x8a7a5c).lerp(new T.Color(0x3a2a3a), dusk);
+        key.intensity = 0.95 - 0.4 * dusk; key.color.setHex(0xfff0d8).lerp(new T.Color(0xff9a6a), dusk);
+        sunG.position.y = 700 - 520 * dusk; sun.rotation.z = t * 0.05;
+        const f = cam.look, dx = cam.pos.x - f.x, dz = cam.pos.z - f.z, dl = Math.hypot(dx, dz) || 1, ca = Math.cos(0.6), sa = Math.sin(0.6);   // the light comes from the camera's side, a little to the left
+        key.position.set(f.x + (dx * ca - dz * sa) / dl * 260, 380, f.z + (dx * sa + dz * ca) / dl * 260); key.target.position.set(f.x, 0, f.z);
         for (const p of pops) {
           const u = clamp((t - p.at) / p.dur), up = u > 0 ? backOut(u) : 0;
           p.hinge.visible = up > 0.002;
-          if (p.kind === "flat") { p.inner.rotation.x = -Math.PI / 2 * (1 - up); if (p.yaw) p.inner.rotation.y = p.yaw * clamp(up); }
-          else if (p.kind === "box") p.inner.scale.set(1, Math.max(up, 0.001), 1);
-          else p.inner.scale.setScalar(Math.max(up, 0.001));
+          if (p.kind === "flat") { p.inner.rotation.x = -Math.PI / 2 * (1 - up); p.inner.rotation.y = p.yaw * clamp(up); }
+          else p.inner.scale.set(1, Math.max(up, 0.001), 1);
         }
-        for (const p of seaRows) p.inner.position.set(Math.sin(t * 0.8 + p.ph) * 1.6, Math.sin(t * 1.3 + p.ph) * 0.35 - 0.3, 0);
         waterTex.offset.set(t * 0.01, t * 0.02);
-        for (const g of gondolas) { g.g.position.x = g.x0 + g.v * (t - 11.5); g.g.position.y = 2.1 + Math.sin(t * 1.5 + g.ph) * 0.3; g.g.rotation.z = Math.sin(t * 1.5 + g.ph + 0.8) * 0.06; }
-        for (const g of gulls) { const a = t * g.w + g.ph; g.g.position.set(g.cx + Math.cos(a) * g.r, g.y + Math.sin(t * 0.9 + g.ph) * 1.2, g.cz + Math.sin(a) * g.r);
-          g.g.rotation.y = -a + (g.w > 0 ? 0 : Math.PI); const fl = Math.sin(t * 7 + g.ph) * 0.6; g.l.rotation.z = fl; g.rw.rotation.z = -fl; }
-        for (const c of clouds) { c.g.position.x = c.x + Math.sin(t * 0.15 + c.ph) * 6; c.m.material.color.setScalar(1 - 0.7 * dusk); }
-        // volcano
-        for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 3; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 2.4; s.m.scale.setScalar(1 + Math.sin(t * 1.3 + s.ph) * 0.06); }
+        for (const g of gondolas) { const p = at(g.x0 + g.v * (t - 11.5) * 1.5, g.y0 + Math.sin(t * 0.2 + g.ph) * 6, 3.6 + Math.sin(t * 1.5 + g.ph) * 0.3);
+          g.g.position.copy(p); g.g.rotation.set(0, Math.atan2(cm.position.x - p.x, cm.position.z - p.z), Math.sin(t * 1.5 + g.ph + 0.8) * 0.06); }
+        for (const g of gulls) { const a = t * g.w + g.ph; g.g.position.set(g.c.x + Math.cos(a) * g.r, g.y + Math.sin(t * 0.9 + g.ph) * 1.2, g.c.z + Math.sin(a) * g.r);
+          g.g.rotation.y = -a + (g.w > 0 ? 0 : Math.PI); const fw = Math.sin(t * 7 + g.ph) * 0.6; g.l.rotation.z = fw; g.rw.rotation.z = -fw; }
+        for (const c of clouds) { c.g.position.x = c.p.x + Math.sin(t * 0.15 + c.ph) * 20; c.m.material.color.setScalar(1 - 0.7 * dusk); }
+        for (const l of labels) { const d = l.position.distanceTo(cm.position); l.material.opacity = clamp((900 - d) / 300) * (1 - 0.6 * dusk); l.visible = l.material.opacity > 0.01; }
+        for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 4; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 3; s.m.lookAt(cm.position.x, s.m.position.y, cm.position.z); }
         const E = clamp((t - ERUPT) / 0.4) * (1 - 0.5 * clamp((t - ERUPT) / 3)) + 0.18;
         for (let i = 0; i < VN; i++) {
           const s = vSeed[i], u = (t * 0.55 + s.o) % 1, aa = u * 2.2;
           if (s.o >= E) { vp.col[i * 3] = vp.col[i * 3 + 1] = vp.col[i * 3 + 2] = 0; continue; }
-          vp.pos[i * 3] = CRATER.x + s.vx * aa; vp.pos[i * 3 + 1] = CRATER.y + s.vy * aa - 38 * aa * aa; vp.pos[i * 3 + 2] = CRATER.z + s.vz * aa;
+          vp.pos[i * 3] = CRATER.x + s.vx * aa; vp.pos[i * 3 + 1] = CRATER.y + s.vy * aa - 34 * aa * aa; vp.pos[i * 3 + 2] = CRATER.z + s.vz * aa;
           const k = Math.pow(1 - u, 1.2); vp.col[i * 3] = k; vp.col[i * 3 + 1] = (0.3 + 0.4 * s.g) * k; vp.col[i * 3 + 2] = 0.1 * k;
         }
         vp.done();
-        lava.material.opacity = 0.85 * E * (0.8 + 0.2 * Math.sin(t * 9)); lava.scale.setScalar(40 + 25 * E + 8 * Math.sin(t * 7));
-        // the globe and its fountain
+        lava.material.opacity = 0.85 * E * (0.8 + 0.2 * Math.sin(t * 9)); lava.scale.setScalar(36 + 22 * E + 8 * Math.sin(t * 7));
         bigGlobe.rotation.y = t * 0.4; ringG.rotation.z = t * 0.2;
         for (let i = 0; i < FN; i++) { const s = fSeed[i], u = (t * 0.6 * s.v + s.o) % 1, a = s.a, rr = 14 - u * 11;
-          fp.pos[i * 3] = G.x + Math.cos(a) * rr; fp.pos[i * 3 + 1] = 2.2 + Math.sin(u * Math.PI) * 7; fp.pos[i * 3 + 2] = G.z + Math.sin(a) * rr;
+          fp.pos[i * 3] = G.x + Math.cos(a) * rr; fp.pos[i * 3 + 1] = 3.4 + Math.sin(u * Math.PI) * 7; fp.pos[i * 3 + 2] = G.z + Math.sin(a) * rr;
           const k = 0.55 * Math.sin(u * Math.PI); fp.col[i * 3] = 0.75 * k; fp.col[i * 3 + 1] = 0.9 * k; fp.col[i * 3 + 2] = k; }
         fp.done();
-        // dusk lights: the castle, fireflies
-        castleLight.intensity = 1.6 * dusk; for (const [i, s] of glows.entries()) s.material.opacity = dusk * clamp((t - 31.9) / 1.2) * (0.7 + 0.3 * Math.sin(t * 3 + i));
-        for (let i = 0; i < FFN; i++) { const s = ffSeed[i], k = sstep(30, 33, t) * (0.5 + 0.5 * Math.sin(t * 2.3 + s.ph));
-          ff.pos[i * 3] = s.x + Math.sin(t * s.s + s.ph) * 3; ff.pos[i * 3 + 1] = s.y + Math.sin(t * s.s * 1.3 + s.ph) * 1.5; ff.pos[i * 3 + 2] = s.z + Math.cos(t * s.s + s.ph) * 3;
-          ff.col[i * 3] = k; ff.col[i * 3 + 1] = 0.85 * k; ff.col[i * 3 + 2] = 0.4 * k; }
-        ff.done();
+        castleLight.intensity = 1.8 * dusk; for (const [i, s] of glows.entries()) s.material.opacity = dusk * clamp((t - 31.9) / 1.2) * (0.7 + 0.3 * Math.sin(t * 3 + i));
         drawSparks(fwp, fwList, t);
-        FW.forEach(([t0, x, y], i) => {
+        FW.forEach(([t0, x, y, z], i) => {
           const a = t - t0;
-          for (let j = 0; j < 6; j++) { const n = (i * 6 + j) * 3, aj = a - j * 0.035, on = aj > 0 && aj < 0.9;
-            const k = on ? (1 - j / 6) * 0.9 : 0, e = eo(clamp(aj / 0.9));
-            rockets.pos[n] = x + Math.sin(aj * 9) * 0.4; rockets.pos[n + 1] = on ? e * y : -999; rockets.pos[n + 2] = -212;
+          for (let j = 0; j < 6; j++) { const n = (i * 6 + j) * 3, aj = a - j * 0.035, on = aj > 0 && aj < 0.9, k = on ? (1 - j / 6) * 0.9 : 0, e = eo(clamp(aj / 0.9));
+            rockets.pos[n] = x + Math.sin(aj * 9) * 0.6; rockets.pos[n + 1] = on ? e * y : -999; rockets.pos[n + 2] = z;
             rockets.col[n] = k; rockets.col[n + 1] = 0.8 * k; rockets.col[n + 2] = 0.5 * k; }
           const b = a - 0.9; fwFlash[i].material.opacity = b > 0 ? Math.exp(-b * 7) * 0.9 : 0;
         });
         rockets.done();
         let beat = 0; for (const [t0] of FW) { const b = t - t0 - 0.9; if (b > 0) beat += Math.exp(-b * 5); }
-        castleLight.intensity += beat * 1.2; castleLight.color.setHex(0xffc27a);
+        castleLight.intensity += beat * 1.4;
       },
     };
   })();
@@ -920,17 +932,17 @@ html,body{height:100%;margin:0;background:#000;overflow:hidden}
   const V = T.Vector3;
   function frameAt(ms) {
     const t = ms / 1000;
-    if (t < 11.5) {   // the book opens; from 9.4 s the camera dives through the curtains into the harbour
+    if (t < 11.5) {   // the book opens; from 9.4 s the camera dives through the curtains toward the globe
       const el = Math.max(0, ms - BOOK_OFS), v = book.view(el);
       let camera = v;
       if (t > 9.4) { const k = eio(clamp((t - 9.4) / 2.1));
-        camera = { pos: v.pos.clone().lerp(new V(-4, 7.6, 12), k), look: v.look.clone().lerp(new V(-5, 6, -8), k), fov: 32 - 10 * k }; }
+        camera = { pos: v.pos.clone().lerp(new V(book.aP[0] + 0.5, 16, book.aP[1] + 9), k), look: v.look.clone().lerp(new V(book.aP[0], 4, book.aP[1]), k), fov: 32 - 12 * k }; }
       book.step({ el, t, camera }); r.render(book.sc, book.cm);
     } else if (t < 41) {
       world.step(t); r.render(world.sc, world.cm);
     } else {   // match cut on the castle: out of the pop-up castle, the pop-ups fold, the book closes
       const u = t - 41, el = 30000;
-      const close = { pos: new V(12, 16, 16), look: new V(12, 15, -7), fov: 34 }, v = book.view(el + u * 1000);
+      const close = { pos: new V(book.cP[0], 11, book.cP[1] + 15), look: new V(book.cP[0], 9.5, book.cP[1]), fov: 34 }, v = book.view(el + u * 1000);
       const top = { pos: new V(0, 72, 46), look: new V(0, -1, 2), fov: 30 };
       const k1 = eio(clamp(u / 2.4)), k2 = eio(clamp((u - 2.2) / 2.4));
       const pos = close.pos.clone().lerp(v.pos, k1).lerp(top.pos, k2), look = close.look.clone().lerp(v.look, k1).lerp(top.look, k2);
