@@ -2527,6 +2527,22 @@ async function init3D() {
         for (const [x, y, rr] of [[.5, .3, .3], [.3, .45, .22], [.7, .45, .22], [.5, .5, .24]]) sh(g, O(g, w * x, h * y, w * rr), C.moss);
         for (const [x, y] of [[.4, .3], [.62, .4], [.5, .52], [.3, .48]]) wash(g, O(g, w * x, h * y, 5), C.burg, false);
       },
+      mickeyMinnie(g, w, h) {   // Mickey and Minnie, hand in hand, standing between the two parks
+        const b = h - 4;
+        const figure = (cx, bodyCol, mirror) => {
+          sh(g, O(g, cx - w * 0.09, h * 0.14, w * 0.075), C.ink); sh(g, O(g, cx + w * 0.09, h * 0.14, w * 0.075), C.ink);   // ears
+          sh(g, O(g, cx, h * 0.22, w * 0.1), C.cream);   // face
+          sh(g, P(g, [[cx - w * 0.09, h * 0.34], [cx + w * 0.09, h * 0.34], [cx + w * 0.13, b - h * 0.06], [cx - w * 0.13, b - h * 0.06]]), bodyCol);   // body
+          sh(g, O(g, cx - w * 0.075, b - 3, w * 0.045, 4), C.ochre); sh(g, O(g, cx + w * 0.075, b - 3, w * 0.045, 4), C.ochre);   // shoes
+          const ax = cx + mirror * w * 0.14;
+          sh(g, P(g, [[cx + mirror * w * 0.08, h * 0.38], [ax, h * 0.5], [ax - mirror * w * 0.02, h * 0.55], [cx + mirror * w * 0.04, h * 0.44]]), C.cream);   // reaching arm
+        };
+        figure(w * 0.3, C.ink, 1); figure(w * 0.7, C.burg, -1);
+        sh(g, P(g, [[w * 0.66, h * 0.1], [w * 0.7, h * 0.14], [w * 0.66, h * 0.18]]), C.burg);   // Minnie's bow
+        sh(g, P(g, [[w * 0.74, h * 0.1], [w * 0.7, h * 0.14], [w * 0.74, h * 0.18]]), C.burg);
+        sh(g, O(g, w * 0.7, h * 0.14, w * 0.02), C.gold);
+        sh(g, O(g, w * 0.5, h * 0.47, w * 0.05), C.cream);   // the joined hands, drawn once to hide the seam
+      },
       curtains(g, w, h) {   // the front frame: drawn-back theatre curtains at both sides
         for (const s of [1, -1]) {
           const X = x => s > 0 ? x : w - x;
@@ -2585,7 +2601,7 @@ async function init3D() {
       ["castleBack", 26, 28, 12, -9.4, 120, { quiet: 1 }], ["castle", 13, 28, 12, -7, 170, { half: -1, yaw: 0.22 }], ["castle", 13, 28, 12, -7, 170, { half: 1, yaw: 0.22, quiet: 1 }],
       ["harbor", 14, 14, -16, -6.5, 320, { half: -1, yaw: 0.18 }], ["harbor", 14, 14, -16, -6.5, 320, { half: 1, yaw: 0.18, quiet: 1 }],
       ["box", 0, 8, 12, -3.6, 380, { quiet: 1, box: { w: 6, d: 3.4, h: 8, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }], ...BOXES,
-      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
+      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["mickeyMinnie", 7, 9, 0, 5, 670], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
       .map(([k, w, h, x, z, delay, o = {}]) => {
         const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
         let m;
