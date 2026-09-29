@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark only">
+<title>絵本の冒険 PV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cinzel+Decorative:wght@700&family=Kiwi+Maru:wght@400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;overflow:hidden}
+/* the stage is always 1920 x 1080 video pixels, scaled to fit the window */
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;background:#0c0806}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+.fx{position:absolute;inset:0;pointer-events:none}
+#vign{background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 55%,rgba(20,10,4,.42) 100%)}
+#grainfx{opacity:.07;mix-blend-mode:overlay}
+#flash{background:#fff7e6;opacity:0}
+#black{background:#000;opacity:1}
+#cap{position:absolute;left:0;right:0;bottom:118px;text-align:center;font:500 50px/1.4 "Kiwi Maru",serif;letter-spacing:.14em;color:#fff8ea;
+  text-shadow:0 2px 3px rgba(40,20,5,.55),0 0 26px rgba(40,20,5,.55);opacity:0;white-space:nowrap}
+#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%,rgba(12,6,3,.72) 0%,rgba(12,6,3,.88) 70%);-webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+#end .title{font:700 132px/1 "Cinzel Decorative",Cinzel,serif;letter-spacing:.04em;
+  background:linear-gradient(180deg,#fff2c4 0%,#e9c46a 42%,#b0802f 58%,#f3d98f 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 4px 14px rgba(0,0,0,.6)) drop-shadow(0 0 30px rgba(255,200,110,.35))}
+#end .rule{width:520px;height:2px;margin:34px 0 30px;background:linear-gradient(90deg,rgba(233,196,106,0),#e9c46a,rgba(233,196,106,0))}
+#end .tag{font:500 46px/1.5 "Kiwi Maru",serif;letter-spacing:.12em;color:#fff4de;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+#end .url{margin-top:30px;font:600 40px/1 Cinzel,serif;letter-spacing:.06em;color:#f0d68e;text-transform:lowercase}
+#end .credit{position:absolute;bottom:40px;font:400 22px/1.5 "Kiwi Maru",serif;letter-spacing:.08em;color:rgba(255,240,215,.7)}
+#play{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;border:0;background:#0c0806;color:#f0d68e;cursor:pointer;
+  font:500 48px "Kiwi Maru",serif;letter-spacing:.14em}
+#play small{font-size:26px;color:rgba(255,240,215,.6);letter-spacing:.08em}
+#play[hidden]{display:none}
+</style>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div class="fx" id="vign"></div>
+  <canvas class="fx" id="grainfx" width="480" height="270"></canvas>
+  <div id="cap"></div>
+  <div id="end">
+    <div class="title">Disney Adventure</div>
+    <div class="rule"></div>
+    <div class="tag">絵本をひらいて、ふたつのパークを 3D で冒険しよう。</div>
+    <div class="url">tokyo-disneysea-3d.vercel.app</div>
+    <div class="credit">地図データ © OpenStreetMap contributors ・ 国土地理院　／　個人制作の非公式ファンプロジェクト</div>
+  </div>
+  <div class="fx" id="flash"></div>
+  <div class="fx" id="black"></div>
+  <button id="play" hidden>▶ 絵本をひらく<small>音が出ます(約 50 秒)</small></button>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script>
+// The promo film: a pop-up book on a candlelit desk opens, the camera dives through its paper curtains into the book, and travels
+// a paper-craft world (the canal harbour, the volcano, the turning globe, a forest, the castle under fireworks); a match cut on the
+// castle brings it back to the book, which closes on the title. Everything is drawn here, as in the mock's opening pop-up book.
+// Time drives everything (PROMO.frameAt(ms)), so tools/promo/record.py can render it frame by frame; opened in a browser it plays live.
+(async () => {
+  "use strict";
+  const q = new URLSearchParams(location.search), REC = q.has("record");
+  const DUR = 50000;
+  const $ = id => document.getElementById(id);
+  const stage = $("stage");
+  const fit = () => { const s = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `scale(${s}) translate(-50%,-50%)`; };
+  fit(); addEventListener("resize", fit);
+
+  // every run paints the same pictures: a seeded random
+  let seed = 20260929;
+  Math.random = () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+  const CAPS = [
+    [0.9, 4.4, "ある夜、ふしぎな絵本がひらきました。"],
+    [5.4, 9.0, "ページの中には、夢の王国。"],
+    [9.3, 11.3, "さあ、絵本の中へ――"],
+    [13.6, 17.8, "運河の港町を、ゴンドラとすすんで"],
+    [21.6, 24.8, "火を噴く山を見あげ"],
+    [25.6, 29.4, "まわる地球儀の広場をぬけて"],
+    [31.2, 34.4, "森の小道の、その先に……"],
+    [36.0, 40.0, "お城の空に、光の花がひらく。"],
+  ];
+  await Promise.all(["600 40px Cinzel", "700 40px 'Cinzel Decorative'"].map(f => document.fonts.load(f).catch(() => {}))
+    .concat(document.fonts.load("500 40px 'Kiwi Maru'", CAPS.map(c => c[2]).join("") + $("end").textContent).catch(() => {})));
+  let D = {};
+  try { D = await (await fetch("mock_data.json")).json(); } catch (e) { /* the map page is painted without the park outlines */ }
+
+  const T = THREE;
+  const cv = $("cv");
+  const big = REC || Math.min(innerWidth, innerHeight * 16 / 9) > 1100;
+  const RW = big ? 1920 : 1280, RH = big ? 1080 : 720;
+  const r = new T.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: REC });
+  r.setPixelRatio(1); r.setSize(RW, RH, false); r.outputEncoding = T.sRGBEncoding;
+  r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
+
+  // ---------------------------------------------------------------- paint: paper, watercolour washes, ink (as in the mock's pop-up book)
+  const C = { navy: "#34445f", slate: "#5f7590", rose: "#b98a80", burg: "#7c3440", moss: "#6f7d4c", sage: "#9da67c", ochre: "#c79b55",
+    gold: "#b8913f", terra: "#a45a40", cream: "#ecdfc0", stone: "#cdbfa5", sand: "#d8c29a", water: "#7797aa", waterD: "#4f7189", brown: "#6e4a30", ink: "#4a3526" };
+  const canvas = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+  const tex = (c, rep) => { const t = new T.CanvasTexture(c); t.anisotropy = 8; t.encoding = T.sRGBEncoding; if (rep) { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rep, rep); } return t; };
+  const lam = o => new T.MeshLambertMaterial(o);
+  const shade = (hex, k) => { const c = new T.Color(hex); return "#" + (k < 0 ? c.lerp(new T.Color(0x20140a), -k) : c.lerp(new T.Color(0xfff8e8), k)).getHexString(); };
+  const grain = (g, w, h, amt = 14) => {
+    const d = g.getImageData(0, 0, w, h), p = d.data;
+    for (let i = 0; i < p.length; i += 4) if (p[i + 3]) { const n = (Math.random() - 0.5) * amt; p[i] += n; p[i + 1] += n; p[i + 2] += n * 0.9; }
+    g.putImageData(d, 0, 0);
+  };
+  const fibres = (g, w, h) => {
+    g.strokeStyle = "rgba(120,90,50,.08)"; g.lineWidth = 1;
+    for (let i = 0; i < w * h / 900; i++) { const x = Math.random() * w, y = Math.random() * h, a = Math.random() * 6.3; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 7, y + Math.sin(a) * 7); g.stroke(); }
+  };
+  const paper = (g, w, h, base = "#eee1c2") => {
+    g.fillStyle = base; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 9; i++) { const x = Math.random() * w, y = Math.random() * h, rr = 10 + Math.random() * 40, f = g.createRadialGradient(x, y, 0, x, y, rr);
+      f.addColorStop(0, "rgba(150,100,50,.07)"); f.addColorStop(1, "rgba(150,100,50,0)"); g.fillStyle = f; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+    fibres(g, w, h);
+    const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
+    v.addColorStop(0, "rgba(120,80,40,0)"); v.addColorStop(1, "rgba(120,80,40,.22)"); g.fillStyle = v; g.fillRect(0, 0, w, h);
+    grain(g, w, h, 12);
+  };
+  const wash = (g, path, col, edge = true) => {
+    const w = g.canvas.width, h = g.canvas.height;
+    g.save(); path(); g.clip();
+    g.globalAlpha = 0.92; g.fillStyle = col; g.fillRect(0, 0, w, h); g.globalAlpha = 1;
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * w, y = Math.random() * h, rr = 12 + Math.random() * 70, b = g.createRadialGradient(x, y, 0, x, y, rr);
+      b.addColorStop(0, Math.random() < 0.55 ? `rgba(255,248,230,${0.1 + Math.random() * 0.14})` : `rgba(60,35,20,${0.05 + Math.random() * 0.08})`);
+      b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    }
+    const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "rgba(255,250,235,.16)"); lg.addColorStop(1, "rgba(40,25,10,.1)");
+    g.fillStyle = lg; g.fillRect(0, 0, w, h);
+    g.restore();
+    if (edge) { g.save(); path(); g.globalAlpha = 0.4; g.lineWidth = 5; g.strokeStyle = shade(col, -0.3); g.stroke(); g.restore(); }
+  };
+  const ink = (g, path, lw = 2.4) => {
+    g.save(); g.strokeStyle = C.ink; g.lineJoin = g.lineCap = "round";
+    path(); g.globalAlpha = 0.85; g.lineWidth = lw; g.stroke();
+    g.translate(0.9, -0.7); path(); g.globalAlpha = 0.35; g.lineWidth = lw * 0.5; g.stroke();
+    g.restore();
+  };
+  const sh = (g, path, col) => { wash(g, path, col); ink(g, path); };
+  const hatch = (g, path, x0, y0, x1, y1, gap = 7, a = 0.28) => {
+    g.save(); path(); g.clip(); g.strokeStyle = C.ink; g.globalAlpha = a; g.lineWidth = 1.2;
+    for (let x = x0 - (y1 - y0); x < x1; x += gap) { g.beginPath(); g.moveTo(x, y1); g.lineTo(x + (y1 - y0) * 0.6, y0); g.stroke(); }
+    g.restore();
+  };
+  const P = (g, pts) => () => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+  const R = (g, x, y, w, h) => () => { g.beginPath(); g.rect(x, y, w, h); };
+  const O = (g, x, y, rx, ry = rx) => () => { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 6.2832); };
+  const spr = (stops, size = 64) => { const c = canvas(size, size), g = c.getContext("2d"), rg = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    stops.forEach(([o, s]) => rg.addColorStop(o, s)); g.fillStyle = rg; g.fillRect(0, 0, size, size); return tex(c); };
+  const clamp = k => Math.min(1, Math.max(0, k)), eo = k => 1 - Math.pow(1 - k, 3), eio = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  const sstep = (a, b, x) => { const k = clamp((x - a) / (b - a)); return k * k * (3 - 2 * k); };
+  const backOut = k => 1 + 3.4 * Math.pow(k - 1, 3) + 2.4 * Math.pow(k - 1, 2);
+  const cast = o => { o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); return o; };
+
+  // cut-outs: the art, a cream paper margin with a tan edge, paper grain
+  const cut = (W, H, art, res = 1024) => {
+    const PX = Math.min(18, res / W, res / H), w = Math.round(W * PX), h = Math.round(H * PX);
+    const a = canvas(w, h); art(a.getContext("2d"), w, h);
+    const sil = col => { const c = canvas(w, h), g = c.getContext("2d"); g.drawImage(a, 0, 0); g.globalCompositeOperation = "source-in"; g.fillStyle = col; g.fillRect(0, 0, w, h); return c; };
+    const out = canvas(w, h), g = out.getContext("2d"), rim = sil("#a88f66"), margin = sil("#f1e6cc");
+    for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(rim, Math.cos(t) * 6.5, Math.sin(t) * 6.5); }
+    for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(margin, Math.cos(t) * 5.5, Math.sin(t) * 5.5); }
+    g.drawImage(a, 0, 0); grain(g, w, h, 10);
+    return tex(out);
+  };
+  const piece = (W, H, art, res) => {
+    const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: cut(W, H, art, res), alphaTest: 0.5, side: T.DoubleSide }));
+    m.castShadow = m.receiveShadow = true; return m;
+  };
+  const tower = (g, x, base, bw, bh, rh, wall = C.cream, roof = C.navy) => {
+    sh(g, R(g, x - bw / 2, base - bh, bw, bh), wall);
+    hatch(g, R(g, x + bw * 0.15, base - bh, bw * 0.35, bh), x, base - bh, x + bw / 2, base, 6, 0.22);
+    sh(g, O(g, x, base - bh * 0.6, bw * 0.12, bw * 0.2), C.brown);
+    sh(g, P(g, [[x - bw * 0.62, base - bh], [x, base - bh - rh], [x + bw * 0.62, base - bh]]), roof);
+    sh(g, O(g, x, base - bh - rh - 5, 5), C.gold);
+  };
+  const arts = {
+    mountains(g, w, h) {
+      const hills = () => { g.beginPath(); g.moveTo(0, h); g.bezierCurveTo(w * 0.1, h * 0.45, w * 0.2, h * 0.5, w * 0.32, h * 0.62);
+        g.bezierCurveTo(w * 0.5, h * 0.4, w * 0.62, h * 0.35, w * 0.72, h * 0.5); g.bezierCurveTo(w * 0.82, h * 0.3, w * 0.94, h * 0.35, w, h * 0.55); g.lineTo(w, h); g.closePath(); };
+      sh(g, hills, C.sage); hatch(g, hills, w * 0.5, h * 0.3, w, h, 9, 0.16);
+      const volcano = P(g, [[w * 0.06, h], [w * 0.16, h * 0.5], [w * 0.2, h * 0.38], [w * 0.235, h * 0.3], [w * 0.26, h * 0.34], [w * 0.3, h * 0.29],
+        [w * 0.33, h * 0.36], [w * 0.36, h * 0.46], [w * 0.4, h * 0.52], [w * 0.47, h]]);
+      sh(g, volcano, C.terra); hatch(g, volcano, w * 0.26, h * 0.3, w * 0.47, h, 6, 0.3);
+      g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.4; g.lineWidth = 1.6;
+      for (const [a, b, c, d] of [[.18, .55, .23, .7], [.26, .45, .3, .66], [.34, .5, .38, .72], [.22, .78, .28, .9], [.12, .8, .16, .92]]) { g.beginPath(); g.moveTo(w * a, h * b); g.lineTo(w * c, h * d); g.stroke(); }
+      g.restore();
+      wash(g, P(g, [[w * 0.255, h * 0.34], [w * 0.27, h * 0.5], [w * 0.262, h * 0.64], [w * 0.249, h * 0.48]]), "#c46a3a", false);
+    },
+    smoke(g, w, h) {
+      const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.35, 0.62, 0.3], [0.62, 0.45, 0.36], [0.5, 0.7, 0.26]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
+      ink(g, puff, 3); wash(g, puff, "#e8dfcd", false);
+    },
+    castleBack(g, w, h) {
+      const b = h - 4, dd = h * 0.2;
+      tower(g, w * 0.5, b - h * 0.34 + dd, w * 0.14, h * 0.26 + dd, h * 0.26);
+      tower(g, w * 0.33, b - h * 0.3 + dd, w * 0.1, h * 0.2 + dd, h * 0.18, C.cream, C.slate); tower(g, w * 0.67, b - h * 0.3 + dd, w * 0.1, h * 0.2 + dd, h * 0.18, C.cream, C.slate);
+    },
+    hillsBack(g, w, h) {
+      const hills = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.55); g.bezierCurveTo(w * 0.12, h * 0.2, w * 0.24, h * 0.3, w * 0.36, h * 0.45);
+        g.bezierCurveTo(w * 0.5, h * 0.12, w * 0.64, h * 0.25, w * 0.76, h * 0.4); g.bezierCurveTo(w * 0.86, h * 0.2, w * 0.95, h * 0.3, w, h * 0.5); g.lineTo(w, h); g.closePath(); };
+      sh(g, hills, "#93a79f"); hatch(g, hills, w * 0.3, h * 0.2, w, h, 10, 0.12);
+    },
+    foot(g, w, h) {
+      const bumps = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.5); for (let i = 0; i < 6; i++) g.quadraticCurveTo(w * (i + 0.5) / 6, h * (i % 2 ? 0.05 : 0.2), w * (i + 1) / 6, h * 0.55);
+        g.lineTo(w, h); g.closePath(); };
+      sh(g, bumps, C.moss); hatch(g, bumps, 0, h * 0.2, w, h, 8, 0.2);
+    },
+    castle(g, w, h) {
+      const b = h - 4;
+      tower(g, w * 0.14, b, w * 0.12, h * 0.44, h * 0.2); tower(g, w * 0.86, b, w * 0.12, h * 0.44, h * 0.2);
+      for (let i = 0; i < 8; i++) sh(g, R(g, w * 0.2 + i * w * 0.075, b - h * 0.36 - 10, w * 0.045, 12), C.stone);
+      const wall = R(g, w * 0.2, b - h * 0.36, w * 0.6, h * 0.36);
+      sh(g, wall, C.stone); hatch(g, wall, w * 0.6, b - h * 0.36, w * 0.8, b, 7, 0.2);
+      sh(g, () => { g.beginPath(); g.moveTo(w * 0.43, b); g.lineTo(w * 0.43, b - h * 0.15); g.arc(w * 0.5, b - h * 0.15, w * 0.07, Math.PI, 0); g.lineTo(w * 0.57, b); g.closePath(); }, C.burg);
+      for (const x of [0.3, 0.7]) sh(g, O(g, w * x, b - h * 0.2, 7), C.gold);
+    },
+    harbor(g, w, h) {
+      const cols = [C.ochre, C.rose, C.sand, "#a7b6b8", "#c9a3a0", C.sage, "#e0c79a"];
+      tower(g, w * 0.8, h - 4, w * 0.07, h * 0.72, h * 0.14, C.sand, C.terra);
+      let x = 6, i = 0;
+      while (x < w - 10) {
+        const bw = w * (0.1 + (i * 37 % 5) * 0.012), bh = h * (0.42 + (i * 53 % 7) * 0.06);
+        if (x + bw > w * 0.76 && x < w * 0.84) { x = w * 0.84; continue; }
+        const body = R(g, x, h - 4 - bh, bw, bh);
+        sh(g, body, cols[i % cols.length]); hatch(g, body, x + bw * 0.6, h - 4 - bh, x + bw, h, 6, 0.18);
+        sh(g, P(g, [[x - 4, h - 4 - bh], [x + bw / 2, h - 4 - bh - bw * 0.35], [x + bw + 4, h - 4 - bh]]), C.terra);
+        for (let rr = 0; rr < 3; rr++) for (let c = 0; c < 2; c++) {
+          const wy = h - 4 - bh + 14 + rr * (bh / 3.4); if (wy > h - 22) continue;
+          wash(g, R(g, x + bw * (0.22 + c * 0.38), wy, bw * 0.18, bh * 0.12), C.navy, false);
+        }
+        x += bw + 2; i++;
+      }
+    },
+    pedestal(g, w, h) {
+      sh(g, O(g, w / 2, h - 16, w * 0.46, 12), C.stone);
+      wash(g, O(g, w / 2, h - 19, w * 0.39, 8), C.water); ink(g, O(g, w / 2, h - 19, w * 0.39, 8), 1.6);
+      const col = R(g, w * 0.42, h * 0.18, w * 0.16, h * 0.62);
+      sh(g, col, C.stone); hatch(g, col, w * 0.5, h * 0.18, w * 0.58, h, 5, 0.25);
+      sh(g, O(g, w / 2, h * 0.18, w * 0.2, 7), C.gold);
+    },
+    waves(g, w, h) {
+      const n = 14, sw = w / n, sea = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.4); for (let i = 0; i < n; i++) g.quadraticCurveTo(sw * i + sw / 2, h * (i % 2 ? 0.05 : 0.2), sw * (i + 1), h * 0.4); g.lineTo(w, h); g.closePath(); };
+      sh(g, sea, C.water); hatch(g, sea, 0, h * 0.5, w, h, 8, 0.14);
+      g.save(); g.strokeStyle = "#f3ead6"; g.lineWidth = 2.5; g.globalAlpha = 0.9;
+      for (let i = 0; i < n; i++) { g.beginPath(); g.arc(sw * i + sw * 0.62, h * 0.44, sw * 0.14, Math.PI, Math.PI * 1.9); g.stroke(); }
+      g.restore();
+      for (const [x, c] of [[w * 0.05, C.rose], [w * 0.09, C.ochre], [w * 0.93, C.rose], [w * 0.965, C.ochre]])
+        for (let k = 0; k < 5; k++) sh(g, O(g, x + Math.cos(k * 1.257) * 8, h * 0.55 + Math.sin(k * 1.257) * 8, 6), c);
+    },
+    sea(g, w, h) {   // the world's waves: a longer row, no flowers
+      const n = 12, sw = w / n, sea = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.4); for (let i = 0; i < n; i++) g.quadraticCurveTo(sw * i + sw / 2, h * (i % 2 ? 0.05 : 0.2), sw * (i + 1), h * 0.4); g.lineTo(w, h); g.closePath(); };
+      sh(g, sea, C.water); hatch(g, sea, 0, h * 0.5, w, h, 10, 0.14);
+      g.save(); g.strokeStyle = "#f3ead6"; g.lineWidth = 5; g.globalAlpha = 0.9;
+      for (let i = 0; i < n; i++) { g.beginPath(); g.arc(sw * i + sw * 0.62, h * 0.44, sw * 0.14, Math.PI, Math.PI * 1.9); g.stroke(); }
+      g.restore();
+    },
+    gondola(g, w, h) {
+      const hull = () => { g.beginPath(); g.moveTo(w * 0.04, h * 0.45); g.quadraticCurveTo(w * 0.5, h * 1.02, w * 0.96, h * 0.4); g.quadraticCurveTo(w * 0.5, h * 0.72, w * 0.04, h * 0.45); g.closePath(); };
+      sh(g, hull, C.navy);
+      sh(g, R(g, w * 0.66, h * 0.1, w * 0.035, h * 0.55), C.brown);
+      sh(g, O(g, w * 0.6, h * 0.18, w * 0.04), C.cream); sh(g, P(g, [[w * 0.56, h * 0.25], [w * 0.64, h * 0.25], [w * 0.63, h * 0.6], [w * 0.57, h * 0.6]]), C.burg);
+    },
+    tree(g, w, h) {
+      sh(g, R(g, w * 0.43, h * 0.55, w * 0.14, h * 0.45), C.brown);
+      for (const [x, y, rr] of [[.5, .3, .3], [.3, .45, .22], [.7, .45, .22], [.5, .5, .24]]) sh(g, O(g, w * x, h * y, w * rr), C.moss);
+      for (const [x, y] of [[.4, .3], [.62, .4], [.5, .52], [.3, .48]]) wash(g, O(g, w * x, h * y, 5), C.burg, false);
+    },
+    pine(g, w, h) {   // a tall conifer, for the forest
+      sh(g, R(g, w * 0.45, h * 0.8, w * 0.1, h * 0.2), C.brown);
+      for (let i = 0; i < 4; i++) { const y0 = h * (0.08 + i * 0.19), y1 = y0 + h * 0.34, hw = w * (0.2 + i * 0.1);
+        const tri = P(g, [[w / 2, y0], [w / 2 + hw, y1], [w / 2 - hw, y1]]); sh(g, tri, i % 2 ? "#5d6d42" : C.moss); hatch(g, tri, w / 2, y0, w, y1, 7, 0.2); }
+    },
+    curtains(g, w, h) {
+      for (const s of [1, -1]) {
+        const X = x => s > 0 ? x : w - x;
+        const cur = () => { g.beginPath(); g.moveTo(X(0), 0); g.lineTo(X(w * 0.15), 0); g.bezierCurveTo(X(w * 0.12), h * 0.35, X(w * 0.05), h * 0.55, X(w * 0.055), h * 0.62);
+          g.bezierCurveTo(X(w * 0.07), h * 0.8, X(w * 0.1), h * 0.92, X(w * 0.11), h); g.lineTo(X(0), h); g.closePath(); };
+        sh(g, cur, C.burg);
+        g.save(); cur(); g.clip(); g.strokeStyle = "rgba(40,10,15,.35)"; g.lineWidth = 3;
+        for (let k = 1; k < 5; k++) { g.beginPath(); g.moveTo(X(w * 0.03 * k), 0); g.quadraticCurveTo(X(w * 0.011 * k), h * 0.6, X(w * 0.022 * k), h); g.stroke(); }
+        g.restore();
+        sh(g, O(g, X(w * 0.06), h * 0.62, w * 0.012, h * 0.03), C.gold);
+        sh(g, P(g, [[X(w * 0.055), h * 0.64], [X(w * 0.07), h * 0.74], [X(w * 0.045), h * 0.74]]), C.gold);
+      }
+    },
+    valance(g, w, h) {   // the pelmet over the world's stage: scallops, folds, a gold fringe and tassels
+      const n = 9, sw = w / n, top = h * 0.42;
+      const shape = () => { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, top); for (let i = n - 1; i >= 0; i--) g.quadraticCurveTo(sw * i + sw / 2, h * 0.98, sw * i, top); g.closePath(); };
+      sh(g, shape, C.burg);
+      g.save(); shape(); g.clip(); g.strokeStyle = "rgba(40,10,15,.3)"; g.lineWidth = 4;
+      for (let i = 0; i < n * 3; i++) { const x = (i + 0.5) * sw / 3; g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 3, h); g.stroke(); }
+      g.restore();
+      g.save(); g.strokeStyle = C.gold; g.lineWidth = 7; g.beginPath(); g.moveTo(w, top); for (let i = n - 1; i >= 0; i--) g.quadraticCurveTo(sw * i + sw / 2, h * 0.98 - 9, sw * i, top); g.stroke(); g.restore();
+      for (let i = 1; i < n; i++) { sh(g, O(g, sw * i, top + 6, 7), C.gold); sh(g, P(g, [[sw * i - 3, top + 10], [sw * i + 3, top + 10], [sw * i + 9, top + 46], [sw * i - 9, top + 46]]), C.gold); }
+      sh(g, R(g, 0, 0, w, h * 0.08), C.gold);
+    },
+    bridge(g, w, h) {   // a stone bridge over the canal, the camera passes under its arch
+      const deck = () => { g.beginPath(); g.moveTo(0, h * 0.3); g.lineTo(w, h * 0.3); g.lineTo(w, h); g.lineTo(w * 0.8, h);
+        g.bezierCurveTo(w * 0.78, h * 0.42, w * 0.22, h * 0.42, w * 0.2, h); g.lineTo(0, h); g.closePath(); };
+      sh(g, deck, C.stone); hatch(g, deck, w * 0.5, h * 0.3, w, h, 9, 0.18);
+      g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.5; g.lineWidth = 2.2;
+      for (let i = 0; i <= 12; i++) { const k = i / 12, x = w * 0.2 + k * w * 0.6, y = h - Math.sin(k * Math.PI) * h * 0.56;
+        const nx = (k - 0.5) * 0.7, ny = -Math.sin(k * Math.PI) * 0.9 - 0.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + nx * h * 0.12, y + ny * h * 0.12); g.stroke(); }
+      g.restore();
+      sh(g, R(g, 0, h * 0.06, w, h * 0.06), C.stone);
+      for (let x = w * 0.01; x < w; x += w / 44) sh(g, R(g, x, h * 0.12, w * 0.009, h * 0.18), C.stone);
+      sh(g, P(g, [[w * 0.47, h * 0.4], [w * 0.53, h * 0.4], [w * 0.515, h * 0.5], [w * 0.485, h * 0.5]]), C.sand);
+      for (const x of [0.08, 0.92]) { sh(g, R(g, w * x - 5, h * 0.0 + 4, 10, h * 0.08), C.brown); sh(g, O(g, w * x, 12, 11, 14), C.gold); }
+    },
+    cloud(g, w, h) {
+      const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.25, 0.62, 0.3], [0.45, 0.42, 0.4], [0.68, 0.5, 0.34], [0.82, 0.66, 0.24], [0.5, 0.7, 0.28]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
+      ink(g, puff, 4); wash(g, puff, "#f6efe0", false);
+      g.save(); puff(); g.clip(); const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0.5, "rgba(120,140,170,0)"); lg.addColorStop(1, "rgba(120,140,170,.3)"); g.fillStyle = lg; g.fillRect(0, 0, w, h); g.restore();
+    },
+    sun(g, w, h) {
+      const cx = w / 2, cy = h / 2, rr = w * 0.26;
+      const rays = () => { g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.2832, b = a + 0.13, c = a + 0.065, L = i % 2 ? w * 0.43 : w * 0.49;
+        if (!i) g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); else g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+        g.lineTo(cx + Math.cos(c) * L, cy + Math.sin(c) * L); g.lineTo(cx + Math.cos(b + 0.13) * rr, cy + Math.sin(b + 0.13) * rr); } g.closePath(); };
+      sh(g, rays, C.ochre); sh(g, O(g, cx, cy, rr), "#e2b35a");
+    },
+    belltower(g, w, h) { tower(g, w / 2, h - 4, w * 0.62, h * 0.74, h * 0.18, C.sand, C.terra); },
+  };
+
+  // boxes: buildings with real depth (a painted front and side, a roof)
+  const facade = (col, cols, rows, door, s = 1) => {
+    const pw = 96, ph = 128, c = canvas(pw * s, ph * s), g = c.getContext("2d"); g.scale(s, s);
+    wash(g, R(g, 0, 0, pw, ph), col, false); hatch(g, R(g, 0, 0, pw, ph), pw * 0.6, 0, pw, ph, 6, 0.16);
+    const ww = pw / (cols * 2 + 1), rh = ph * 0.7 / rows;
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) { const x = ww * (1 + 2 * k), y = ph * 0.1 + r * rh, wh = rh * 0.55;
+      wash(g, R(g, x, y, ww, wh), C.navy, false); ink(g, R(g, x, y, ww, wh), 1.4); }
+    if (door) { const dw = pw * 0.22; sh(g, () => { g.beginPath(); g.moveTo(pw / 2 - dw / 2, ph); g.lineTo(pw / 2 - dw / 2, ph * 0.82); g.arc(pw / 2, ph * 0.82, dw / 2, Math.PI, 0); g.lineTo(pw / 2 + dw / 2, ph); g.closePath(); }, C.burg); }
+    ink(g, R(g, 1, 1, pw - 2, ph - 2), 2.6); grain(g, c.width, c.height, 10); return tex(c);
+  };
+  const roofTex = (() => { const c = canvas(128, 64), g = c.getContext("2d"); wash(g, R(g, 0, 0, 128, 64), C.terra, false);
+    g.strokeStyle = "rgba(60,25,15,.4)"; g.lineWidth = 1.4; for (let y = 8; y < 64; y += 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+    for (let y = 0; y < 64; y += 16) for (let x = (y / 16 % 2) * 8; x < 128; x += 16) { g.beginPath(); g.moveTo(x, y + 8); g.lineTo(x, y + 16); g.stroke(); }
+    grain(g, 128, 64, 12); return tex(c); })();
+  const makeBox = ({ w, d, h, col, roof, rh = 3, cols = 2, rows = 2, door = 0, s = 1 }) => {
+    const grp = new T.Group(), front = lam({ map: facade(col, cols, rows, door, s) }), sd = lam({ map: facade(shade(col, -0.12), 1, rows, 0, s) }), top = lam({ color: 0xcdbfa5 });
+    grp.add(new T.Mesh(new T.BoxGeometry(w, h, d).translate(0, h / 2, 0), [sd, sd, top, top, front, front]));
+    if (roof === "gable") {
+      const r0 = (d + 0.8) / 1.732, sc = rh / (1.5 * r0);
+      grp.add(new T.Mesh(new T.CylinderGeometry(r0, r0, w + 0.8, 3).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, sc, 1).translate(0, h + rh / 3, 0), lam({ map: roofTex })));
+    } else {
+      const stone = lam({ color: 0xd9ccb0 }), slab = new T.Mesh(new T.BoxGeometry(w + 0.5, 0.5, d + 0.5), stone); slab.position.y = h + 0.25; grp.add(slab);
+      const n = Math.max(3, Math.floor(w / 1.3)), cs = Math.max(0.75, w / 20);
+      for (let i = 0; i < n; i++) for (const zs of [-1, 1]) { const mm = new T.Mesh(new T.BoxGeometry(cs, cs, cs), stone); mm.position.set(-w / 2 + 0.3 + i * ((w - 0.6) / (n - 1)), h + 0.5 + cs / 2, zs * (d / 2 + 0.05)); grp.add(mm); }
+    }
+    return cast(grp);
+  };
+  const fullArt = {}, half = (k, side) => (g, w, h) => {
+    const key = k + w + "x" + h; if (!fullArt[key]) { const c = canvas(w * 2, h); arts[k](c.getContext("2d"), w * 2, h); fullArt[key] = c; }
+    g.drawImage(fullArt[key], side > 0 ? w : 0, 0, w, h, 0, 0, w, h);
+  };
+
+  // particles: points whose position and colour are recomputed from the time each frame
+  const dot = spr([[0, "rgba(255,255,255,1)"], [0.3, "rgba(255,255,255,.55)"], [1, "rgba(255,255,255,0)"]]);
+  const pointsOf = (n, size, parent) => {
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(pos, 3)); geo.setAttribute("color", new T.BufferAttribute(col, 3));
+    const pts = new T.Points(geo, new T.PointsMaterial({ map: dot, size, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    pts.frustumCulled = false; parent.add(pts);
+    return { pos, col, n, done() { geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true; } };
+  };
+  const COLS = [[1, 0.82, 0.4], [1, 0.95, 0.75], [1, 0.62, 0.36], [0.75, 0.87, 1]];
+  const burstList = (list, at, x, y, z, n, sp, up, cols = COLS, grav = 11) => { for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.2832, e = Math.random() * 1.2 - 0.25, s = sp * (0.35 + Math.random() * 0.65);
+    list.push({ t0: at, x, y, z, vx: Math.cos(a) * Math.cos(e) * s, vy: up + Math.sin(e + 0.4) * s * 0.9, vz: Math.sin(a) * Math.cos(e) * s * 0.7,
+      life: 1.3 + Math.random() * 1.1, c: cols[Math.floor(Math.random() * cols.length)], g: grav }); } };
+  const drawSparks = (ps, list, t, k0 = 1) => {
+    for (let i = 0; i < ps.n; i++) {
+      const s = list[i], a = s ? t - s.t0 : -1;
+      if (!s || a < 0 || a > s.life) { ps.col[i * 3] = ps.col[i * 3 + 1] = ps.col[i * 3 + 2] = 0; ps.pos[i * 3 + 1] = -999; continue; }
+      ps.pos[i * 3] = s.x + s.vx * a; ps.pos[i * 3 + 1] = s.y + s.vy * a - s.g * a * a; ps.pos[i * 3 + 2] = s.z + s.vz * a;
+      const f = 1 - a / s.life, k = f * f * (0.75 + 0.25 * Math.sin(a * 40 + i)) * k0;
+      ps.col[i * 3] = s.c[0] * k; ps.col[i * 3 + 1] = s.c[1] * k; ps.col[i * 3 + 2] = s.c[2] * k;
+    }
+    ps.done();
+  };
+
+  // ================================================================ the book on the desk
+  const BOOK_OFS = 600;   // the book's clock starts a little after the film's (the fade from black)
+  const book = (() => {
+    const sc = new T.Scene(), cm = new T.PerspectiveCamera(32, RW / RH, 1, 900);
+    sc.background = new T.Color(0x0c0806);
+    sc.fog = new T.Fog(0x140d08, 120, 300);
+    const PW = 40, DP = 30, PH = 1.4, CV = 0.5, DESK = -PH - CV;
+    const POP_IN_MS = 1400, POP_OPEN_MS = 2200, POP_FLIP_MS = 700, POP_UP_MS = 1300;
+    const wood = canvas(512, 512);
+    (g => {
+      g.fillStyle = "#4a2e1b"; g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 180; i++) {
+        const y = Math.random() * 512, c = Math.random();
+        g.strokeStyle = c < 0.5 ? `rgba(30,16,8,${0.15 + Math.random() * 0.25})` : `rgba(120,80,45,${0.1 + Math.random() * 0.2})`;
+        g.lineWidth = 0.6 + Math.random() * 2.2; g.beginPath();
+        for (let x = 0; x <= 512; x += 16) g.lineTo(x, y + Math.sin(x / 60 + i) * 3 + Math.sin(x / 13 + i * 3) * 0.8);
+        g.stroke();
+      }
+      g.fillStyle = "rgba(15,8,4,.55)"; for (const y of [0, 170, 341]) g.fillRect(0, y, 512, 2);
+      grain(g, 512, 512, 16);
+    })(wood.getContext("2d"));
+    const desk = new T.Mesh(new T.PlaneGeometry(420, 420), lam({ map: tex(wood, 2.2) }));
+    desk.rotation.x = -Math.PI / 2; desk.position.y = DESK - 0.02; desk.receiveShadow = true; sc.add(desk);
+    const candle = new T.Group(); candle.position.set(-52, DESK, -16); sc.add(candle);
+    const brass = lam({ color: 0xb08a45, emissive: 0x2a1a06 });
+    const dish = new T.Mesh(new T.CylinderGeometry(3.4, 3.8, 0.6, 28), brass); dish.position.y = 0.3; candle.add(dish);
+    const wax = new T.Mesh(new T.CylinderGeometry(1.3, 1.35, 9, 20), lam({ color: 0xefe3c8, emissive: 0x3a2410 })); wax.position.y = 5.1; wax.castShadow = true; candle.add(wax);
+    const flame = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,250,220,1)"], [0.25, "rgba(255,200,110,.9)"], [1, "rgba(255,140,40,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    flame.position.y = 11; flame.scale.set(1.6, 3.2, 1); candle.add(flame);
+    const halo = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,190,110,.35)"], [1, "rgba(255,150,60,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    halo.position.y = 11; halo.scale.setScalar(26); candle.add(halo);
+    const flameLight = new T.PointLight(0xffa24a, 1.2, 150, 1.4); flameLight.position.y = 12; candle.add(flameLight);
+    sc.add(new T.HemisphereLight(0xfff1dc, 0x3a2a1c, 0.5));
+    const key = new T.DirectionalLight(0xffe2b8, 0.75); key.position.set(-38, 80, 50); key.target.position.set(0, 0, -2); sc.add(key, key.target);
+    key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+    Object.assign(key.shadow.camera, { left: -70, right: 70, top: 60, bottom: -60, near: 10, far: 220 }); key.shadow.bias = -0.0004;
+
+    const leatherC = canvas(256, 256);
+    (g => { g.fillStyle = "#5b1f27"; g.fillRect(0, 0, 256, 256); grain(g, 256, 256, 22);
+      for (let i = 0; i < 60; i++) { g.strokeStyle = "rgba(20,5,8,.12)"; g.lineWidth = 1; g.beginPath(); const x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); g.lineTo(x + Math.random() * 12 - 6, y + Math.random() * 12 - 6); g.stroke(); } })(leatherC.getContext("2d"));
+    const leather = lam({ map: tex(leatherC, 3) }), edge = lam({ color: 0xe2d2ab }), goldM = lam({ color: 0xc9a14e, emissive: 0x3a2808 });
+    const spread = canvas(2048, 768);
+    (g => {
+      const w = 2048, h = 768; g.scale(2, 2); const W2 = w / 2, H2 = h / 2;
+      paper(g, W2, H2);
+      const gut = g.createLinearGradient(W2 / 2 - 60, 0, W2 / 2 + 60, 0);
+      gut.addColorStop(0, "rgba(90,60,30,0)"); gut.addColorStop(0.5, "rgba(90,60,30,.28)"); gut.addColorStop(1, "rgba(90,60,30,0)"); g.fillStyle = gut; g.fillRect(W2 / 2 - 60, 0, 120, H2);
+      g.strokeStyle = C.gold; g.globalAlpha = 0.7; g.lineWidth = 2; g.strokeRect(18, 18, W2 / 2 - 36, H2 - 36); g.strokeRect(W2 / 2 + 18, 18, W2 / 2 - 36, H2 - 36);
+      g.lineWidth = 0.8; g.strokeRect(24, 24, W2 / 2 - 48, H2 - 48); g.strokeRect(W2 / 2 + 24, 24, W2 / 2 - 48, H2 - 48); g.globalAlpha = 1;
+      const parks = [D.park, D.disneyland?.park].filter(Boolean), all = parks.flat();
+      if (all.length) {
+        const x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+        const s = Math.min((W2 - 140) / (x1 - x0), (H2 - 100) / (y1 - y0)), ox = (W2 - (x1 - x0) * s) / 2, oy = (H2 - (y1 - y0) * s) / 2;
+        const M = ([x, y]) => [ox + (x - x0) * s, oy + (y1 - y) * s];
+        for (const p of parks) wash(g, P(g, p.map(M)), "#b9c29a");
+        for (const p of D.water || []) wash(g, P(g, p.map(M)), "#9fb7c0", false);
+        for (const p of parks) { g.setLineDash([5, 5]); ink(g, P(g, p.map(M)), 1.6); g.setLineDash([]); }
+        g.fillStyle = C.brown; g.textAlign = "center"; g.font = "italic 600 17px Cinzel, serif";
+        if (D.disneyland) { const [a, b] = M([-700, 1150]); g.fillText("Tokyo Disneyland", Math.max(120, a), Math.max(44, b)); }
+        const [c, d] = M([150, -420]); g.fillText("Tokyo DisneySea", Math.min(W2 - 120, c), Math.min(H2 - 30, d));
+      }
+      g.save(); g.translate(W2 - 66, 62); g.fillStyle = C.gold; g.globalAlpha = 0.8;
+      for (let i = 0; i < 8; i++) { g.rotate(Math.PI / 4); P(g, [[0, i % 2 ? -18 : -30], [5, 0], [0, 5], [-5, 0]])(); g.fill(); }
+      g.restore();
+    })(spread.getContext("2d"));
+    const textPage = canvas(512, 384);
+    (g => {
+      paper(g, 512, 384);
+      g.fillStyle = C.burg; g.font = "700 64px 'Cinzel Decorative', serif"; g.fillText("O", 58, 118);
+      g.fillStyle = "rgba(74,53,38,.55)";
+      for (let i = 0; i < 12; i++) {
+        const y = 78 + i * 22, x0 = i < 3 ? 120 : 58; let x = x0;
+        while (x < 450 - (i === 11 ? 170 : 0)) { const ww = 12 + Math.random() * 38; g.fillRect(x, y, Math.min(ww, 452 - x), 5); x += ww + 7; }
+      }
+      g.strokeStyle = C.gold; g.lineWidth = 1.5; g.beginPath(); g.moveTo(200, 352); g.bezierCurveTo(230, 336, 282, 368, 312, 352); g.stroke();
+    })(textPage.getContext("2d"));
+    const coverC = canvas(1024, 768);
+    (g => {
+      g.scale(2, 2); const w = 512, h = 384; g.drawImage(leatherC, 0, 0, w, h); grain(g, 1024, 768, 18);
+      const v = g.createRadialGradient(w / 2, h / 2, 60, w / 2, h / 2, 330); v.addColorStop(0, "rgba(255,200,170,.08)"); v.addColorStop(1, "rgba(10,0,0,.35)"); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      const foil = g.createLinearGradient(0, 0, w, h); foil.addColorStop(0, "#9c7630"); foil.addColorStop(0.45, "#f0d489"); foil.addColorStop(0.55, "#d1a954"); foil.addColorStop(1, "#8d6926");
+      g.strokeStyle = foil; g.fillStyle = foil;
+      g.lineWidth = 3; g.strokeRect(22, 22, w - 44, h - 44); g.lineWidth = 1.2; g.strokeRect(32, 32, w - 64, h - 64);
+      for (const [x, y, sx, sy] of [[32, 32, 1, 1], [w - 32, 32, -1, 1], [32, h - 32, 1, -1], [w - 32, h - 32, -1, -1]]) {
+        g.save(); g.translate(x, y); g.scale(sx, sy); g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, 46); g.bezierCurveTo(10, 20, 20, 10, 46, 0); g.moveTo(8, 8); g.arc(14, 14, 6, 0, 6.3); g.stroke(); g.restore();
+      }
+      g.save(); g.translate(w / 2, h * 0.38);
+      for (let i = 0; i < 24; i++) { g.rotate(Math.PI / 12); P(g, [[34, -3], [i % 2 ? 62 : 80, 0], [34, 3]])(); g.fill(); }
+      g.beginPath(); g.arc(0, 0, 28, 0, 6.3); g.lineWidth = 2.5; g.stroke(); g.beginPath(); g.arc(0, 0, 20, 0, 6.3); g.fill(); g.restore();
+      g.textAlign = "center"; g.font = "600 24px Cinzel, serif"; g.fillText("D I S N E Y", w / 2, h * 0.73);
+      g.font = "700 40px 'Cinzel Decorative', Cinzel, serif"; g.fillText("Adventure", w / 2, h * 0.73 + 46);
+    })(coverC.getContext("2d"));
+    const bk = new T.Group(); sc.add(bk);
+    const side = (sign, pageTex) => {
+      const s = new T.Group(), cx = sign * PW / 2;
+      const bx = (w, h, d, m, x, y, z) => { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x, y, z); s.add(b); return b; };
+      bx(PW + 0.6, CV, DP + 1.2, leather, sign * (PW + 0.6) / 2, -PH - CV / 2, 0);
+      bx(PW - 0.6, PH, DP - 0.4, edge, cx - sign * 0.3, -PH / 2, 0);
+      const top = new T.Mesh(new T.PlaneGeometry(PW - 0.6, DP - 0.4), lam({ map: pageTex }));
+      top.rotation.x = -Math.PI / 2; top.position.set(cx - sign * 0.3, 0.02, 0); s.add(top);
+      return cast(s);
+    };
+    const tl = tex(spread), trt = tex(spread);
+    tl.repeat.set(0.5, 1); trt.repeat.set(0.5, 1); trt.offset.set(0.5, 0);
+    const right = side(1, trt), left = side(-1, tl);
+    const front = new T.Mesh(new T.PlaneGeometry(PW + 0.4, DP + 1), lam({ map: tex(coverC) }));
+    front.rotation.set(-Math.PI / 2, Math.PI, 0); front.position.set(-PW / 2 - 0.3, -PH - CV - 0.03, 0); left.add(front);
+    for (const z of [-1, 1]) { const c = new T.Mesh(new T.BoxGeometry(3.2, 0.3, 3.2), goldM); c.position.set(-PW + 1.3, -PH - CV - 0.1, z * (DP / 2 - 1)); left.add(c); }
+    bk.add(right, left);
+    const spine = new T.Mesh(new T.BoxGeometry(1.4, PH + CV * 2, DP + 1.2), leather); spine.position.y = -PH / 2; bk.add(cast(spine));
+    const ribbonM = lam({ color: 0x8a2a2f, side: T.DoubleSide });
+    const rib1 = new T.Mesh(new T.PlaneGeometry(1.1, PH + CV + 0.1), ribbonM); rib1.position.set(0.9, -(PH + CV) / 2, DP / 2 + 0.66);
+    const rib2 = new T.Mesh(new T.PlaneGeometry(1.1, 7), ribbonM); rib2.rotation.set(-Math.PI / 2, 0, 0.12); rib2.position.set(1.3, DESK + 0.03, DP / 2 + 4.1);
+    bk.add(rib1, rib2); rib2.receiveShadow = true;
+    const flips = [0, 1, 2].map(i => {
+      const g = new T.Group(); g.position.y = 0.06 + (2 - i) * 0.03;
+      const f = new T.PlaneGeometry(PW - 0.8, DP - 0.6).rotateX(-Math.PI / 2).translate((PW - 0.8) / 2 + 0.3, 0, 0);
+      const b = new T.PlaneGeometry(PW - 0.8, DP - 0.6).rotateY(Math.PI).rotateX(-Math.PI / 2).translate((PW - 0.8) / 2 + 0.3, 0, 0);
+      g.add(new T.Mesh(f, lam({ map: tex(textPage) })), new T.Mesh(b, lam({ map: tl })));
+      bk.add(cast(g)); return g;
+    });
+    const FLIP_AT = POP_IN_MS + POP_OPEN_MS * 0.7, FLIP_GAP = 280, UP_AT = FLIP_AT + FLIP_GAP * 2 + POP_FLIP_MS - 150;
+    const BOXES = [[-27.5, -1.6, 4.6, 3.6, 7.5, C.ochre, 3.2, 2, 2, 0, 400], [-22.8, -1, 4, 3.4, 5.6, C.rose, 2.8, 2, 2, 1, 450], [-18.2, -1.6, 5, 3.8, 9, C.sand, 3.6, 2, 3, 0, 500],
+      [-13.4, -0.9, 4.2, 3.4, 6.2, "#a7b6b8", 3, 2, 2, 1, 550], [-9.2, -1.6, 4.4, 3.6, 7.6, "#c9a3a0", 3.2, 2, 2, 0, 600]]
+      .map(([x, z, w, d, h, col, rh, cols, rows, door, delay]) => ["box", 0, h, x, z, delay, { quiet: 1, box: { w, d, h, col, roof: "gable", rh, cols, rows, door } }]);
+    const pieces = [["hillsBack", 78, 22, 0, -14.6, 0, { quiet: 1 }], ["mountains", 74, 24, 0, -11.8, 60], ["foot", 74, 9, 0, -9, 200, { quiet: 1 }],
+      ["castleBack", 26, 28, 12, -9.4, 120, { quiet: 1 }], ["castle", 13, 28, 12, -7, 170, { half: -1, yaw: 0.22 }], ["castle", 13, 28, 12, -7, 170, { half: 1, yaw: 0.22, quiet: 1 }],
+      ["harbor", 14, 14, -16, -6.5, 320, { half: -1, yaw: 0.18 }], ["harbor", 14, 14, -16, -6.5, 320, { half: 1, yaw: 0.18, quiet: 1 }],
+      ["box", 0, 8, 12, -3.6, 380, { quiet: 1, box: { w: 6, d: 3.4, h: 8, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }], ...BOXES,
+      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
+      .map(([k, w, h, x, z, delay, o = {}]) => {
+        const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
+        let m;
+        if (o.box) { m = makeBox(o.box); hinge.add(m); }
+        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k]); m.position.set(o.half ? o.half * w / 2 : 0, h / 2, 0); hinge.add(m); }
+        bk.add(hinge); hinge.visible = false;
+        return { k, hinge, m, delay, h, x, z, quiet: o.quiet, box: !!o.box, yaw: o.half ? -o.half * o.yaw : 0 };
+      });
+    const byKey = k => pieces.find(p => p.k === k);
+    const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1]].map(([x, y, w, h, ph]) => {
+      const m = piece(w, h, arts.smoke); m.position.set(x, y, 0.15); byKey("mountains").hinge.add(m); return { m, y, x, ph };
+    });
+    const gl = canvas(512, 256);
+    (g => { wash(g, R(g, 0, 0, 512, 256), "#6f93ab", false);
+      for (const [x, y, rx, ry] of [[90, 80, 60, 40], [150, 170, 34, 50], [270, 90, 70, 34], [300, 170, 40, 44], [420, 110, 50, 36], [460, 190, 26, 20]]) sh(g, O(g, x, y, rx, ry), Math.random() < 0.5 ? C.sage : C.ochre);
+      g.strokeStyle = "rgba(240,230,210,.55)"; g.lineWidth = 1.5;
+      for (let x = 0; x < 512; x += 64) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
+      for (let y = 32; y < 256; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
+      g.strokeStyle = C.gold; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 128); g.lineTo(512, 128); g.stroke(); grain(g, 512, 256, 10); })(gl.getContext("2d"));
+    const globeTex = tex(gl);
+    const globe = new T.Mesh(new T.SphereGeometry(3.3, 36, 24), lam({ map: globeTex })); globe.castShadow = true;
+    globe.position.set(0, 8 * 0.82 + 3.4 - 4, 0); byKey("pedestal").m.add(globe);
+    const gondola = piece(9, 3.8, arts.gondola); gondola.position.set(-13, 2.2 - 3, 0.3); byKey("waves").m.add(gondola);
+    const READY_AT = UP_AT + Math.max(...pieces.map(p => p.delay)) + POP_UP_MS;
+    const BURST_AT = UP_AT + 170 + POP_UP_MS * 0.6, FIN_AT = READY_AT - 400, ERUPT_AT = UP_AT + POP_UP_MS * 0.75;
+    // light leaking from the pages, sparks as the pop-ups stand, the volcano, a fountain of gold
+    const rays = canvas(256, 256);
+    (g => {
+      g.translate(128, 128);
+      for (let i = 0; i < 22; i++) { const a = i / 22 * 6.2832 + Math.random() * 0.1, wd = 0.05 + Math.random() * 0.07;
+        const lg = g.createLinearGradient(0, 0, Math.cos(a) * 128, Math.sin(a) * 128); lg.addColorStop(0, "rgba(255,236,180,.55)"); lg.addColorStop(1, "rgba(255,200,110,0)");
+        g.fillStyle = lg; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a - wd) * 128, Math.sin(a - wd) * 128); g.lineTo(Math.cos(a + wd) * 128, Math.sin(a + wd) * 128); g.fill(); }
+      const cg = g.createRadialGradient(0, 0, 0, 0, 0, 64); cg.addColorStop(0, "rgba(255,248,220,.95)"); cg.addColorStop(1, "rgba(255,200,110,0)");
+      g.fillStyle = cg; g.fillRect(-64, -64, 128, 128);
+    })(rays.getContext("2d"));
+    const leak = new T.Sprite(new T.SpriteMaterial({ map: tex(rays), blending: T.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, fog: false }));
+    leak.position.set(0, 3, 0); leak.scale.setScalar(96); leak.renderOrder = 5; sc.add(leak);
+    const sparks = [];
+    for (const p of pieces) if (p.k !== "curtains" && !p.quiet) burstList(sparks, (UP_AT + p.delay + POP_UP_MS * 0.6) / 1000, p.x, 1.5, p.z + 0.6, 16, 11, 9);
+    burstList(sparks, BURST_AT / 1000, 12, 24, -5, 110, 24, 12); burstList(sparks, (BURST_AT + 140) / 1000, -14, 12, -3, 60, 18, 9); burstList(sparks, (BURST_AT + 280) / 1000, 0, 10, -8, 60, 18, 9);
+    for (let i = 0; i < 9; i++) burstList(sparks, (FIN_AT + i * 55) / 1000, -34 + i * 8.5, 1, 9, 24, 10, 26);
+    const sp = pointsOf(sparks.length, 2.6, sc);
+    const VN = 46, vp = pointsOf(VN, 2.2, sc), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 10, vz: (Math.random() - 0.5) * 6, vy: 15 + Math.random() * 12, g: Math.random() }));
+    const CRATER = new T.Vector3(-17.4, 17.3, -11.6);
+    const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
+    lava.position.copy(CRATER); lava.scale.setScalar(11); sc.add(lava);
+    const punch = (el, at) => { const a = (el - at) / 1000; return a < 0 ? 0 : Math.exp(-a * 3.2); };
+    const N = 36, specks = pointsOf(N, 1.1, bk), seedS = [];
+    for (let i = 0; i < N; i++) seedS.push({ x: (Math.random() - 0.5) * PW * 1.7, z: (Math.random() - 0.5) * DP * 0.8, s: 0.05 + Math.random() * 0.12, o: Math.random() });
+    const TGT = new T.Vector3(0, 7, -2);
+    // the camera's own framing of the open book, with the sway and the punch-ins on the beats
+    const view = el => {
+      const vf = 32 * Math.PI / 360, hf = Math.atan(Math.tan(vf) * RW / RH);
+      const d = Math.max(96 / 2 / Math.tan(hf), 64 / 2 / Math.tan(vf));
+      const beat = punch(el, BURST_AT) + 0.6 * punch(el, FIN_AT), rise = eio(clamp(el / (UP_AT + 500)));
+      const swing = 0.07 + 0.26 * clamp((el - UP_AT + 600) / 1800), yaw = Math.sin(el / 2000) * swing, pitch = 0.74 + Math.sin(el / 2900) * 0.06 * (swing / 0.33) - 0.3 * (1 - rise);
+      const dd = d * (1 - 0.07 * beat);
+      return { pos: new T.Vector3(TGT.x + Math.sin(yaw) * Math.cos(pitch) * dd + Math.sin(el / 23) * 0.55 * beat, TGT.y + Math.sin(pitch) * dd + Math.cos(el / 19) * 0.45 * beat,
+        TGT.z + Math.cos(yaw) * Math.cos(pitch) * dd), look: TGT.clone(), fov: 32, d };
+    };
+    return {
+      sc, cm, view, BURST_AT, FIN_AT,
+      // el: the book's clock (ms); t: the film's clock (s); open/fold: override for the closing; camera: {pos, look, fov}
+      step({ el, t, open: openOv, fold = 0, camera }) {
+        const a = eo(clamp(el / POP_IN_MS)), open = openOv ?? eio(clamp((el - POP_IN_MS) / POP_OPEN_MS));
+        bk.position.set(-PW / 2 * (1 - open), (1 - a) * 30 + Math.sin(el / 420) * 0.6 * (1 - open) * (openOv == null ? 1 : 0), 0);
+        bk.rotation.y = (1 - a) * 0.4; bk.rotation.z = (1 - a) * 0.12;
+        left.rotation.z = -Math.PI * (1 - open);
+        flips.forEach((f, i) => { const u = clamp((el - FLIP_AT - i * FLIP_GAP) / POP_FLIP_MS); f.rotation.z = Math.PI * eio(u); f.visible = u < 1; });
+        let pedUp = 0;
+        for (const p of pieces) {
+          const u = clamp((el - UP_AT - p.delay) / POP_UP_MS), fk = clamp((fold - 0.45 * (1 - p.delay / 900)) / 0.55);
+          const up = (u > 0 ? backOut(u) : 0) * (1 - eio(fk));
+          if (p.k === "pedestal") pedUp = u * (1 - fk);
+          p.hinge.visible = up > 0.002;
+          if (p.box) p.hinge.scale.set(1, Math.max(up, 0.001), 1);
+          else { p.hinge.rotation.x = -Math.PI / 2 * (1 - up); p.hinge.rotation.y = p.yaw * clamp(up); p.hinge.scale.x = 0.6 + 0.4 * Math.min(1, up); }
+        }
+        for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 0.5; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 0.4; s.m.scale.setScalar(1 + Math.sin(t * 1.3 + s.ph) * 0.06); }
+        globe.rotation.y = t * 0.5; globe.scale.setScalar(clamp((clamp((el - UP_AT - 470) / POP_UP_MS) - 0.4) / 0.6) * (1 - clamp(fold * 3)) || 0.001);
+        gondola.rotation.z = Math.sin(t * 1.6) * 0.07; gondola.position.y = -0.8 + Math.sin(t * 1.6 + 0.8) * 0.2;
+        const fl = 1 + Math.sin(t * 17) * 0.05 + Math.sin(t * 7.3) * 0.07;
+        flame.scale.set(1.6 * fl, 3.2 * (2 - fl), 1); flameLight.intensity = 1.2 * fl; halo.material.opacity = 0.8 + (fl - 1) * 2;
+        const beat = punch(el, BURST_AT) + 0.6 * punch(el, FIN_AT);
+        leak.material.opacity = 0.95 * clamp((open - 0.25) / 0.75) * (1 - clamp((el - UP_AT - 200) / 1500)) * (openOv == null ? 1 : 0); leak.material.rotation = t * 0.2;
+        flameLight.intensity += 3 * beat; halo.material.opacity += beat * 0.6; key.intensity = 0.75 + 0.55 * beat;
+        drawSparks(sp, sparks, el / 1000);
+        const E = clamp((el - ERUPT_AT) / 400) * (1 - 0.55 * clamp((el - ERUPT_AT) / 2500)) * (1 - clamp(fold * 2.5));
+        for (let i = 0; i < VN; i++) {
+          const s = vSeed[i], u = (t * 0.75 + s.o) % 1, aa = u * 1.6;
+          if (s.o >= E) { vp.col[i * 3] = vp.col[i * 3 + 1] = vp.col[i * 3 + 2] = 0; continue; }
+          vp.pos[i * 3] = CRATER.x + s.vx * aa; vp.pos[i * 3 + 1] = CRATER.y + s.vy * aa - 14 * aa * aa; vp.pos[i * 3 + 2] = CRATER.z + s.vz * aa;
+          const k = Math.pow(1 - u, 1.2); vp.col[i * 3] = k; vp.col[i * 3 + 1] = (0.3 + 0.4 * s.g) * k; vp.col[i * 3 + 2] = 0.1 * k;
+        }
+        vp.done();
+        lava.material.opacity = 0.85 * E * (0.8 + 0.2 * Math.sin(t * 9)); lava.scale.setScalar(9 + 3 * E + 2 * Math.sin(t * 7));
+        for (let i = 0; i < N; i++) { const s = seedS[i], u = (t * s.s + s.o) % 1, k = open * 0.8 * (1 - fold);
+          specks.pos[i * 3] = s.x + Math.sin(u * 7 + i) * 1.2; specks.pos[i * 3 + 1] = 2 + u * 30; specks.pos[i * 3 + 2] = s.z;
+          specks.col[i * 3] = k; specks.col[i * 3 + 1] = 0.85 * k; specks.col[i * 3 + 2] = 0.6 * k; }
+        specks.done();
+        const cmv = camera || view(el);
+        cm.position.copy(cmv.pos); cm.fov = cmv.fov; cm.updateProjectionMatrix(); cm.lookAt(cmv.look);
+        const d = view(el).d; sc.fog.near = d * 0.9; sc.fog.far = d * 2.4;
+      },
+    };
+  })();
+
+  // ================================================================ the world inside the book
+  const world = (() => {
+    const sc = new T.Scene(), cm = new T.PerspectiveCamera(50, RW / RH, 0.5, 2600);
+    const FOG_DAY = new T.Color(0xe9dcc0), FOG_DUSK = new T.Color(0x3b3354);
+    sc.fog = new T.Fog(FOG_DAY.clone(), 260, 1100);
+    const RES = 2048;
+    // the sky: a painted dome, and a dusk dome that fades in over it
+    const skyC = (stops, blooms) => { const c = canvas(1024, 512), g = c.getContext("2d"), lg = g.createLinearGradient(0, 0, 0, 512);
+      stops.forEach(([o, s]) => lg.addColorStop(o, s)); g.fillStyle = lg; g.fillRect(0, 0, 1024, 512);
+      for (let i = 0; i < 70; i++) { const x = Math.random() * 1024, y = Math.random() * 260, rr = 30 + Math.random() * 90, b = g.createRadialGradient(x, y, 0, x, y, rr);
+        b.addColorStop(0, blooms[i % blooms.length]); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+      fibres(g, 1024, 512); grain(g, 1024, 512, 8); return tex(c); };
+    const skyGeo = new T.SphereGeometry(1500, 48, 24);
+    const skyDay = new T.Mesh(skyGeo, new T.MeshBasicMaterial({ map: skyC([[0, "#7fa6c4"], [0.3, "#a9c3d2"], [0.46, "#f0e2c2"], [0.5, "#f4dcb4"], [1, "#f4dcb4"]],
+      ["rgba(255,250,235,.25)", "rgba(90,120,160,.12)"]), side: T.BackSide, fog: false, depthWrite: false }));
+    const skyDusk = new T.Mesh(skyGeo, new T.MeshBasicMaterial({ map: skyC([[0, "#141a3c"], [0.25, "#2c2f5e"], [0.4, "#6b4f7c"], [0.47, "#e0906a"], [0.5, "#f2b27a"], [1, "#f2b27a"]],
+      ["rgba(255,210,170,.08)", "rgba(20,20,60,.18)"]), side: T.BackSide, fog: false, transparent: true, opacity: 0, depthWrite: false }));
+    skyDay.renderOrder = -2; skyDusk.renderOrder = -1; sc.add(skyDay, skyDusk);
+    // stars
+    const starT = (() => { const c = canvas(64, 64), g = c.getContext("2d"), rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      rg.addColorStop(0, "rgba(255,248,220,1)"); rg.addColorStop(0.2, "rgba(255,230,170,.5)"); rg.addColorStop(1, "rgba(255,220,150,0)"); g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+      g.fillStyle = "rgba(255,245,215,.9)"; g.beginPath(); g.moveTo(32, 2); g.lineTo(35, 29); g.lineTo(62, 32); g.lineTo(35, 35); g.lineTo(32, 62); g.lineTo(29, 35); g.lineTo(2, 32); g.lineTo(29, 29); g.closePath(); g.fill(); return tex(c); })();
+    const SN = 260, stP = new Float32Array(SN * 3);
+    for (let i = 0; i < SN; i++) { const a = -Math.PI * (0.05 + Math.random() * 0.9), e = 0.12 + Math.random() * 0.8;
+      stP[i * 3] = 60 + Math.cos(a) * Math.cos(e) * 1300; stP[i * 3 + 1] = Math.sin(e) * 1300; stP[i * 3 + 2] = -100 + Math.sin(a) * Math.cos(e) * 1300; }
+    const stGeo = new T.BufferGeometry(); stGeo.setAttribute("position", new T.BufferAttribute(stP, 3));
+    const stars = new T.Points(stGeo, new T.PointsMaterial({ map: starT, size: 26, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    stars.frustumCulled = false; sc.add(stars);
+
+    const hemi = new T.HemisphereLight(0xfff1dc, 0x8a7a5c, 0.62); sc.add(hemi);
+    const key = new T.DirectionalLight(0xfff0d8, 0.95); sc.add(key, key.target);
+    key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+    Object.assign(key.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 10, far: 500 }); key.shadow.bias = -0.0005;
+    const castleLight = new T.PointLight(0xffc27a, 0, 160, 1.3); castleLight.position.set(100, 30, -150); sc.add(castleLight);
+
+    // the ground: a sheet of the book's paper, lightly washed in green
+    const gC = canvas(1024, 1024);
+    (g => { g.fillStyle = "#d9d0ad"; g.fillRect(0, 0, 1024, 1024);
+      for (let i = 0; i < 60; i++) { const x = Math.random() * 1024, y = Math.random() * 1024, rr = 40 + Math.random() * 160, b = g.createRadialGradient(x, y, 0, x, y, rr);
+        b.addColorStop(0, Math.random() < 0.6 ? "rgba(140,160,100,.22)" : "rgba(200,170,120,.18)"); b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+      g.strokeStyle = "rgba(90,100,60,.18)"; g.lineWidth = 1.4;
+      for (let i = 0; i < 1400; i++) { const x = Math.random() * 1024, y = Math.random() * 1024; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 2, y - 6); g.stroke(); }
+      fibres(g, 1024, 1024); grain(g, 1024, 1024, 10); })(gC.getContext("2d"));
+    const ground = new T.Mesh(new T.PlaneGeometry(3000, 3000), lam({ map: tex(gC, 40) }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+    // a path of stone wash from the canal to the castle
+    const pathC = canvas(256, 256);
+    (g => { g.fillStyle = "#d8c7a2"; g.fillRect(0, 0, 256, 256); g.strokeStyle = "rgba(110,80,50,.28)"; g.lineWidth = 1.5;
+      for (let y = 0; y < 256; y += 24) for (let x = (y / 24 % 2) * 20; x < 256; x += 40) { g.strokeRect(x, y, 40, 24); }
+      grain(g, 256, 256, 14); })(pathC.getContext("2d"));
+    const pathTex = tex(pathC); pathTex.wrapS = pathTex.wrapT = T.RepeatWrapping;
+    const pathPts = [[0, -106], [0, -116], [12, -104], [32, -118], [36, -138], [58, -150], [80, -160], [96, -168], [100, -178]].map(([x, z]) => new T.Vector3(x, 0.06, z));
+    {
+      const curve = new T.CatmullRomCurve3(pathPts), n = 160, pos = [], uv = [], idx = [];
+      for (let i = 0; i <= n; i++) { const p = curve.getPoint(i / n), tn = curve.getTangent(i / n), nx = -tn.z, nz = tn.x, hw = 4.5;
+        pos.push(p.x + nx * hw, 0.07, p.z + nz * hw, p.x - nx * hw, 0.07, p.z - nz * hw); uv.push(0, i * 0.6, 1, i * 0.6);
+        if (i < n) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2); }
+      const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      const m = new T.Mesh(g, lam({ map: pathTex, side: T.DoubleSide })); m.receiveShadow = true; sc.add(m);
+    }
+
+    // ---- the camera's route: keys [time s, position, look at, fov]
+    const K = [
+      [11.5, [0, 13, 44], [0, 10, -20], 46], [13.4, [0, 10, 8], [0, 7, -40], 50], [15.8, [-6, 9.5, -22], [4, 6, -70], 52], [18.2, [5, 9.5, -52], [-4, 7, -100], 52],
+      [20.2, [0, 10, -80], [-8, 24, -200], 54], [22.5, [-4, 13, -100], [-40, 70, -250], 54], [24.6, [-11, 16, -98], [12, 24, -126], 50], [26.6, [24, 18, -90], [12, 24, -126], 50],
+      [28.6, [50, 20, -124], [12, 24, -126], 50], [30.4, [42, 12, -148], [74, 14, -170], 52], [32.3, [58, 10, -150], [100, 32, -192], 54], [34.3, [70, 13, -150], [100, 38, -195], 56],
+      [36.6, [80, 18, -143], [100, 50, -200], 58], [38.8, [87, 25, -133], [100, 60, -205], 58], [41.0, [93, 33, -124], [100, 52, -200], 56]];
+    const cPos = new T.CatmullRomCurve3(K.map(k => new T.Vector3(...k[1])), false, "catmullrom", 0.5);
+    const cLook = new T.CatmullRomCurve3(K.map(k => new T.Vector3(...k[2])), false, "catmullrom", 0.5);
+    const camAt = t => {
+      let i = 0; while (i < K.length - 2 && t > K[i + 1][0]) i++;
+      const s = clamp((t - K[i][0]) / (K[i + 1][0] - K[i][0])), u = (i + s) / (K.length - 1);
+      const fov = K[i][3] + (K[i + 1][3] - K[i][3]) * sstep(0, 1, s);
+      return { pos: cPos.getPoint(u), look: cLook.getPoint(u), fov };
+    };
+    const camXZ = []; for (let t = 11.5; t <= 41; t += 0.1) { const c = camAt(t).pos; camXZ.push([c.x, c.z]); }
+    const nearCam = (x, z, d) => camXZ.some(([cx, cz]) => Math.hypot(cx - x, cz - z) < d);
+    const segD = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, k = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)); return Math.hypot(ax + dx * k - x, az + dz * k - z); };
+    const inSight = (x, z, d) => camXZ.some(([cx, cz], i) => i * 0.1 + 11.5 > 30 && segD(x, z, cx, cz, 100, -186) < d);   // between the camera and the castle
+    // pop-ups in the world: each stands up when the camera first comes near (worked out from the camera route above)
+    const pops = [];
+    const addPop = (obj, x, z, kind, o = {}) => {
+      const hinge = new T.Group(); hinge.position.set(x, o.y || 0, z); if (o.ry) hinge.rotation.y = o.ry;
+      const inner = new T.Group(); hinge.add(inner); inner.add(obj); sc.add(hinge);
+      const p = { hinge, inner, kind, at: o.at, R: o.R || 95, x, z, dur: o.dur || 0.9 }; pops.push(p); return p;
+    };
+    const flat = (W, H, art, x, z, o = {}) => { const m = piece(W, H, art, o.res || RES); m.position.y = H / 2; return addPop(m, x, z, "flat", o); };
+    const cross = (W, H, art, x, z, o = {}) => { const g = new T.Group(); const tx = cut(W, H, art, o.res || 1024);
+      for (const ry of [0, Math.PI / 2]) { const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: tx, alphaTest: 0.5, side: T.DoubleSide })); m.position.y = H / 2; m.rotation.y = ry; m.castShadow = m.receiveShadow = true; g.add(m); }
+      return addPop(g, x, z, "grow", o); };
+
+    // ---- the stage: curtains and a pelmet at the entrance of the world
+    flat(96, 26.4, arts.curtains, 0, 2, { at: 11.2 });
+    flat(96, 12, arts.valance, 0, 1.6, { at: 11.2, y: 20 });
+
+    // ---- the canal harbour
+    const waterC = canvas(512, 512);
+    (g => { wash(g, R(g, 0, 0, 512, 512), "#7f9fb1", false); g.strokeStyle = "rgba(240,235,220,.5)"; g.lineWidth = 2.5;
+      for (let i = 0; i < 70; i++) { const x = Math.random() * 512, y = Math.random() * 512, w = 20 + Math.random() * 40; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + w / 2, y - 6, x + w, y); g.stroke(); }
+      grain(g, 512, 512, 8); })(waterC.getContext("2d"));
+    const waterTex = tex(waterC); waterTex.wrapS = waterTex.wrapT = T.RepeatWrapping; waterTex.repeat.set(3, 6);
+    const water = new T.Mesh(new T.PlaneGeometry(56, 102), lam({ map: waterTex })); water.rotation.x = -Math.PI / 2; water.position.set(0, 0.1, -57); water.receiveShadow = true; sc.add(water);
+    const stoneM = lam({ color: 0xcfc1a3 });
+    for (const x of [-28.6, 28.6]) { const w = new T.Mesh(new T.BoxGeometry(1.2, 1.5, 104), stoneM); w.position.set(x, 0.75, -57); sc.add(cast(w)); }
+    { const w = new T.Mesh(new T.BoxGeometry(58.4, 1.5, 1.2), stoneM); w.position.set(0, 0.75, -108.6); sc.add(cast(w)); }
+    const seaRows = [-14, -27, -40, -53, -66, -79, -92, -102].map((z, i) => { const p = flat(55, 3.4, arts.sea, 0, z, { res: 2048 }); p.ph = i * 1.3; return p; });
+    const gondolas = [[-20, -20.5, 1.0], [14, -46.5, -0.9], [-8, -93, 0.8]].map(([x0, z, v], i) => {
+      const m = piece(16, 6.8, arts.gondola, 1024); if (v < 0) m.scale.x = -1;
+      const g = new T.Group(); g.add(m); g.position.set(x0, 2.2, z); sc.add(g); return { g, m, x0, v, ph: i * 2.1 };
+    });
+    const hues = [C.ochre, C.rose, C.sand, "#a7b6b8", "#c9a3a0", C.sage, "#e0c79a", "#b7c3c9"];
+    let hi = 0;
+    for (const side of [-1, 1]) for (const row of [0, 1]) {
+      let z = -10 - row * 5;
+      while (z > -102) {
+        const w = 8.5 + Math.random() * 2.5, d = 8, h = (row ? 16 : 10) + Math.random() * 8, col = hues[hi++ % hues.length];
+        const box = makeBox({ w, d, h, col, roof: "gable", rh: 4.5, cols: 2 + (Math.random() < 0.4 ? 1 : 0), rows: 2 + Math.floor(h / 8), door: row ? 0 : 1, s: 2 });
+        if (!nearCam(side * (33.5 + row * 11), z - w / 2, 9)) addPop(box, side * (33.5 + row * 11), z - w / 2, "box", { ry: side < 0 ? Math.PI / 2 : -Math.PI / 2, R: 110 });
+        z -= w + 0.8;
+      }
+    }
+    cross(11, 48, arts.belltower, -49, -60, { R: 140 });
+
+    // ---- the volcano and the hills: layered sheets far behind everything
+    const MX = 60, MZ = -250, MW = 420, MS = MW / 74;
+    flat(640, 180, arts.hillsBack, MX, -330, { at: 0 });
+    const mountains = flat(MW, 24 * MS, arts.mountains, MX, MZ, { at: 0 });
+    flat(430, 52, arts.foot, MX + 20, -222, { at: 0 });
+    const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1], [-14.8, 31, 5.4, 3.8, 4.4]].map(([x, y, w, h, ph]) => {
+      const m = piece(w * MS, h * MS, arts.smoke, 1024); m.position.set(MX + x * MS, y * MS, MZ + 0.6); sc.add(m); return { m, x: MX + x * MS, y: y * MS, ph };
+    });
+    const CRATER = new T.Vector3(MX - 17.4 * MS, 17.3 * MS, MZ + 1);
+    const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
+    lava.position.copy(CRATER); sc.add(lava);
+    const VN = 160, vp = pointsOf(VN, 9, sc), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 60, vz: (Math.random() - 0.5) * 30, vy: 70 + Math.random() * 60, g: Math.random() }));
+    const ERUPT = 21.4;
+
+    // ---- the sun and the clouds: theatre props hanging on strings
+    const stringM = new T.LineBasicMaterial({ color: 0x5a4632, transparent: true, opacity: 0.55 });
+    const hang = (obj, x, y, z, spread) => { const g = new T.Group(); g.position.set(x, y, z); g.add(obj);
+      for (const s of [-spread, spread]) g.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(s, 0, -0.2), new T.Vector3(s, 900, -0.2)]), stringM));
+      sc.add(g); return g; };
+    const sun = piece(90, 90, arts.sun, 1024); const sunG = hang(sun, 230, 240, -520, 20);
+    const clouds = [[-120, 150, -420, 110], [60, 175, -470, 130], [250, 130, -380, 90], [-20, 105, -300, 70], [150, 95, -280, 64], [-90, 80, -190, 50], [200, 70, -160, 44]].map(([x, y, z, w], i) => {
+      const m = piece(w, w * 0.45, arts.cloud, 1024); m.position.y = -w * 0.22; return { g: hang(m, x, y, z, w * 0.25), m, x, y, ph: i * 1.7 };
+    });
+
+    // ---- the plaza of the turning globe
+    const G = new T.Vector3(12, 0, -126);
+    const stoneC = canvas(512, 256);
+    (g => { wash(g, R(g, 0, 0, 512, 256), C.stone, false); g.strokeStyle = "rgba(90,70,45,.35)"; g.lineWidth = 2;
+      for (let y = 0; y < 256; y += 32) for (let x = (y / 32 % 2) * 32; x < 512; x += 64) g.strokeRect(x, y, 64, 32);
+      grain(g, 512, 256, 12); })(stoneC.getContext("2d"));
+    const stoneTex = tex(stoneC); stoneTex.wrapS = stoneTex.wrapT = T.RepeatWrapping;
+    const plaza = new T.Group(); plaza.position.copy(G);
+    const basin = new T.Mesh(new T.CylinderGeometry(15, 15.6, 2.2, 64, 1, true), lam({ map: stoneTex, side: T.DoubleSide })); basin.position.y = 1.1; plaza.add(basin);
+    const rim = new T.Mesh(new T.TorusGeometry(15.3, 0.6, 10, 64), lam({ color: 0xd6c8a8 })); rim.rotation.x = Math.PI / 2; rim.position.y = 2.2; plaza.add(rim);
+    const pool = new T.Mesh(new T.CircleGeometry(15, 64), lam({ map: waterTex })); pool.rotation.x = -Math.PI / 2; pool.position.y = 1.6; plaza.add(pool);
+    const colTex = stoneTex.clone(); colTex.needsUpdate = true; colTex.repeat.set(2, 3);
+    const column = new T.Mesh(new T.CylinderGeometry(2.4, 3.4, 16, 32), lam({ map: colTex })); column.position.y = 9; plaza.add(column);
+    const cap = new T.Mesh(new T.CylinderGeometry(5.6, 3, 2, 32), lam({ color: 0xc9a14e, emissive: 0x3a2808 })); cap.position.y = 18; plaza.add(cap);
+    const bigGlobe = new T.Mesh(new T.SphereGeometry(9, 48, 32), lam({}));
+    { const gc = canvas(1024, 512), g = gc.getContext("2d"); wash(g, R(g, 0, 0, 1024, 512), "#6f93ab", false);
+      for (const [x, y, rx, ry] of [[180, 160, 120, 80], [300, 340, 68, 100], [540, 180, 140, 68], [600, 340, 80, 88], [840, 220, 100, 72], [920, 380, 52, 40]]) sh(g, O(g, x, y, rx, ry), Math.random() < 0.5 ? C.sage : C.ochre);
+      g.strokeStyle = "rgba(240,230,210,.55)"; g.lineWidth = 2.5;
+      for (let x = 0; x < 1024; x += 128) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 512); g.stroke(); }
+      for (let y = 64; y < 512; y += 96) { g.beginPath(); g.moveTo(0, y); g.lineTo(1024, y); g.stroke(); }
+      g.strokeStyle = C.gold; g.lineWidth = 6; g.beginPath(); g.moveTo(0, 256); g.lineTo(1024, 256); g.stroke(); grain(g, 1024, 512, 10);
+      bigGlobe.material.map = tex(gc); }
+    bigGlobe.position.y = 28; plaza.add(bigGlobe);
+    const ringG = new T.Mesh(new T.TorusGeometry(10.2, 0.35, 8, 72), lam({ color: 0xc9a14e, emissive: 0x3a2808 })); ringG.position.y = 28; ringG.rotation.set(Math.PI / 2 + 0.4, 0, 0); plaza.add(ringG);
+    cast(plaza); sc.add(plaza);
+    const FN = 180, fp = pointsOf(FN, 1.5, sc), fSeed = Array.from({ length: FN }, (_, i) => ({ a: i / FN * 6.2832 * 3 + Math.random(), o: Math.random(), v: 0.7 + Math.random() * 0.3 }));
+
+    // ---- the forest, the castle
+    const trees = [];
+    const nearPath = (x, z, d) => pathPts.some((p, i) => { const q = pathPts[i + 1]; if (!q) return false;
+      const dx = q.x - p.x, dz = q.z - p.z, k = clamp(((x - p.x) * dx + (z - p.z) * dz) / (dx * dx + dz * dz)); return Math.hypot(p.x + dx * k - x, p.z + dz * k - z) < d; });
+    for (let i = 0; i < 400 && trees.length < 70; i++) {
+      const x = -90 + Math.random() * 260, z = -110 - Math.random() * 110;
+      if (nearPath(x, z, 9) || nearCam(x, z, 20) || inSight(x, z, 16) || Math.hypot(x - G.x, z - G.z) < 44 || (x > 62 && x < 138 && z < -172) || (x > -30 && x < 30 && z > -112)) continue;
+      if (trees.some(t => Math.hypot(t.x - x, t.z - z) < 8)) continue;
+      const s = 0.8 + Math.random() * 0.6, pine = Math.random() < 0.45;
+      trees.push(cross(pine ? 11 * s : 15 * s, pine ? 24 * s : 21 * s, pine ? arts.pine : arts.tree, x, z, { res: 512, R: 90 }));
+    }
+    for (let i = 0; i < 26; i++) { const side = i % 2 ? 1 : -1, x = side * (62 + Math.random() * 40), z = -10 - Math.random() * 95, s = 0.8 + Math.random() * 0.5;
+      cross(15 * s, 21 * s, arts.tree, x, z, { res: 512, R: 110 }); }
+    const CX = 100, CZ = -190, CS = 2.6;
+    const castleParts = [
+      flat(26 * CS, 28 * CS, arts.castleBack, CX, CZ - 8, { at: 30.9, dur: 1.3 }),
+      (() => { const p = flat(13 * CS, 28 * CS, half("castle", -1), CX, CZ, { at: 31.1, dur: 1.3 }); p.inner.children[0].position.x = -13 * CS / 2; p.yaw = 0.22; return p; })(),
+      (() => { const p = flat(13 * CS, 28 * CS, half("castle", 1), CX, CZ, { at: 31.1, dur: 1.3 }); p.inner.children[0].position.x = 13 * CS / 2; p.yaw = -0.22; return p; })(),
+      addPop(makeBox({ w: 6 * CS, d: 3.4 * CS, h: 8 * CS, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1, s: 3 }), CX, CZ + 9.4, "box", { at: 31.3, dur: 1.3 }),
+    ];
+    const glows = [[0, 40], [-12, 30], [12, 30], [-25, 50], [25, 50], [0, 62]].map(([x, y]) => {
+      const s = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,230,160,.9)"], [0.3, "rgba(255,190,90,.45)"], [1, "rgba(255,160,60,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
+      s.position.set(CX + x, y, CZ + 2); s.scale.setScalar(9); sc.add(s); return s; });
+    // gulls: two paper wings each
+    const gullM = lam({ color: 0xf3ecdc, side: T.DoubleSide });
+    const wingG = new T.BufferGeometry(); wingG.setAttribute("position", new T.Float32BufferAttribute([0, 0, -0.6, 0, 0, 0.8, 2.6, 0.2, 0], 3)); wingG.computeVertexNormals();
+    const gulls = Array.from({ length: 7 }, (_, i) => { const g = new T.Group(), l = new T.Mesh(wingG, gullM), rw = new T.Mesh(wingG, gullM); rw.scale.x = -1; g.add(l, rw); g.scale.setScalar(1.4); sc.add(g);
+      return { g, l, rw, cx: (Math.random() - 0.5) * 30, cz: -25 - Math.random() * 70, r: 10 + Math.random() * 14, y: 14 + Math.random() * 10, w: (0.25 + Math.random() * 0.2) * (i % 2 ? 1 : -1), ph: Math.random() * 6.3 }; });
+    // fireflies over the forest at dusk
+    const FFN = 90, ff = pointsOf(FFN, 1.4, sc), ffSeed = Array.from({ length: FFN }, () => ({ x: 20 + Math.random() * 110, z: -120 - Math.random() * 60, y: 2 + Math.random() * 12, ph: Math.random() * 6.3, s: 0.3 + Math.random() * 0.5 }));
+
+    // ---- fireworks over the castle, and the sparks when the castle stands up
+    const FW = [[35.2, 78, 88, 0], [35.9, 122, 96, 1], [36.5, 100, 110, 2], [37.0, 70, 80, 3], [37.4, 130, 84, 0], [37.9, 92, 100, 4], [38.3, 112, 118, 1],
+      [38.7, 60, 92, 2], [39.0, 140, 98, 3], [39.25, 100, 124, 4], [39.5, 82, 106, 0], [39.7, 118, 108, 2], [40.0, 100, 96, 1]];
+    const FWC = [[[1, 0.8, 0.35], [1, 0.95, 0.7]], [[1, 0.45, 0.5], [1, 0.8, 0.8]], [[0.55, 0.8, 1], [0.9, 0.95, 1]], [[0.75, 1, 0.55], [1, 1, 0.8]], [[0.85, 0.55, 1], [1, 0.85, 1]]];
+    const fwList = [];
+    for (const [t0, x, y, ci] of FW) {
+      const z = -212, n = 170;
+      for (let i = 0; i < n; i++) { const u = (i + Math.random()) / n, ph = Math.acos(1 - 2 * u), th = Math.random() * 6.2832, s = 34 * (0.72 + 0.28 * Math.random());
+        fwList.push({ t0: t0 + 0.9, x, y, z, vx: Math.sin(ph) * Math.cos(th) * s, vy: Math.cos(ph) * s, vz: Math.sin(ph) * Math.sin(th) * s * 0.6, life: 2.0 + Math.random() * 0.6, c: FWC[ci][i % 3 ? 0 : 1], g: 7 }); }
+    }
+    burstList(fwList, 31.9, CX, 40, CZ + 6, 140, 34, 14, COLS, 11);
+    burstList(fwList, 32.1, CX - 20, 20, CZ + 8, 60, 22, 10, COLS, 11); burstList(fwList, 32.25, CX + 20, 20, CZ + 8, 60, 22, 10, COLS, 11);
+    const fwp = pointsOf(fwList.length, 4.6, sc);
+    const rockets = pointsOf(FW.length * 6, 2.2, sc);
+    const fwFlash = FW.map(() => { const s = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,245,220,.9)"], [0.4, "rgba(255,220,160,.25)"], [1, "rgba(255,200,120,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 })); s.scale.setScalar(70); sc.add(s); return s; });
+    FW.forEach(([, x, y], i) => fwFlash[i].position.set(x, y, -212));
+
+    // when each pop-up stands: the first moment the camera comes within its reach
+    for (const p of pops) if (p.at == null) {
+      p.at = 99;
+      for (let t = 11.0; t < 41; t += 0.05) { const c = camAt(Math.max(11.5, t)).pos; if (Math.hypot(c.x - p.x, c.z - p.z) < p.R) { p.at = Math.max(11.1, t); break; } }
+    }
+
+    return {
+      sc, cm, CASTLE: new T.Vector3(CX, 0, CZ),
+      step(t) {
+        const cam = camAt(t);
+        cm.position.copy(cam.pos); cm.fov = cam.fov; cm.updateProjectionMatrix(); cm.lookAt(cam.look);
+        // dusk
+        const dusk = sstep(29.5, 35, t);
+        skyDusk.material.opacity = dusk; stars.material.opacity = sstep(32.5, 36, t) * 0.95;
+        sc.fog.color.copy(FOG_DAY).lerp(FOG_DUSK, dusk);
+        hemi.intensity = 0.62 - 0.32 * dusk; hemi.color.setHex(0xfff1dc).lerp(new T.Color(0x7d86c0), dusk); hemi.groundColor.setHex(0x8a7a5c).lerp(new T.Color(0x3a2a3a), dusk);
+        key.intensity = 0.95 - 0.62 * dusk; key.color.setHex(0xfff0d8).lerp(new T.Color(0xff9a6a), dusk);
+        sunG.position.y = 240 - 200 * dusk; sun.rotation.z = t * 0.05;
+        const f = cam.look; key.position.set(f.x - 80, 150, f.z + 90); key.target.position.set(f.x, 0, f.z);
+        // pop-ups
+        for (const p of pops) {
+          const u = clamp((t - p.at) / p.dur), up = u > 0 ? backOut(u) : 0;
+          p.hinge.visible = up > 0.002;
+          if (p.kind === "flat") { p.inner.rotation.x = -Math.PI / 2 * (1 - up); if (p.yaw) p.inner.rotation.y = p.yaw * clamp(up); }
+          else if (p.kind === "box") p.inner.scale.set(1, Math.max(up, 0.001), 1);
+          else p.inner.scale.setScalar(Math.max(up, 0.001));
+        }
+        for (const p of seaRows) p.inner.position.set(Math.sin(t * 0.8 + p.ph) * 1.6, Math.sin(t * 1.3 + p.ph) * 0.35 - 0.3, 0);
+        waterTex.offset.set(t * 0.01, t * 0.02);
+        for (const g of gondolas) { g.g.position.x = g.x0 + g.v * (t - 11.5); g.g.position.y = 2.1 + Math.sin(t * 1.5 + g.ph) * 0.3; g.g.rotation.z = Math.sin(t * 1.5 + g.ph + 0.8) * 0.06; }
+        for (const g of gulls) { const a = t * g.w + g.ph; g.g.position.set(g.cx + Math.cos(a) * g.r, g.y + Math.sin(t * 0.9 + g.ph) * 1.2, g.cz + Math.sin(a) * g.r);
+          g.g.rotation.y = -a + (g.w > 0 ? 0 : Math.PI); const fl = Math.sin(t * 7 + g.ph) * 0.6; g.l.rotation.z = fl; g.rw.rotation.z = -fl; }
+        for (const c of clouds) { c.g.position.x = c.x + Math.sin(t * 0.15 + c.ph) * 6; c.m.material.color.setScalar(1 - 0.7 * dusk); }
+        // volcano
+        for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 3; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 2.4; s.m.scale.setScalar(1 + Math.sin(t * 1.3 + s.ph) * 0.06); }
+        const E = clamp((t - ERUPT) / 0.4) * (1 - 0.5 * clamp((t - ERUPT) / 3)) + 0.18;
+        for (let i = 0; i < VN; i++) {
+          const s = vSeed[i], u = (t * 0.55 + s.o) % 1, aa = u * 2.2;
+          if (s.o >= E) { vp.col[i * 3] = vp.col[i * 3 + 1] = vp.col[i * 3 + 2] = 0; continue; }
+          vp.pos[i * 3] = CRATER.x + s.vx * aa; vp.pos[i * 3 + 1] = CRATER.y + s.vy * aa - 38 * aa * aa; vp.pos[i * 3 + 2] = CRATER.z + s.vz * aa;
+          const k = Math.pow(1 - u, 1.2); vp.col[i * 3] = k; vp.col[i * 3 + 1] = (0.3 + 0.4 * s.g) * k; vp.col[i * 3 + 2] = 0.1 * k;
+        }
+        vp.done();
+        lava.material.opacity = 0.85 * E * (0.8 + 0.2 * Math.sin(t * 9)); lava.scale.setScalar(40 + 25 * E + 8 * Math.sin(t * 7));
+        // the globe and its fountain
+        bigGlobe.rotation.y = t * 0.4; ringG.rotation.z = t * 0.2;
+        for (let i = 0; i < FN; i++) { const s = fSeed[i], u = (t * 0.6 * s.v + s.o) % 1, a = s.a, rr = 14 - u * 11;
+          fp.pos[i * 3] = G.x + Math.cos(a) * rr; fp.pos[i * 3 + 1] = 2.2 + Math.sin(u * Math.PI) * 7; fp.pos[i * 3 + 2] = G.z + Math.sin(a) * rr;
+          const k = 0.55 * Math.sin(u * Math.PI); fp.col[i * 3] = 0.75 * k; fp.col[i * 3 + 1] = 0.9 * k; fp.col[i * 3 + 2] = k; }
+        fp.done();
+        // dusk lights: the castle, fireflies
+        castleLight.intensity = 1.6 * dusk; for (const [i, s] of glows.entries()) s.material.opacity = dusk * clamp((t - 31.9) / 1.2) * (0.7 + 0.3 * Math.sin(t * 3 + i));
+        for (let i = 0; i < FFN; i++) { const s = ffSeed[i], k = sstep(30, 33, t) * (0.5 + 0.5 * Math.sin(t * 2.3 + s.ph));
+          ff.pos[i * 3] = s.x + Math.sin(t * s.s + s.ph) * 3; ff.pos[i * 3 + 1] = s.y + Math.sin(t * s.s * 1.3 + s.ph) * 1.5; ff.pos[i * 3 + 2] = s.z + Math.cos(t * s.s + s.ph) * 3;
+          ff.col[i * 3] = k; ff.col[i * 3 + 1] = 0.85 * k; ff.col[i * 3 + 2] = 0.4 * k; }
+        ff.done();
+        drawSparks(fwp, fwList, t);
+        FW.forEach(([t0, x, y], i) => {
+          const a = t - t0;
+          for (let j = 0; j < 6; j++) { const n = (i * 6 + j) * 3, aj = a - j * 0.035, on = aj > 0 && aj < 0.9;
+            const k = on ? (1 - j / 6) * 0.9 : 0, e = eo(clamp(aj / 0.9));
+            rockets.pos[n] = x + Math.sin(aj * 9) * 0.4; rockets.pos[n + 1] = on ? e * y : -999; rockets.pos[n + 2] = -212;
+            rockets.col[n] = k; rockets.col[n + 1] = 0.8 * k; rockets.col[n + 2] = 0.5 * k; }
+          const b = a - 0.9; fwFlash[i].material.opacity = b > 0 ? Math.exp(-b * 7) * 0.9 : 0;
+        });
+        rockets.done();
+        let beat = 0; for (const [t0] of FW) { const b = t - t0 - 0.9; if (b > 0) beat += Math.exp(-b * 5); }
+        castleLight.intensity += beat * 1.2; castleLight.color.setHex(0xffc27a);
+      },
+    };
+  })();
+
+  // ================================================================ the film: which scene, the overlays
+  const decay = (t, at, a, k) => t < at ? 0 : a * Math.exp(-(t - at) * k);
+  const capEl = $("cap"), flashEl = $("flash"), blackEl = $("black"), endEl = $("end");
+  const grainC = $("grainfx"), gg = grainC.getContext("2d"), gImg = gg.createImageData(480, 270);
+  let capNow = null;
+  const V = T.Vector3;
+  function frameAt(ms) {
+    const t = ms / 1000;
+    if (t < 11.5) {   // the book opens; from 9.4 s the camera dives through the curtains into the harbour
+      const el = Math.max(0, ms - BOOK_OFS), v = book.view(el);
+      let camera = v;
+      if (t > 9.4) { const k = eio(clamp((t - 9.4) / 2.1));
+        camera = { pos: v.pos.clone().lerp(new V(-4, 7.6, 12), k), look: v.look.clone().lerp(new V(-5, 6, -8), k), fov: 32 - 10 * k }; }
+      book.step({ el, t, camera }); r.render(book.sc, book.cm);
+    } else if (t < 41) {
+      world.step(t); r.render(world.sc, world.cm);
+    } else {   // match cut on the castle: out of the pop-up castle, the pop-ups fold, the book closes
+      const u = t - 41, el = 30000;
+      const close = { pos: new V(12, 16, 16), look: new V(12, 15, -7), fov: 34 }, v = book.view(el + u * 1000);
+      const top = { pos: new V(0, 72, 46), look: new V(0, -1, 2), fov: 30 };
+      const k1 = eio(clamp(u / 2.4)), k2 = eio(clamp((u - 2.2) / 2.4));
+      const pos = close.pos.clone().lerp(v.pos, k1).lerp(top.pos, k2), look = close.look.clone().lerp(v.look, k1).lerp(top.look, k2);
+      const push = sstep(4.6, 9, u);
+      pos.lerp(top.look, 0.12 * push);
+      const fov = close.fov + (v.fov - close.fov) * k1 + (top.fov - v.fov) * k2;
+      const fold = clamp((u - 2.0) / 1.6), open = 1 - eio(clamp((u - 3.0) / 1.7));
+      book.step({ el, t, open, fold, camera: { pos, look, fov } }); r.render(book.sc, book.cm);
+    }
+    // overlays
+    blackEl.style.opacity = Math.max(1 - clamp(t / 1.0), sstep(49.2, 50, t));
+    const fl = Math.max(decay(t, (book.BURST_AT + BOOK_OFS) / 1000, 0.5, 4), decay(t, (book.FIN_AT + BOOK_OFS) / 1000, 0.35, 4),
+      t < 11.5 ? sstep(10.4, 11.5, t) : 1 - sstep(11.5, 12.5, t), decay(t, 31.9, 0.4, 3),
+      t < 41 ? sstep(40.3, 41, t) : 1 - sstep(41, 41.9, t));
+    flashEl.style.opacity = fl;
+    const c = CAPS.find(c => t >= c[0] - 0.1 && t <= c[1] + 0.1);
+    if (c !== capNow) { capNow = c; capEl.textContent = c ? c[2] : ""; }
+    if (c) { const k = Math.min(sstep(c[0], c[0] + 0.6, t), 1 - sstep(c[1] - 0.6, c[1], t));
+      capEl.style.opacity = k; capEl.style.transform = `translateY(${(1 - k) * 14}px)`; capEl.style.filter = `blur(${(1 - k) * 6}px)`; }
+    else capEl.style.opacity = 0;
+    const ek = sstep(45.4, 46.8, t); endEl.style.opacity = ek; endEl.style.transform = `scale(${1.04 - 0.04 * ek})`;
+    // film grain
+    const p = gImg.data; for (let i = 0; i < p.length; i += 4) { const n = Math.random() * 255; p[i] = p[i + 1] = p[i + 2] = n; p[i + 3] = 255; }
+    gg.putImageData(gImg, 0, 0);
+  }
+  window.PROMO = { duration: DUR, frameAt, world };
+
+  if (REC) { frameAt(0); document.body.dataset.ready = "1"; return; }
+  // live: press to play, in time with the music if it is there
+  const play = $("play"); play.hidden = false; frameAt(0);
+  const audio = new Audio("promo/music.m4a");
+  play.onclick = () => {
+    play.hidden = true;
+    let t0 = performance.now(), useAudio = false;
+    audio.currentTime = 0; audio.play().then(() => { useAudio = true; }).catch(() => {});
+    const tick = () => {
+      const ms = useAudio && !audio.paused ? audio.currentTime * 1000 : performance.now() - t0;
+      frameAt(Math.min(ms, DUR));
+      if (ms < DUR) requestAnimationFrame(tick); else { play.hidden = false; play.firstChild.textContent = "▶ もういちど見る"; }
+    };
+    requestAnimationFrame(tick);
+  };
+})();
+</script>
