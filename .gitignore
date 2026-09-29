@@ -39,6 +39,7 @@
 !/output/disneysea/train_model.js
 !/output/disneysea/water_mock.html
 !/output/disneysea/mickey_mock.html
+!/output/disneysea/bv_mock.html
 !/output/disneysea/models/
 /output/disneysea/models/*.glb
 # kept only as the Draco copy in models/web/ (src/compress_models.py WEB_ONLY)

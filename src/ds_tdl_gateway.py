@@ -12,10 +12,9 @@ What is modelled (OSM, plateau_data/disneyland_osm.json), inside BOX (x -500..-6
             at the station): one deck level Z_DECK = mean ground under them + DECK_H (ESTIMATE: OSM gives layer 1 only), a girder
             under the slab, parapets, columns to the ground (not under the buildings or the Resort Line beam), stairs where an OSM
             `steps` way joins a deck (rise = deck height, step 0.17 m), a flat roof on posts over the covered parts and the
-            ゲートウェイキューポラ (copper dome) at the west end.
-  Bon Voyage  the shop (OSM way 152465275, 1385 m2) -- NO PHOTOS YET: the footprint is the OSM one; the wall heights, the storefront
-            band, the awnings and the giant luggage on the roof (suitcases, a hat box) are a first guess from a text description
-            (a building shaped like stacked travel cases). To be redone from the user's screenshots.
+            ゲートウェイキューポラ at the junction (rebuilt from the user's photo: see cupola()).
+  Bon Voyage  the shop (OSM way 152465275, 1385 m2), rebuilt from the user's photos (2026-09-29): a giant quilted suitcase with a
+            silver frame and handle, and a giant hat box lying across the deck (the walk runs through it). See bon_voyage().
 Left out: the JR station building and the viaduct (tracks.json has the line and the platforms), the Resort Gateway Station (x = 0),
   Ikspiari, the interior of the shop, signs, lamps, trees, anything under layer 0 (tunnels).
 Meshes are named GW_<ground material> and GB_<building material>; the page colours them (mock_template.html MODEL_MAT).
@@ -46,7 +45,9 @@ W_GATEWAY, W_BRIDGE, W_DECK = 6.0, 5.0, 3.5
 STAIR_W = 3.0
 GROUND = ("GW_road", "GW_path", "GW_plaza", "GW_curb", "GW_soil", "GW_edge")
 BUILD = ("GB_cream", "GB_trim", "GB_stone", "GB_brick", "GB_copper", "GB_gold", "GB_iron", "GB_white", "GB_glass", "GB_win_dark",
-         "GB_awning", "GB_leather", "GB_leather2", "GB_teal", "GB_red", "GB_deck", "GB_concrete", "GB_sign")
+         "GB_deck", "GB_concrete", "GB_quilt", "GB_silver", "GB_hat_red", "GB_hat_navy", "GB_hat_blue", "GB_vault",
+         "GB_poster1", "GB_poster2", "GB_poster3", "GB_neon", "GB_medal",
+         "GB_mint", "GB_sign_cream", "GB_sign_red", "GB_clock", "GB_flag_red", "GB_flag_yellow", "GB_lamp")
 
 
 # ------------------------------------------------------------------ mesh helpers (flat / smooth normals, plan x y, z up)
@@ -278,7 +279,8 @@ def plan():
             roofs.append((ls.buffer(_deck_w(t) / 2 + 0.6, cap_style=2, join_style=1), ls))
     for w in W:                                       # the roofs on posts over the station's concourse (OSM building=roof, layer 1-2)
         t = w["tags"]
-        if t.get("building") == "roof" and t.get("layer") in ("1", "2") and w["closed"] and Polygon(w["pts"]).intersects(fb):
+        if (t.get("building") == "roof" and t.get("layer") in ("1", "2") and w["closed"] and Polygon(w["pts"]).intersects(fb)
+                and "キューポラ" not in t.get("name", "")):                 # the cupola is modelled on its own (cupola())
             roofs.append((Polygon(w["pts"]).buffer(0), None))
     deck = unary_union(decks).difference(bv.buffer(1.0))
     deck = unary_union([p for p in G._polys(deck) if p.area > 4.0]).intersection(fb)
@@ -344,7 +346,7 @@ def deck_meshes(P, T, M, ZD):
             obox(M["GB_concrete"], pt.x, pt.y, 0.0, 0.8, 0.8, zg, ZD - GIRDER, top=False, bottom=False)
     # roofs on posts
     for poly, ls in P["roofs"]:
-        poly = poly.intersection(BOXG)
+        poly = poly.intersection(BOXG).difference(_cupola_area())
         if poly.is_empty:
             continue
         zr = ZD + ROOF_H
@@ -357,11 +359,16 @@ def deck_meshes(P, T, M, ZD):
                 ang = math.atan2(pt2.y - pt.y, pt2.x - pt.x) if L > 0 else 0
                 for sgn in (-1, 1):
                     x, y = loc(pt.x, pt.y, ang, 0, sgn * 2.1)
-                    if deck.contains(Point(x, y)):
+                    if deck.contains(Point(x, y)) and not _cupola_area().contains(Point(x, y)):
                         obox(M["GB_white"], x, y, ang, 0.35, 0.35, ZD, zr, top=False, bottom=False)
 
 
 BOXG = box(*BOX)
+
+
+def _cupola_area():
+    """plan area kept clear for the cupola (no walkway roof or posts in it)"""
+    return unary_union([Polygon(w["pts"]).buffer(0) for w in DL.DATA["ways"] if "キューポラ" in w["tags"].get("name", "")]).buffer(2.5)
 
 
 def stair_meshes(P, T, M, ZD):
@@ -395,149 +402,410 @@ def stair_meshes(P, T, M, ZD):
 
 
 # ------------------------------------------------------------------ the cupola
+# From the user's photo (2026-09-29): an open pavilion over the deck in mint green -- clusters of square pillars at the four corners,
+# arches between them (and crossing inside), a glazed canopy, an arched sign board front and back ("Tokyo Disneyland": cream
+# panel, red border; no lettering), a clock tower on top (the round castle medallion under the clock, a small dome, lantern and
+# spire, a weathervane), red-and-yellow flags on two finials, lamp standards with clusters of white globes at the corners.
+# The front faces the walk from Maihama Station. Sizes from the photo against people: ESTIMATES.
+CU_HALF_A, CU_HALF_B = 5.6, 6.4          # half depth (along the deck) and half width
+CU_POST = 4.2                             # pillar height above the deck
+CU_EAVE = 5.0
+
+
+def _sphere(m, c, r, n=12, rings=8):
+    for j in range(rings):
+        t0, t1 = -0.5 * math.pi + math.pi * j / rings, -0.5 * math.pi + math.pi * (j + 1) / rings
+        for i in range(n):
+            a0, a1 = 2 * math.pi * i / n, 2 * math.pi * (i + 1) / n
+            P_ = lambda t, a: np.array([math.cos(t) * math.cos(a), math.cos(t) * math.sin(a), math.sin(t)])
+            q = [P_(t0, a0), P_(t0, a1), P_(t1, a1), P_(t1, a0)]
+            pts = [np.array(c) + r * v for v in q]
+            m.add([pts[0], pts[1], pts[2]], q[:3]); m.add([pts[0], pts[2], pts[3]], [q[0], q[2], q[3]])
+
+
+def _lamp(M, x, y, z0, h=5.2):
+    cyl(M["GB_mint"], x, y, 0.3, z0, z0 + 0.8, n=10)
+    cyl(M["GB_mint"], x, y, 0.1, z0 + 0.8, z0 + h, n=8)
+    for k in range(4):
+        a = math.pi / 4 + k * math.pi / 2
+        gx, gy = x + 0.55 * math.cos(a), y + 0.55 * math.sin(a)
+        _tube(M["GB_mint"], _smooth([(x, y, z0 + h - 0.9), (gx, gy, z0 + h - 0.8), (gx, gy, z0 + h - 0.45)], 2), 0.05, n=6, caps=False)
+        _sphere(M["GB_lamp"], (gx, gy, z0 + h - 0.2), 0.28)
+    _sphere(M["GB_lamp"], (x, y, z0 + h + 0.25), 0.3)
+
+
 def cupola(P, T, M, ZD):
     ways = [w for w in DL.DATA["ways"] if "キューポラ" in w["tags"].get("name", "")]
     for w in ways:
-        p = Polygon(w["pts"]).buffer(0)
-        c = p.centroid
-        r = 0.5 * min(p.bounds[2] - p.bounds[0], p.bounds[3] - p.bounds[1])
-        r = max(r, 4.0)
-        z = ZD + ROOF_H + ROOF_T
-        for k in range(4):                                                           # it stands on four posts (the deck stays open under it)
-            a = math.pi / 4 + k * math.pi / 2
-            obox(M["GB_white"], c.x + (r - 0.6) * math.cos(a), c.y + (r - 0.6) * math.sin(a), a, 0.5, 0.5, ZD, z, top=False, bottom=False)
-        slab(M["GB_copper"], Point(c.x, c.y).buffer(r + 0.2, 16), z - ROOF_T, z)
-        cyl(M["GB_cream"], c.x, c.y, r, z, z + 2.2, n=24, top=False)                 # drum
-        for k in range(8):
-            a = 2 * math.pi * k / 8
-            x, y = c.x + (r + 0.02) * math.cos(a), c.y + (r + 0.02) * math.sin(a)
-            obox(M["GB_win_dark"], x, y, a, 0.15, 1.3, z + 0.6, z + 1.9, top=False, bottom=False)
-        cyl(M["GB_trim"], c.x, c.y, r + 0.35, z + 2.2, z + 2.5, n=24)
-        dome(M["GB_copper"], c.x, c.y, r * 0.95, z + 2.5, squash=1.1)
-        cyl(M["GB_gold"], c.x, c.y, 0.12, z + 2.5 + r * 1.05, z + 2.5 + r * 1.05 + 1.6, n=8, r1=0.03)
+        poly = Polygon(w["pts"]).buffer(0)
+        c = poly.centroid
+        ls = min((l for l, _ in P["dlines"] if l.length > 40), key=lambda l: l.distance(c))   # the walk from Maihama Station
+        t = ls.project(c)
+        q0, q1 = ls.interpolate(max(0.0, t - 8.0)), ls.interpolate(min(ls.length, t + 8.0))
+        d = np.array([q1.x - q0.x, q1.y - q0.y]); d /= np.linalg.norm(d)
+        if d[0] < 0:                                                     # a points east, away from the station; the front faces west
+            d = -d
+        ang = math.atan2(d[1], d[0])
+        A3, B3, U3 = _v3(d[0], d[1], 0), _v3(-d[1], d[0], 0), _v3(0, 0, 1)
+        C = _v3(c.x, c.y, ZD)
+        L = lambda a, b, z: C + a * A3 + b * B3 + z * U3
+        ha, hb = CU_HALF_A, CU_HALF_B
+        # pillar clusters: two across the front and back, one behind each
+        for sa in (-1, 1):
+            for sb in (-1, 1):
+                for da, db in ((0, 0), (0, -1.0), (-1.0, 0)):
+                    p = L(sa * (ha + da), sb * (hb + db), 0)
+                    obox(M["GB_mint"], p[0], p[1], ang, 0.9, 0.9, ZD, ZD + 0.9)
+                    obox(M["GB_mint"], p[0], p[1], ang, 0.55, 0.55, ZD + 0.9, ZD + CU_POST - 0.4, top=False, bottom=False)
+                    obox(M["GB_mint"], p[0], p[1], ang, 0.8, 0.8, ZD + CU_POST - 0.4, ZD + CU_POST)
+        # arches: along each side, and two crossing ones
+        def arch(p0, p1, rise, r=0.22):
+            pts = [p0 + (p1 - p0) * (k / 16) + U3 * rise * math.sin(math.pi * k / 16) for k in range(17)]
+            _tube(M["GB_mint"], pts, r, n=8)
+        for sa in (-1, 1):
+            arch(L(sa * ha, -hb + 1.0, CU_POST), L(sa * ha, hb - 1.0, CU_POST), 1.3)
+        for sb in (-1, 1):
+            arch(L(-ha + 1.0, sb * hb, CU_POST), L(ha - 1.0, sb * hb, CU_POST), 1.0)
+        arch(L(-ha + 0.5, -hb + 0.5, CU_POST), L(ha - 0.5, hb - 0.5, CU_POST), 1.8, 0.16)
+        arch(L(-ha + 0.5, hb - 0.5, CU_POST), L(ha - 0.5, -hb + 0.5, CU_POST), 1.8, 0.16)
+        # the canopy: an eave beam round the top, a glazed hipped roof with green ribs
+        ring = [tuple(L(sa * (ha + 0.9), sb * (hb + 0.9), 0)[:2]) for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        inner = [tuple(L(sa * (ha - 0.2), sb * (hb - 0.2), 0)[:2]) for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        slab(M["GB_mint"], Polygon(ring).difference(Polygon(inner)), ZD + CU_EAVE, ZD + CU_EAVE + 0.55)
+        top = [L(sa * 2.0, sb * 2.4, CU_EAVE + 1.6) for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        low = [_v3(*r, ZD + CU_EAVE + 0.55) for r in inner]
+        for i in range(4):
+            j = (i + 1) % 4
+            _tri_facing(M["GB_glass"], low[i], low[j], top[j], U3); _tri_facing(M["GB_glass"], low[i], top[j], top[i], U3)
+            _tube(M["GB_mint"], [low[i], top[i]], 0.12, n=6)
+        for tri in ((top[0], top[1], top[2]), (top[0], top[2], top[3])):
+            _tri_facing(M["GB_mint"], *tri, U3)
+        # the sign boards front and back: an arched green frame, a cream panel with a red border
+        for sa in (-1, 1):
+            a0 = sa * (ha + 0.95)
+            out = A3 * sa
+            fr = Polygon([(-4.8, CU_EAVE + 0.3)] + [(4.8 * math.cos(math.pi * k / 20), CU_EAVE + 1.7 + 0.9 * math.sin(math.pi * k / 20)) for k in range(21)][::-1][::-1]
+                         + [(-4.8, CU_EAVE + 0.3)])
+            fr = Polygon([(4.8, CU_EAVE + 0.3)] + [(4.8 * math.cos(math.pi * k / 20), CU_EAVE + 1.8 + 1.0 * math.sin(math.pi * k / 20)) for k in range(21)]
+                         + [(-4.8, CU_EAVE + 0.3)])
+            panel = box(-3.9, CU_EAVE + 1.0, 3.9, CU_EAVE + 2.2)
+            for mat, g, off in (("GB_mint", fr, 0.0), ("GB_sign_red", panel.buffer(0.14, join_style=2), 0.08), ("GB_sign_cream", panel, 0.12)):
+                for tri in G.cdt(g):
+                    _tri_facing(M[mat], *[L(a0 + sa * off, q[0], q[1]) for q in tri], out)
+                if mat == "GB_mint":
+                    for tri in G.cdt(g):
+                        _tri_facing(M[mat], *[L(a0 - sa * 0.35, q[0], q[1]) for q in tri], -out)
+            # finials with flags at the ends of the board
+            for sb in (-1, 1):
+                p = L(a0, sb * 4.6, CU_EAVE + 2.2)
+                cyl(M["GB_mint"], p[0], p[1], 0.12, p[2], p[2] + 2.6, n=8, r1=0.05)
+                f0 = p + U3 * 2.5
+                _tri_facing(M["GB_flag_red"], f0, f0 - U3 * 0.9, f0 + B3 * sb * 1.4 - U3 * 0.35, out)
+                _tri_facing(M["GB_flag_red"], f0, f0 + B3 * sb * 1.4 - U3 * 0.35, f0 - U3 * 0.9, -out)
+                _tri_facing(M["GB_flag_yellow"], f0 - U3 * 0.45, f0 - U3 * 0.9, f0 + B3 * sb * 1.0 - U3 * 0.6, out)
+                _tri_facing(M["GB_flag_yellow"], f0 - U3 * 0.45, f0 + B3 * sb * 1.0 - U3 * 0.6, f0 - U3 * 0.9, -out)
+        # the clock tower
+        zt = ZD + CU_EAVE + 1.6
+        tw = [tuple(L(sa * 1.3, sb * 1.3, 0)[:2]) for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        prism(M["GB_mint"], tw, zt - 0.3, zt + 3.2)
+        for sa in (-1, 1):                                                   # clock faces on all four sides, the medallion front and back
+            for axis, s2 in ((A3, sa), (B3, sa)):
+                cc = C + axis * s2 * 1.32 + U3 * (CU_EAVE + 1.6 + 2.4)
+                e1 = B3 if axis is A3 else A3
+                _disc(M["GB_gold"], cc, e1, U3, axis * s2, 0.78, n=24)
+                _disc(M["GB_clock"], cc + axis * s2 * 0.03, e1, U3, axis * s2, 0.66, n=24)
+            mc = C + A3 * sa * 1.45 + U3 * (CU_EAVE + 1.6 + 0.95)
+            _disc(M["GB_mint"], mc, B3, U3, A3 * sa, 0.95, n=24)
+            _disc(M["GB_medal"], mc + A3 * sa * 0.04, B3, U3, A3 * sa, 0.78, n=24)
+            _disc(M["GB_white"], mc + A3 * sa * 0.07 - U3 * 0.2, B3, U3, A3 * sa, 0.28, n=10)    # the castle in it, as a pale blot
+        for sa in (-1, 1):
+            for sb in (-1, 1):
+                p = L(sa * 1.3, sb * 1.3, 0)
+                cyl(M["GB_mint"], p[0], p[1], 0.14, zt + 3.2, zt + 4.1, n=8, r1=0.02)
+        slab(M["GB_mint"], Polygon(tw).buffer(0.25, join_style=2), zt + 3.2, zt + 3.45)
+        dome(M["GB_mint"], C[0], C[1], 1.25, zt + 3.45, squash=0.9)
+        cyl(M["GB_mint"], C[0], C[1], 0.45, zt + 4.4, zt + 5.2, n=12)
+        dome(M["GB_mint"], C[0], C[1], 0.55, zt + 5.2, squash=1.1)
+        cyl(M["GB_gold"], C[0], C[1], 0.07, zt + 5.7, zt + 7.3, n=6, r1=0.02)
+        wv = C + U3 * (zt - ZD + 7.0)                                           # the weathervane: a copper silhouette on the spire
+        _tri_facing(M["GB_copper"], wv, wv + A3 * 0.9 + U3 * 0.5, wv + A3 * 1.1 - U3 * 0.1, B3)
+        _tri_facing(M["GB_copper"], wv, wv + A3 * 1.1 - U3 * 0.1, wv + A3 * 0.9 + U3 * 0.5, -B3)
+        # lamp standards with globe clusters, at the corners outside the pillars
+        for sa in (-1, 1):
+            for sb in (-1, 1):
+                p = L(sa * (ha + 2.6), sb * (hb + 0.2), 0)
+                _lamp(M, p[0], p[1], ZD)
 
 
 # ------------------------------------------------------------------ Bon Voyage
-def _trunk(M, cx, cy, ang, L, W, Hh, z0, body="GB_leather", trim="GB_leather2", angle_handle=True):
-    """a giant travelling case: body, a lid seam, two straps, brass corners and latches, a handle"""
-    obox(M[body], cx, cy, ang, L, W, z0, z0 + Hh)
-    obox(M[trim], cx, cy, ang, L + 0.12, W + 0.12, z0 + Hh * 0.64, z0 + Hh * 0.7, top=False, bottom=False)      # the seam between lid and base
-    for s in (-0.28, 0.28):                                                                                   # straps over the top and down the sides
-        u, v = loc(cx, cy, ang, s * L, 0)
-        obox(M[trim], u, v, ang, 0.7, W + 0.16, z0 + 0.02, z0 + Hh + 0.06, top=True, bottom=False)
-        for sgn in (-1, 1):
-            a, b = loc(cx, cy, ang, s * L, sgn * (W / 2 + 0.12))
-            obox(M["GB_gold"], a, b, ang, 0.55, 0.12, z0 + Hh * 0.6, z0 + Hh * 0.78, top=True, bottom=False)     # latch
-    for su in (-1, 1):                                                                                        # brass corners
-        for sv in (-1, 1):
-            a, b = loc(cx, cy, ang, su * L / 2, sv * W / 2)
-            obox(M["GB_gold"], a, b, ang, 0.7, 0.7, z0 + Hh - 0.7, z0 + Hh + 0.08)
-            obox(M["GB_gold"], a, b, ang, 0.7, 0.7, z0 - 0.02, z0 + 0.7)
-    if angle_handle:                                                                                          # carrying handle on the lid
-        for su in (-0.5, 0.5):
-            a, b = loc(cx, cy, ang, su * L * 0.3, 0)
-            obox(M["GB_gold"], a, b, ang, 0.18, 0.18, z0 + Hh, z0 + Hh + 0.55)
-        a, b = loc(cx, cy, ang, 0, 0)
-        obox(M["GB_gold"], a, b, ang, L * 0.3 + 0.18, 0.2, z0 + Hh + 0.5, z0 + Hh + 0.7)
+# From the user's photos (2026-09-29): the shop is a giant suitcase -- walls in an orange-brown diamond quilt (GB_quilt, drawn by
+# the page) under a rounded silver frame, a huge silver carrying handle over the deck-level entrance, which is framed by a silver
+# arch ring; a round emblem on the facade. At its south-east end a giant hat box lies on its side across the deck: red with navy
+# Mickey heads, a blue ring band on each face, a silver lid lip and handle; the deck runs through it in a vaulted passage hung with
+# travel posters, with the red "BON VOYAGE" neon over the shop door. Sizes are read off the photos against people (door ~3 m):
+# ESTIMATES. No lettering (the ring band and the neon are plain).
+BV_TOP = 9.5                 # suitcase top above the deck
+BV_RIM = 1.1                 # radius of the rounded silver frame along the top edge
+HB_R, HB_D = 8.0, 10.0       # hat box radius (it stands on the ground) and depth along the deck
+HB_W, HB_H = 6.8, 5.4        # passage through it: width, height above the deck (round top)
+HB_OVER = 4.0                # how far the hat box overlaps the end of the suitcase
 
 
-def _hatbox(M, cx, cy, r, z0, Hh):
-    cyl(M["GB_cream"], cx, cy, r, z0, z0 + Hh, n=32, top=False)
-    cyl(M["GB_red"], cx, cy, r + 0.05, z0 + Hh * 0.35, z0 + Hh * 0.5, n=32, top=False)                       # the ribbon band
-    cyl(M["GB_trim"], cx, cy, r + 0.35, z0 + Hh, z0 + Hh + 0.7, n=32)                                          # the lid
-    cyl(M["GB_cream"], cx, cy, r * 0.82, z0 + Hh + 0.7, z0 + Hh + 1.0, n=32)
-    dome(M["GB_red"], cx, cy, 0.9, z0 + Hh + 1.0)                                                             # the knob
+def _v3(*a):
+    return np.array(a, float)
 
 
-def bon_voyage(P, T, M):
+def _tri_facing(m, a, b, c, want):
+    a, b, c = np.array(a, float), np.array(b, float), np.array(c, float)
+    n = np.cross(b - a, c - a)
+    if np.dot(n, want) < 0:
+        b, c = c, b
+    _tri(m, a, b, c)
+
+
+def _disc(m, c, e1, e2, nrm, r, n=16, ang=0.0):
+    """a flat disc at c in the plane (e1, e2), facing nrm"""
+    ca, sa = math.cos(ang), math.sin(ang)
+    e1, e2 = ca * e1 + sa * e2, -sa * e1 + ca * e2
+    for i in range(n):
+        a0, a1 = 2 * math.pi * i / n, 2 * math.pi * (i + 1) / n
+        _tri_facing(m, c, c + r * (math.cos(a0) * e1 + math.sin(a0) * e2), c + r * (math.cos(a1) * e1 + math.sin(a1) * e2), nrm)
+
+
+def _mickey(m, c, e1, e2, nrm, s, ang):
+    """a Mickey head (three discs) of head radius s"""
+    ca, sa = math.cos(ang), math.sin(ang)
+    u, v = ca * e1 + sa * e2, -sa * e1 + ca * e2
+    _disc(m, c, u, v, nrm, s)
+    for sx in (-1, 1):
+        _disc(m, c + s * (sx * 1.0 * u + 1.0 * v) + 0.005 * nrm, u, v, nrm, s * 0.62, n=12)
+
+
+def _smooth(pts, it=3):
+    """Chaikin corner cutting (keeps the ends)"""
+    pts = [np.array(p, float) for p in pts]
+    for _ in range(it):
+        out = [pts[0]]
+        for i in range(len(pts) - 1):
+            out += [0.75 * pts[i] + 0.25 * pts[i + 1], 0.25 * pts[i] + 0.75 * pts[i + 1]]
+        out.append(pts[-1]); pts = out
+    return pts
+
+
+def _tube(m, pts, r, n=14, caps=True):
+    """a tube along a 3D polyline, smooth normals (frames carried along the path)"""
+    pts = [np.array(p, float) for p in pts]
+    T_ = [pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)] for i in range(len(pts))]
+    T_ = [t / (np.linalg.norm(t) or 1) for t in T_]
+    ref = np.array([0, 0, 1.0]) if abs(T_[0][2]) < 0.9 else np.array([1.0, 0, 0])
+    N = np.cross(T_[0], ref); N /= np.linalg.norm(N)
+    rings = []
+    for i, p in enumerate(pts):
+        N = N - np.dot(N, T_[i]) * T_[i]; N /= (np.linalg.norm(N) or 1)
+        B = np.cross(T_[i], N)
+        rings.append([(p + r * (math.cos(2 * math.pi * k / n) * N + math.sin(2 * math.pi * k / n) * B),
+                       math.cos(2 * math.pi * k / n) * N + math.sin(2 * math.pi * k / n) * B) for k in range(n)])
+    for i in range(len(rings) - 1):
+        for k in range(n):
+            a, b, c, d = rings[i][k], rings[i][(k + 1) % n], rings[i + 1][(k + 1) % n], rings[i + 1][k]
+            m.add([a[0], b[0], c[0]], [a[1], b[1], c[1]]); m.add([a[0], c[0], d[0]], [a[1], c[1], d[1]])
+    if caps:
+        for ring, p, t in ((rings[0], pts[0], -T_[0]), (rings[-1], pts[-1], T_[-1])):
+            for k in range(n):
+                _tri_facing(m, p, ring[k][0], ring[(k + 1) % n][0], t)
+
+
+def _rounded_rim(M, poly, zt, R, steps=5):
+    """the suitcase's rounded frame along the top edge: a quarter round of radius R, stepped"""
+    for i in range(steps):
+        t0, t1 = 0.5 * math.pi * i / steps, 0.5 * math.pi * (i + 1) / steps
+        inset = R * (1 - math.cos((t0 + t1) / 2))
+        g = poly.buffer(-inset, join_style=2)
+        if g.is_empty:
+            continue
+        for p in G._polys(g):
+            prism(M["GB_silver"], list(p.exterior.coords), zt - R + R * math.sin(t0), zt - R + R * math.sin(t1), top=False)
+    for p in G._polys(poly.buffer(-R, join_style=2)):                       # the roof inside the frame
+        for c in G.cdt(p):
+            _tri(M["GB_concrete"], (*c[0], zt), (*c[1], zt), (*c[2], zt))
+
+
+def _deck_axis(P, poly):
+    """the deck line beside the shop, the along-deck span of the shop, and which way is the south-east end"""
+    ls = min((l for l, _ in P["dlines"] if l.length > 40), key=lambda l: l.distance(poly))   # the walkway itself, not a stub to a door
+    ts = [ls.project(Point(p)) for p in poly.exterior.coords]
+    t_lo, t_hi = min(ts), max(ts)
+    se_hi = ls.interpolate(t_hi).x > ls.interpolate(t_lo).x                 # the end towards the Resort Gateway Station (east)
+    return ls, t_lo, t_hi, se_hi
+
+
+def hat_frame(P, poly):
+    """where the hat box stands: its centre on the deck line (plan Point), the unit axis d along the deck (towards the south-east)
+    and v across it; its plan footprint"""
+    ls, t_lo, t_hi, se_hi = _deck_axis(P, poly)
+    t = (t_hi + HB_D / 2 - HB_OVER) if se_hi else (t_lo - HB_D / 2 + HB_OVER)
+    c = ls.interpolate(t)
+    a, b = ls.interpolate(t - 1.0), ls.interpolate(t + 1.0)
+    d = np.array([b.x - a.x, b.y - a.y]); d /= np.linalg.norm(d)
+    if not se_hi:
+        d = -d
+    v = np.array([-d[1], d[0]])
+    foot = Polygon([(c.x + d[0] * u + v[0] * w, c.y + d[1] * u + v[1] * w)
+                    for u, w in ((-HB_D / 2, -HB_R - 0.5), (HB_D / 2, -HB_R - 0.5), (HB_D / 2, HB_R + 0.5), (-HB_D / 2, HB_R + 0.5))])
+    return c, d, v, foot
+
+
+def _hat_box(P, T, M, ZD, poly):
+    c, d, v, _ = hat_frame(P, poly)
+    D3, V3, U3 = _v3(d[0], d[1], 0), _v3(v[0], v[1], 0), _v3(0, 0, 1)
+    zg = float(T.z(c.x, c.y)) - 0.2
+    zc = zg + HB_R
+    C = _v3(c.x, c.y, zc)
+    W = lambda u, vv, z: C + u * D3 + vv * V3 + z * U3                      # local (along, across, up from the centre) -> plan xyz
+    hs = HB_H - HB_W / 2                                                     # passage: straight walls up to hs, then a half round
+    zdk = ZD - zc
+    arch = Polygon([(-HB_W / 2, zdk - 0.02)] + [(HB_W / 2 * math.cos(math.pi * k / 16), zdk + hs + HB_W / 2 * math.sin(math.pi * k / 16))
+                                                for k in range(17)][::-1][::-1] + [(-HB_W / 2, zdk - 0.02)])
+    arch = Polygon([(HB_W / 2, zdk - 0.02)] + [(HB_W / 2 * math.cos(math.pi * k / 16), zdk + hs + HB_W / 2 * math.sin(math.pi * k / 16)) for k in range(17)]
+                   + [(-HB_W / 2, zdk - 0.02)])
+    circle = Point(0, 0).buffer(HB_R, resolution=24)
+    # the drum
+    n = 64
+    for k in range(n):
+        a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
+        for u0, u1, r, mat in ((-HB_D / 2 + 0.6, HB_D / 2 - 1.4, HB_R, "GB_hat_red"), (-HB_D / 2, -HB_D / 2 + 0.6, HB_R + 0.12, "GB_silver"),
+                               (HB_D / 2 - 1.4, HB_D / 2, HB_R + 0.3, "GB_silver")):
+            p = [W(u, r * math.cos(q), r * math.sin(q)) for u, q in ((u0, a0), (u0, a1), (u1, a1), (u1, a0))]
+            nn = [math.cos(q) * V3 + math.sin(q) * U3 for q in (a0, a1, a1, a0)]
+            want = nn[0]
+            A = np.cross(p[1] - p[0], p[2] - p[0])
+            if np.dot(A, want) < 0:
+                p = [p[0], p[3], p[2], p[1]]; nn = [nn[0], nn[3], nn[2], nn[1]]
+            M[mat].add([p[0], p[1], p[2]], [nn[0], nn[1], nn[2]]); M[mat].add([p[0], p[2], p[3]], [nn[0], nn[2], nn[3]])
+    for u0, r0, r1 in ((-HB_D / 2, HB_R, HB_R + 0.12), (-HB_D / 2 + 0.6, HB_R, HB_R + 0.12), (HB_D / 2 - 1.4, HB_R, HB_R + 0.3), (HB_D / 2, HB_R, HB_R + 0.3)):
+        ring = Point(0, 0).buffer(r1, resolution=24).difference(Point(0, 0).buffer(r0, resolution=24))   # the lips' edges
+        for tri in G.cdt(ring):
+            _tri_facing(M["GB_silver"], *[W(u0, q[0], q[1]) for q in tri], D3 * (1 if u0 > 0 else -1))
+    # the two faces: red, a blue ring band, Mickey heads; the passage cut out
+    face = circle.difference(arch)
+    band = Point(0, 0).buffer(HB_R * 0.9, resolution=24).difference(Point(0, 0).buffer(HB_R * 0.78, resolution=24)).difference(arch.buffer(0.3))
+    rng = np.random.default_rng(7)
+    for sgn in (-1, 1):
+        u = sgn * HB_D / 2
+        out = D3 * sgn
+        for tri in G.cdt(face):
+            _tri_facing(M["GB_hat_red"], *[W(u, q[0], q[1]) for q in tri], out)
+        for tri in G.cdt(band):
+            _tri_facing(M["GB_hat_blue"], *[W(u + sgn * 0.03, q[0], q[1]) for q in tri], out)
+        free = circle.buffer(-0.3).difference(band.buffer(0.1)).difference(arch.buffer(0.5))
+        for gx in np.arange(-HB_R, HB_R, 1.7):
+            for gz in np.arange(-HB_R, HB_R, 1.5):
+                x, z = gx + (0.85 if int(round(gz / 1.5)) % 2 else 0), gz
+                if free.contains(Point(x, z).buffer(0.62)):
+                    _mickey(M["GB_hat_navy"], W(u + sgn * 0.04, x, z), V3, U3, out, 0.34, rng.uniform(-0.5, 0.5))
+    # Mickeys round the drum
+    for q in np.arange(0, 2 * math.pi, 2.3 / HB_R):
+        nrm = math.cos(q) * V3 + math.sin(q) * U3
+        if W(0, 0, 0)[2] + HB_R * math.sin(q) < zg + 0.8:
+            continue
+        for k, u in enumerate(np.arange(-HB_D / 2 + 1.8, HB_D / 2 - 2.0, 2.3)):
+            uu = u + (1.1 if int(round(q * HB_R / 2.3)) % 2 else 0)
+            if uu > HB_D / 2 - 2.2:
+                continue
+            e2 = np.cross(nrm, D3)
+            _mickey(M["GB_hat_navy"], W(uu, 0, 0) + (HB_R + 0.03) * nrm, D3, e2, nrm, 0.42, rng.uniform(-0.5, 0.5))
+    # the handle strap on top
+    top = [W(u, 0, HB_R + 0.1) for u in (-2.6, -2.6)] 
+    path = _smooth([W(-2.4, 0, HB_R), W(-2.2, 0, HB_R + 1.3), W(2.2, 0, HB_R + 1.3), W(2.4, 0, HB_R)], 3)
+    _tube(M["GB_silver"], path, 0.28)
+    for u in (-2.4, 2.4):
+        obox(M["GB_silver"], *W(u, 0, 0)[:2], math.atan2(d[1], d[0]), 1.0, 0.9, zc + HB_R - 0.3, zc + HB_R + 0.3)
+    # the passage: walls and a round vault (facing in), posters on the vault, the neon over the shop door
+    m = 20
+    prof = [(HB_W / 2, zdk)] + [(HB_W / 2 * math.cos(math.pi * k / m), zdk + hs + HB_W / 2 * math.sin(math.pi * k / m)) for k in range(m + 1)] + [(-HB_W / 2, zdk)]
+    for i in range(len(prof) - 1):
+        (v0, z0), (v1, z1) = prof[i], prof[i + 1]
+        mid = np.array([(v0 + v1) / 2, (z0 + z1) / 2])
+        want = -(mid[0] * V3 + (mid[1] - (zdk + hs if mid[1] > zdk + hs else mid[1])) * U3)
+        if np.linalg.norm(want) < 1e-6:
+            want = -mid[0] * V3
+        p = [W(-HB_D / 2, v0, z0), W(-HB_D / 2, v1, z1), W(HB_D / 2, v1, z1), W(HB_D / 2, v0, z0)]
+        _tri_facing(M["GB_vault"], p[0], p[1], p[2], want); _tri_facing(M["GB_vault"], p[0], p[2], p[3], want)
+    cols = ("GB_poster1", "GB_poster2", "GB_poster3")
+    for i, (u, q) in enumerate([(-3.6, 60), (-1.4, 100), (0.8, 55), (2.9, 115), (-2.6, 130), (1.9, 82), (3.8, 70), (-0.3, 140), (-3.9, 105)]):
+        q = math.radians(q)
+        nrm = -(math.cos(q) * V3 + math.sin(q) * U3)
+        c0 = W(u, (HB_W / 2 - 0.04) * math.cos(q), zdk + hs + (HB_W / 2 - 0.04) * math.sin(q))
+        e2 = np.cross(nrm, D3)
+        ang = rng.uniform(-0.35, 0.35)
+        ca, sa = math.cos(ang), math.sin(ang)
+        e1r, e2r = ca * D3 + sa * e2, -sa * D3 + ca * e2
+        for mat, w, h, off in (("GB_white", 1.25, 1.0, 0.0), (cols[i % 3], 1.05, 0.8, 0.02)):
+            p = [c0 + off * nrm + sx * w / 2 * e1r + sy * h / 2 * e2r for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+            _tri_facing(M[mat], p[0], p[1], p[2], nrm); _tri_facing(M[mat], p[0], p[2], p[3], nrm)
+    # which wall of the passage faces the shop: the side towards the suitcase's centre
+    cen = poly.centroid
+    side = -1 if np.dot(np.array([cen.x - c.x, cen.y - c.y]), v) > 0 else 1   # the wall at v = -side*W/2 ... is the shop side
+    vs = -side * (HB_W / 2 - 0.06)
+    obox(M["GB_neon"], *W(-1.0, vs, 0)[:2], math.atan2(d[1], d[0]), 5.0, 0.12, ZD + 2.7, ZD + 3.4)
+    obox(M["GB_win_dark"], *W(-1.0, vs, 0)[:2], math.atan2(d[1], d[0]), 4.0, 0.1, ZD, ZD + 2.5, top=False, bottom=False)
+    return Polygon([tuple(W(u, vv, 0)[:2]) for u, vv in ((-HB_D / 2, -HB_R), (HB_D / 2, -HB_R), (HB_D / 2, HB_R), (-HB_D / 2, HB_R))])
+
+
+def bon_voyage(P, T, M, ZD):
     ring = [tuple(p) for p in DL.WAYS[BV_WAY]["pts"]]
     if ring[0] == ring[-1]:
         ring = ring[:-1]
-    poly = Polygon(ring)
-    z0 = float(np.min(T.z(np.array([p[0] for p in ring]), np.array([p[1] for p in ring])))) - 0.3
-    zb = float(np.mean(T.z(np.array([p[0] for p in ring]), np.array([p[1] for p in ring]))))
-    H1, BAND = 8.0, 6.6
-    prism(M["GB_cream"], ring, z0, zb + BAND, top=False)
-    ring_o = _ccw(ring)
+    poly = Polygon(ring).buffer(0.6, join_style=2).buffer(-0.6, join_style=2).simplify(0.4)
+    xs, ys = np.array([p[0] for p in ring]), np.array([p[1] for p in ring])
+    z0 = float(np.min(T.z(xs, ys))) - 0.3
+    zt = ZD + BV_TOP
+    # the suitcase stops at the hat box (which overlaps its end), so nothing of it stands in the passage
+    case = max(G._polys(poly.difference(hat_frame(P, poly)[3])), key=lambda g: g.area)
+    ring_o = _ccw(list(case.exterior.coords))
+    prism(M["GB_quilt"], ring_o, z0, zt - BV_RIM, top=False)
+    _rounded_rim(M, case, zt, BV_RIM)
+    band = case.buffer(0.12, join_style=2).difference(case)                   # the silver plinth band at deck level
+    slab(M["GB_silver"], band, ZD - 0.15, ZD + 0.7)
+    # the facade on the deck: the edge facing the deck, the longest one near the north-west end
+    ls, t_lo, t_hi, se_hi = _deck_axis(P, poly)
     n = len(ring_o)
-    cen = poly.centroid
+    best = None
     for i in range(n):
         a, b = ring_o[i], ring_o[(i + 1) % n]
-        Ls = math.hypot(b[0] - a[0], b[1] - a[1])
-        if Ls < 3.0:
-            continue
-        ang = math.atan2(b[1] - a[1], b[0] - a[0])
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
         mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
-        nx, ny = math.sin(ang), -math.cos(ang)                                   # outward (right of a->b, ccw ring)
-        # shop windows: a dark glass band 0.6..3.6 m with mullions
+        ang = math.atan2(b[1] - a[1], b[0] - a[0]); nx, ny = math.sin(ang), -math.cos(ang)
+        if L > 8 and ls.distance(Point(mx + nx * 3, my + ny * 3)) < ls.distance(Point(mx, my)) and (best is None or L > best[0]):
+            best = (L, a, b, ang, nx, ny)
+    if best:
+        L, a, b, ang, nx, ny = best
         ux, uy = math.cos(ang), math.sin(ang)
-        k = max(1, int((Ls - 1.6) // 2.4))
-        for j in range(k):
-            s = 0.8 + (Ls - 1.6) * (j + 0.5) / k
-            wc = (a[0] + ux * s + nx * 0.05, a[1] + uy * s + ny * 0.05)
-            obox(M["GB_win_dark"], wc[0], wc[1], ang, (Ls - 1.6) / k - 0.35, 0.1, zb + 0.6, zb + 3.6, top=False, bottom=False)
-            obox(M["GB_glass"], wc[0] + nx * 0.02, wc[1] + ny * 0.02, ang, (Ls - 1.6) / k - 0.35, 0.05, zb + 0.6, zb + 3.6, top=False, bottom=False)
-        obox(M["GB_trim"], mx + nx * 0.06, my + ny * 0.06, ang, Ls, 0.15, zb + 3.65, zb + 3.95, top=True, bottom=False)     # lintel
-        # a striped awning over the windows on the longer sides
-        if Ls > 8.0:
-            for j in range(int(Ls // 1.2)):
-                s = 0.6 + j * 1.2
-                if s + 1.2 > Ls:
-                    break
-                c0 = (a[0] + ux * (s + 0.6), a[1] + uy * (s + 0.6))
-                q = [(c0[0] - ux * 0.6, c0[1] - uy * 0.6, zb + 4.0), (c0[0] + ux * 0.6, c0[1] + uy * 0.6, zb + 4.0),
-                     (c0[0] + ux * 0.6 + nx * 1.5, c0[1] + uy * 0.6 + ny * 1.5, zb + 3.5), (c0[0] - ux * 0.6 + nx * 1.5, c0[1] - uy * 0.6 + ny * 1.5, zb + 3.5)]
-                _quad(M["GB_awning" if j % 2 == 0 else "GB_white"], q[0], q[1], q[2], q[3])
-    # the upper band: leather-brown like a case's binding, with brass rivet strips
-    inner = poly.buffer(0.08)
-    prism(M["GB_leather"], _ccw(list(poly.buffer(0.1, join_style=2).exterior.coords)), zb + BAND, zb + H1, top=False)
-    slab(M["GB_trim"], poly.buffer(0.5, join_style=2).difference(poly.buffer(-0.3, join_style=2)), zb + H1, zb + H1 + 0.5)   # coping
-    for p in G._polys(poly.buffer(-0.3, join_style=2)):
-        for c in G.cdt(p):
-            _tri(M["GB_concrete"], (*c[0], zb + H1), (*c[1], zb + H1), (*c[2], zb + H1))
-    for i in range(n):
-        a, b = ring_o[i], ring_o[(i + 1) % n]
-        Ls = math.hypot(b[0] - a[0], b[1] - a[1])
-        if Ls < 3.0:
-            continue
-        ang = math.atan2(b[1] - a[1], b[0] - a[0])
-        nx, ny = math.sin(ang), -math.cos(ang)
-        obox(M["GB_gold"], (a[0] + b[0]) / 2 + nx * 0.14, (a[1] + b[1]) / 2 + ny * 0.14, ang, Ls - 0.4, 0.06, zb + BAND + 0.25, zb + BAND + 0.4, top=False, bottom=False)
-        obox(M["GB_gold"], (a[0] + b[0]) / 2 + nx * 0.14, (a[1] + b[1]) / 2 + ny * 0.14, ang, Ls - 0.4, 0.06, zb + H1 - 0.45, zb + H1 - 0.3, top=False, bottom=False)
-    # the giant luggage on the roof, spread along the long axis of the footprint
-    mrr = poly.minimum_rotated_rectangle
-    c = list(mrr.exterior.coords)[:4]
-    e = [(c[1][0] - c[0][0], c[1][1] - c[0][1]), (c[2][0] - c[1][0], c[2][1] - c[1][1])]
-    ax = e[0] if math.hypot(*e[0]) >= math.hypot(*e[1]) else e[1]
-    ang = math.atan2(ax[1], ax[0])
-    ux, uy = math.cos(ang), math.sin(ang)
-    ts = [(p[0] - cen.x) * ux + (p[1] - cen.y) * uy for p in ring]
-    t0, t1 = min(ts), max(ts)
-    inside = poly.buffer(-2.2)
-    def at(t, v=0.0):
-        x, y = loc(cen.x, cen.y, ang, t, v)
-        pt = Point(x, y)
-        if not inside.contains(pt):                                     # slide across to stay on the roof
-            for dv in (1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6):
-                x2, y2 = loc(cen.x, cen.y, ang, t, v + dv)
-                if inside.contains(Point(x2, y2)):
-                    return x2, y2
-        return x, y
-    zt = zb + H1 + 0.55
-    x, y = at(t0 + (t1 - t0) * 0.22)
-    _trunk(M, x, y, ang + math.pi / 2, 11.0, 4.6, 3.6, zt, "GB_leather", "GB_leather2")
-    _trunk(M, x, y, ang + math.pi / 2, 8.0, 3.6, 2.8, zt + 3.6, "GB_teal", "GB_leather2")
-    x, y = at(t0 + (t1 - t0) * 0.55, 1.0)
-    _trunk(M, x, y, ang + math.pi / 2 + 0.15, 13.0, 5.0, 4.2, zt, "GB_red", "GB_leather2")
-    _hatbox(M, *at(t0 + (t1 - t0) * 0.55, -1.0), 3.4, zt + 4.2, 2.2)
-    x, y = at(t0 + (t1 - t0) * 0.85)
-    _hatbox(M, x, y, 4.2, zt, 3.6)
-    # a sign plaque on the coping of the longest side (no lettering yet)
-    best = max(range(n), key=lambda i: math.hypot(ring_o[(i + 1) % n][0] - ring_o[i][0], ring_o[(i + 1) % n][1] - ring_o[i][1]))
-    a, b = ring_o[best], ring_o[(best + 1) % n]
-    ang2 = math.atan2(b[1] - a[1], b[0] - a[0]); nx, ny = math.sin(ang2), -math.cos(ang2)
-    Ls = math.hypot(b[0] - a[0], b[1] - a[1])
-    obox(M["GB_sign"], (a[0] + b[0]) / 2 + nx * 0.25, (a[1] + b[1]) / 2 + ny * 0.25, ang2, min(Ls * 0.5, 16.0), 0.3, zb + 4.4, zb + 5.9)
+        Fn, Fu = _v3(nx, ny, 0), _v3(ux, uy, 0)
+        F = lambda s, off, z: _v3(a[0] + ux * s + nx * off, a[1] + uy * s + ny * off, z)
+        # the entrance: a silver arch ring round dark glass doors
+        s0, hw, hh = L * 0.45, 3.3, 5.2
+        path = [F(s0 - hw, 0.55, ZD)] + [F(s0 + hw * math.cos(math.pi - math.pi * k / 16), 0.55, ZD + hh - hw + hw * math.sin(math.pi * k / 16)) for k in range(17)] + [F(s0 + hw, 0.55, ZD)]
+        _tube(M["GB_silver"], path, 0.5)
+        door = [F(s0 - hw + 0.3, 0.08, ZD), F(s0 + hw - 0.3, 0.08, ZD)]
+        obox(M["GB_win_dark"], *((door[0] + door[1]) / 2)[:2], ang, 2 * hw - 0.6, 0.12, ZD, ZD + hh - 0.8, top=False, bottom=False)
+        obox(M["GB_glass"], *F(s0, 0.18, 0)[:2], ang, 2 * hw - 0.6, 0.05, ZD, ZD + hh - 0.8, top=False, bottom=False)
+        # the carrying handle over it, standing off the top of the facade, the ends bent back into brackets
+        ha, hb, zh = max(1.5, s0 - 7.0), min(L - 1.0, s0 + 7.0), zt - BV_RIM - 0.4
+        pts = _smooth([F(ha, 0.3, zh - 0.6), F(ha, 2.6, zh - 0.2), F(ha + 1.2, 3.1, zh + 0.2), F(hb - 1.2, 3.1, zh + 0.2), F(hb, 2.6, zh - 0.2), F(hb, 0.3, zh - 0.6)], 3)
+        _tube(M["GB_silver"], pts, 0.6, n=18)
+        for sx in (ha, hb):
+            obox(M["GB_silver"], *F(sx, 0.35, 0)[:2], ang, 1.6, 0.9, zh - 1.6, zh + 0.3)
+        # the luggage-tag cord looping down from the left end
+        cord = _smooth([F(ha + 0.2, 1.2, zh - 0.7), F(ha - 0.6, 1.6, zh - 3.0), F(ha + 0.4, 1.2, zh - 5.0), F(ha + 1.4, 0.8, zh - 3.2), F(ha + 0.6, 0.6, zh - 1.0)], 3)
+        _tube(M["GB_silver"], cord, 0.1, n=8)
+        # the round emblem further along the facade
+        if L > 2 * hw + 6:
+            e = F(min(L - 2.0, s0 + hw + 3.0), 0.12, ZD + 4.2)
+            _disc(M["GB_silver"], e, Fu, _v3(0, 0, 1), Fn, 1.7, n=28)
+            _disc(M["GB_medal"], e + Fn * 0.04, Fu, _v3(0, 0, 1), Fn, 1.45, n=28)
+    hb = _hat_box(P, T, M, ZD, poly)
+    return poly, hb
 
 
 # ------------------------------------------------------------------ build
@@ -551,7 +819,7 @@ def build():
     deck_meshes(P, T, M, ZD)
     stair_meshes(P, T, M, ZD)
     cupola(P, T, M, ZD)
-    bon_voyage(P, T, M)
+    bon_voyage(P, T, M, ZD)
     return P, T, M, ZD
 
 

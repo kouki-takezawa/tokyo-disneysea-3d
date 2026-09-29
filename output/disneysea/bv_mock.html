@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bon Voyage Preview</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#9fc3e6;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif}
+  canvas{display:block}
+  #ui{position:fixed;top:10px;left:10px;right:10px;display:flex;gap:6px;flex-wrap:wrap}
+  #ui button{padding:7px 11px;border-radius:999px;border:1px solid #0002;background:#fffd;color:#1a2530;font-size:13px;cursor:pointer}
+  #ui button[aria-pressed=true]{background:#1a2530;color:#fff}
+  #note{position:fixed;bottom:8px;left:10px;right:10px;color:#1a2530;font-size:11px;text-shadow:0 0 3px #fff}
+  #load{position:fixed;inset:0;display:grid;place-items:center;color:#1a2530;font-size:14px}
+</style>
+</head>
+<body>
+<div id="ui"></div>
+<div id="load">読み込み中…</div>
+<div id="note">プレビュー: ボン・ヴォヤージュ(スーツケースと帽子箱)とゲートウェイキューポラだけ。大きさは写真からの推定、看板の文字は無し。ドラッグで回転 / ホイールで拡大</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+// colours as in mock_template.html (GB_<name> uses the station's ST_<name>)
+const MAT = {
+  GW_road: { color: 0x40444a, roughness: 0.95 }, GW_path: { color: 0x958b7d, roughness: 0.9 }, GW_plaza: { color: 0x8d6459, roughness: 0.9 },
+  GW_curb: { color: 0xc9bb9f, roughness: 0.8 }, GW_soil: { color: 0x3e6b2c, roughness: 1 }, GW_edge: { color: 0x7a746b, roughness: 0.9 },
+  GB_cream: { color: 0xd8caa6, roughness: 0.8 }, GB_trim: { color: 0xd9d2bf, roughness: 0.8 }, GB_stone: { color: 0xa9a69f, roughness: 0.85 },
+  GB_copper: { color: 0x5b8c80, roughness: 0.85 }, GB_gold: { color: 0xc9a24a, roughness: 0.35, metalness: 0.8 },
+  GB_white: { color: 0xdedfda, roughness: 0.7 }, GB_concrete: { color: 0xa8a7a2, roughness: 0.9 }, GB_deck: { color: 0xb3ab9c, roughness: 0.9 },
+  GB_glass: { color: 0xcfe3ea, roughness: 0.05, transparent: true, opacity: 0.3, depthWrite: false }, GB_win_dark: { color: 0x1a2229, roughness: 0.2 },
+  GB_quilt: { color: 0xb8622c, roughness: 0.55 }, GB_silver: { color: 0xb4b8bd, roughness: 0.28, metalness: 0.85 },
+  GB_hat_red: { color: 0xc2302a, roughness: 0.5 }, GB_hat_navy: { color: 0x1d2766, roughness: 0.5 }, GB_hat_blue: { color: 0x2c5bb0, roughness: 0.5 },
+  GB_vault: { color: 0xc8ccd4, roughness: 0.6 }, GB_poster1: { color: 0xe6d3a4, roughness: 0.7 }, GB_poster2: { color: 0xb2553a, roughness: 0.7 },
+  GB_poster3: { color: 0x3d6d8e, roughness: 0.7 }, GB_neon: { color: 0xff5a48, emissive: 0xff2a1a, emissiveIntensity: 1.3 },
+  GB_medal: { color: 0x243f86, roughness: 0.4 }, GB_mint: { color: 0x6f9c89, roughness: 0.5 }, GB_sign_cream: { color: 0xf0e2bb, roughness: 0.6 },
+  GB_sign_red: { color: 0x8c1d24, roughness: 0.5 }, GB_clock: { color: 0xf4f1e6, roughness: 0.4 },
+  GB_flag_red: { color: 0xd8342a, roughness: 0.7 }, GB_flag_yellow: { color: 0xf2c230, roughness: 0.7 },
+  GB_lamp: { color: 0xfff3d6, emissive: 0xffe2a8, emissiveIntensity: 0.9 },
+};
+// the quilted suitcase walls (same shader as mock_template.html makeQuilt)
+function makeQuilt() {
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0, side: THREE.DoubleSide });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vQP; varying vec3 vQN;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvQP = (modelMatrix * vec4(transformed, 1.)).xyz; vQN = normalize(mat3(modelMatrix) * objectNormal);");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vQP; varying vec3 vQN;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+{
+  vec3 n = normalize(vQN); vec3 t = abs(n.y) > .9 ? vec3(1., 0., 0.) : normalize(vec3(-n.z, 0., n.x));
+  float u = dot(vQP, t), v = vQP.y, S = 2.2;
+  vec2 g = vec2(u + v, u - v) / S; vec2 f = fract(g); vec2 id = floor(g);
+  vec2 k = min(f, 1. - f); float e = min(k.x, k.y);
+  vec3 col = mix(vec3(.66, .33, .14), vec3(.74, .41, .18), mod(id.x + id.y, 2.));
+  col *= .74 + .26 * smoothstep(.0, .35, e);
+  col = mix(vec3(.86, .76, .58), col, smoothstep(.016, .032, e));
+  col = mix(col, vec3(.88, .72, .40), 1. - smoothstep(.035, .05, length(k)));
+  diffuseColor.rgb = col;
+}`);
+  };
+  return m;
+}
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+{ const c = document.createElement("canvas"); c.width = 2; c.height = 256; const g = c.getContext("2d");
+  const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, "#3f7fd0"); gr.addColorStop(.7, "#a9cdf0"); gr.addColorStop(1, "#dfeaf3");
+  g.fillStyle = gr; g.fillRect(0, 0, 2, 256); scene.background = new THREE.CanvasTexture(c); }
+{ // a soft sky for the silver and gold to reflect
+  const env = new THREE.Scene(); env.background = new THREE.Color(0x8fb4dc);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshBasicMaterial({ color: 0x6b6a66, side: THREE.DoubleSide }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = -5; env.add(floor);
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 6, 5.5) }));
+  sun.position.set(-40, 60, 40); env.add(sun);
+  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(env, 0.03).texture; pm.dispose();
+}
+scene.add(new THREE.HemisphereLight(0xdcebff, 0x7a7466, 0.75));
+const sun = new THREE.DirectionalLight(0xfff2de, 1.0); sun.position.set(-60, 90, 50); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096); Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 1, far: 300 });
+sun.shadow.bias = -0.0005; scene.add(sun);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.3, 2000);
+camera.position.set(40, 40, 60);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+let views = {}, anim = null;
+function go(k, instant) {
+  const v = views[k]; if (!v) return;
+  document.querySelectorAll("#ui button").forEach(b => b.setAttribute("aria-pressed", b.dataset.k === k));
+  const e1 = new THREE.Vector3(...v.eye), t1 = new THREE.Vector3(...v.target);
+  if (instant) { camera.position.copy(e1); controls.target.copy(t1); return; }
+  anim = { e0: camera.position.clone(), t0: controls.target.clone(), e1, t1, s: performance.now() };
+}
+new THREE.GLTFLoader().load("models/bv_mock.json", g => {
+  const quilt = makeQuilt(), cache = {};
+  g.scene.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.name.startsWith("GB_quilt")) o.material = quilt;
+    else { const key = Object.keys(MAT).filter(k => o.name.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+      o.material = cache[key] || (cache[key] = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, color: 0x999999, ...(MAT[key] || {}) })); }
+    o.castShadow = !o.material.transparent; o.receiveShadow = true;
+  });
+  scene.add(g.scene);
+  views = g.scene.userData.views || {};
+  const ui = document.getElementById("ui");
+  for (const [k, v] of Object.entries(views)) {
+    const b = document.createElement("button"); b.textContent = v.label; b.dataset.k = k; b.onclick = () => go(k); ui.appendChild(b);
+  }
+  go("bv", true);
+  document.getElementById("load").remove();
+}, undefined, e => { document.getElementById("load").textContent = "モデルを読み込めませんでした"; console.error(e); });
+
+(function tick() {
+  if (anim) {
+    const u = Math.min(1, (performance.now() - anim.s) / 1200), s = u * u * (3 - 2 * u);
+    camera.position.lerpVectors(anim.e0, anim.e1, s); controls.target.lerpVectors(anim.t0, anim.t1, s);
+    if (u >= 1) anim = null;
+  }
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(tick);
+})();
+window.BV_GO = go;   // for checking
+</script>
+</body>
+</html>
