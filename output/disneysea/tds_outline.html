@@ -2186,10 +2186,23 @@ async function init3D() {
         const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.35, 0.62, 0.3], [0.62, 0.45, 0.36], [0.5, 0.7, 0.26]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
         ink(g, puff, 3); wash(g, puff, "#e8dfcd", false);
       },
+      castleBack(g, w, h) {   // the keep and the two slate towers: their own sheet behind the wall (the bodies run down out of sight)
+        const b = h - 4, dd = h * 0.2;
+        tower(g, w * 0.5, b - h * 0.34 + dd, w * 0.14, h * 0.26 + dd, h * 0.26);
+        tower(g, w * 0.33, b - h * 0.3 + dd, w * 0.1, h * 0.2 + dd, h * 0.18, C.cream, C.slate); tower(g, w * 0.67, b - h * 0.3 + dd, w * 0.1, h * 0.2 + dd, h * 0.18, C.cream, C.slate);
+      },
+      hillsBack(g, w, h) {   // the farthest sheet: pale, bluish hills
+        const hills = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.55); g.bezierCurveTo(w * 0.12, h * 0.2, w * 0.24, h * 0.3, w * 0.36, h * 0.45);
+          g.bezierCurveTo(w * 0.5, h * 0.12, w * 0.64, h * 0.25, w * 0.76, h * 0.4); g.bezierCurveTo(w * 0.86, h * 0.2, w * 0.95, h * 0.3, w, h * 0.5); g.lineTo(w, h); g.closePath(); };
+        sh(g, hills, "#93a79f"); hatch(g, hills, w * 0.3, h * 0.2, w, h, 10, 0.12);
+      },
+      foot(g, w, h) {   // the nearest sheet of the scenery: low rolling green
+        const bumps = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.5); for (let i = 0; i < 6; i++) g.quadraticCurveTo(w * (i + 0.5) / 6, h * (i % 2 ? 0.05 : 0.2), w * (i + 1) / 6, h * 0.55);
+          g.lineTo(w, h); g.closePath(); };
+        sh(g, bumps, C.moss); hatch(g, bumps, 0, h * 0.2, w, h, 8, 0.2);
+      },
       castle(g, w, h) {
         const b = h - 4;
-        tower(g, w * 0.5, b - h * 0.34, w * 0.14, h * 0.26, h * 0.26);
-        tower(g, w * 0.33, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18, C.cream, C.slate); tower(g, w * 0.67, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18, C.cream, C.slate);
         tower(g, w * 0.14, b, w * 0.12, h * 0.44, h * 0.2); tower(g, w * 0.86, b, w * 0.12, h * 0.44, h * 0.2);
         for (let i = 0; i < 8; i++) sh(g, R(g, w * 0.2 + i * w * 0.075, b - h * 0.36 - 10, w * 0.045, 12), C.stone);
         const wall = R(g, w * 0.2, b - h * 0.36, w * 0.6, h * 0.36);
@@ -2259,13 +2272,54 @@ async function init3D() {
     const backOut = k => 1 + 3.4 * Math.pow(k - 1, 3) + 2.4 * Math.pow(k - 1, 2);   // snaps up past upright (about 18%), then settles back
     const FLIP_AT = POP_IN_MS + POP_OPEN_MS * 0.7, FLIP_GAP = 280, UP_AT = FLIP_AT + FLIP_GAP * 2 + POP_FLIP_MS - 150;
     // [art, width, height, x, z (far is negative), delay ms]; the front frame last
-    const pieces = [["mountains", 74, 24, 0, -12.5, 0], ["castle", 26, 28, 12, -7, 170], ["harbor", 28, 14, -16, -4, 320],
+    // ---- boxes: buildings with real depth (a painted front and side, a roof), standing up out of the page
+    const facade = (col, cols, rows, door) => {
+      const pw = 96, ph = 128, c = canvas(pw, ph), g = c.getContext("2d");
+      wash(g, R(g, 0, 0, pw, ph), col, false); hatch(g, R(g, 0, 0, pw, ph), pw * 0.6, 0, pw, ph, 6, 0.16);
+      const ww = pw / (cols * 2 + 1), rh = ph * 0.7 / rows;
+      for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) { const x = ww * (1 + 2 * k), y = ph * 0.1 + r * rh, wh = rh * 0.55;
+        wash(g, R(g, x, y, ww, wh), C.navy, false); ink(g, R(g, x, y, ww, wh), 1.4); }
+      if (door) { const dw = pw * 0.22; sh(g, () => { g.beginPath(); g.moveTo(pw / 2 - dw / 2, ph); g.lineTo(pw / 2 - dw / 2, ph * 0.82); g.arc(pw / 2, ph * 0.82, dw / 2, Math.PI, 0); g.lineTo(pw / 2 + dw / 2, ph); g.closePath(); }, C.burg); }
+      ink(g, R(g, 1, 1, pw - 2, ph - 2), 2.6); grain(g, pw, ph, 10); return tex(c);
+    };
+    const roofTex = (() => { const c = canvas(128, 64), g = c.getContext("2d"); wash(g, R(g, 0, 0, 128, 64), C.terra, false);
+      g.strokeStyle = "rgba(60,25,15,.4)"; g.lineWidth = 1.4; for (let y = 8; y < 64; y += 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
+      for (let y = 0; y < 64; y += 16) for (let x = (y / 16 % 2) * 8; x < 128; x += 16) { g.beginPath(); g.moveTo(x, y + 8); g.lineTo(x, y + 16); g.stroke(); }
+      grain(g, 128, 64, 12); return tex(c); })();
+    const makeBox = ({ w, d, h, col, roof, rh = 3, cols = 2, rows = 2, door = 0 }) => {
+      const grp = new T.Group(), front = lam({ map: facade(col, cols, rows, door) }), sd = lam({ map: facade(shade(col, -0.12), 1, rows, 0) }), top = lam({ color: 0xcdbfa5 });
+      grp.add(new T.Mesh(new T.BoxGeometry(w, h, d).translate(0, h / 2, 0), [sd, sd, top, top, front, front]));
+      if (roof === "gable") {   // a triangular prism, ridge along x
+        const r0 = (d + 0.8) / 1.732, s = rh / (1.5 * r0);
+        grp.add(new T.Mesh(new T.CylinderGeometry(r0, r0, w + 0.8, 3).rotateZ(Math.PI / 2).rotateX(-Math.PI / 2).scale(1, s, 1).translate(0, h + rh / 3, 0), lam({ map: roofTex })));
+      } else {   // a flat top with battlements
+        const stone = lam({ color: 0xd9ccb0 }), slab = new T.Mesh(new T.BoxGeometry(w + 0.5, 0.5, d + 0.5), stone); slab.position.y = h + 0.25; grp.add(slab);
+        const n = Math.max(3, Math.floor(w / 1.3));
+        for (let i = 0; i < n; i++) for (const zs of [-1, 1]) { const mm = new T.Mesh(new T.BoxGeometry(0.75, 0.75, 0.75), stone); mm.position.set(-w / 2 + 0.3 + i * ((w - 0.6) / (n - 1)), h + 0.85, zs * (d / 2 + 0.05)); grp.add(mm); }
+      }
+      return cast(grp);
+    };
+    const fullArt = {}, half = (k, side) => (g, w, h) => {   // one half of an art, cut from the whole (so the two halves of a V-fold match)
+      const key = k + w + "x" + h; if (!fullArt[key]) { const c = canvas(w * 2, h); arts[k](c.getContext("2d"), w * 2, h); fullArt[key] = c; }
+      g.drawImage(fullArt[key], side > 0 ? w : 0, 0, w, h, 0, 0, w, h);
+    };
+    // [art, width, height, x, z (far is negative), delay ms, options]: sheets behind one another (far hills, volcano, foot hills; the keep behind the castle),
+    // V-folds (the castle wall, the harbour: two halves that lean toward you), and boxes; the front frame last
+    const BOXES = [[-27.5, -1.6, 4.6, 3.6, 7.5, C.ochre, 3.2, 2, 2, 0, 400], [-22.8, -1, 4, 3.4, 5.6, C.rose, 2.8, 2, 2, 1, 450], [-18.2, -1.6, 5, 3.8, 9, C.sand, 3.6, 2, 3, 0, 500],
+      [-13.4, -0.9, 4.2, 3.4, 6.2, "#a7b6b8", 3, 2, 2, 1, 550], [-9.2, -1.6, 4.4, 3.6, 7.6, "#c9a3a0", 3.2, 2, 2, 0, 600]]
+      .map(([x, z, w, d, h, col, rh, cols, rows, door, delay]) => ["box", 0, h, x, z, delay, { quiet: 1, box: { w, d, h, col, roof: "gable", rh, cols, rows, door } }]);
+    const pieces = [["hillsBack", 78, 22, 0, -14.6, 0, { quiet: 1 }], ["mountains", 74, 24, 0, -11.8, 60], ["foot", 74, 9, 0, -9, 200, { quiet: 1 }],
+      ["castleBack", 26, 28, 12, -9.4, 120, { quiet: 1 }], ["castle", 13, 28, 12, -7, 170, { half: -1, yaw: 0.22 }], ["castle", 13, 28, 12, -7, 170, { half: 1, yaw: 0.22, quiet: 1 }],
+      ["harbor", 14, 14, -16, -6.5, 320, { half: -1, yaw: 0.18 }], ["harbor", 14, 14, -16, -6.5, 320, { half: 1, yaw: 0.18, quiet: 1 }],
+      ["box", 0, 8, 12, -3.6, 380, { quiet: 1, box: { w: 6, d: 3.4, h: 8, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }], ...BOXES,
       ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
-      .map(([k, w, h, x, z, delay]) => {
+      .map(([k, w, h, x, z, delay, o = {}]) => {
         const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
-        const m = piece(w, h, arts[k]); m.position.y = h / 2; hinge.add(m);
+        let m;
+        if (o.box) { m = makeBox(o.box); hinge.add(m); }
+        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k]); m.position.set(o.half ? o.half * w / 2 : 0, h / 2, 0); hinge.add(m); }
         book.add(hinge); hinge.visible = false;
-        return { k, hinge, m, delay, h, x, z };
+        return { k, hinge, m, delay, h, x, z, quiet: o.quiet, box: !!o.box, yaw: o.half ? -o.half * o.yaw : 0 };
       });
     const byKey = k => pieces.find(p => p.k === k);
     const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1]].map(([x, y, w, h, ph]) => {   // moving: the smoke
@@ -2303,7 +2357,7 @@ async function init3D() {
       const a = Math.random() * 6.2832, e = Math.random() * 1.2 - 0.25, s = sp * (0.35 + Math.random() * 0.65);
       sparks.push({ t0: at, x, y, z, vx: Math.cos(a) * Math.cos(e) * s, vy: up + Math.sin(e + 0.4) * s * 0.9, vz: Math.sin(a) * Math.cos(e) * s * 0.7,
         life: 1.3 + Math.random() * 1.1, c: COLS[Math.floor(Math.random() * COLS.length)] }); } };
-    for (const p of pieces) if (p.k !== "curtains") burst(UP_AT + p.delay + POP_UP_MS * 0.6, p.x, 1.5, p.z + 0.6, 16, 11, 9);
+    for (const p of pieces) if (p.k !== "curtains" && !p.quiet) burst(UP_AT + p.delay + POP_UP_MS * 0.6, p.x, 1.5, p.z + 0.6, 16, 11, 9);
     burst(BURST_AT, 12, 24, -5, 110, 24, 12); burst(BURST_AT + 140, -14, 12, -3, 60, 18, 9); burst(BURST_AT + 280, 0, 10, -8, 60, 18, 9);
     for (let i = 0; i < 9; i++) burst(FIN_AT + i * 55, -34 + i * 8.5, 1, 9, 24, 10, 26);
     const SN = sparks.length, spPos = new Float32Array(SN * 3), spCol = new Float32Array(SN * 3);
@@ -2316,7 +2370,7 @@ async function init3D() {
     const vPts = new T.Points(vGeo, new T.PointsMaterial({ map: spr([[0, "rgba(255,255,255,1)"], [0.35, "rgba(255,255,255,.5)"], [1, "rgba(255,255,255,0)"]]), size: 2.2, vertexColors: true, transparent: true,
       blending: T.AdditiveBlending, depthWrite: false, fog: false }));
     vPts.frustumCulled = false; sc.add(vPts);
-    const CRATER = new T.Vector3(-17.4, 17.3, -12.3);
+    const CRATER = new T.Vector3(-17.4, 17.3, -11.6);
     const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
     lava.position.copy(CRATER); lava.scale.setScalar(11); sc.add(lava);
     const punch = (el, at) => { const a = (el - at) / 1000; return a < 0 ? 0 : Math.exp(-a * 3.2); };   // 1 on the beat, gone in about a second
@@ -2340,7 +2394,7 @@ async function init3D() {
       const d = Math.max((cm.aspect < 1 ? 66 : 96) / 2 / Math.tan(hf), 64 / 2 / Math.tan(vf));
       sc.fog.near = d * 0.9; sc.fog.far = d * 2.4;   // the far desk fades into the dark, however far back a narrow screen puts the camera
       const beat = punch(el, BURST_AT) + 0.6 * punch(el, FIN_AT), rise = eio(clamp(el / (UP_AT + 500)));
-      const yaw = Math.sin(el / 3600) * 0.07, pitch = 0.74 + Math.sin(el / 4300) * 0.03 - 0.3 * (1 - rise);   // from a low angle up to the bird's-eye view
+      const swing = 0.07 + 0.26 * clamp((el - UP_AT + 600) / 1800), yaw = Math.sin(el / 2000) * swing, pitch = 0.74 + Math.sin(el / 2900) * 0.06 * (swing / 0.33) - 0.3 * (1 - rise);   // once the pop-ups stand the camera swings wide, so the depth shows   // from a low angle up to the bird's-eye view
       const dd = d * (1 - 0.07 * beat);   // punches in on the beats
       cm.position.set(TGT.x + Math.sin(yaw) * Math.cos(pitch) * dd + Math.sin(el / 23) * 0.55 * beat, TGT.y + Math.sin(pitch) * dd + Math.cos(el / 19) * 0.45 * beat,
         TGT.z + Math.cos(yaw) * Math.cos(pitch) * dd);
@@ -2362,8 +2416,12 @@ async function init3D() {
         for (const p of pieces) {
           const u = clamp((el - UP_AT - p.delay) / POP_UP_MS), up = u > 0 ? backOut(u) : 0;
           p.hinge.visible = u > 0;
-          p.hinge.rotation.x = -Math.PI / 2 * (1 - up);
-          p.hinge.scale.x = 0.6 + 0.4 * Math.min(1, up);   // unfolds sideways as it stands
+          if (p.box) p.hinge.scale.set(1, Math.max(up, 0.001), 1);   // a box grows straight up out of the page
+          else {
+            p.hinge.rotation.x = -Math.PI / 2 * (1 - up);
+            p.hinge.rotation.y = p.yaw * clamp(up);   // a V-fold opens its two halves toward you as it stands
+            p.hinge.scale.x = 0.6 + 0.4 * Math.min(1, up);   // unfolds sideways as it stands
+          }
         }
         for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 0.5; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 0.4; s.m.scale.setScalar(1 + Math.sin(t * 1.3 + s.ph) * 0.06); }
         globe.rotation.y = t * 0.5; globe.scale.setScalar(clamp((clamp((el - UP_AT - 470) / POP_UP_MS) - 0.4) / 0.6) || 0.001);
