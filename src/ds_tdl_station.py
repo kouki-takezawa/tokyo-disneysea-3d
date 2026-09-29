@@ -6,7 +6,7 @@
 
 Output: output/disneyland/station/tdl_station.blend and station_<cam>.png (local check, not committed).
 
-Method: the reference video (README: 【背景メイキング】ディズニーランドステーション / WALT.) builds the gate hall
+Method: the reference video (docs/blender.md: 【背景メイキング】ディズニーランドステーション / WALT.) builds the gate hall
 in this order, and this script keeps it:
   1. the clock first, as the reference for the other sizes (video 0:27)
   2. the half-round fan window round it: one ray + Array (object offset = a turned empty); the bead ring as

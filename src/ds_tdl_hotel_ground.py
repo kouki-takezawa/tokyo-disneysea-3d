@@ -33,10 +33,10 @@ Mesh: as ds_tdl_ground.py (cells, constrained Delaunay, a 0.15 m skirt on the fr
 ESTIMATES: widths, colours (aerial photo, washed out), which ways count as "round the hotel" (REACH). The photo predates the
   2023 changes at the entrance; the hotel side has not been checked against a recent photo.
 """
-import sys, math, pathlib
+import sys, pathlib
 
 import numpy as np
-from shapely.geometry import Polygon, LineString, Point
+from shapely.geometry import Polygon, LineString
 from shapely.geometry import box
 from shapely.ops import unary_union, polygonize
 

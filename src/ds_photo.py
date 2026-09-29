@@ -6,7 +6,7 @@ Tiles are cached in plateau_data/gsi_photo/{z}_{x}_{y}.jpg. Coordinates are the
 draft's local metres (origin 35.6267,139.8851, +X east, +Y north).
 出典: 国土地理院 シームレス空中写真
 """
-import math, io, pathlib, urllib.request
+import math, pathlib, urllib.request
 import numpy as np
 from PIL import Image
 

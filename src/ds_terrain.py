@@ -13,7 +13,7 @@ try:
     import bpy, bmesh
 except ImportError:
     bpy = bmesh = None
-from ds_core import (DATA, WAYS, PARK, get_collection, flat_material, extrude_loops,
+from ds_core import (DATA, PARK, get_collection, flat_material, extrude_loops,
                       extrude_footprint, flat_fill, link, ways_with, multipolygons,
                       poly_area, poly_centroid, point_in_poly, ring_inside, in_park,
                       _clean_ring)

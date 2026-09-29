@@ -8,7 +8,7 @@ Blender 5.2 pitfalls carried over from utsu_core/enoden work:
  - Use mathutils.geometry.tessellate_polygon for arbitrary (possibly
    concave) footprints instead of bmesh convex-hull fills.
 """
-import json, math, pathlib
+import json, pathlib
 try:  # Blender; the data helpers below also work in plain Python (export_mock.py)
     import bpy, bmesh
     from mathutils import Vector

@@ -289,7 +289,7 @@ def main():
     shrubs = []
     try:
         import ds_tdl_ground, ds_tdl_hotel_ground
-        from shapely.geometry import LineString, Point
+        from shapely.geometry import Point
         beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"])
         for q in beds:
             if q.is_empty or q.area < 3.0:

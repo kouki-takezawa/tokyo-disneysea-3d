@@ -11,7 +11,7 @@ local metres on the DisneySea origin, +X east, +Y north, 0 m = the DisneySea pro
 Like the DisneySea draft, the ground is flat (0 m): buildings stand on 0 and are boxes at their mock height (most are
 estimates); roof-only structures are slabs. Elevated things keep their heights above the datum: the Keiyo Line viaduct
 (10 m), the Resort Line beam (8 m + 0.9 m). Colours follow the lands (same as the mock).
-Before modelling any part in detail, follow the reference videos listed in the README (Blender で作るときの参考動画).
+Before modelling any part in detail, follow the reference videos listed in docs/blender.md (Blender で作るときの参考動画).
 """
 import sys, math, time, argparse, pathlib, json
 
@@ -159,7 +159,6 @@ def main():
         print(summary())
         return
     import bpy
-    from mathutils import Vector
     sys.path.insert(0, str(ROOT / "src"))
     import disneysea_draft as DD                # same world / render / camera helpers as the DisneySea draft
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []

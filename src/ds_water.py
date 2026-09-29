@@ -197,7 +197,6 @@ def _split_caldera(bodies):
     """Replace the main harbour by its open parts; the parts inside the caldera
     zone that are not the photo-traced lagoon become tunnels."""
     from shapely.geometry import Polygon, Point
-    from shapely.ops import unary_union
     h = next(b for b in bodies if b["id"] == MAIN_HARBOR)
     harbor = Polygon(h["ring"], h["inners"]).buffer(0)
     (cx, cy), rad = CALDERA_ZONE

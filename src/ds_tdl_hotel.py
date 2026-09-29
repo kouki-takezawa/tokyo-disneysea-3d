@@ -40,10 +40,9 @@ except ImportError:
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
-from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, T, R, seg_arc,
-                            arch_opening, arch_band, ring_sector, cutter, curve_obj, scroll_pts, column_bm,
-                            globe_lamp_bm, text, bevel_mod, _principled, _mottle)
-from ds_tdl_entrance import frame, text_mesh, baluster_run
+from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, array_mod, T, R, arch_opening, arch_band, ring_sector, curve_obj, column_bm,
+                            globe_lamp_bm, text, _principled, _mottle)
+from ds_tdl_entrance import frame, baluster_run
 
 OUT = ROOT / "output" / "disneyland" / "hotel"
 

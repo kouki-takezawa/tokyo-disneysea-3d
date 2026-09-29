@@ -53,9 +53,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 import ds_tdl_bb_castle as BC
-from ds_tdl_station import B, bm_box, bm_lathe, bm_prism, obj_bm, T, R, seg_arc, _principled, _mottle, _bump
-from ds_tdl_bb_castle import (Parts, cube, lathe, poly_prism, face, pointed, round_top, window, cone_roof, balustrade,
-                              cresting, bartizan, arch_ring)
+from ds_tdl_station import B, bm_prism, obj_bm, T, R, _principled, _mottle, _bump
+from ds_tdl_bb_castle import (Parts, cube, lathe, poly_prism, face, pointed, window, cone_roof, balustrade,
+                              bartizan, arch_ring)
 
 OUT = ROOT / "output" / "disneyland" / "cinderella"
 ALL_S = 1.0        # plan scale of everything (checked against the turntable: 1.0)

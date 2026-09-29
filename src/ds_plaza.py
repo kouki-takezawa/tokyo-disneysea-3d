@@ -129,7 +129,6 @@ def plan():
 def build(col=None, ground_z=None):
     """Plaza ground as 3D geometry (paving slabs, curbs, soil, trees, white lines)."""
     import bpy, bmesh
-    from mathutils import Vector
     D = json.loads(OUT.read_text(encoding="utf-8"))
     g = D["ground"] if ground_z is None else ground_z
     col = col or bpy.context.scene.collection
