@@ -368,7 +368,7 @@ def stage_plan(planters):
 
 def build():
     Gd = load_ground()
-    paving_tris = np.concatenate([Gd[k] for k in ("TP_paving", "TP_paving2", "TP_line") if k in Gd])
+    paving_tris = np.concatenate([v for k, v in Gd.items() if k.startswith(("TP_paving", "TP_line", "TP_ring"))])
     curb_tris = Gd["TP_curb"]
     ground = Surface(np.concatenate([paving_tris, curb_tris, Gd["TP_flower"], Gd["TP_soil"]]))
     paving_z = Surface(paving_tris); curb_z = Surface(curb_tris)

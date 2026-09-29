@@ -1477,7 +1477,14 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   TH_curb: { color: 0xc9bb9f, roughness: 0.8 }, TH_soil: { color: 0x4d6b38, roughness: 1 }, TH_edge: { color: 0x7a746b, roughness: 0.9 },
   TH_floor: { color: 0xa39e90, roughness: 0.85 },
   // プラザ(ハブ)の地面 (ds_tdl_plaza_ground.py): meshes TP_<part>。WB出口〜シンデレラ城の門のあいだ
-  TP_paving: { color: 0xc7bfae, roughness: 0.9 }, TP_paving2: { color: 0xbdb49f, roughness: 0.9 }, TP_line: { color: 0xe6dfc9, roughness: 0.8 },
+  // 色は Google の航空写真とユーザーの写真で確認 (2026-09-30): 島=淡いピンクベージュ、周回路=青灰のアスファルト、その外は行き先のランドの色
+  TP_paving: { color: 0xb3a097, roughness: 0.9 }, TP_paving2: { color: 0xa69289, roughness: 0.9 }, TP_line: { color: 0xcdc2b6, roughness: 0.8 },
+  TP_ring: { color: 0x7d8594, roughness: 0.92 },
+  TP_paving_wb: { color: 0x9e5750, roughness: 0.9 }, TP_paving_wb2: { color: 0x924e48, roughness: 0.9 },
+  TP_paving_adv: { color: 0x84988e, roughness: 0.9 }, TP_paving_adv2: { color: 0x798d83, roughness: 0.9 },
+  TP_paving_west: { color: 0x98827e, roughness: 0.9 }, TP_paving_west2: { color: 0x8d7773, roughness: 0.9 },
+  TP_paving_fan: { color: 0x9c98a2, roughness: 0.9 }, TP_paving_fan2: { color: 0x918d97, roughness: 0.9 },
+  TP_paving_tom: { color: 0x80909c, roughness: 0.9 }, TP_paving_tom2: { color: 0x768591, roughness: 0.9 },
   TP_curb: { color: 0xc9bb9f, roughness: 0.8 }, TP_soil: { color: 0x4d6b38, roughness: 1 }, TP_flower: { color: 0xe7dcd9, roughness: 0.85 },
   TP_edge: { color: 0x7a746b, roughness: 0.9 },
   // プラザ中央 (ds_tdl_plaza_center.py): meshes PC_<part>。パートナーズ像・台座・プラザガーデンのステージ・柵・街灯・ベンチ
@@ -1493,6 +1500,12 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   PH_stone: { color: 0xd9d0bd, roughness: 0.85 }, PH_wood: { color: 0x6e4a2c, roughness: 0.8 }, PH_log: { color: 0x7a5236, roughness: 0.9 },
   PH_thatch: { color: 0xb8975a, roughness: 1 }, PH_sign: { color: 0x8a6a40, roughness: 0.8 },
   PH_tomw: { color: 0xeef1f4, roughness: 0.35, metalness: 0.3 }, PH_tomb: { color: 0x2f6fc0, roughness: 0.35, metalness: 0.3 },
+  // クリスタルパレス (ユーザー写真 images/crystal_palace/): 灰色のガラスのドーム、翼の身廊のガラス屋根、白い鉄の天蓋、ティールの看板、石の階段・テラス、黒い渦巻き
+  PH_dome: { color: 0x9aa4a8, roughness: 0.25, metalness: 0.55 }, PH_cproof: { color: 0x8c979b, roughness: 0.25, metalness: 0.45 },
+  PH_canopy: { color: 0xe4e6e2, roughness: 0.5 }, PH_teal: { color: 0x2f8f94, roughness: 0.4 }, PH_sky: { color: 0x9fd0e0, roughness: 0.4 },
+  PH_step: { color: 0xa4a6a3, roughness: 0.85 }, PH_patio: { color: 0xd6d4ce, roughness: 0.85 }, PH_swirl: { color: 0x2e2f33, roughness: 0.7 },
+  PH_hedge: { color: 0x355c2c, roughness: 0.95 }, PH_black: { color: 0x26282a, roughness: 0.5, metalness: 0.4 },
+  PH_globe: { color: 0xfff6dc, roughness: 0.3, emissive: 0x554a30 }, PH_flower: { color: 0xe0506a, roughness: 0.8 }, PH_flag: { color: 0xf2c11c, roughness: 0.6 },
   // ランド・シーの地面 (ds_ground.py): meshes TL_<kind>
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
@@ -1505,10 +1518,11 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_mast: { color: 0x8a9095, roughness: 0.5, metalness: 0.5 }, ST_canopy: { color: 0xdcdedf, roughness: 0.6 }, ST_deck_top: { color: 0x3a3a3a, roughness: 1 },
   ST_barrier: { color: 0xb4b9b9, roughness: 0.5, metalness: 0.2 },
 };
-// ランドの舗装・地面をエリアごとに塗る (ds_ground.py: TL_<kind>_<land>)。色はテーマランドごとの地面色(ワールドバザール=赤、アドベンチャーランド=緑、
-// ウエスタンランド=赤茶、クリッターカントリー=黄、ファンタジーランド=青緑、トゥモローランド=青)を、実物のくすんだ舗装の明るさに落とした推定値
-// (写真は取得できていない。トゥーンタウンは資料がなく明るい灰ベージュ)。芝・林・岩場・工事地・道路・駐車場・線路敷は元の色のまま(TL_<kind>で一致)
-const LAND_GROUND = { wb: 0x9c6a5f, adv: 0x7d8a63, west: 0x93705c, critter: 0xb5a274, fan: 0x93ad9c, toon: 0xb4aa9b, tom: 0x8797ab };
+// ランドの舗装・地面をエリアごとに塗る (ds_ground.py: TL_<kind>_<land>)。2026-09-30 に Google の航空写真(目視+各ランドの舗装の上の画素の
+// 中央値、写真の青かぶりを補正)と国土地理院の航空写真で確認: どのランドも舗装はほぼ灰色で、色みは弱い。ウエスタンランド=赤みの藤茶、
+// トゥーンタウン=明るいピンクがかった灰、トゥモローランド=青灰、アドベンチャーランド=緑がかった灰、ファンタジーランド=明るい灰、
+// クリッターカントリー=くすんだ茶灰、ワールドバザールの周り=灰。芝・林・岩場・工事地・道路・駐車場・線路敷は元の色のまま(TL_<kind>で一致)
+const LAND_GROUND = { wb: 0x9a9894, adv: 0x8e9890, west: 0x9a8584, critter: 0x8f877c, fan: 0xa7a5a3, toon: 0xb3a8a6, tom: 0x8d97a3 };
 const LAND_SHADE = { paving: 1, ground: 0.95 };
 for (const [lk, c] of Object.entries(LAND_GROUND)) for (const [k, f] of Object.entries(LAND_SHADE))
   MODEL_MAT[`TL_${k}_${lk}`] = { color: [16, 8, 0].reduce((a, sh) => a | Math.round((c >> sh & 255) * f) << sh, 0), roughness: 0.9 };

@@ -87,7 +87,15 @@ RING_STEP, RING_ARC, LINE_W = 9.0, 12.0, 0.8       # the ring pattern: spacing, 
 W_FOOT, W_PARADE = 3.0, 9.0                        # footway / Parade Route width (m, ESTIMATES: OSM gives no width here)
 FLOWER_W = 0.35                                    # the pale flower ribbon just inside each bed's curb (m)
 CUT_MODELS = ("cinderella", "tdl_world_bazaar", "tdl_plaza_buildings", "tdl_water", "tdl_ground")
-NAMES = ("TP_paving", "TP_paving2", "TP_line", "TP_curb", "TP_soil", "TP_flower", "TP_edge")
+# Colours by zone (read off Google's satellite view and the user's Crystal Palace photos, 2026-09-30): the island inside
+# the parade circle is a pale pinkish beige; the parade circle itself (RING_R) slate asphalt; outside it the paving takes
+# the colour of the land it leads to -- red brick towards World Bazaar (the Plaza Garden side), green-grey towards
+# Adventureland / Crystal Palace, mauve-brown towards Westernland, grey-lilac towards the castle, blue-grey towards
+# Tomorrowland. SECTORS: (key, from, to) plan bearings round HUB_C, split half way between the exits.
+RING_R = (47.5, 59.5)
+SECTORS = (("wb", 85.0, 155.5), ("adv", 16.0, 85.0), ("west", -47.0, 16.0), ("fan", -117.5, -47.0), ("tom", 155.5, 242.5))
+NAMES = ("TP_paving", "TP_paving2", "TP_line", "TP_ring", "TP_curb", "TP_soil", "TP_flower", "TP_edge") + tuple(
+    f"TP_paving_{k}{v}" for k, _, _ in SECTORS for v in ("", "2"))
 
 
 def _closed_polys(pred):
@@ -234,13 +242,20 @@ def build():
     meshes = {n: G.Mesh(n) for n in NAMES}
     pl_lines = unary_union([q.exterior for q in P["planters"]]) if P["planters"] else None
 
-    hub_zone = P["paving"].intersection(Point(*HUB_C).buffer(HUB_PATTERN_R))
-    rest_zone = P["paving"].difference(hub_zone)
-    for name, piece in hub_pattern(hub_zone, HUB_C, "TP_paving"):
+    disk = lambda r: Point(*HUB_C).buffer(r, resolution=32)
+    island = P["paving"].intersection(disk(RING_R[0]))
+    ring = P["paving"].intersection(disk(RING_R[1])).difference(disk(RING_R[0]))
+    outer = P["paving"].difference(disk(RING_R[1]))
+    pieces = hub_pattern(island, HUB_C, "TP_paving") + [("TP_ring", ring)]
+    for key, a0, a1 in SECTORS:
+        wedge = Polygon([HUB_C] + [(HUB_C[0] + 600 * math.cos(math.radians(a)), HUB_C[1] + 600 * math.sin(math.radians(a)))
+                                   for a in np.linspace(a0, a1, 16)])
+        part = outer.intersection(wedge)
+        near = part.intersection(disk(HUB_PATTERN_R))
+        pieces += hub_pattern(near, HUB_C, f"TP_paving_{key}") + [(f"TP_paving_{key}", part.difference(near))]
+    for name, piece in pieces:
         if not piece.is_empty:
             G.add_zone(meshes, T, name, piece, edge="TP_edge", avoid=pl_lines)
-    if not rest_zone.is_empty:
-        G.add_zone(meshes, T, "TP_paving", rest_zone, edge="TP_edge", avoid=pl_lines)
     for q in P["planters"]:
         add_planter(meshes, T, q)
     return P, T, meshes
