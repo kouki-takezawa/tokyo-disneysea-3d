@@ -373,7 +373,7 @@ def build_roof():
     glass_hall("cross", (-CROSS["half"], CROSS["yc"]), (CROSS["half"], CROSS["yc"]), w, H["eave"], H["eave"] + (H["ridge"] - H["eave"]) * w / 24.5,
                H["base"], 6.0, gaps=[(-(CROSS["half"] - 12.6), -(CROSS["half"] + 12.6))], start="gable", end="gable")
     for k, (p0, p1, aw) in enumerate(ARMS):
-        glass_hall(f"arm{k}", p0, p1, aw, H["eave"], H["eave"] + (H["ridge"] - H["eave"]) * aw / 24.5, H["base"], 6.0, end=2)
+        glass_hall(f"arm{k}", p0, p1, aw, H["eave"], H["eave"] + (H["ridge"] - H["eave"]) * aw / 24.5, H["base"], 6.0, end=1)  # one wide arch, no middle column
     # Center Street's covered way on out of the east arm (OSM 1338996034, building=roof, layer 1; the user's Waffle
     # Company photos show it: a lower glass hall on green iron columns, a round arch under its far gable)
     p0, p1 = ARMS[1][1], EXT_E[1]
