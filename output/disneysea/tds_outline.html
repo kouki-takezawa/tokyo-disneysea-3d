@@ -288,7 +288,11 @@ body.intro .introfx{opacity:1}
   background:radial-gradient(ellipse 80% 70% at 50% 45%,#2a1c12 0%,#150e09 60%,#0b0705 100%)}
 .popbook.leave{opacity:0}
 .intrologo.book{background:none;justify-content:flex-end;padding-bottom:calc(9vh + 22px)}
-.intrologo.book .il-card{position:absolute;visibility:hidden}
+.intrologo.book .il-card{position:absolute;top:calc(9vh + 4px);left:0;right:0;padding-top:0;visibility:hidden;transform:scale(.72);transform-origin:50% 0}
+.intrologo.book.title .il-card{visibility:visible}
+.intrologo.book .il-sun{display:none}
+.intrologo.book .il-title .w1 .c{background:linear-gradient(#fff6dc,#e3c98f);-webkit-background-clip:text;background-clip:text}
+.intrologo.book .il-title{filter:drop-shadow(0 2px 3px rgba(0,0,0,.75)) drop-shadow(0 0 20px rgba(255,200,110,.6))}
 .intrologo.book .il-beams,.intrologo.book .il-corner,.intrologo.book .il-dust{display:none}
 .intrologo.book .il-tap,.intrologo.book.show .il-tap{animation:none;opacity:0;color:#e8cf95;font-weight:600;
   text-shadow:0 1px 0 rgba(0,0,0,.7),0 0 14px rgba(255,190,110,.35)}
@@ -301,6 +305,16 @@ body.intro .introfx{opacity:1}
 .intrologo.book.show.ready .il-tap{animation:pb-in 1.1s ease forwards}
 @keyframes pb-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes pb-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+/* the beats: a warm flash, speed lines and confetti (the sparks and the light leaking from the pages are in the book's own scene) */
+.pflash{position:absolute;inset:0;z-index:11;pointer-events:none;opacity:0;background:radial-gradient(ellipse 80% 70% at 50% 50%,#fff9e4,rgba(255,224,160,.65) 45%,rgba(255,200,120,0) 80%)}
+.pflash.go{animation:pflash var(--fd,.9s) ease-out}
+@keyframes pflash{0%{opacity:0}12%{opacity:var(--fp,.9)}100%{opacity:0}}
+.divefx{position:absolute;inset:-25%;z-index:11;pointer-events:none;opacity:0;
+  background:repeating-conic-gradient(from 0deg at 50% 55%,rgba(255,244,214,.75) 0 .9deg,rgba(255,244,214,0) .9deg 5.5deg);
+  -webkit-mask:radial-gradient(circle at 50% 55%,transparent 18%,#000 70%);mask:radial-gradient(circle at 50% 55%,transparent 18%,#000 70%)}
+.divefx.go{animation:divefx 1.5s cubic-bezier(.5,0,.9,.6) forwards}
+@keyframes divefx{0%{opacity:0;transform:scale(.6)}35%{opacity:.85}100%{opacity:0;transform:scale(2.2)}}
+.confetti{position:absolute;inset:0;width:100%;height:100%;z-index:12;pointer-events:none}
 @keyframes il-draw{to{stroke-dashoffset:0}}
 @keyframes il-fade{to{opacity:1}}
 @keyframes il-letter{to{opacity:1;transform:none;filter:blur(0)}}
@@ -368,6 +382,8 @@ body.intro .introfx{opacity:1}
     <canvas class="popbook" id="popBook" aria-hidden="true" hidden></canvas>
     <div class="introfx" aria-hidden="true"></div>
     <div class="letterbox" aria-hidden="true"><i></i><i></i></div>
+    <div class="pflash" id="popFlash" aria-hidden="true"></div>
+    <div class="divefx" id="diveFx" aria-hidden="true"></div>
     <div class="intrologo" id="introLogo" role="button" aria-label="DISNEY ADVENTURE ・ タップしてはじめる" hidden>
       <div class="il-beams" aria-hidden="true"></div>
       <canvas class="il-dust" id="ilDust"></canvas>
@@ -1835,10 +1851,36 @@ async function init3D() {
   const startModels = () => { if (modelsStarted) return; modelsStarted = true; if (D.models && D.models.length) loadModels(T, scene, root); };
   const rise = done => { three.grow(root, RISE_MS); if (growing.has(root)) growing.get(root).done = done; else done(); };
   const logo = $("introLogo");
+  const kick = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+  const flashFx = (peak = 0.9, ms = 900) => { const f = $("popFlash"); f.style.setProperty("--fp", peak); f.style.setProperty("--fd", ms + "ms"); kick(f, "go"); };
+  const confetti = (() => {   // the tap: a burst of paper confetti from the middle of the screen
+    let cv = null, raf = 0;
+    return () => {
+      cv = cv || Object.assign(document.createElement("canvas"), { className: "confetti" });
+      if (!cv.parentNode) logo.parentNode.appendChild(cv);
+      const cx = cv.getContext("2d"), dpr = Math.min(window.devicePixelRatio || 1, 2), W2 = cv.clientWidth, H2 = cv.clientHeight, DUR = 2600;
+      cv.width = W2 * dpr; cv.height = H2 * dpr;
+      const cols = ["#f5cf6e", "#f2a7c9", "#b48ee0", "#8fd0e8", "#fff3d0", "#e9885a"];
+      const ps = Array.from({ length: coarse ? 110 : 210 }, () => { const a = Math.random() * 6.2832, v = 5 + Math.random() * 17;
+        return { x: W2 / 2, y: H2 * 0.6, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 7, w: 5 + Math.random() * 6, h: 3 + Math.random() * 4,
+          r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4, c: cols[Math.floor(Math.random() * cols.length)], ph: Math.random() * 6.28 }; });
+      const t0 = performance.now(); cancelAnimationFrame(raf);
+      const frame = now => {
+        const t = now - t0; cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W2, H2);
+        cx.globalAlpha = Math.min(1, Math.max(0, (DUR - t) / 900));
+        for (const p of ps) {
+          p.vx *= 0.955; p.vy = p.vy * 0.955 + 0.34; p.x += p.vx + Math.sin(now / 300 + p.ph) * 0.6; p.y += p.vy; p.r += p.vr;
+          cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.scale(1, Math.cos(now / 130 + p.ph)); cx.fillStyle = p.c; cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); cx.restore();
+        }
+        if (t < DUR) raf = requestAnimationFrame(frame); else { cx.clearRect(0, 0, W2, H2); cv.remove(); }
+      };
+      raf = requestAnimationFrame(frame);
+    };
+  })();
   const hideLogo = () => {
     if (logo.hidden) return;
     logo.classList.add("leave");
-    setTimeout(() => { logo.classList.remove("show", "leave", "book", "ready"); logo.hidden = true; dust.stop(); }, 650);
+    setTimeout(() => { logo.classList.remove("show", "leave", "book", "ready", "title"); logo.hidden = true; dust.stop(); }, 650);
   };
   const dust = (() => {   // pixie dust: follows the tip of the gold arc while it draws, then twinkles round the title
     const cv = $("ilDust"), cx = cv.getContext("2d"); let raf = 0, parts = [], t0 = 0;
@@ -2214,7 +2256,7 @@ async function init3D() {
       },
     };
     const clamp = k => Math.min(1, Math.max(0, k)), eo = k => 1 - Math.pow(1 - k, 3), eio = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-    const backOut = k => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);   // a little past upright, then back
+    const backOut = k => 1 + 3.4 * Math.pow(k - 1, 3) + 2.4 * Math.pow(k - 1, 2);   // snaps up past upright (about 18%), then settles back
     const FLIP_AT = POP_IN_MS + POP_OPEN_MS * 0.7, FLIP_GAP = 280, UP_AT = FLIP_AT + FLIP_GAP * 2 + POP_FLIP_MS - 150;
     // [art, width, height, x, z (far is negative), delay ms]; the front frame last
     const pieces = [["mountains", 74, 24, 0, -12.5, 0], ["castle", 26, 28, 12, -7, 170], ["harbor", 28, 14, -16, -4, 320],
@@ -2223,7 +2265,7 @@ async function init3D() {
         const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
         const m = piece(w, h, arts[k]); m.position.y = h / 2; hinge.add(m);
         book.add(hinge); hinge.visible = false;
-        return { k, hinge, m, delay, h };
+        return { k, hinge, m, delay, h, x, z };
       });
     const byKey = k => pieces.find(p => p.k === k);
     const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1]].map(([x, y, w, h, ph]) => {   // moving: the smoke
@@ -2240,6 +2282,45 @@ async function init3D() {
     globe.position.set(0, 8 * 0.82 + 3.4 - 4, 0); byKey("pedestal").m.add(globe);
     const gondola = piece(9, 3.8, arts.gondola); gondola.position.set(-13, 2.2 - 3, 0.3); byKey("waves").m.add(gondola);   // moving: the gondola rocks
     const READY_AT = UP_AT + Math.max(...pieces.map(p => p.delay)) + POP_UP_MS;
+    const BURST_AT = UP_AT + 170 + POP_UP_MS * 0.6, FIN_AT = READY_AT - 400, ERUPT_AT = UP_AT + POP_UP_MS * 0.75, TITLE_AT = BURST_AT + 250;
+
+    // ---- the climax: light leaks out of the pages as the book opens, the pop-ups fire off sparks as they stand (a big burst as the
+    // castle lands), the volcano erupts, and a fountain of gold ends it; the camera punches in and shakes on the beats
+    const rays = canvas(256, 256);
+    (g => {
+      g.translate(128, 128);
+      for (let i = 0; i < 22; i++) { const a = i / 22 * 6.2832 + Math.random() * 0.1, wd = 0.05 + Math.random() * 0.07;
+        const lg = g.createLinearGradient(0, 0, Math.cos(a) * 128, Math.sin(a) * 128); lg.addColorStop(0, "rgba(255,236,180,.55)"); lg.addColorStop(1, "rgba(255,200,110,0)");
+        g.fillStyle = lg; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a - wd) * 128, Math.sin(a - wd) * 128); g.lineTo(Math.cos(a + wd) * 128, Math.sin(a + wd) * 128); g.fill(); }
+      const cg = g.createRadialGradient(0, 0, 0, 0, 0, 64); cg.addColorStop(0, "rgba(255,248,220,.95)"); cg.addColorStop(1, "rgba(255,200,110,0)");
+      g.fillStyle = cg; g.fillRect(-64, -64, 128, 128);
+    })(rays.getContext("2d"));
+    const leak = new T.Sprite(new T.SpriteMaterial({ map: tex(rays), blending: T.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true, opacity: 0, fog: false }));
+    leak.position.set(0, 3, 0); leak.scale.setScalar(96); leak.renderOrder = 5; sc.add(leak);
+    const COLS = [[1, 0.82, 0.4], [1, 0.95, 0.75], [1, 0.62, 0.36], [0.75, 0.87, 1]];
+    const sparks = [];
+    const burst = (at, x, y, z, n, sp, up) => { for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.2832, e = Math.random() * 1.2 - 0.25, s = sp * (0.35 + Math.random() * 0.65);
+      sparks.push({ t0: at, x, y, z, vx: Math.cos(a) * Math.cos(e) * s, vy: up + Math.sin(e + 0.4) * s * 0.9, vz: Math.sin(a) * Math.cos(e) * s * 0.7,
+        life: 1.3 + Math.random() * 1.1, c: COLS[Math.floor(Math.random() * COLS.length)] }); } };
+    for (const p of pieces) if (p.k !== "curtains") burst(UP_AT + p.delay + POP_UP_MS * 0.6, p.x, 1.5, p.z + 0.6, 16, 11, 9);
+    burst(BURST_AT, 12, 24, -5, 110, 24, 12); burst(BURST_AT + 140, -14, 12, -3, 60, 18, 9); burst(BURST_AT + 280, 0, 10, -8, 60, 18, 9);
+    for (let i = 0; i < 9; i++) burst(FIN_AT + i * 55, -34 + i * 8.5, 1, 9, 24, 10, 26);
+    const SN = sparks.length, spPos = new Float32Array(SN * 3), spCol = new Float32Array(SN * 3);
+    const spGeo = new T.BufferGeometry(); spGeo.setAttribute("position", new T.BufferAttribute(spPos, 3)); spGeo.setAttribute("color", new T.BufferAttribute(spCol, 3));
+    const spMat = new T.PointsMaterial({ map: spr([[0, "rgba(255,255,255,1)"], [0.3, "rgba(255,255,255,.55)"], [1, "rgba(255,255,255,0)"]]), size: 2.6, vertexColors: true, transparent: true,
+      blending: T.AdditiveBlending, depthWrite: false, fog: false });
+    const spPts = new T.Points(spGeo, spMat); spPts.frustumCulled = false; sc.add(spPts);
+    const VN = 46, vPos = new Float32Array(VN * 3), vCol = new Float32Array(VN * 3), vSeed = Array.from({ length: VN }, (_, i) => ({ o: i / VN, vx: (Math.random() - 0.5) * 10, vz: (Math.random() - 0.5) * 6, vy: 15 + Math.random() * 12, g: Math.random() }));
+    const vGeo = new T.BufferGeometry(); vGeo.setAttribute("position", new T.BufferAttribute(vPos, 3)); vGeo.setAttribute("color", new T.BufferAttribute(vCol, 3));
+    const vPts = new T.Points(vGeo, new T.PointsMaterial({ map: spr([[0, "rgba(255,255,255,1)"], [0.35, "rgba(255,255,255,.5)"], [1, "rgba(255,255,255,0)"]]), size: 2.2, vertexColors: true, transparent: true,
+      blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    vPts.frustumCulled = false; sc.add(vPts);
+    const CRATER = new T.Vector3(-17.4, 17.3, -12.3);
+    const lava = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,200,120,1)"], [0.3, "rgba(255,110,40,.6)"], [1, "rgba(255,60,20,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false, transparent: true, opacity: 0 }));
+    lava.position.copy(CRATER); lava.scale.setScalar(11); sc.add(lava);
+    const punch = (el, at) => { const a = (el - at) / 1000; return a < 0 ? 0 : Math.exp(-a * 3.2); };   // 1 on the beat, gone in about a second
+    const fired = {};
 
     // ---- a few specks of gold light over the pages
     const N = 36, pos = new Float32Array(N * 3), seed = [];
@@ -2258,11 +2339,14 @@ async function init3D() {
       const vf = cm.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cm.aspect);
       const d = Math.max((cm.aspect < 1 ? 66 : 96) / 2 / Math.tan(hf), 64 / 2 / Math.tan(vf));
       sc.fog.near = d * 0.9; sc.fog.far = d * 2.4;   // the far desk fades into the dark, however far back a narrow screen puts the camera
-      const yaw = Math.sin(el / 3600) * 0.07, pitch = 0.74 + Math.sin(el / 4300) * 0.03;
-      cm.position.set(TGT.x + Math.sin(yaw) * Math.cos(pitch) * d, TGT.y + Math.sin(pitch) * d, TGT.z + Math.cos(yaw) * Math.cos(pitch) * d);
+      const beat = punch(el, BURST_AT) + 0.6 * punch(el, FIN_AT), rise = eio(clamp(el / (UP_AT + 500)));
+      const yaw = Math.sin(el / 3600) * 0.07, pitch = 0.74 + Math.sin(el / 4300) * 0.03 - 0.3 * (1 - rise);   // from a low angle up to the bird's-eye view
+      const dd = d * (1 - 0.07 * beat);   // punches in on the beats
+      cm.position.set(TGT.x + Math.sin(yaw) * Math.cos(pitch) * dd + Math.sin(el / 23) * 0.55 * beat, TGT.y + Math.sin(pitch) * dd + Math.cos(el / 19) * 0.45 * beat,
+        TGT.z + Math.cos(yaw) * Math.cos(pitch) * dd);
     };
     return {
-      READY_AT,
+      READY_AT, TITLE_AT,
       covers: () => !gone && !dive,
       step(el) {
         if (gone) return;
@@ -2287,12 +2371,37 @@ async function init3D() {
         const fl = 1 + Math.sin(t * 17) * 0.05 + Math.sin(t * 7.3) * 0.07;   // the candle flickers
         flame.scale.set(1.6 * fl, 3.2 * (2 - fl), 1); flameLight.intensity = 1.2 * fl; halo.material.opacity = 0.8 + (fl - 1) * 2;
         pm.opacity = open * 0.8 * (1 - (dive ? dive.k : 0));
+        {   // the climax
+          const beat = punch(el, BURST_AT) + 0.6 * punch(el, FIN_AT), go = dive ? 1 - dive.k : 1;
+          leak.material.opacity = 0.95 * clamp((open - 0.25) / 0.75) * (1 - clamp((el - UP_AT - 200) / 1500)) * go; leak.material.rotation = t * 0.2;
+          flameLight.intensity += 3 * beat; halo.material.opacity += beat * 0.6; key.intensity = 0.75 + 0.55 * beat;
+          if (!fired.a && el >= BURST_AT) { fired.a = 1; flashFx(0.5, 700); }
+          if (!fired.b && el >= FIN_AT) { fired.b = 1; flashFx(0.35, 600); }
+          for (let i = 0; i < SN; i++) {
+            const s = sparks[i], a = (el - s.t0) / 1000;
+            if (a < 0 || a > s.life) { spCol[i * 3] = spCol[i * 3 + 1] = spCol[i * 3 + 2] = 0; continue; }
+            spPos[i * 3] = s.x + s.vx * a; spPos[i * 3 + 1] = s.y + s.vy * a - 11 * a * a; spPos[i * 3 + 2] = s.z + s.vz * a;
+            const f = 1 - a / s.life, k = f * f * (0.75 + 0.25 * Math.sin(a * 40 + i)) * go;
+            spCol[i * 3] = s.c[0] * k; spCol[i * 3 + 1] = s.c[1] * k; spCol[i * 3 + 2] = s.c[2] * k;
+          }
+          spGeo.attributes.position.needsUpdate = spGeo.attributes.color.needsUpdate = true;
+          const E = clamp((el - ERUPT_AT) / 400) * (1 - 0.55 * clamp((el - ERUPT_AT) / 2500)) * go;   // the volcano: strong at first, then a steady spray
+          for (let i = 0; i < VN; i++) {
+            const s = vSeed[i], u = (t * 0.75 + s.o) % 1, a = u * 1.6;
+            if (s.o >= E) { vCol[i * 3] = vCol[i * 3 + 1] = vCol[i * 3 + 2] = 0; continue; }
+            vPos[i * 3] = CRATER.x + s.vx * a; vPos[i * 3 + 1] = CRATER.y + s.vy * a - 14 * a * a; vPos[i * 3 + 2] = CRATER.z + s.vz * a;
+            const k = Math.pow(1 - u, 1.2); vCol[i * 3] = k; vCol[i * 3 + 1] = (0.3 + 0.4 * s.g) * k; vCol[i * 3 + 2] = 0.1 * k;
+          }
+          vGeo.attributes.position.needsUpdate = vGeo.attributes.color.needsUpdate = true;
+          lava.material.opacity = 0.85 * E * (0.8 + 0.2 * Math.sin(t * 9)); lava.scale.setScalar(9 + 3 * E + 2 * Math.sin(t * 7));
+        }
         const q = geo.attributes.position.array;
         for (let i = 0; i < N; i++) { const s = seed[i], u = (t * s.s + s.o) % 1; q[i * 3] = s.x + Math.sin(u * 7 + i) * 1.2; q[i * 3 + 1] = 2 + u * 30; q[i * 3 + 2] = s.z; }
         geo.attributes.position.needsUpdate = true;
         if (dive) {   // the tap: through the curtains into the scene, the book fades off the park
           dive.k = clamp((performance.now() - dive.t0) / POP_DIVE_MS);
           const e = eio(dive.k);
+          if (!dive.f && dive.k > 0.7) { dive.f = 1; flashFx(0.9, 800); }   // white-out as it breaks through the curtains
           cm.position.lerp(new T.Vector3(6, 14, -1), e); cm.fov = 32 - 12 * e;
           if (dive.k >= 1) { this.dispose(); return; }
         }
@@ -2343,6 +2452,7 @@ async function init3D() {
     cam.fov = intro.zoom.fov0; cam.updateProjectionMatrix();
     intro = null; ctl.enabled = true; ctl.update();
     document.body.classList.remove("intro");
+    flashFx(0.85, 900);   // a flash as it lands
     show("walk");   // the opening ends by stepping down into the walk
   };
   const zoomEase = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
@@ -2353,6 +2463,9 @@ async function init3D() {
       if (intro.el >= popbook.READY_AT) {   // the wax seal and "Tap to start"; from now on a tap counts
         intro.ready = true; logo.hidden = false; requestAnimationFrame(() => logo.classList.add("show", "ready"));
       }
+    }
+    if (popbook && !intro.title && !intro.zoom && intro.el >= popbook.TITLE_AT) {   // the title calls out over the burst
+      intro.title = true; logo.hidden = false; requestAnimationFrame(() => logo.classList.add("show", "title"));
     }
     const z = intro.zoom;
     if (!z) {   // circling the park slowly under the title
@@ -2370,7 +2483,7 @@ async function init3D() {
   };
   document.addEventListener("pointerdown", () => {   // a tap anywhere: down to the station
     if (!intro || intro.zoom || !intro.ready) return;   // taps before "Tap to start" shows do nothing
-    three.finishGrow(); startModels(); popbook?.dive(); endIntro();
+    three.finishGrow(); startModels(); popbook?.dive(); kick($("diveFx"), "go"); confetti(); flashFx(0.45, 500); endIntro();
   }, true);
   three.popCovers = () => popbook?.covers();
   three.skipIntro = () => {   // walking needs the real heights at once
