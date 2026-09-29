@@ -1859,6 +1859,102 @@ function lodTick() {
   }
   if (changed) { three.dirty = true; three.shadowDirty = true; three.walkDirty = true; }
 }
+/* Planting beds: the models carry each bed as a flat green sheet a little below its curb. Here it becomes a clipped shrub mass:
+   the sheet is lifted by 0.4-0.8 m (varying across the park), the outline gets a rounded shoulder and walls down to the soil, and the
+   material is a procedural leaf texture (clumps, leaves, dark gaps, lighter tips) with a bump and darker roots. */
+const HEDGE_KEY = /^(TG_soil|TH_soil|PZ_Soil)/;
+function hedgeHeight(x, z) { return 0.6 + 0.16 * Math.sin(x * 0.23 + 1.7) * Math.cos(z * 0.19) + 0.12 * Math.sin(x * 0.61 + z * 0.47) + 0.06 * Math.sin(x * 1.7 - z * 1.3); }   // 0.26-0.94 m
+function shrubify(T, o) {
+  const g = o.geometry, pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count;
+  const wid = new Map(), P = [];   // welded vertices, by plan position (the sheet is a height field)
+  const vid = i => { const k = Math.round(pos.getX(i) * 50) + "," + Math.round(pos.getZ(i) * 50); let v = wid.get(k); if (v === undefined) { v = P.length; wid.set(k, v); P.push([pos.getX(i), pos.getY(i), pos.getZ(i)]); } return v; };
+  const tris = [], edges = new Map();
+  for (let t = 0; t < n; t += 3) {
+    const a = vid(idx ? idx.getX(t) : t), b = vid(idx ? idx.getX(t + 1) : t + 1), c = vid(idx ? idx.getX(t + 2) : t + 2);
+    if (a === b || b === c || a === c) continue;
+    tris.push(a, b, c);
+    for (const [u, v, w] of [[a, b, c], [b, c, a], [c, a, b]]) { const k = u < v ? u + "|" + v : v + "|" + u; const e = edges.get(k); if (e) e.n++; else edges.set(k, { u, v, w, n: 1 }); }
+  }
+  const bnd = [...edges.values()].filter(e => e.n === 1);
+  if (!bnd.length) return;
+  const inward = new Map();   // per boundary vertex: the summed inward direction in plan
+  for (const e of bnd) {
+    const A = P[e.u], B = P[e.v], C = P[e.w];
+    let nx = -(B[2] - A[2]), nz = B[0] - A[0]; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+    if (nx * (C[0] - A[0]) + nz * (C[2] - A[2]) < 0) { nx = -nx; nz = -nz; }   // n points into the bed
+    e.nx = nx; e.nz = nz;
+    for (const v of [e.u, e.v]) { const s = inward.get(v) || [0, 0]; s[0] += nx; s[1] += nz; inward.set(v, s); }
+  }
+  const SHOULDER = 0.8, INSET = 0.07, verts = [], ah = [], id = {};
+  const push = (x, y, z, h) => { verts.push(x, y, z); ah.push(h); return verts.length / 3 - 1; };
+  P.forEach((p, i) => { id["t" + i] = push(p[0], p[1] + hedgeHeight(p[0], p[2]), p[2], 1); });
+  for (const [v, s] of inward) {   // boundary: the top edge steps in a little, the shoulder sits on the outline, the foot below the soil
+    const p = P[v], H = hedgeHeight(p[0], p[2]), l = Math.hypot(s[0], s[1]) || 1, ix = s[0] / l, iz = s[1] / l;
+    const top = id["t" + v]; verts[top * 3] = p[0] + ix * INSET; verts[top * 3 + 2] = p[2] + iz * INSET;
+    id["s" + v] = push(p[0], p[1] + H * SHOULDER, p[2], SHOULDER);
+    id["b" + v] = push(p[0], p[1] - 0.03, p[2], 0);
+  }
+  const index = [];
+  for (let t = 0; t < tris.length; t += 3) {   // top, facing up
+    const a = id["t" + tris[t]], b = id["t" + tris[t + 1]], c = id["t" + tris[t + 2]];
+    const ux = verts[b * 3] - verts[a * 3], uz = verts[b * 3 + 2] - verts[a * 3 + 2], vx = verts[c * 3] - verts[a * 3], vz = verts[c * 3 + 2] - verts[a * 3 + 2];
+    if (uz * vx - ux * vz < 0) index.push(a, c, b); else index.push(a, b, c);   // (u x v).y = uz*vx - ux*vz
+  }
+  const quad = (a, b, c, d, nx, nz) => {   // a-b along the outline (bottom), d-c above; outward = -n
+    const ex = verts[b * 3] - verts[a * 3], ez = verts[b * 3 + 2] - verts[a * 3 + 2];
+    const cy = (-ez) * -nx + ex * -nz;   // (e x up) . outward
+    if (cy >= 0) index.push(a, b, c, a, c, d); else index.push(b, a, c, a, d, c);
+  };
+  for (const e of bnd) {
+    quad(id["b" + e.u], id["b" + e.v], id["s" + e.v], id["s" + e.u], e.nx, e.nz);
+    quad(id["s" + e.u], id["s" + e.v], id["t" + e.v], id["t" + e.u], e.nx, e.nz);
+  }
+  const ng = new T.BufferGeometry();
+  ng.setAttribute("position", new T.Float32BufferAttribute(verts, 3)); ng.setAttribute("aH", new T.Float32BufferAttribute(ah, 1));
+  ng.setIndex(index); ng.computeVertexNormals();
+  g.dispose(); o.geometry = ng; o.userData.hedge = true;
+  o.material = makeHedge(T);
+}
+let HEDGE_MAT = null;
+function makeHedge(T) {
+  if (HEDGE_MAT) return HEDGE_MAT;
+  const m = new T.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0, sheen: 0.6, sheenRoughness: 0.7, sheenColor: new T.Color(0x9fc070), side: T.DoubleSide });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute float aH; varying float vAH; varying vec3 vHP;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvAH = aH; vHP = (modelMatrix * vec4(transformed, 1.)).xyz;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+varying float vAH; varying vec3 vHP;
+float hh(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
+  return mix(mix(mix(hh(i),hh(i+vec3(1,0,0)),f.x),mix(hh(i+vec3(0,1,0)),hh(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hh(i+vec3(0,0,1)),hh(i+vec3(1,0,1)),f.x),mix(hh(i+vec3(0,1,1)),hh(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float clump(vec3 p){return vn(p*2.6)*.6+vn(p*5.3)*.4;}                 // ~40 cm masses
+float leafH(vec3 p){                                                   // height of the leaf surface, 0-1
+  float c=clump(p), m=vn(p*15.), r=abs(vn(p*46.)*2.-1.);
+  return c*.5+m*.32+(1.-r)*.18;
+}`)
+    .replace("#include <color_fragment>", `#include <color_fragment>
+{
+  vec3 p = vHP; float c = clump(p), m = vn(p * 15.), f = vn(p * 46.), h = leafH(p);
+  vec3 dark = vec3(.07,.16,.06), mid = vec3(.17,.31,.11), light = vec3(.36,.48,.17);
+  vec3 col = mix(dark, mid, smoothstep(.22,.62,c*.6+m*.4));
+  col = mix(col, light, smoothstep(.62,.92,m*.55+f*.45) * (.35 + .65 * smoothstep(.3,1.,vAH)));   // sunlit leaf tips near the top
+  col = mix(col, vec3(.02,.04,.02), smoothstep(.36,.12,h) * .85);                                // shadowed gaps between leaves
+  col *= mix(.32, 1., smoothstep(.0,.78,vAH));                                                    // dark near the soil
+  col *= .9 + .2 * vn(p * .5);                                                                    // slow tone drift between beds
+  diffuseColor.rgb = col;
+}`)
+    .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+{
+  vec3 p = vHP; float e = .012, h0 = leafH(p);
+  vec3 g = vec3(leafH(p + vec3(e,0,0)) - h0, leafH(p + vec3(0,e,0)) - h0, leafH(p + vec3(0,0,e)) - h0) / e;
+  vec3 gv = (viewMatrix * vec4(g, 0.)).xyz;
+  normal = normalize(normal - .075 * (gv - dot(gv, normal) * normal));
+}`);
+  };
+  HEDGE_MAT = m; return m;
+}
+
 // materials for a loaded model (the GLBs carry geometry; the page gives the colours)
 function prepModel(T, scene) {
   {
@@ -1868,7 +1964,8 @@ function prepModel(T, scene) {
         if (/^PZ_(Trunk|Canopy)/.test(o.name)) { o.visible = false; return; }   // the plaza model's trees: no trees (the user's request)
         const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
-        if (o.name.startsWith("WS_water")) { o.material = makeWater(T, { real: true, waves: 0.16 }); }
+        if (HEDGE_KEY.test(o.name)) shrubify(T, o);   // planting beds: raised, clipped shrub masses
+        else if (o.name.startsWith("WS_water")) { o.material = makeWater(T, { real: true, waves: 0.16 }); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
         else if (o.name.startsWith("AQ_Curtain")) o.material = makeCurtain(T);
@@ -3129,6 +3226,7 @@ async function init3D() {
           const j0 = Math.floor(Math.min(E[1], E[3]) / CELL), j1 = Math.floor(Math.max(E[1], E[3]) / CELL);
           for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const ck = i * 65536 + j; let l = wcells.get(ck); if (!l) wcells.set(ck, l = []); l.push(q); }
         }
+        if (o.userData.hedge && nl > 1e-9 && Math.abs(ny) / nl >= 0.4) continue;   // a shrub bed's top is not a floor; its walls still block
         if (plan2 < 1e-6) continue;   // vertical in plan: not a floor
         const k = tris.length / 9;
         tris.push(ax, w[a * 3 + 1], az, bx, w[b * 3 + 1], bz, cx, w[c * 3 + 1], cz); labs.push(lab);
