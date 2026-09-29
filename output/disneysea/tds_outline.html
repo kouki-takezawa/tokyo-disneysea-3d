@@ -283,16 +283,24 @@ body.intro .introfx{opacity:1}
 .il-tap{margin:0;font-family:"Cinzel",serif;font-size:13px;font-weight:700;letter-spacing:.38em;color:#4a2d73;text-shadow:0 0 6px #fff,0 0 12px #fff,0 0 2px #fff;opacity:0;padding-left:.38em}
 .il-tap small{display:block;margin-top:4px;font-family:var(--font-ui);font-size:11px;letter-spacing:.2em;font-weight:500;color:#7b705d}
 .intrologo.show .il-tap{animation:il-blink 2.4s 3.2s ease-in-out infinite}
-/* the pop-up book (the opening's first part): its own canvas over the park; the title gives way to it, "Tap to start" waits for it */
+/* the pop-up book (the opening's first part): its own canvas over the park; only a wax seal with "Tap to start" over it, once it is ready */
 .popbook{position:absolute;inset:0;z-index:8;width:100%;height:100%;transition:opacity 1s ease .25s;
-  background:radial-gradient(ellipse 70% 55% at 50% 52%,#46306e 0%,#231842 55%,#0f0b1d 100%)}
+  background:radial-gradient(ellipse 80% 70% at 50% 45%,#2a1c12 0%,#150e09 60%,#0b0705 100%)}
 .popbook.leave{opacity:0}
-.intrologo.book{background:none;justify-content:flex-end;padding-bottom:calc(9vh + 26px)}
+.intrologo.book{background:none;justify-content:flex-end;padding-bottom:calc(9vh + 22px)}
 .intrologo.book .il-card{position:absolute;visibility:hidden}
-.intrologo.book .il-beams{visibility:hidden}
-.intrologo.book .il-tap,.intrologo.book.show .il-tap{animation:none;opacity:0;color:#fbe6a6;text-shadow:0 0 8px rgba(255,196,100,.95),0 0 18px rgba(255,170,80,.6)}
-.intrologo.book .il-tap small{color:#e9dcc4}
-.intrologo.book.show.ready .il-tap{animation:il-blink 2.4s ease-in-out infinite}
+.intrologo.book .il-beams,.intrologo.book .il-corner,.intrologo.book .il-dust{display:none}
+.intrologo.book .il-tap,.intrologo.book.show .il-tap{animation:none;opacity:0;color:#e8cf95;font-weight:600;
+  text-shadow:0 1px 0 rgba(0,0,0,.7),0 0 14px rgba(255,190,110,.35)}
+.intrologo.book .il-tap::before{content:"\2726";display:grid;place-items:center;width:52px;height:52px;margin:0 auto 12px;border-radius:50%;
+  font-size:20px;letter-spacing:0;color:rgba(255,215,185,.6);text-shadow:0 -1px 0 rgba(0,0,0,.35);
+  background:radial-gradient(circle at 38% 32%,#b4524f 0,#8a2b2e 46%,#5a181b 100%);
+  box-shadow:0 4px 10px rgba(0,0,0,.55),inset 0 0 0 5px rgba(0,0,0,.14),inset 0 0 0 7px rgba(255,200,170,.12);
+  animation:pb-breathe 2.8s ease-in-out infinite}
+.intrologo.book .il-tap small{color:#d9c9a8}
+.intrologo.book.show.ready .il-tap{animation:pb-in 1.1s ease forwards}
+@keyframes pb-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pb-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 @keyframes il-draw{to{stroke-dashoffset:0}}
 @keyframes il-fade{to{opacity:1}}
 @keyframes il-letter{to{opacity:1;transform:none;filter:blur(0)}}
@@ -1910,211 +1918,346 @@ async function init3D() {
     return { start() { cancelAnimationFrame(raf); parts = []; lanterns = []; petals = []; t0 = performance.now(); raf = requestAnimationFrame(frame); },
              stop() { cancelAnimationFrame(raf); parts = []; lanterns = []; petals = []; cx.clearRect(0, 0, cv.width, cv.height); } };
   })();
-  // the opening's pop-up book, a small scene of its own over the park: the book floats down, opens by itself, and paper
-  // cut-outs of the parks (painted here, picture-book style) stand up out of its pages. The park gets ready behind it.
-  const POP_IN_MS = 1400, POP_OPEN_MS = 2400, POP_UP_MS = 1300, POP_DIVE_MS = 1300;
+  // the opening's pop-up book, a small scene of its own over the park: an antique book on a wooden desk by a candle floats
+  // down, opens by itself, a few pages turn, and watercolour paper cut-outs of the parks (painted here) stand up out of the
+  // spread, casting real shadows; the smoke, the globe and the gondola keep moving. The park gets ready behind it.
+  const POP_IN_MS = 1400, POP_OPEN_MS = 2200, POP_FLIP_MS = 700, POP_UP_MS = 1300, POP_DIVE_MS = 1300;
   const popbook = (() => {
     const cv = $("popBook");
     let r;
     try { r = new T.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); } catch (e) { return null; }
-    r.setPixelRatio(PIXEL_RATIO);
-    const sc = new T.Scene(), cm = new T.PerspectiveCamera(32, 1, 1, 800), texs = [];
-    const PW = 40, DP = 30, PH = 1.4, CV = 0.5, INK = "#4b3b5c";
+    r.setPixelRatio(PIXEL_RATIO); r.outputEncoding = T.sRGBEncoding;
+    r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
+    const sc = new T.Scene(), cm = new T.PerspectiveCamera(32, 1, 1, 900), texs = [];
+    sc.fog = new T.Fog(0x140d08, 120, 300);
+    const PW = 40, DP = 30, PH = 1.4, CV = 0.5, DESK = -PH - CV;
+    // the palette: muted antique inks
+    const C = { navy: "#34445f", slate: "#5f7590", rose: "#b98a80", burg: "#7c3440", moss: "#6f7d4c", sage: "#9da67c", ochre: "#c79b55",
+      gold: "#b8913f", terra: "#a45a40", cream: "#ecdfc0", stone: "#cdbfa5", sand: "#d8c29a", water: "#7797aa", waterD: "#4f7189", brown: "#6e4a30", ink: "#4a3526" };
     const canvas = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
-    const tex = c => { const t = new T.CanvasTexture(c); t.anisotropy = 4; texs.push(t); return t; };
-    const basic = (o = {}) => new T.MeshBasicMaterial(o);
-    const ink = (g, lw = 3) => { g.lineWidth = lw; g.strokeStyle = INK; g.lineJoin = g.lineCap = "round"; g.stroke(); };
-    const poly = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+    const tex = (c, rep) => { const t = new T.CanvasTexture(c); t.anisotropy = 4; t.encoding = T.sRGBEncoding; if (rep) { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rep, rep); } texs.push(t); return t; };
+    const lam = o => new T.MeshLambertMaterial(o);
+    const shade = (hex, k) => { const c = new T.Color(hex); return "#" + (k < 0 ? c.lerp(new T.Color(0x20140a), -k) : c.lerp(new T.Color(0xfff8e8), k)).getHexString(); };
+    const grain = (g, w, h, amt = 14) => {   // paper grain: a little noise on everything painted
+      const d = g.getImageData(0, 0, w, h), p = d.data;
+      for (let i = 0; i < p.length; i += 4) if (p[i + 3]) { const n = (Math.random() - 0.5) * amt; p[i] += n; p[i + 1] += n; p[i + 2] += n * 0.9; }
+      g.putImageData(d, 0, 0);
+    };
+    const paper = (g, w, h, base = "#eee1c2") => {   // aged paper: grain, fibres, foxing, darker edges
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 9; i++) { const x = Math.random() * w, y = Math.random() * h, rr = 10 + Math.random() * 40, f = g.createRadialGradient(x, y, 0, x, y, rr);
+        f.addColorStop(0, "rgba(150,100,50,.07)"); f.addColorStop(1, "rgba(150,100,50,0)"); g.fillStyle = f; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+      g.strokeStyle = "rgba(120,90,50,.08)"; g.lineWidth = 1;
+      for (let i = 0; i < w * h / 900; i++) { const x = Math.random() * w, y = Math.random() * h, a = Math.random() * 6.3; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 7, y + Math.sin(a) * 7); g.stroke(); }
+      const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
+      v.addColorStop(0, "rgba(120,80,40,0)"); v.addColorStop(1, "rgba(120,80,40,.22)"); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      grain(g, w, h, 12);
+    };
+    // watercolour: a wash clipped to the shape (blooms, thinner at the top, pigment pooled at the edge), then a hand-inked line
+    const wash = (g, path, col, edge = true) => {
+      const w = g.canvas.width, h = g.canvas.height;
+      g.save(); path(); g.clip();
+      g.globalAlpha = 0.92; g.fillStyle = col; g.fillRect(0, 0, w, h); g.globalAlpha = 1;
+      for (let i = 0; i < 40; i++) {
+        const x = Math.random() * w, y = Math.random() * h, rr = 12 + Math.random() * 70, b = g.createRadialGradient(x, y, 0, x, y, rr);
+        b.addColorStop(0, Math.random() < 0.55 ? `rgba(255,248,230,${0.1 + Math.random() * 0.14})` : `rgba(60,35,20,${0.05 + Math.random() * 0.08})`);
+        b.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = b; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      }
+      const lg = g.createLinearGradient(0, 0, 0, h); lg.addColorStop(0, "rgba(255,250,235,.16)"); lg.addColorStop(1, "rgba(40,25,10,.1)");
+      g.fillStyle = lg; g.fillRect(0, 0, w, h);
+      g.restore();
+      if (edge) { g.save(); path(); g.globalAlpha = 0.4; g.lineWidth = 5; g.strokeStyle = shade(col, -0.3); g.stroke(); g.restore(); }
+    };
+    const ink = (g, path, lw = 2.4) => {
+      g.save(); g.strokeStyle = C.ink; g.lineJoin = g.lineCap = "round";
+      path(); g.globalAlpha = 0.85; g.lineWidth = lw; g.stroke();
+      g.translate(0.9, -0.7); path(); g.globalAlpha = 0.35; g.lineWidth = lw * 0.5; g.stroke();
+      g.restore();
+    };
+    const sh = (g, path, col) => { wash(g, path, col); ink(g, path); };
+    const hatch = (g, path, x0, y0, x1, y1, gap = 7, a = 0.28) => {   // pen hatching inside a shape
+      g.save(); path(); g.clip(); g.strokeStyle = C.ink; g.globalAlpha = a; g.lineWidth = 1.2;
+      for (let x = x0 - (y1 - y0); x < x1; x += gap) { g.beginPath(); g.moveTo(x, y1); g.lineTo(x + (y1 - y0) * 0.6, y0); g.stroke(); }
+      g.restore();
+    };
+    const P = (g, pts) => () => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+    const R = (g, x, y, w, h) => () => { g.beginPath(); g.rect(x, y, w, h); };
+    const O = (g, x, y, rx, ry = rx) => () => { g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, 6.2832); };
 
-    // ---- the book: two boards, two paper blocks, the spread (a watercolour map of both parks) and the cover
+    // ---- the desk, the candle
+    const wood = canvas(512, 512);
+    (g => {
+      g.fillStyle = "#4a2e1b"; g.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 180; i++) {
+        const y = Math.random() * 512, c = Math.random();
+        g.strokeStyle = c < 0.5 ? `rgba(30,16,8,${0.15 + Math.random() * 0.25})` : `rgba(120,80,45,${0.1 + Math.random() * 0.2})`;
+        g.lineWidth = 0.6 + Math.random() * 2.2; g.beginPath();
+        for (let x = 0; x <= 512; x += 16) g.lineTo(x, y + Math.sin(x / 60 + i) * 3 + Math.sin(x / 13 + i * 3) * 0.8);
+        g.stroke();
+      }
+      g.fillStyle = "rgba(15,8,4,.55)"; for (const y of [0, 170, 341]) g.fillRect(0, y, 512, 2);   // the plank joints
+      grain(g, 512, 512, 16);
+    })(wood.getContext("2d"));
+    const desk = new T.Mesh(new T.PlaneGeometry(420, 420), lam({ map: tex(wood, 2.2) }));
+    desk.rotation.x = -Math.PI / 2; desk.position.y = DESK - 0.02; desk.receiveShadow = true; sc.add(desk);
+    const candle = new T.Group(); candle.position.set(-52, DESK, -16); sc.add(candle);
+    const brass = lam({ color: 0xb08a45, emissive: 0x2a1a06 });
+    const dish = new T.Mesh(new T.CylinderGeometry(3.4, 3.8, 0.6, 28), brass); dish.position.y = 0.3; candle.add(dish);
+    const wax = new T.Mesh(new T.CylinderGeometry(1.3, 1.35, 9, 20), lam({ color: 0xefe3c8, emissive: 0x3a2410 })); wax.position.y = 5.1; wax.castShadow = true; candle.add(wax);
+    const spr = (stops, size = 64) => { const c = canvas(size, size), g = c.getContext("2d"), rg = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+      stops.forEach(([o, s]) => rg.addColorStop(o, s)); g.fillStyle = rg; g.fillRect(0, 0, size, size); return tex(c); };
+    const flame = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,250,220,1)"], [0.25, "rgba(255,200,110,.9)"], [1, "rgba(255,140,40,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    flame.position.y = 11; flame.scale.set(1.6, 3.2, 1); candle.add(flame);
+    const halo = new T.Sprite(new T.SpriteMaterial({ map: spr([[0, "rgba(255,190,110,.35)"], [1, "rgba(255,150,60,0)"]]), blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    halo.position.y = 11; halo.scale.setScalar(26); candle.add(halo);
+    const flameLight = new T.PointLight(0xffa24a, 1.2, 150, 1.4); flameLight.position.y = 12; candle.add(flameLight);
+    sc.add(new T.HemisphereLight(0xfff1dc, 0x3a2a1c, 0.5));
+    const key = new T.DirectionalLight(0xffe2b8, 0.75); key.position.set(-38, 80, 50); key.target.position.set(0, 0, -2); sc.add(key, key.target);
+    key.castShadow = true; key.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
+    Object.assign(key.shadow.camera, { left: -70, right: 70, top: 60, bottom: -60, near: 10, far: 220 }); key.shadow.bias = -0.0004;
+
+    // ---- the book: leather boards with a gold-tooled cover, paper blocks, the spread (a watercolour map of both parks)
+    const leatherC = canvas(256, 256);
+    (g => { g.fillStyle = "#5b1f27"; g.fillRect(0, 0, 256, 256); grain(g, 256, 256, 22);
+      for (let i = 0; i < 60; i++) { g.strokeStyle = "rgba(20,5,8,.12)"; g.lineWidth = 1; g.beginPath(); const x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); g.lineTo(x + Math.random() * 12 - 6, y + Math.random() * 12 - 6); g.stroke(); } })(leatherC.getContext("2d"));
+    const leather = lam({ map: tex(leatherC, 3) }), edge = lam({ color: 0xe2d2ab }), goldM = lam({ color: 0xc9a14e, emissive: 0x3a2808 });
     const spread = canvas(1024, 384);
     (g => {
-      const w = 1024, h = 384, pg = g.createLinearGradient(0, 0, w, 0);
-      pg.addColorStop(0, "#efe0bb"); pg.addColorStop(0.47, "#fbf3dc"); pg.addColorStop(0.5, "#dccb9f"); pg.addColorStop(0.53, "#fbf3dc"); pg.addColorStop(1, "#efe0bb");
-      g.fillStyle = pg; g.fillRect(0, 0, w, h);
-      g.strokeStyle = "#c99a3c"; g.lineWidth = 3; g.strokeRect(14, 14, w / 2 - 28, h - 28); g.strokeRect(w / 2 + 14, 14, w / 2 - 28, h - 28);
+      const w = 1024, h = 384;
+      paper(g, w, h);
+      const gut = g.createLinearGradient(w / 2 - 60, 0, w / 2 + 60, 0);
+      gut.addColorStop(0, "rgba(90,60,30,0)"); gut.addColorStop(0.5, "rgba(90,60,30,.28)"); gut.addColorStop(1, "rgba(90,60,30,0)"); g.fillStyle = gut; g.fillRect(w / 2 - 60, 0, 120, h);
+      g.strokeStyle = C.gold; g.globalAlpha = 0.7; g.lineWidth = 2; g.strokeRect(18, 18, w / 2 - 36, h - 36); g.strokeRect(w / 2 + 18, 18, w / 2 - 36, h - 36);
+      g.lineWidth = 0.8; g.strokeRect(24, 24, w / 2 - 48, h - 48); g.strokeRect(w / 2 + 24, 24, w / 2 - 48, h - 48); g.globalAlpha = 1;
       const parks = [D.park, D.disneyland?.park].filter(Boolean), all = parks.flat();
       const x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0])), y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
-      const s = Math.min((w - 120) / (x1 - x0), (h - 90) / (y1 - y0)), ox = (w - (x1 - x0) * s) / 2, oy = (h - (y1 - y0) * s) / 2;
-      const P = ([x, y]) => [ox + (x - x0) * s, oy + (y1 - y) * s];
-      g.globalAlpha = 0.55;
-      for (const p of parks) { poly(g, p.map(P)); g.fillStyle = "#b8d49a"; g.fill(); }
-      g.fillStyle = "#8fc3df";
-      for (const p of D.water || []) { poly(g, p.map(P)); g.fill(); }
-      g.globalAlpha = 1;
-      for (const p of parks) { poly(g, p.map(P)); g.setLineDash([6, 5]); ink(g, 2); g.setLineDash([]); }
-      g.fillStyle = "#7a5a2e"; g.textAlign = "center"; g.font = "600 17px Cinzel, serif";
-      if (D.disneyland) { const [a, b] = P([-700, 1150]); g.fillText("TOKYO DISNEYLAND", Math.max(120, a), Math.max(40, b)); }
-      const [c, d] = P([150, -420]); g.fillText("TOKYO DISNEYSEA", Math.min(w - 120, c), Math.min(h - 26, d));
-      g.save(); g.translate(w - 60, 58); g.fillStyle = "#c99a3c";   // a small compass rose
-      for (let i = 0; i < 4; i++) { g.rotate(Math.PI / 2); poly(g, [[0, -26], [6, 0], [0, 6], [-6, 0]]); g.fill(); }
+      const s = Math.min((w - 140) / (x1 - x0), (h - 100) / (y1 - y0)), ox = (w - (x1 - x0) * s) / 2, oy = (h - (y1 - y0) * s) / 2;
+      const M = ([x, y]) => [ox + (x - x0) * s, oy + (y1 - y) * s];
+      for (const p of parks) wash(g, P(g, p.map(M)), "#b9c29a");
+      for (const p of D.water || []) wash(g, P(g, p.map(M)), "#9fb7c0", false);
+      for (const p of parks) { g.setLineDash([5, 5]); ink(g, P(g, p.map(M)), 1.6); g.setLineDash([]); }
+      g.fillStyle = C.brown; g.textAlign = "center"; g.font = "italic 600 17px Cinzel, serif";
+      if (D.disneyland) { const [a, b] = M([-700, 1150]); g.fillText("Tokyo Disneyland", Math.max(120, a), Math.max(44, b)); }
+      const [c, d] = M([150, -420]); g.fillText("Tokyo DisneySea", Math.min(w - 120, c), Math.min(h - 30, d));
+      g.save(); g.translate(w - 66, 62); g.fillStyle = C.gold; g.globalAlpha = 0.8;   // a compass rose
+      for (let i = 0; i < 8; i++) { g.rotate(Math.PI / 4); P(g, [[0, i % 2 ? -18 : -30], [5, 0], [0, 5], [-5, 0]])(); g.fill(); }
       g.restore();
     })(spread.getContext("2d"));
-    const cover = canvas(512, 384);
+    const textPage = canvas(512, 384);   // the pages that turn: a page of story (lines of text, a drop cap, a flourish)
     (g => {
-      const w = 512, h = 384, gr = g.createLinearGradient(0, 0, w, h);
-      gr.addColorStop(0, "#56308f"); gr.addColorStop(1, "#2b1650"); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-      g.strokeStyle = "#e0b04a"; g.lineWidth = 5; g.strokeRect(18, 18, w - 36, h - 36); g.lineWidth = 2; g.strokeRect(30, 30, w - 60, h - 60);
-      g.save(); g.translate(w / 2, h * 0.4); g.fillStyle = "#e9b44c";
-      for (let i = 0; i < 16; i++) { g.rotate(Math.PI / 8); poly(g, [[40, -6], [96, 0], [40, 6]]); g.fill(); }
-      g.beginPath(); g.arc(0, 0, 36, 0, 6.3); g.fillStyle = "#f6d77e"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#b78628"; g.stroke(); g.restore();
-      g.textAlign = "center"; g.fillStyle = "#f6dc8e"; g.font = "600 26px Cinzel, serif"; g.fillText("DISNEY", w / 2, h * 0.78);
-      g.font = "700 38px 'Cinzel Decorative', Cinzel, serif"; g.fillText("ADVENTURE", w / 2, h * 0.78 + 44);
-    })(cover.getContext("2d"));
+      paper(g, 512, 384);
+      g.fillStyle = C.burg; g.font = "700 64px 'Cinzel Decorative', serif"; g.fillText("O", 58, 118);
+      g.fillStyle = "rgba(74,53,38,.55)";
+      for (let i = 0; i < 12; i++) {
+        const y = 78 + i * 22, x0 = i < 3 ? 120 : 58; let x = x0;
+        while (x < 450 - (i === 11 ? 170 : 0)) { const ww = 12 + Math.random() * 38; g.fillRect(x, y, Math.min(ww, 452 - x), 5); x += ww + 7; }
+      }
+      g.strokeStyle = C.gold; g.lineWidth = 1.5; g.beginPath(); g.moveTo(200, 352); g.bezierCurveTo(230, 336, 282, 368, 312, 352); g.stroke();
+    })(textPage.getContext("2d"));
+    const coverC = canvas(512, 384);
+    (g => {
+      const w = 512, h = 384; g.drawImage(leatherC, 0, 0, w, h); grain(g, w, h, 18);
+      const v = g.createRadialGradient(w / 2, h / 2, 60, w / 2, h / 2, 330); v.addColorStop(0, "rgba(255,200,170,.08)"); v.addColorStop(1, "rgba(10,0,0,.35)"); g.fillStyle = v; g.fillRect(0, 0, w, h);
+      const foil = g.createLinearGradient(0, 0, w, h); foil.addColorStop(0, "#9c7630"); foil.addColorStop(0.45, "#f0d489"); foil.addColorStop(0.55, "#d1a954"); foil.addColorStop(1, "#8d6926");
+      g.strokeStyle = foil; g.fillStyle = foil;
+      g.lineWidth = 3; g.strokeRect(22, 22, w - 44, h - 44); g.lineWidth = 1.2; g.strokeRect(32, 32, w - 64, h - 64);
+      for (const [x, y, sx, sy] of [[32, 32, 1, 1], [w - 32, 32, -1, 1], [32, h - 32, 1, -1], [w - 32, h - 32, -1, -1]]) {   // tooled corners
+        g.save(); g.translate(x, y); g.scale(sx, sy); g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, 46); g.bezierCurveTo(10, 20, 20, 10, 46, 0); g.moveTo(8, 8); g.arc(14, 14, 6, 0, 6.3); g.stroke(); g.restore();
+      }
+      g.save(); g.translate(w / 2, h * 0.38);
+      for (let i = 0; i < 24; i++) { g.rotate(Math.PI / 12); P(g, [[34, -3], [i % 2 ? 62 : 80, 0], [34, 3]])(); g.fill(); }
+      g.beginPath(); g.arc(0, 0, 28, 0, 6.3); g.lineWidth = 2.5; g.stroke(); g.beginPath(); g.arc(0, 0, 20, 0, 6.3); g.fill(); g.restore();
+      g.textAlign = "center"; g.font = "600 24px Cinzel, serif"; g.fillText("D I S N E Y", w / 2, h * 0.73);
+      g.font = "700 40px 'Cinzel Decorative', Cinzel, serif"; g.fillText("Adventure", w / 2, h * 0.73 + 46);
+    })(coverC.getContext("2d"));
     const book = new T.Group(); sc.add(book);
-    const leather = basic({ color: 0x3a1d6a }), edge = basic({ color: 0xe6d6ae }), gold = basic({ color: 0xd9a83e });
+    const cast = o => { o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); return o; };
     const side = (sign, pageTex) => {
       const s = new T.Group(), cx = sign * PW / 2;
-      const bx = (w, h, d, m, x, y, z) => { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x, y, z); s.add(b); };
+      const bx = (w, h, d, m, x, y, z) => { const b = new T.Mesh(new T.BoxGeometry(w, h, d), m); b.position.set(x, y, z); s.add(b); return b; };
       bx(PW + 0.6, CV, DP + 1.2, leather, sign * (PW + 0.6) / 2, -PH - CV / 2, 0);   // the board
       bx(PW - 0.6, PH, DP - 0.4, edge, cx - sign * 0.3, -PH / 2, 0);   // the pages' block
-      bx(PW + 0.7, CV * 0.7, 0.5, gold, sign * (PW + 0.6) / 2, -PH - CV / 2, DP / 2 + 0.6);
-      const top = new T.Mesh(new T.PlaneGeometry(PW - 0.6, DP - 0.4), basic({ map: pageTex }));
+      const top = new T.Mesh(new T.PlaneGeometry(PW - 0.6, DP - 0.4), lam({ map: pageTex }));
       top.rotation.x = -Math.PI / 2; top.position.set(cx - sign * 0.3, 0.02, 0); s.add(top);
-      return s;
+      return cast(s);
     };
     const tl = tex(spread), trt = tex(spread);
     tl.repeat.set(0.5, 1); trt.repeat.set(0.5, 1); trt.offset.set(0.5, 0);
     const right = side(1, trt), left = side(-1, tl);
-    const front = new T.Mesh(new T.PlaneGeometry(PW, DP), basic({ map: tex(cover) }));   // the cover: under the left board, face up once it closes over
+    const front = new T.Mesh(new T.PlaneGeometry(PW + 0.4, DP + 1), lam({ map: tex(coverC) }));   // the cover: under the left board, face up once it closes over
     front.rotation.set(-Math.PI / 2, Math.PI, 0); front.position.set(-PW / 2 - 0.3, -PH - CV - 0.03, 0); left.add(front);
+    for (const z of [-1, 1]) {   // gold corner pieces on the cover
+      const c = new T.Mesh(new T.BoxGeometry(3.2, 0.3, 3.2), goldM); c.position.set(-PW + 1.3, -PH - CV - 0.1, z * (DP / 2 - 1)); left.add(c);
+    }
     book.add(right, left);
-    const spine = new T.Mesh(new T.BoxGeometry(1.2, PH + CV * 2, DP + 1.2), leather); spine.position.y = -PH / 2; book.add(spine);
+    const spine = new T.Mesh(new T.BoxGeometry(1.4, PH + CV * 2, DP + 1.2), leather); spine.position.y = -PH / 2; book.add(cast(spine));
+    const ribbonM = lam({ color: 0x8a2a2f, side: T.DoubleSide });   // the bookmark ribbon hanging out at the front
+    const rib1 = new T.Mesh(new T.PlaneGeometry(1.1, PH + CV + 0.1), ribbonM); rib1.position.set(0.9, -(PH + CV) / 2, DP / 2 + 0.66);
+    const rib2 = new T.Mesh(new T.PlaneGeometry(1.1, 7), ribbonM); rib2.rotation.set(-Math.PI / 2, 0, 0.12); rib2.position.set(1.3, DESK + 0.03, DP / 2 + 4.1);
+    book.add(rib1, rib2); rib2.receiveShadow = true;
+    // the pages that turn over before the pop-ups: the story on the front, the left half of the map on the back
+    const flips = [0, 1, 2].map(i => {
+      const g = new T.Group(); g.position.y = 0.06 + (2 - i) * 0.03;
+      const f = new T.PlaneGeometry(PW - 0.8, DP - 0.6).rotateX(-Math.PI / 2).translate((PW - 0.8) / 2 + 0.3, 0, 0);
+      const b = new T.PlaneGeometry(PW - 0.8, DP - 0.6).rotateY(Math.PI).rotateX(-Math.PI / 2).translate((PW - 0.8) / 2 + 0.3, 0, 0);
+      g.add(new T.Mesh(f, lam({ map: tex(textPage) })), new T.Mesh(b, lam({ map: tl })));
+      book.add(cast(g)); return g;
+    });
 
-    // ---- the pop-ups: paper cut-outs hinged on the pages, folded flat until the book is open
-    const cut = (W, H, art) => {   // the art, a white paper margin round it, a soft shadow
-      const PX = Math.min(18, 1024 / W), w = Math.round(W * PX), h = Math.round(H * PX);
-      const a = canvas(w, h), ga = a.getContext("2d"); art(ga, w, h);
+    // ---- the pop-ups: paper cut-outs hinged on the spread, folded flat until the pages have turned
+    const cut = (W, H, art) => {   // the art, a cream paper margin with a tan edge, paper grain
+      const PX = Math.min(18, 1024 / W, 1024 / H), w = Math.round(W * PX), h = Math.round(H * PX);
+      const a = canvas(w, h); art(a.getContext("2d"), w, h);
       const sil = col => { const c = canvas(w, h), g = c.getContext("2d"); g.drawImage(a, 0, 0); g.globalCompositeOperation = "source-in"; g.fillStyle = col; g.fillRect(0, 0, w, h); return c; };
-      const out = canvas(w, h), g = out.getContext("2d"), white = sil("#fffaf0");
-      for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(white, Math.cos(t) * 5, Math.sin(t) * 5); }
-      g.drawImage(a, 0, 0);
-      const sh = canvas(w, h), gs = sh.getContext("2d"); gs.filter = "blur(8px)"; gs.drawImage(sil("#000"), 0, 0);
-      return { map: tex(out), shadow: tex(sh) };
+      const out = canvas(w, h), g = out.getContext("2d"), rim = sil("#a88f66"), margin = sil("#f1e6cc");
+      for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(rim, Math.cos(t) * 6.5, Math.sin(t) * 6.5); }
+      for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(margin, Math.cos(t) * 5.5, Math.sin(t) * 5.5); }
+      g.drawImage(a, 0, 0); grain(g, w, h, 10);
+      return tex(out);
     };
-    const tower = (g, x, base, bw, bh, rh, wall = "#f4eef8", roof = "#5b7fd1") => {   // a castle tower: body, windows, a cone roof and a gold tip
-      g.fillStyle = wall; g.beginPath(); g.rect(x - bw / 2, base - bh, bw, bh); g.fill(); ink(g);
-      g.fillStyle = "#6c5a8a"; g.beginPath(); g.ellipse(x, base - bh * 0.6, bw * 0.12, bw * 0.2, 0, 0, 6.3); g.fill();
-      g.fillStyle = roof; poly(g, [[x - bw * 0.62, base - bh], [x, base - bh - rh], [x + bw * 0.62, base - bh]]); g.fill(); ink(g);
-      g.fillStyle = "#f2c14e"; g.beginPath(); g.arc(x, base - bh - rh - 5, 5, 0, 6.3); g.fill(); ink(g, 2);
+    const piece = (W, H, art) => {
+      const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: cut(W, H, art), alphaTest: 0.5, side: T.DoubleSide }));
+      m.castShadow = m.receiveShadow = true; return m;
+    };
+    const tower = (g, x, base, bw, bh, rh, wall = C.cream, roof = C.navy) => {   // a castle tower: body, a window, a cone roof, a gold tip
+      sh(g, R(g, x - bw / 2, base - bh, bw, bh), wall);
+      hatch(g, R(g, x + bw * 0.15, base - bh, bw * 0.35, bh), x, base - bh, x + bw / 2, base, 6, 0.22);
+      sh(g, O(g, x, base - bh * 0.6, bw * 0.12, bw * 0.2), C.brown);
+      sh(g, P(g, [[x - bw * 0.62, base - bh], [x, base - bh - rh], [x + bw * 0.62, base - bh]]), roof);
+      sh(g, O(g, x, base - bh - rh - 5, 5), C.gold);
     };
     const arts = {
       mountains(g, w, h) {
-        g.fillStyle = "#b9d09a"; g.beginPath(); g.moveTo(0, h);
-        g.bezierCurveTo(w * 0.1, h * 0.45, w * 0.2, h * 0.5, w * 0.32, h * 0.62); g.bezierCurveTo(w * 0.5, h * 0.4, w * 0.62, h * 0.35, w * 0.72, h * 0.5);
-        g.bezierCurveTo(w * 0.82, h * 0.3, w * 0.94, h * 0.35, w, h * 0.55); g.lineTo(w, h); g.closePath(); g.fill(); ink(g);
-        const vg = g.createLinearGradient(0, h * 0.2, 0, h); vg.addColorStop(0, "#b85a3e"); vg.addColorStop(1, "#d98c5f");   // Mount Prometheus
-        g.fillStyle = vg; poly(g, [[w * 0.06, h], [w * 0.16, h * 0.5], [w * 0.2, h * 0.38], [w * 0.235, h * 0.3], [w * 0.26, h * 0.34], [w * 0.3, h * 0.29],
-          [w * 0.33, h * 0.36], [w * 0.36, h * 0.46], [w * 0.4, h * 0.52], [w * 0.47, h]]); g.fill(); ink(g);
-        g.strokeStyle = "rgba(90,40,30,.45)"; g.lineWidth = 2;
-        for (const [a, b, c, d] of [[.18, .55, .23, .7], [.26, .45, .3, .66], [.34, .5, .38, .72], [.22, .78, .28, .9]]) { g.beginPath(); g.moveTo(w * a, h * b); g.lineTo(w * c, h * d); g.stroke(); }
-        g.fillStyle = "#f28a3c"; poly(g, [[w * 0.255, h * 0.34], [w * 0.268, h * 0.5], [w * 0.262, h * 0.62], [w * 0.25, h * 0.48]]); g.fill();
-        g.fillStyle = "#f3f0f4";   // smoke from the crater
-        for (const [x, y, rr] of [[.265, .22, .045], [.29, .14, .055], [.25, .1, .04], [.32, .07, .05], [.28, .05, .035]]) { g.beginPath(); g.arc(w * x, h * y, h * rr * 2.6, 0, 6.3); g.fill(); ink(g, 2.5); }
+        const hills = () => { g.beginPath(); g.moveTo(0, h); g.bezierCurveTo(w * 0.1, h * 0.45, w * 0.2, h * 0.5, w * 0.32, h * 0.62);
+          g.bezierCurveTo(w * 0.5, h * 0.4, w * 0.62, h * 0.35, w * 0.72, h * 0.5); g.bezierCurveTo(w * 0.82, h * 0.3, w * 0.94, h * 0.35, w, h * 0.55); g.lineTo(w, h); g.closePath(); };
+        sh(g, hills, C.sage); hatch(g, hills, w * 0.5, h * 0.3, w, h, 9, 0.16);
+        const volcano = P(g, [[w * 0.06, h], [w * 0.16, h * 0.5], [w * 0.2, h * 0.38], [w * 0.235, h * 0.3], [w * 0.26, h * 0.34], [w * 0.3, h * 0.29],
+          [w * 0.33, h * 0.36], [w * 0.36, h * 0.46], [w * 0.4, h * 0.52], [w * 0.47, h]]);
+        sh(g, volcano, C.terra); hatch(g, volcano, w * 0.26, h * 0.3, w * 0.47, h, 6, 0.3);
+        g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.4; g.lineWidth = 1.6;
+        for (const [a, b, c, d] of [[.18, .55, .23, .7], [.26, .45, .3, .66], [.34, .5, .38, .72], [.22, .78, .28, .9], [.12, .8, .16, .92]]) { g.beginPath(); g.moveTo(w * a, h * b); g.lineTo(w * c, h * d); g.stroke(); }
+        g.restore();
+        wash(g, P(g, [[w * 0.255, h * 0.34], [w * 0.27, h * 0.5], [w * 0.262, h * 0.64], [w * 0.249, h * 0.48]]), "#c46a3a", false);
+      },
+      smoke(g, w, h) {   // inked first, then washed over, so only the outer line of the puff stays
+        const puff = () => { g.beginPath(); for (const [x, y, rr] of [[0.35, 0.62, 0.3], [0.62, 0.45, 0.36], [0.5, 0.7, 0.26]]) { g.moveTo(w * x + h * rr, h * y); g.arc(w * x, h * y, h * rr, 0, 6.3); } };
+        ink(g, puff, 3); wash(g, puff, "#e8dfcd", false);
       },
       castle(g, w, h) {
         const b = h - 4;
         tower(g, w * 0.5, b - h * 0.34, w * 0.14, h * 0.26, h * 0.26);
-        tower(g, w * 0.33, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18); tower(g, w * 0.67, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18);
+        tower(g, w * 0.33, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18, C.cream, C.slate); tower(g, w * 0.67, b - h * 0.3, w * 0.1, h * 0.2, h * 0.18, C.cream, C.slate);
         tower(g, w * 0.14, b, w * 0.12, h * 0.44, h * 0.2); tower(g, w * 0.86, b, w * 0.12, h * 0.44, h * 0.2);
-        g.fillStyle = "#ece3f3"; g.beginPath(); g.rect(w * 0.2, b - h * 0.36, w * 0.6, h * 0.36); g.fill(); ink(g);   // the front wall
-        g.fillStyle = "#ece3f3";
-        for (let i = 0; i < 8; i++) { g.beginPath(); g.rect(w * 0.2 + i * w * 0.075, b - h * 0.36 - 10, w * 0.045, 10); g.fill(); ink(g, 2); }
-        g.fillStyle = "#5a4470"; g.beginPath(); g.moveTo(w * 0.43, b); g.lineTo(w * 0.43, b - h * 0.15); g.arc(w * 0.5, b - h * 0.15, w * 0.07, Math.PI, 0); g.lineTo(w * 0.57, b); g.closePath(); g.fill(); ink(g);
-        g.fillStyle = "#f2c14e"; for (const x of [.3, .7]) { g.beginPath(); g.arc(w * x, b - h * 0.2, 7, 0, 6.3); g.fill(); ink(g, 2); }
+        for (let i = 0; i < 8; i++) sh(g, R(g, w * 0.2 + i * w * 0.075, b - h * 0.36 - 10, w * 0.045, 12), C.stone);
+        const wall = R(g, w * 0.2, b - h * 0.36, w * 0.6, h * 0.36);
+        sh(g, wall, C.stone); hatch(g, wall, w * 0.6, b - h * 0.36, w * 0.8, b, 7, 0.2);
+        sh(g, () => { g.beginPath(); g.moveTo(w * 0.43, b); g.lineTo(w * 0.43, b - h * 0.15); g.arc(w * 0.5, b - h * 0.15, w * 0.07, Math.PI, 0); g.lineTo(w * 0.57, b); g.closePath(); }, C.burg);
+        for (const x of [0.3, 0.7]) sh(g, O(g, w * x, b - h * 0.2, 7), C.gold);
       },
       harbor(g, w, h) {
-        const cols = ["#f2c38b", "#e98f7a", "#f6e0a8", "#9fc6c9", "#d9a3b5", "#f0b77e", "#b7cf9a"];
-        tower(g, w * 0.8, h - 4, w * 0.07, h * 0.72, h * 0.14, "#f1d6a8", "#c2593f");   // the bell tower
+        const cols = [C.ochre, C.rose, C.sand, "#a7b6b8", "#c9a3a0", C.sage, "#e0c79a"];
+        tower(g, w * 0.8, h - 4, w * 0.07, h * 0.72, h * 0.14, C.sand, C.terra);   // the bell tower
         let x = 6, i = 0;
         while (x < w - 10) {
           const bw = w * (0.1 + (i * 37 % 5) * 0.012), bh = h * (0.42 + (i * 53 % 7) * 0.06);
           if (x + bw > w * 0.76 && x < w * 0.84) { x = w * 0.84; continue; }
-          g.fillStyle = cols[i % cols.length]; g.beginPath(); g.rect(x, h - 4 - bh, bw, bh); g.fill(); ink(g);
-          g.fillStyle = "#c2593f"; poly(g, [[x - 4, h - 4 - bh], [x + bw / 2, h - 4 - bh - bw * 0.35], [x + bw + 4, h - 4 - bh]]); g.fill(); ink(g);
-          g.fillStyle = "#5e6f8e";
-          for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
-            const wy = h - 4 - bh + 14 + r * (bh / 3.4); if (wy > h - 22) continue;
-            g.beginPath(); g.rect(x + bw * (0.22 + c * 0.38), wy, bw * 0.18, bh * 0.12); g.fill();
+          const body = R(g, x, h - 4 - bh, bw, bh);
+          sh(g, body, cols[i % cols.length]); hatch(g, body, x + bw * 0.6, h - 4 - bh, x + bw, h, 6, 0.18);
+          sh(g, P(g, [[x - 4, h - 4 - bh], [x + bw / 2, h - 4 - bh - bw * 0.35], [x + bw + 4, h - 4 - bh]]), C.terra);
+          for (let rr = 0; rr < 3; rr++) for (let c = 0; c < 2; c++) {
+            const wy = h - 4 - bh + 14 + rr * (bh / 3.4); if (wy > h - 22) continue;
+            wash(g, R(g, x + bw * (0.22 + c * 0.38), wy, bw * 0.18, bh * 0.12), C.navy, false);
           }
           x += bw + 2; i++;
         }
       },
-      aquasphere(g, w, h) {
-        g.fillStyle = "#cfc3b1"; g.beginPath(); g.ellipse(w / 2, h - 24, w * 0.44, 18, 0, 0, 6.3); g.fill(); ink(g);
-        g.fillStyle = "#8fc3df"; g.beginPath(); g.ellipse(w / 2, h - 28, w * 0.38, 12, 0, 0, 6.3); g.fill(); ink(g, 2);
-        g.fillStyle = "#b8ab98"; g.beginPath(); g.rect(w * 0.42, h * 0.62, w * 0.16, h * 0.3); g.fill(); ink(g);
-        const r = w * 0.34, cy = h * 0.38, sg = g.createRadialGradient(w / 2 - r * 0.3, cy - r * 0.3, r * 0.1, w / 2, cy, r);
-        sg.addColorStop(0, "#bfe3f5"); sg.addColorStop(1, "#3f7fb8");
-        g.fillStyle = sg; g.beginPath(); g.arc(w / 2, cy, r, 0, 6.3); g.fill();
-        g.fillStyle = "#8cbf6a";
-        for (const [a, b, c, d] of [[-.35, -.3, .28, .2], [.2, -.1, .22, .3], [-.1, .35, .25, .14]]) { g.beginPath(); g.ellipse(w / 2 + a * r, cy + b * r, c * r, d * r, 0.4, 0, 6.3); g.fill(); }
-        g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 2;
-        for (const k of [0.35, 0.7]) { g.beginPath(); g.ellipse(w / 2, cy, r * k, r, 0, 0, 6.3); g.stroke(); }
-        g.beginPath(); g.arc(w / 2, cy, r, 0, 6.3); ink(g);
+      pedestal(g, w, h) {
+        sh(g, O(g, w / 2, h - 16, w * 0.46, 12), C.stone);
+        wash(g, O(g, w / 2, h - 19, w * 0.39, 8), C.water); ink(g, O(g, w / 2, h - 19, w * 0.39, 8), 1.6);
+        const col = R(g, w * 0.42, h * 0.18, w * 0.16, h * 0.62);
+        sh(g, col, C.stone); hatch(g, col, w * 0.5, h * 0.18, w * 0.58, h, 5, 0.25);
+        sh(g, O(g, w / 2, h * 0.18, w * 0.2, 7), C.gold);
       },
       waves(g, w, h) {
-        const wg = g.createLinearGradient(0, 0, 0, h); wg.addColorStop(0, "#6fb3dc"); wg.addColorStop(1, "#3f86bf");
-        g.fillStyle = wg; g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.4);
-        const n = 14, sw = w / n;
-        for (let i = 0; i < n; i++) g.quadraticCurveTo(sw * i + sw / 2, h * (i % 2 ? 0.05 : 0.2), sw * (i + 1), h * 0.4);
-        g.lineTo(w, h); g.closePath(); g.fill(); ink(g);
-        g.strokeStyle = "#f4fbff"; g.lineWidth = 3;
-        for (let i = 0; i < n; i++) { g.beginPath(); g.arc(sw * i + sw * 0.62, h * 0.42, sw * 0.14, Math.PI, Math.PI * 1.9); g.stroke(); }
-        const bx = w * 0.3, by = h * 0.5;   // a little gondola
-        g.fillStyle = "#3b2c4a"; g.beginPath(); g.moveTo(bx - 60, by - 18); g.quadraticCurveTo(bx, by + 18, bx + 60, by - 18); g.quadraticCurveTo(bx, by + 2, bx - 60, by - 18); g.fill();
-        g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(bx + 30, by - 30); g.lineTo(bx + 18, by + 4); g.stroke();
-        for (const [x, c] of [[w * 0.05, "#f2a7c9"], [w * 0.09, "#f5cf6e"], [w * 0.93, "#b48ee0"], [w * 0.965, "#f2a7c9"]]) {   // flowers at the ends
-          for (let k = 0; k < 5; k++) { g.fillStyle = c; g.beginPath(); g.arc(x + Math.cos(k * 1.257) * 9, h * 0.5 + Math.sin(k * 1.257) * 9, 7, 0, 6.3); g.fill(); }
-          g.fillStyle = "#fff3b0"; g.beginPath(); g.arc(x, h * 0.5, 5, 0, 6.3); g.fill();
-        }
+        const n = 14, sw = w / n, sea = () => { g.beginPath(); g.moveTo(0, h); g.lineTo(0, h * 0.4); for (let i = 0; i < n; i++) g.quadraticCurveTo(sw * i + sw / 2, h * (i % 2 ? 0.05 : 0.2), sw * (i + 1), h * 0.4); g.lineTo(w, h); g.closePath(); };
+        sh(g, sea, C.water); hatch(g, sea, 0, h * 0.5, w, h, 8, 0.14);
+        g.save(); g.strokeStyle = "#f3ead6"; g.lineWidth = 2.5; g.globalAlpha = 0.9;
+        for (let i = 0; i < n; i++) { g.beginPath(); g.arc(sw * i + sw * 0.62, h * 0.44, sw * 0.14, Math.PI, Math.PI * 1.9); g.stroke(); }
+        g.restore();
+        for (const [x, c] of [[w * 0.05, C.rose], [w * 0.09, C.ochre], [w * 0.93, C.rose], [w * 0.965, C.ochre]])   // small flowers at the ends
+          for (let k = 0; k < 5; k++) sh(g, O(g, x + Math.cos(k * 1.257) * 8, h * 0.55 + Math.sin(k * 1.257) * 8, 6), c);
+      },
+      gondola(g, w, h) {
+        const hull = () => { g.beginPath(); g.moveTo(w * 0.04, h * 0.45); g.quadraticCurveTo(w * 0.5, h * 1.02, w * 0.96, h * 0.4); g.quadraticCurveTo(w * 0.5, h * 0.72, w * 0.04, h * 0.45); g.closePath(); };
+        sh(g, hull, C.navy);
+        sh(g, R(g, w * 0.66, h * 0.1, w * 0.035, h * 0.55), C.brown);   // the oar
+        sh(g, O(g, w * 0.6, h * 0.18, w * 0.04), C.cream); sh(g, P(g, [[w * 0.56, h * 0.25], [w * 0.64, h * 0.25], [w * 0.63, h * 0.6], [w * 0.57, h * 0.6]]), C.burg);   // the gondolier
       },
       tree(g, w, h) {
-        g.fillStyle = "#8a5f3c"; g.beginPath(); g.rect(w * 0.43, h * 0.55, w * 0.14, h * 0.45); g.fill(); ink(g);
-        g.fillStyle = "#7fb069";
-        for (const [x, y, r] of [[.5, .3, .3], [.3, .45, .22], [.7, .45, .22], [.5, .5, .24]]) { g.beginPath(); g.arc(w * x, h * y, w * r, 0, 6.3); g.fill(); ink(g); }
-        g.fillStyle = "#e86f6f"; for (const [x, y] of [[.4, .3], [.62, .4], [.5, .52], [.3, .48]]) { g.beginPath(); g.arc(w * x, h * y, 5, 0, 6.3); g.fill(); }
+        sh(g, R(g, w * 0.43, h * 0.55, w * 0.14, h * 0.45), C.brown);
+        for (const [x, y, rr] of [[.5, .3, .3], [.3, .45, .22], [.7, .45, .22], [.5, .5, .24]]) sh(g, O(g, w * x, h * y, w * rr), C.moss);
+        for (const [x, y] of [[.4, .3], [.62, .4], [.5, .52], [.3, .48]]) wash(g, O(g, w * x, h * y, 5), C.burg, false);
+      },
+      curtains(g, w, h) {   // the front frame: drawn-back theatre curtains at both sides
+        for (const s of [1, -1]) {
+          const X = x => s > 0 ? x : w - x;
+          const cur = () => { g.beginPath(); g.moveTo(X(0), 0); g.lineTo(X(w * 0.15), 0); g.bezierCurveTo(X(w * 0.12), h * 0.35, X(w * 0.05), h * 0.55, X(w * 0.055), h * 0.62);
+            g.bezierCurveTo(X(w * 0.07), h * 0.8, X(w * 0.1), h * 0.92, X(w * 0.11), h); g.lineTo(X(0), h); g.closePath(); };
+          sh(g, cur, C.burg);
+          g.save(); cur(); g.clip(); g.strokeStyle = "rgba(40,10,15,.35)"; g.lineWidth = 3;
+          for (let k = 1; k < 5; k++) { g.beginPath(); g.moveTo(X(w * 0.03 * k), 0); g.quadraticCurveTo(X(w * 0.011 * k), h * 0.6, X(w * 0.022 * k), h); g.stroke(); }
+          g.restore();
+          sh(g, O(g, X(w * 0.06), h * 0.62, w * 0.012, h * 0.03), C.gold);   // the tie-back and its tassel
+          sh(g, P(g, [[X(w * 0.055), h * 0.64], [X(w * 0.07), h * 0.74], [X(w * 0.045), h * 0.74]]), C.gold);
+        }
       },
     };
-    // [art, width, height, x, z (far is negative), delay ms]
-    const pieces = [["mountains", 74, 24, 0, -12, 0], ["castle", 26, 28, 12, -6, 170], ["harbor", 28, 14, -16, -3.5, 320],
-      ["aquasphere", 11, 12, -2, 2, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 10, 720]].map(([k, w, h, x, z, delay]) => {
-      const { map, shadow } = cut(w, h, arts[k]);
-      const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
-      const mat = basic({ map, transparent: true, alphaTest: 0.4, side: T.DoubleSide });
-      const m = new T.Mesh(new T.PlaneGeometry(w, h), mat); m.position.y = h / 2; hinge.add(m);
-      const sm = basic({ map: shadow, transparent: true, opacity: 0, depthWrite: false });
-      const s = new T.Mesh(new T.PlaneGeometry(w, h * 0.5), sm); s.rotation.x = -Math.PI / 2; s.position.set(x, 0.04, z - h * 0.25);
-      book.add(hinge, s); hinge.visible = s.visible = false;
-      return { hinge, mat, sm, s, delay };
-    });
-    const UP_AT = POP_IN_MS + POP_OPEN_MS * 0.55;
-    const READY_AT = UP_AT + Math.max(...pieces.map(p => p.delay)) + POP_UP_MS;
-
-    // ---- glow and sparkles out of the pages
-    const spr = draw => { const c = canvas(64, 64); draw(c.getContext("2d"), 64); return tex(c); };
-    const radial = stops => spr((g, w) => { const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); stops.forEach(([o, c]) => r.addColorStop(o, c)); g.fillStyle = r; g.fillRect(0, 0, w, w); });
-    const glow = new T.Sprite(new T.SpriteMaterial({ map: radial([[0, "rgba(255,244,200,1)"], [.35, "rgba(255,214,120,.5)"], [1, "rgba(255,190,90,0)"]]),
-      transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }));
-    glow.scale.set(90, 60, 1); glow.position.set(0, 8, 0); book.add(glow);
-    const N = 110, pos = new Float32Array(N * 3), seed = [];
-    for (let i = 0; i < N; i++) seed.push({ x: (Math.random() - 0.5) * PW * 1.8, z: (Math.random() - 0.5) * DP * 0.9, s: 0.06 + Math.random() * 0.22, o: Math.random() });
-    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pos, 3));
-    const pm = new T.PointsMaterial({ map: radial([[0, "rgba(255,250,225,1)"], [.3, "rgba(255,214,120,.7)"], [1, "rgba(255,200,100,0)"]]),
-      size: 1.6, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
-    const pts = new T.Points(geo, pm); pts.frustumCulled = false; book.add(pts);
-
     const clamp = k => Math.min(1, Math.max(0, k)), eo = k => 1 - Math.pow(1 - k, 3), eio = k => k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
     const backOut = k => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);   // a little past upright, then back
-    const TGT = new T.Vector3(0, 8, -1);
+    const FLIP_AT = POP_IN_MS + POP_OPEN_MS * 0.7, FLIP_GAP = 280, UP_AT = FLIP_AT + FLIP_GAP * 2 + POP_FLIP_MS - 150;
+    // [art, width, height, x, z (far is negative), delay ms]; the front frame last
+    const pieces = [["mountains", 74, 24, 0, -12.5, 0], ["castle", 26, 28, 12, -7, 170], ["harbor", 28, 14, -16, -4, 320],
+      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
+      .map(([k, w, h, x, z, delay]) => {
+        const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
+        const m = piece(w, h, arts[k]); m.position.y = h / 2; hinge.add(m);
+        book.add(hinge); hinge.visible = false;
+        return { k, hinge, m, delay, h };
+      });
+    const byKey = k => pieces.find(p => p.k === k);
+    const smokes = [[-17.4, 19.5, 5, 3.6, 0], [-15.6, 23.6, 6, 4.2, 1.7], [-18.6, 27, 4.4, 3.2, 3.1]].map(([x, y, w, h, ph]) => {   // moving: the smoke
+      const m = piece(w, h, arts.smoke); m.position.set(x, y, 0.15); byKey("mountains").hinge.add(m); return { m, y, x, ph };
+    });
+    const gl = canvas(512, 256);   // moving: the AquaSphere, a painted globe that turns
+    (g => { wash(g, R(g, 0, 0, 512, 256), "#6f93ab", false);
+      for (const [x, y, rx, ry] of [[90, 80, 60, 40], [150, 170, 34, 50], [270, 90, 70, 34], [300, 170, 40, 44], [420, 110, 50, 36], [460, 190, 26, 20]]) sh(g, O(g, x, y, rx, ry), Math.random() < 0.5 ? C.sage : C.ochre);
+      g.strokeStyle = "rgba(240,230,210,.55)"; g.lineWidth = 1.5;
+      for (let x = 0; x < 512; x += 64) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
+      for (let y = 32; y < 256; y += 48) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
+      g.strokeStyle = C.gold; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 128); g.lineTo(512, 128); g.stroke(); grain(g, 512, 256, 10); })(gl.getContext("2d"));
+    const globe = new T.Mesh(new T.SphereGeometry(3.3, 36, 24), lam({ map: tex(gl) })); globe.castShadow = true;
+    globe.position.set(0, 8 * 0.82 + 3.4 - 4, 0); byKey("pedestal").m.add(globe);
+    const gondola = piece(9, 3.8, arts.gondola); gondola.position.set(-13, 2.2 - 3, 0.3); byKey("waves").m.add(gondola);   // moving: the gondola rocks
+    const READY_AT = UP_AT + Math.max(...pieces.map(p => p.delay)) + POP_UP_MS;
+
+    // ---- a few specks of gold light over the pages
+    const N = 36, pos = new Float32Array(N * 3), seed = [];
+    for (let i = 0; i < N; i++) seed.push({ x: (Math.random() - 0.5) * PW * 1.7, z: (Math.random() - 0.5) * DP * 0.8, s: 0.05 + Math.random() * 0.12, o: Math.random() });
+    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pos, 3));
+    const pm = new T.PointsMaterial({ map: spr([[0, "rgba(255,244,210,1)"], [0.3, "rgba(240,200,120,.6)"], [1, "rgba(240,190,100,0)"]]),
+      size: 1.1, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false });
+    const pts = new T.Points(geo, pm); pts.frustumCulled = false; book.add(pts);
+
+    const TGT = new T.Vector3(0, 7, -2);
     let dive = null, gone = false;
     const view = el => {   // where the camera looks from: fit the open book, sway a little
       const w = cv.clientWidth || 1, h = cv.clientHeight || 1;
       if (cv.width !== Math.round(w * PIXEL_RATIO)) r.setSize(w, h, false);
       cm.aspect = w / h;
       const vf = cm.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cm.aspect);
-      const d = Math.max((cm.aspect < 1 ? 74 : 92) / 2 / Math.tan(hf), 62 / 2 / Math.tan(vf));
-      const yaw = Math.sin(el / 3200) * 0.08, pitch = 0.6 + Math.sin(el / 4100) * 0.03;
+      const d = Math.max((cm.aspect < 1 ? 66 : 96) / 2 / Math.tan(hf), 64 / 2 / Math.tan(vf));
+      sc.fog.near = d * 0.9; sc.fog.far = d * 2.4;   // the far desk fades into the dark, however far back a narrow screen puts the camera
+      const yaw = Math.sin(el / 3600) * 0.07, pitch = 0.74 + Math.sin(el / 4300) * 0.03;
       cm.position.set(TGT.x + Math.sin(yaw) * Math.cos(pitch) * d, TGT.y + Math.sin(pitch) * d, TGT.z + Math.cos(yaw) * Math.cos(pitch) * d);
     };
     return {
@@ -2123,27 +2266,33 @@ async function init3D() {
       step(el) {
         if (gone) return;
         view(el);
-        const a = eo(clamp(el / POP_IN_MS)), k = clamp((el - POP_IN_MS) / POP_OPEN_MS), open = eio(k);
-        book.position.set(-PW / 2 * (1 - open), (1 - a) * 34 + Math.sin(el / 380) * 0.8 * (1 - open), 0);   // floats down, bobs, opens (the spine stays put)
-        book.rotation.y = (1 - a) * 0.5; book.rotation.z = (1 - a) * 0.15;
+        const t = el / 1000, a = eo(clamp(el / POP_IN_MS)), k = clamp((el - POP_IN_MS) / POP_OPEN_MS), open = eio(k);
+        book.position.set(-PW / 2 * (1 - open), (1 - a) * 30 + Math.sin(el / 420) * 0.6 * (1 - open), 0);   // floats down onto the desk, opens (the spine stays put)
+        book.rotation.y = (1 - a) * 0.4; book.rotation.z = (1 - a) * 0.12;
         left.rotation.z = -Math.PI * (1 - open);
+        flips.forEach((f, i) => {
+          const u = clamp((el - FLIP_AT - i * FLIP_GAP) / POP_FLIP_MS);
+          f.rotation.z = Math.PI * eio(u); f.visible = u < 1;
+        });
         for (const p of pieces) {
           const u = clamp((el - UP_AT - p.delay) / POP_UP_MS), up = u > 0 ? backOut(u) : 0;
-          p.hinge.visible = p.s.visible = u > 0;
+          p.hinge.visible = u > 0;
           p.hinge.rotation.x = -Math.PI / 2 * (1 - up);
           p.hinge.scale.x = 0.6 + 0.4 * Math.min(1, up);   // unfolds sideways as it stands
-          p.mat.color.setScalar(0.72 + 0.28 * Math.min(1, up));   // lit from the front once upright
-          p.sm.opacity = 0.32 * Math.min(1, up);
         }
-        glow.material.opacity = (Math.sin(Math.PI * Math.min(1, k * 1.1)) * 0.95 + (k >= 1 ? 0.12 : 0)) * (1 - (dive ? dive.k : 0));
-        pm.opacity = Math.min(1, a * 0.5 + open * 0.7);
+        for (const s of smokes) { s.m.position.y = s.y + Math.sin(t * 0.9 + s.ph) * 0.5; s.m.position.x = s.x + Math.sin(t * 0.6 + s.ph) * 0.4; s.m.scale.setScalar(1 + Math.sin(t * 1.3 + s.ph) * 0.06); }
+        globe.rotation.y = t * 0.5; globe.scale.setScalar(clamp((clamp((el - UP_AT - 470) / POP_UP_MS) - 0.4) / 0.6) || 0.001);
+        gondola.rotation.z = Math.sin(t * 1.6) * 0.07; gondola.position.y = -0.8 + Math.sin(t * 1.6 + 0.8) * 0.2;
+        const fl = 1 + Math.sin(t * 17) * 0.05 + Math.sin(t * 7.3) * 0.07;   // the candle flickers
+        flame.scale.set(1.6 * fl, 3.2 * (2 - fl), 1); flameLight.intensity = 1.2 * fl; halo.material.opacity = 0.8 + (fl - 1) * 2;
+        pm.opacity = open * 0.8 * (1 - (dive ? dive.k : 0));
         const q = geo.attributes.position.array;
-        for (let i = 0; i < N; i++) { const s = seed[i], u = ((el / 1000) * s.s + s.o) % 1; q[i * 3] = s.x + Math.sin(u * 9 + i) * 1.4; q[i * 3 + 1] = (1 - a) * 34 + u * (10 + 26 * open); q[i * 3 + 2] = s.z; }
+        for (let i = 0; i < N; i++) { const s = seed[i], u = (t * s.s + s.o) % 1; q[i * 3] = s.x + Math.sin(u * 7 + i) * 1.2; q[i * 3 + 1] = 2 + u * 30; q[i * 3 + 2] = s.z; }
         geo.attributes.position.needsUpdate = true;
-        if (dive) {   // the tap: into the pages, the book fades off the park
+        if (dive) {   // the tap: through the curtains into the scene, the book fades off the park
           dive.k = clamp((performance.now() - dive.t0) / POP_DIVE_MS);
           const e = eio(dive.k);
-          cm.position.lerp(new T.Vector3(8, 16, -2), e); cm.fov = 32 - 12 * e;
+          cm.position.lerp(new T.Vector3(6, 14, -1), e); cm.fov = 32 - 12 * e;
           if (dive.k >= 1) { this.dispose(); return; }
         }
         cm.updateProjectionMatrix(); cm.lookAt(TGT);
@@ -2200,8 +2349,9 @@ async function init3D() {
     const dt = Math.min(50, now - (intro.last || now)); intro.last = now; intro.el += dt;   // slow frames cannot skip it
     popbook?.step(intro.el);
     if (popbook && !intro.ready && !intro.zoom) {
-      if (intro.el >= POP_IN_MS && logo.hidden) { logo.hidden = false; requestAnimationFrame(() => { logo.classList.add("show"); dust.start(); }); }   // lanterns over the opening book
-      if (intro.el >= popbook.READY_AT) { intro.ready = true; logo.classList.add("ready"); }   // "Tap to start", and taps count
+      if (intro.el >= popbook.READY_AT) {   // the wax seal and "Tap to start"; from now on a tap counts
+        intro.ready = true; logo.hidden = false; requestAnimationFrame(() => logo.classList.add("show", "ready"));
+      }
     }
     const z = intro.zoom;
     if (!z) {   // circling the park slowly under the title
