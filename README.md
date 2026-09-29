@@ -58,6 +58,10 @@ OpenStreetMap と国土地理院のデータから、東京ディズニーシー
 | シンデレラ城(ユーザーが選んだ参考モデル TurboSquid 1439041 の 360° 画像 72 枚と静止画 39 枚から、同じ形に) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_cinderella.py` |
 | ランドの水面(水域 35 か所の水位・水深・岸の種類。アメリカ河・ジャングルクルーズの川・シンデレラ城の堀。シーと同じ作り方) | 済(ユーザーが Blender で確認して OK、モックの 3D モデルに) | `ds_tdl_water.py`, `tdl_water_blender.py` |
 | 空(昼 12:00 固定。太陽の向きは日付と舞浜の緯度経度から計算。空のドーム・太陽の光・水面の映り。夜や時刻の切り替えは無効にした) | 済(モック) | `mock_template.html` の `SKY_KEYS`, `skyCalc()`, `applySky()` |
+| アイスクリームコーン(ワールドバザール奥の出口脇。外観の窓をガラスに開け、店内(市松の床・ピンクのカウンター・ガラスケース・シャンデリア)を歩いて入れる) | 済(Blender なし。既存の `tdl_world_bazaar.json` に反映) | `ds_tdl_world_bazaar.py` の `ice_cream_cones()` / `icc_interior()` |
+| プラザ(ハブ)の地面(ワールドバザール奥の出口〜シンデレラ城の門。舗装・放射状の二色パターン・花壇と柵の縁取り。木は作らない) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_plaza_ground.py` |
+| プラザ中央(パートナーズ像とブロンズの台座、2 段のステージ「プラザガーデン」、花壇の鉄柵、街灯 59 本・ベンチ 48 基) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_plaza_center.py` |
+| プラザまわりの建物(クリスタルパレス・レストラン、プラザパビリオン・レストラン、バンドスタンド、ハブの売店 14 軒、アドベンチャーランド・ウエスタンランド・トゥモローランドの門) | 済(Blender なし。純 Python で作り、モックの 3D モデルに) | `ds_tdl_plaza_hub.py` |
 | 優先パーツの作り込み(ミラコスタ、コロンビア号、シンデレラ城など) | これから | — |
 | ランド・舞浜駅を Blender のシーンに入れる | スクリプトは済(Blender では未実行) | `disneyland_blender.py` |
 
@@ -102,6 +106,10 @@ python src/ds_aquasphere.py --textures # 地球儀のテクスチャ
 python src/ds_tdl_ground.py            # エントランス広場の地面 → models/tdl_ground.json(Blender なし。shapely 2.1 以上)
 python src/ds_tdl_hotel_ground.py      # ホテル周辺の道 → models/tdl_hotel_ground.json(同上)
 python src/ds_ground.py                # ランド・シーの地面 → models/{tdl_land_ground,tds_ground}.json(同上。約 5 分。水面・プラザ・火山のモデルを先に)
+python src/ds_tdl_plaza_ground.py      # ランドのプラザ(ハブ)の地面 → models/tdl_plaza_ground.json(同上。作り直したら ds_ground.py tdl_land_ground も)
+python src/ds_ground.py tdl_land_ground   # プラザ地面の形で切り抜き直す(上のプラザ地面を作り直したときだけ)
+python src/ds_tdl_plaza_center.py      # プラザ中央(像・ステージ・柵・街灯・ベンチ)→ models/tdl_plaza_center.json(プラザ地面の三角形を読むので後で)
+python src/ds_tdl_plaza_hub.py         # プラザまわりの建物・各ランドの門 → models/tdl_plaza_hub.json(同上)
 ```
 
 **注意:** OSM は日々更新される。取り直すと、高低差や火山の元データまで変わる(火山の元データは Blender で作った火山モデルの元になっている)。
@@ -451,6 +459,30 @@ OSM には階段がシーに 98 か所あるが、段数と上る向きが入っ
 | モックでの表示(俯瞰、「モデルのみ」。パークの外には地面を作らない) |
 |---|
 | ![地面](docs/entrance/mock_all_ground.jpg) |
+
+### プラザ(ハブ、`ds_tdl_plaza_ground.py` `ds_tdl_plaza_center.py` `ds_tdl_plaza_hub.py`)
+
+ワールドバザール奥の出口(アイスクリームコーン脇、local 約 (-477, 794))〜シンデレラ城の門(-388.6, 578.2)の円形ハブ。資料は
+`docs/plaza/README.md`(OSM・航空写真・Wikimedia Commons の写真 7 枚)、進み具合は `docs/plan3_progress.md`。すべて Blender なし・純
+Python(shapely + numpy)、木・ヤシ・丸い刈り込み・夜版は作らない。
+
+- **アイスクリームコーン**(`ds_tdl_world_bazaar.py` の `ice_cream_cones()` / `icc_interior()`): ワールドバザール出口脇の店。正面と東面の窓をガラスに開け、水色市松の床・サーモンピンクのカウンターとひし形パネル・ガラスケース・シャンデリア 3 つの店内を歩いて入れる。
+- **プラザの地面**(`ds_tdl_plaza_ground.py` → `tdl_plaza_ground.json`): OSM の歩行者エリア・園路・花壇をそのまま舗装/植え込みにし、ハブ中心(HUB_C = (-427, 687)。OSM の「Partners」ノードは実際の放射状ガーデンから約 70 m ずれているため、航空写真と実際のガーデン帯から採った実測に近い中心)から 75 m は放射状の二色舗装パターン。`ds_ground.py` の `tdl_land_ground` はこのモデルの実フットプリントを切り抜く(地面を作り直したら両方を作り直す)。
+- **プラザ中央**(`ds_tdl_plaza_center.py` → `tdl_plaza_center.json`): パートナーズ像(ウォルトとミッキー、低ポリ・ブロンズ色、一般知識からの再現で写真なし)とブロンズの台座、2 段のステージ「プラザガーデン」、花壇の縁石上の鉄柵(支柱 1,300 本余り)、街灯 59 本・ベンチ 48 基(自動配置、実測なし)。プラザ地面の三角形を読んで高さを取るので、地面の後に作り直す。
+- **プラザまわりの建物**(`ds_tdl_plaza_hub.py` → `tdl_plaza_hub.json`): クリスタルパレス・レストラン(白いアーケード+緑のマンサード+ガラスの丸屋根、Commons の写真 2 枚から)、プラザパビリオン・レストラン(写真なし、一般知識のみの推定)、バンドスタンド、ハブの小さな売店 14 軒、アドベンチャーランド・ウエスタンランド・トゥモローランドへの門(様式は推定、看板は無地)。
+- **フェーズ6でのつなぎ目の修正**: ワールドバザール出口〜プラザ地面〜シンデレラ城フォアコート(`ds_tdl_cinderella.py` の `build_forecourt()`)の境目は段差なし。**ハブ西(トゥモローランド方向)で見つかった約 1.5 m の段差の壁**は、地面同士の高さがずれていたのではなく、ハブ西の池をまたぐ歩行者用の橋(OSM way 1283322088、`highway=pedestrian`/`bridge=yes`)が `tdl_water` モデルの池の実フットプリントに重なっていたため、`tdl_plaza_ground.py` がその橋の舗装ごと切り抜いてしまい、橋の区間に地面が全く無い穴になっていたのが原因(アドベンチャーランド・ウエスタンランド側にも同種の橋が計 3 本あり、同じ理由で切り抜かれていた)。`tdl_plaza_ground.py` の `plan()` を、橋(`bridge=yes`)は池のモデルの上でも舗装として残すように直し、あわせて `CLIP`(作業範囲の箱)の西端を -495 → -530 に広げてこの橋をまるごと範囲内に収め、地面の高さ計算(`Terrain` の `void`)は従来どおり池ごと周りの地面から補間するようにして、橋の上の高さが池の水底の値を拾わないようにした。Playwright で駅寄りの出口からハブ→城の門、ハブ→トゥモローランド・アドベンチャーランド・ウエスタンランドの各方向へ、落下・引っかかりなしで歩き通せることを確認済み。
+
+再生成の手順:
+
+```
+python src/ds_tdl_plaza_ground.py      # プラザの地面 → tdl_plaza_ground.json
+python src/ds_ground.py tdl_land_ground   # 地面を作り直したらこれも(プラザ地面の形で切り抜く)
+python src/ds_tdl_plaza_center.py      # プラザ中央 → tdl_plaza_center.json(地面の後)
+python src/ds_tdl_plaza_hub.py         # プラザまわりの建物・門 → tdl_plaza_hub.json(地面の後)
+python src/export_mock.py              # 圧縮とページの書き出し
+```
+
+残り: パートナーズ像・プラザパビリオンは写真がなく外観が推定、街灯・ベンチ・柵の位置と意匠は実測なし、各門の看板は無地。
 
 ### 美女と野獣の城(`ds_tdl_bb_castle.py`)
 

@@ -77,7 +77,10 @@ import ds_tdl_hotel_ground as H
 import ds_ground as GR
 
 OUT = ROOT / "output" / "disneysea" / "models" / "tdl_plaza_ground.json"
-CLIP = box(-495.0, 555.0, -345.0, 800.0)          # WB's far exit (-477, 794) to just past the gate GATE (-388.6, 578.2)
+CLIP = box(-530.0, 555.0, -345.0, 800.0)          # WB's far exit (-477, 794) to just past the gate GATE (-388.6, 578.2); the west edge
+                                                    # reaches -530 (not -495) so the Tomorrowland-ward pedestrian bridge (way 1283322088,
+                                                    # highway=pedestrian/bridge=yes/area=yes, x -525.0..-482.1) is inside CLIP whole,
+                                                    # not cut in half by the box (phase 6: this was the hub-west seam's cause, see below)
 HUB_C = (-427.0, 687.0)                            # the round island's real centre (see docstring); OSM's POI is ~70 m off
 HUB_PATTERN_R = 75.0                               # the two-tone ring pattern reaches this far from HUB_C
 RING_STEP, RING_ARC, LINE_W = 9.0, 12.0, 0.8       # the ring pattern: spacing, panel arc length, joint-line width (m)
@@ -103,8 +106,15 @@ def _foot_width(t):
 
 
 def plan():
-    # models already standing here (their real exported footprint) and OSM buildings not modelled yet: no ground under them
-    solid = unary_union([g for g in (GR.model_footprint(m) for m in CUT_MODELS) if g is not None and not g.is_empty])
+    # models already standing here (their real exported footprint) and OSM buildings not modelled yet: no ground under them.
+    # tdl_water's footprint is the one CUT_MODELS entry a bridge can legitimately sit over (the others are solid buildings a
+    # bridge polygon never overlaps in practice), so it is kept out of `blocked` and subtracted together with the raw OSM
+    # water tag below -- both give way to `bridge` (phase 6 fix: the Tomorrowland-ward pedestrian bridge, way 1283322088,
+    # used to be cut out here because it sits on top of the tdl_water model's real pond footprint, leaving a hole with no
+    # ground on either side of it -- the walk-blocking "step" reported after phase 5 turned out to be this hole, not a
+    # height mismatch between tdl_plaza_ground and tdl_land_ground).
+    water_solid = GR.model_footprint("tdl_water") or Polygon()
+    solid = unary_union([g for g in (GR.model_footprint(m) for m in CUT_MODELS if m != "tdl_water") if g is not None and not g.is_empty])
     buildings = unary_union(_closed_polys(lambda t: "building" in t and t["building"] not in ("roof", "no")))
     blocked = unary_union([solid, buildings])
 
@@ -118,9 +128,9 @@ def plan():
                             and LineString(w["pts"]).intersects(CLIP)])
 
     z_paving = unary_union([pedestrian, footways]).intersection(CLIP)
-    z_paving = z_paving.difference(blocked).difference(water.difference(bridge))
+    z_paving = z_paving.difference(blocked).difference(unary_union([water, water_solid]).difference(bridge))
 
-    planters = [q for q in G._polys(gardens.difference(blocked)) if q.area >= G.MIN_PLANTER]
+    planters = [q for q in G._polys(gardens.difference(unary_union([blocked, water_solid]))) if q.area >= G.MIN_PLANTER]
     pl_all = unary_union(planters) if planters else Polygon()
     z_paving = z_paving.difference(pl_all)
 
@@ -137,7 +147,7 @@ def plan():
             lines.append(LineString(w["pts"]))
     lines.append(CLIP.exterior)
     faces = [f for f in polygonize(unary_union(lines)) if CLIP.contains(f.representative_point()) and f.area > 1.0]
-    built = unary_union([blocked, water.difference(bridge), z_paving, pl_all])
+    built = unary_union([blocked, unary_union([water, water_solid]).difference(bridge), z_paving, pl_all])
     fill_paving, fill_green = [], []
     for f in faces:
         rest = f.difference(built)
@@ -151,7 +161,11 @@ def plan():
     planters = planters + fill_green
 
     keep = lambda g: unary_union([p for p in G._polys(g) if p.area > 0.6])
-    return dict(paving=keep(z_paving), planters=planters, blocked=blocked, water=water)
+    # `void` (for the Terrain's height fill) keeps the whole tdl_water footprint, bridge included: the DEM dips under the
+    # pond (it is reading the water/bed, not ground), so the bridge deck's height should come from the harmonic fill off
+    # the real ground at its ends, same as any other hole, not from that dip -- only the mesh (paving) itself carries the
+    # bridge-over-water exception (`blocked` above), so the two stay separate.
+    return dict(paving=keep(z_paving), planters=planters, blocked=blocked, water=water, void=unary_union([blocked, water_solid]))
 
 
 def hub_pattern(zone, center, base_name):
@@ -216,7 +230,7 @@ def add_planter(meshes, T, q):
 
 def build():
     P = plan()
-    T = G.Terrain(unary_union([P["paving"]] + P["planters"]).bounds, void=P["blocked"].buffer(H.BUILDING_MARGIN))
+    T = G.Terrain(unary_union([P["paving"]] + P["planters"]).bounds, void=P["void"].buffer(H.BUILDING_MARGIN))
     meshes = {n: G.Mesh(n) for n in NAMES}
     pl_lines = unary_union([q.exterior for q in P["planters"]]) if P["planters"] else None
 
