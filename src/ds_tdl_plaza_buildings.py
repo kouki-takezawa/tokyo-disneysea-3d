@@ -47,7 +47,7 @@ BUILDINGS = {
     218553048: ("canopy", 3.6, None, "pb_white", "pb_green"),               # security check
     203538203: ("canopy", 3.6, None, "pb_white", "pb_green"),               # security check
     1295097122: ("canopy", 3.2, None, "pb_white", "pb_green"),
-    1338996034: ("canopy", 3.4, None, "pb_white", "pb_green"),
+    # 1338996034 (Center Street's covered way east): ds_tdl_world_bazaar.build_roof (glass hall "ext_e")
     1298497967: ("canopy", 3.2, None, "pb_white", "pb_green"),
     217930681: ("monsters", 11.0, "pb_tan", "pb_white", "pb_tan"),          # Monsters, Inc. Ride & Go Seek (outside only)
 }

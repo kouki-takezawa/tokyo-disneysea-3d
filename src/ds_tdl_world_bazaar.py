@@ -23,6 +23,10 @@ Sources (looked at only; nothing copied into the repository):
     columns (leaf collars and capitals) with a balcony on top, terracotta floor, yellow chairs; the octagonal gazebo on
     the corner with the curved stair (red rail and plinth, green iron balusters), the pink oval sign on its post, the
     pink bulb blade on the corner, the bulb-framed sign over the door. Placed on the OSM block 72216845's corner.
+  * Great American Waffle Company (the user's photos 2026-09-29): the navy iron veranda with red bases wrapping the
+    corner, two balconies with red fascias and navy railings, cream rusticated floors under rose-and-white awnings, the
+    navy-and-gold sign, the Mickey head on the corner, the tower with its flag; on the jut of the OSM block 196943265
+    beside Center Street's east exit, facing out. The covered way beside it (OSM 1338996034) is a lower glass hall.
 
 Frame: the World Bazaar frame of ds_tdl_entrance (WB): +x along the entrance front (left to right from the plaza),
 +y towards the plaza, so Main Street runs to -y.
@@ -46,7 +50,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 import ds_tdl_station as ST
 import ds_tdl_entrance as EN
-from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, obj_bm, T, R, seg_arc, arch_opening, arch_band,
+from ds_tdl_station import (B, box, prism, bm_box, bm_prism, bm_lathe, bm_loft, obj_bm, T, R, seg_arc, arch_opening, arch_band,
                             column_bm, globe_lamp_bm, text, _principled, _mottle)
 from ds_tdl_entrance import frame, WB, WB_BACK
 
@@ -61,6 +65,8 @@ WALK = [(55.7, -62.5), (54.7, -65.3), (53.7, -69.4), (24.0, -61.1), (23.0, -64.7
         (12.2, WB_BACK), (12.2, -40.5), (21.1, -41.3), (21.4, -44.6), (57.6, -56.1), (57.3, -57.2), (56.5, -60.3)]
 # Center Street's arms (angled part): start / end of the centre line, width
 ARMS = [((-19.95, -52.8), (-57.05, -63.65), 15.0), ((22.7, -52.85), (55.65, -62.75), 15.0)]
+# the covered way on out of the east arm (OSM 1338996034's centre line from the arm's end, its width)
+EXT_E = (ARMS[1][1], (81.75, -70.65), 5.0)
 # shop fronts: segments with the street on their left (p0 -> p1), in the WB frame
 FRONTS = [
     ("MW1", (-12.3, WB_BACK), (-12.3, -40.8)), ("ME1", (12.2, -40.5), (12.2, WB_BACK)),        # Main Street, first half
@@ -126,6 +132,12 @@ def wbz_materials(M):
     M["icc_rose"] = P("st_wbz_icc_rose", (0.70, 0.36, 0.44), 0.5)
     M["icc_steel"] = P("st_wbz_icc_steel", (0.70, 0.72, 0.74), 0.3, Metallic=0.8)
     M["icc_waffle"] = P("st_wbz_icc_waffle", (0.78, 0.55, 0.30), 0.7)
+    # the Great American Waffle Company (the user's photos 2026-09-29): cream stucco, navy iron, rose awnings, gold letters
+    mat, nt, b = _principled("st_wbz_gaw_cream", (0.93, 0.85, 0.64), 0.75); _mottle(nt, b, (0.93, 0.85, 0.64), 6.0, 0.95, 0.02)
+    M["gaw_cream"] = mat
+    M["gaw_navy"] = P("st_wbz_gaw_navy", (0.07, 0.13, 0.36), 0.45)
+    M["gaw_rose"] = P("st_wbz_gaw_rose", (0.84, 0.50, 0.44), 0.8)
+    M["gaw_gold"] = P("st_wbz_gaw_gold", (0.95, 0.66, 0.20), 0.35, Metallic=0.5)
     return M
 
 
@@ -362,7 +374,21 @@ def build_roof():
                H["base"], 6.0, gaps=[(-(CROSS["half"] - 12.6), -(CROSS["half"] + 12.6))], start="gable", end="gable")
     for k, (p0, p1, aw) in enumerate(ARMS):
         glass_hall(f"arm{k}", p0, p1, aw, H["eave"], H["eave"] + (H["ridge"] - H["eave"]) * aw / 24.5, H["base"], 6.0, end=2)
-    bm = bmesh.new()                                      # the four towers at the crossing and the girders they carry
+    # Center Street's covered way on out of the east arm (OSM 1338996034, building=roof, layer 1; the user's Waffle
+    # Company photos show it: a lower glass hall on green iron columns, a round arch under its far gable)
+    p0, p1 = ARMS[1][1], EXT_E[1]
+    glass_hall("ext_e", p0, p1, EXT_E[2], 5.6, 7.3, 4.3, 3.0, end=1)
+    d = (p1[0] - p0[0], p1[1] - p0[1]); L = math.hypot(*d); ux, uy = d[0] / L, d[1] / L; hw = EXT_E[2] / 2
+    bm = bmesh.new()
+    n = max(1, round(L / 3.0))
+    for k in range(n):                                    # the columns along both sides (the far end's pair: the arch's)
+        t = L * k / n
+        for s in (-1, 1):
+            x, y = p0[0] + ux * t - uy * s * hw, p0[1] + uy * t + ux * s * hw
+            column_bm(bm, x, y, 0.0, 4.05, 0.13, 12)
+            bm_lathe(bm, [(0, 0), (0.3, 0), (0.3, 0.4), (0.2, 0.55), (0, 0.55)], 8, T(x, y, 0.0))
+    obj_bm("ST_WBZ_ext_e_columns", bm, "hall_iron", smooth=True)
+    bm = bmesh.new()                                     # the four towers at the crossing and the girders they carry
     for sx in (-1, 1):
         for y in (CROSS["y0"] - 0.9, CROSS["y1"] + 0.9):
             lattice_tower(bm, sx * 11.0, y, H["eave"] - 0.2)
@@ -950,9 +976,6 @@ SHOP_STYLE = {
                                            win_awn=False, signmat="brass", balcony=False, oriel=False, pilasters=True, quoins=True),
     "MAGIC SHOP": dict(wall="lilac", trim="maroon", floors=3, roof="gable", win="arch", awning=("aw_red", None), win_awn=False,
                        signmat="t_maroon", balcony=False, oriel=True, shutters=False),
-    "GREAT AMERICAN WAFFLE CO.": dict(wall="yellow", trim="blue", floors=2, roof="mansard", roofmat="shingle", win="rect",
-                                      awning=("aw_red", "aw_white"), win_awn=True, wawn=("aw_red", "aw_white"), balcony=False,
-                                      oriel=False, shutters=True, signmat="t_blue"),
     "SWEETHEART CAFE": dict(wall="pink", trim="white", floors=2, roof="mansard", roofmat="mauve", win="arch",
                             awning=("aw_red", "aw_white"), win_awn=False, balcony=True, oriel=False, signmat="t_maroon"),
     "BIBBIDI BOBBIDI BOUTIQUE": dict(wall="lilac", trim="white", floors=3, roof="pediment", turret=1, win="arch", awning=None,
@@ -992,6 +1015,7 @@ def build_shops(seed=7):
                 best = min(((math.hypot(sx - mx, sy - my), k) for k, (sx, sy, _, _) in enumerate(REAL_SHOPS) if k not in used), default=None)
                 if best and best[0] < 14.0:                  # the real shop on this front
                     used.add(best[1]); _, _, nm, th = REAL_SHOPS[best[1]]
+                if best and best[0] < 14.0 and nm != "GREAT AMERICAN WAFFLE CO.":   # (the Waffle Company faces out: waffle_company)
                     st["sign"] = nm; st["theme"] = th
                     st.update(SHOP_STYLE.get(nm, {}))
                 # the room: CORNER m clear of each end of the front (the next front's shops reach back 9 m from the
@@ -1085,6 +1109,8 @@ def build_block_walls():
             ny = (b[0] - a[0]) / L                         # the wall's outward normal's y (towards the plaza: +y)
             if mid[1] < -105.0 and (abs(mid[0]) < 30.0 and ny < -0.5 or math.hypot(abs(mid[0]) - 9.8, mid[1] + 113.5) < 5.5):
                 continue                                  # the exit's corner buildings (build_exit)
+            if bid == 196943265 and math.hypot(mid[0] - GAW_EDGE[0][0], mid[1] - GAW_EDGE[0][1]) < GAW_EDGE[1]:
+                continue                                  # the Great American Waffle Company (waffle_company)
             if ny > 0.5 and mid[1] > -30.0:
                 if 11.5 < abs(mid[0]) < 36.0 and abs(mid[1]) < 1.5:
                     continue                              # the arcade shops beside the entrance (ds_tdl_entrance.wb_shops)
@@ -1751,6 +1777,329 @@ def build_exit():
         obj_bm(f"ST_WBZ_exitgazebo1_{k}", bm_, EXIT_MATS[k], smooth=(k == "lamp"))
     with frame("ICC", ICC["x"], ICC["y"], 180.0):
         ice_cream_cones()
+    with frame("GAW", GAW["x"], GAW["y"], GAW["ang"]):
+        waffle_company()
+
+
+# ---------------------------------------------------------------- Great American Waffle Company (the user's photos 2026-09-29)
+# Where the OSM block 196943265 juts out east beside Center Street's covered way (the OSM point, WB (50.7, -81.8), is
+# inside it). Its own frame: origin on the jut's north-east corner (WB (61.6, -72.2)), +x south along the east face
+# (x 0 .. L), +y out (east, towards Tomorrowland). The return on the south (x = L, y 0 .. back, facing the neighbour's
+# set-back front) and the chamfer on the north corner are its too; build_block_walls leaves those edges out (GAW_EDGE).
+# From the photos: a veranda wrapping the south-east corner on slender navy cast-iron columns with red bases and a navy
+# lace frieze, the balcony on it with a red fascia and navy railing with planters; cream rusticated upper floors with
+# white-framed windows under rose-and-white striped awnings, a second, shallower balcony at the second floor; the big
+# navy sign with a gold frame and gold "WAFFLE COMPANY" on the balcony, the Mickey head hanging off the corner column;
+# a bracketed cornice, a square tower with a curved mansard, cresting and the flag; red-and-white fringed umbrellas.
+GAW = dict(x=61.6, y=-72.2, ang=math.degrees(math.atan2(-7.0, -2.3)), L=7.37, back=-3.26, d=2.6, z1=4.0, z2=7.0, top=9.6)
+GAW_EDGE = ((59.8, -75.0), 4.9)
+GAW_MATS = {"wall": "gaw_cream", "white": "t_white", "navy": "gaw_navy", "red": "aw_red", "rose": "gaw_rose", "awhite": "aw_white",
+            "gold": "gaw_gold", "glass": "win_dark", "door": "door", "lamp": "lamp", "walk": "walk", "roof": "shingle",
+            "leaf": "leaf", "iron": "t_dkgreen", "wood": "wood", "flower": "m_pink"}
+
+
+def gaw_pt(face, u, d, z):
+    """A point on one of the faces: "E" the front (u = x, d = y out), "S" the return (u back from the corner along -y,
+    d = x out of x = L)."""
+    return (u, d, z) if face == "E" else (GAW["L"] + d, -u, z)
+
+
+def gaw_box(bm, face, u0, u1, d0, d1, z0, z1):
+    if face == "E":
+        bm_box(bm, u0, u1, d0, d1, z0, z1)
+    else:
+        bm_box(bm, GAW["L"] + d0, GAW["L"] + d1, -u1, -u0, z0, z1)
+
+
+def gaw_window(P, face, u0, u1, z0, z1, awning=True, curtain=False, navy=False):
+    """A window: a white (upper floors) or navy (ground floor) frame, sill and moulded head, dark glass in two lights
+    under a transom, lace over the lower half on the ground floor; the upper floors' striped awnings with a valance."""
+    fr = P["navy" if navy else "white"]; um = (u0 + u1) / 2
+    gaw_box(fr, face, u0 - 0.14, u1 + 0.14, 0.0, 0.08, z0 - 0.1, z1 + 0.12)
+    gaw_box(P["white"], face, u0 - 0.24, u1 + 0.24, 0.0, 0.17, z0 - 0.2, z0 - 0.08)
+    gaw_box(P["white"], face, u0 - 0.28, u1 + 0.28, 0.0, 0.2, z1 + 0.12, z1 + 0.3)
+    gaw_box(P["glass"], face, u0, u1, 0.06, 0.09, z0, z1)
+    zt = z1 - (z1 - z0) * 0.22
+    gaw_box(fr, face, um - 0.04, um + 0.04, 0.09, 0.12, z0, zt)
+    gaw_box(fr, face, u0, u1, 0.09, 0.12, zt - 0.04, zt + 0.04)
+    if curtain:
+        gaw_box(P["white"], face, u0 + 0.02, u1 - 0.02, 0.09, 0.1, z0, z0 + (zt - z0) * 0.5)
+    if awning:
+        a0, a1 = u0 - 0.2, u1 + 0.2; n = max(4, round((a1 - a0) / 0.24)); w = (a1 - a0) / n
+        zt = z1 + 0.45
+        for k in range(n):
+            um_ = a0 + w * (k + 0.5); m = P["rose" if k % 2 == 0 else "awhite"]
+            bar(m, gaw_pt(face, um_, 0.18, zt), gaw_pt(face, um_, 0.82, zt - 0.62), w, 0.03)
+            gaw_box(m, face, um_ - w / 2, um_ + w / 2, 0.8, 0.83, zt - 0.8, zt - 0.6)
+            gaw_box(m, face, um_ - w * 0.3, um_ + w * 0.3, 0.8, 0.83, zt - 0.88, zt - 0.8)   # the scallop
+
+
+def gaw_column(P, x, y, z0, z1):
+    """The veranda's cast-iron column (photos 4, 5): a red square base, a slender navy shaft with a collar, a flared cap."""
+    bm_box(P["red"], x - 0.2, x + 0.2, y - 0.2, y + 0.2, z0, z0 + 0.5)
+    bm_box(P["red"], x - 0.24, x + 0.24, y - 0.24, y + 0.24, z0, z0 + 0.1)
+    H = z1 - z0 - 0.5
+    prof = [(0, 0), (0.15, 0), (0.15, 0.06), (0.1, 0.16), (0.12, 0.3), (0.08, 0.42), (0.075, H - 0.45), (0.1, H - 0.4),
+            (0.08, H - 0.33), (0.16, H - 0.12), (0.19, H - 0.06), (0.19, H), (0, H)]
+    bm_lathe(P["navy"], prof, 10, T(x, y, z0 + 0.5))
+
+
+def gaw_rail(P, p0, p1, z0, h):
+    """A navy iron railing on the segment p0 -> p1: top and bottom rails, close balusters, a band of crosses."""
+    (x0, y0), (x1, y1) = p0, p1
+    L = math.hypot(x1 - x0, y1 - y0)
+    bar(P["navy"], (x0, y0, z0 + h), (x1, y1, z0 + h), 0.07)
+    bar(P["navy"], (x0, y0, z0 + 0.1), (x1, y1, z0 + 0.1), 0.05)
+    bar(P["navy"], (x0, y0, z0 + h - 0.28), (x1, y1, z0 + h - 0.28), 0.03)
+    n = max(1, int(L / 0.11))
+    for j in range(n + 1):
+        t = j / n; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        bm_box(P["navy"], x - 0.012, x + 0.012, y - 0.012, y + 0.012, z0 + 0.1, z0 + h)
+    m = max(1, int(L / 0.44))
+    for j in range(m):
+        ta, tb = j / m, (j + 1) / m
+        pa = (x0 + (x1 - x0) * ta, y0 + (y1 - y0) * ta); pb = (x0 + (x1 - x0) * tb, y0 + (y1 - y0) * tb)
+        bar(P["navy"], (*pa, z0 + h - 0.28), (*pb, z0 + h - 0.02), 0.025)
+        bar(P["navy"], (*pa, z0 + h - 0.02), (*pb, z0 + h - 0.28), 0.025)
+
+
+def gaw_frieze(P, p0, p1, z0, z1):
+    """The veranda's lace frieze under the fascia (photos 4, 5): rails, close bars, a row of small drop arches."""
+    (x0, y0), (x1, y1) = p0, p1
+    L = math.hypot(x1 - x0, y1 - y0)
+    for z in (z0, z1):
+        bar(P["navy"], (x0, y0, z), (x1, y1, z), 0.05)
+    n = max(1, int(L / 0.12))
+    for j in range(n + 1):
+        t = j / n; x, y = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        bm_box(P["navy"], x - 0.01, x + 0.01, y - 0.01, y + 0.01, z0, z1)
+    m = max(1, int(L / 0.5))
+    for j in range(m):                                    # the scallops below the lower rail, as short bars round a half ring
+        c = j + 0.5
+        for q in range(6):
+            a0, a1 = math.pi * q / 6, math.pi * (q + 1) / 6
+            p = lambda a: (x0 + (x1 - x0) * (c + 0.5 * math.cos(a)) / m, y0 + (y1 - y0) * (c + 0.5 * math.cos(a)) / m,
+                           z0 - 0.22 * math.sin(a))
+            bar(P["navy"], p(a0), p(a1), 0.035)
+
+
+def gaw_umbrella(P, x, y, fringe=True):
+    """The terrace's umbrella (photos 1..3): a pole, twelve red and white panels in a shallow cone, the white fringe;
+    a marble table and dark iron chairs under it."""
+    zt, zr, r = 2.55, 2.25, 1.45
+    bm_lathe(P["white"], [(0, 0), (0.035, 0), (0.035, zt + 0.25), (0, zt + 0.25)], 6, T(x, y, 0.0))
+    bm_lathe(P["white"], [(0, 0), (0.06, 0), (0.02, 0.18), (0, 0.2)], 6, T(x, y, zt + 0.2))
+    for q in range(12):
+        a0, a1 = 2 * math.pi * q / 12, 2 * math.pi * (q + 1) / 12
+        e0 = (x + r * math.cos(a0), y + r * math.sin(a0)); e1 = (x + r * math.cos(a1), y + r * math.sin(a1))
+        lo = [(x, y, zt), (*e0, zr), (*e1, zr)]
+        bm_loft(P["red" if q % 2 == 0 else "awhite"], lo, [(a, b_, c + 0.03) for a, b_, c in lo])
+        if fringe:
+            plate(P["awhite"], e0, e1, zr - 0.2, zr, 0.03)
+            m = ((e0[0] + e1[0]) / 2, (e0[1] + e1[1]) / 2)
+            bm_box(P["awhite"], m[0] - 0.12, m[0] + 0.12, m[1] - 0.12, m[1] + 0.12, zr - 0.27, zr - 0.2)
+    gaw_table(P, x, y, 3, q=x + y)
+
+
+def gaw_table(P, x, y, chairs, q=0.0):
+    bm_lathe(P["navy"], [(0, 0), (0.25, 0), (0.05, 0.1), (0.04, 0.7), (0, 0.7)], 8, T(x, y, 0.0))
+    bm_lathe(P["white"], [(0, 0), (0.4, 0), (0.4, 0.04), (0, 0.04)], 16, T(x, y, 0.72))
+    for c in range(chairs):
+        a = 2 * math.pi * c / chairs + q
+        cx, cy = x + 0.7 * math.cos(a), y + 0.7 * math.sin(a)
+        for lx, ly in ((-0.16, -0.16), (0.16, -0.16), (-0.16, 0.16), (0.16, 0.16)):
+            bm_box(P["iron"], cx + lx - 0.015, cx + lx + 0.015, cy + ly - 0.015, cy + ly + 0.015, 0.0, 0.46)
+        bm_lathe(P["iron"], [(0, 0), (0.21, 0), (0.21, 0.04), (0, 0.04)], 10, T(cx, cy, 0.45))
+        bx_, by_ = cx + 0.2 * math.cos(a), cy + 0.2 * math.sin(a)
+        bmesh.ops.create_cube(P["iron"], size=1.0, matrix=T(bx_, by_, 0.72) @ R(a + math.pi / 2, "Z") @ Matrix.Diagonal((0.4, 0.03, 0.5, 1)))
+
+
+def waffle_company():
+    C = GAW; L = C["L"]; bk = C["back"]; d = C["d"]; z1 = C["z1"]; z2 = C["z2"]; top = C["top"]
+    P = {k: bmesh.new() for k in GAW_MATS}
+    ch = [(0.0, 0.0), (-1.24, -1.04), (-1.65, -2.33)]      # the north chamfer (OSM)
+    # ---- the walls: the front, the return, the chamfer; up to the cornice; a back wall over the block's roof
+    bm_box(P["wall"], 0.0, L, -0.4, 0.0, 0.0, top)
+    bm_box(P["wall"], L - 0.4, L, bk, 0.0, 0.0, top)
+    for a, b_ in zip(ch, ch[1:]):
+        plate(P["wall"], a, b_, 0.0, top, 0.3)
+    bm_box(P["wall"], -1.6, L - 0.3, -5.6, -5.4, 8.2, top + 0.8)
+    prism("ST_WBZ_gaw_roof", [[ch[2], ch[1], ch[0], (L, 0.0), (L - 0.3, bk), (L - 0.3, -5.5), (-1.6, -5.5)]], top - 0.15, top, "shingle")
+    # rustication on the upper floors (photos 2, 3)
+    z = z1 + 0.45
+    while z < top - 0.4:
+        for face, u1 in (("E", L), ("S", -bk)):
+            gaw_box(P["white"], face, 0.0, u1, 0.0, 0.015, z, z + 0.03)
+        z += 0.42
+    # ---- ground floor: navy pilasters and frieze, the windows with lace, the doors, lanterns
+    GF = {"E": [("win", 0.35, 2.05), ("door", 2.75, 4.05), ("win", 4.75, 6.95)], "S": [("win", 0.4, 1.75), ("door", 2.1, 3.0)]}
+    for face, ops in GF.items():
+        u1 = L if face == "E" else -bk
+        cuts = [0.12] + [(ops[i][2] + ops[i + 1][1]) / 2 for i in range(len(ops) - 1)] + [u1 - 0.12]
+        for u in cuts:
+            gaw_box(P["navy"], face, u - 0.16, u + 0.16, 0.0, 0.1, 0.0, 3.3)
+            gaw_box(P["navy"], face, u - 0.22, u + 0.22, 0.0, 0.14, 3.0, 3.3)
+            gaw_box(P["navy"], face, u - 0.22, u + 0.22, 0.0, 0.14, 0.0, 0.3)
+        gaw_box(P["navy"], face, 0.0, u1, 0.0, 0.1, 3.3, 3.6)
+        gaw_box(P["white"], face, 0.0, u1, 0.0, 0.03, 0.0, 0.25)
+        for kind, a, b_ in ops:
+            if kind == "win":
+                gaw_box(P["navy"], face, a - 0.1, b_ + 0.1, 0.0, 0.08, 0.25, 0.7)
+                gaw_window(P, face, a, b_, 0.8, 2.85, awning=False, curtain=True, navy=True)
+            else:
+                gaw_box(P["navy"], face, a - 0.14, b_ + 0.14, 0.0, 0.12, 0.0, 2.95)
+                gaw_box(P["navy"], face, a, b_, 0.12, 0.14, 0.0, 2.55)
+                for k in range(2 if b_ - a > 1.0 else 1):  # the leaves: glass over a panel
+                    n_ = 2 if b_ - a > 1.0 else 1; la, lb = a + (b_ - a) * k / n_ + 0.08, a + (b_ - a) * (k + 1) / n_ - 0.08
+                    gaw_box(P["glass"], face, la, lb, 0.14, 0.16, 1.0, 2.35)
+                    gaw_box(P["white"], face, la + 0.02, lb - 0.02, 0.16, 0.17, 1.0, 1.6)
+                gaw_box(P["glass"], face, a, b_, 0.12, 0.15, 2.62, 2.9)
+                for s in (-1, 1):                          # a lantern each side
+                    u = (a - 0.45) if s < 0 else (b_ + 0.45)
+                    gaw_box(P["navy"], face, u - 0.04, u + 0.04, 0.1, 0.35, 2.3, 2.36)
+                    x, y, _ = gaw_pt(face, u, 0.35, 0)
+                    globe_lamp_bm(P["lamp"], x, y, 2.2, 0.12)
+                    bm_lathe(P["navy"], [(0, 0), (0.14, 0), (0.02, 0.12), (0, 0.14)], 8, T(x, y, 2.3))
+    for a, b_ in zip(ch, ch[1:]):
+        plate(P["navy"], a, b_, 3.3, 3.6, 0.36)
+    # ---- the veranda: floor, columns, the lace frieze, ceiling, the red fascia; the balcony's railing and planters
+    bm_box(P["walk"], -0.6, L + d, 0.0, d, 0.0, 0.05)
+    bm_box(P["walk"], L, L + d, bk, 0.0, 0.0, 0.05)
+    yc, xc = d - 0.15, L + d - 0.15
+    colE = [-0.45, 2.4, 4.9, 7.37, xc]; colS = [yc, -0.35, bk + 0.2]
+    cols = [(x, yc) for x in colE] + [(xc, y) for y in colS[1:]]
+    for x, y in cols:
+        gaw_column(P, x, y, 0.05, 3.55)
+    run = [(-0.45, yc), (xc, yc), (xc, bk + 0.2)]
+    for a, b_ in zip(run, run[1:]):
+        gaw_frieze(P, a, b_, 3.05, 3.5)
+    for x, y in cols:                                     # the brackets: an iron quarter ring either side of each column
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            if (dy and x != xc) or (dx and y != yc) or (x == xc and y == yc and (dx > 0 or dy > 0)):
+                continue
+            pts = [(x + dx * 0.55 * (1 - math.cos(a)), y + dy * 0.55 * (1 - math.cos(a)), 3.05 - 0.55 * (1 - math.sin(a)))
+                   for a in [math.pi / 2 * q / 5 for q in range(6)]]
+            for pa, pb in zip(pts, pts[1:]):
+                bar(P["navy"], pa, pb, 0.04)
+    bm_box(P["white"], -0.6, L + d, 0.0, d, 3.55, z1)
+    bm_box(P["white"], L, L + d, bk, 0.0, 3.55, z1)
+    bm_box(P["red"], -0.65, L + d + 0.05, d - 0.05, d + 0.08, 3.45, z1 + 0.05)
+    bm_box(P["red"], L + d - 0.05, L + d + 0.08, bk, d + 0.05, 3.45, z1 + 0.05)
+    bm_box(P["white"], -0.7, L + d + 0.1, d + 0.02, d + 0.12, z1 + 0.02, z1 + 0.1)
+    bm_box(P["white"], L + d + 0.02, L + d + 0.12, bk, d + 0.1, z1 + 0.02, z1 + 0.1)
+    rr = [(-0.6, 0.0), (-0.6, d - 0.1), (L + d - 0.1, d - 0.1), (L + d - 0.1, bk)]
+    for a, b_ in zip(rr, rr[1:]):
+        gaw_rail(P, a, b_, z1, 1.0)
+    for x, y in [(0.9, d - 0.1), (6.6, d - 0.1), (L + d - 0.1, -1.4)]:   # planters on the rail (photos 1..3)
+        horiz = abs(y - (d - 0.1)) < 1e-6
+        a, b_ = ((x - 0.45, x + 0.45), (y - 0.14, y + 0.14)) if horiz else ((x - 0.14, x + 0.14), (y - 0.45, y + 0.45))
+        bm_box(P["wood"], *a, *b_, z1 + 1.0, z1 + 1.22)
+        bm_box(P["leaf"], a[0] + 0.03, a[1] - 0.03, b_[0] + 0.03, b_[1] - 0.03, z1 + 1.22, z1 + 1.42)
+        bm_box(P["flower"], a[0] + 0.1, a[1] - 0.1, b_[0] + 0.05, b_[1] - 0.05, z1 + 1.38, z1 + 1.46)
+    # ---- first and second floors: windows with awnings; the second floor's balcony (red fascia, navy railing)
+    WIN = {"E": [1.2, 3.65, 6.1], "S": [1.6]}
+    for face, us in WIN.items():
+        for u in us:
+            w_ = 0.62 if face == "E" else 0.58
+            gaw_window(P, face, u - w_, u + w_, 4.55, 6.15)
+            gaw_window(P, face, u - w_ + 0.05, u + w_ - 0.05, 7.45, 8.72)
+    p = 0.9
+    bm_box(P["white"], -0.3, L + p, 0.0, p, z2 - 0.18, z2)
+    bm_box(P["white"], L, L + p, bk + 0.25, 0.0, z2 - 0.18, z2)
+    bm_box(P["red"], -0.35, L + p + 0.05, p - 0.04, p + 0.06, z2 - 0.45, z2 + 0.03)
+    bm_box(P["red"], L + p - 0.04, L + p + 0.06, bk + 0.25, p + 0.05, z2 - 0.45, z2 + 0.03)
+    for x in [0.0, 1.9, 3.65, 5.4, L]:                    # the brackets under it
+        bm_prism(P["white"], [(0.0, z2 - 0.18), (p - 0.1, z2 - 0.18), (0.0, z2 - 0.75)], x - 0.06, x + 0.06, "yz")
+    rr = [(-0.3, 0.0), (-0.3, p - 0.08), (L + p - 0.08, p - 0.08), (L + p - 0.08, bk + 0.25)]
+    for a, b_ in zip(rr, rr[1:]):
+        gaw_rail(P, a, b_, z2, 0.95)
+    for x, y in [(2.4, p - 0.08), (4.9, p - 0.08)]:
+        bm_box(P["wood"], x - 0.4, x + 0.4, y - 0.12, y + 0.12, z2 + 0.95, z2 + 1.13)
+        bm_box(P["leaf"], x - 0.37, x + 0.37, y - 0.09, y + 0.09, z2 + 1.13, z2 + 1.3)
+    # ---- the cornice (brackets, a deep crown), the parapet with its panels and coping
+    for face, u1 in (("E", L), ("S", -bk)):
+        gaw_box(P["white"], face, -0.05, u1, 0.0, 0.12, top - 0.55, top - 0.4)
+        u = 0.2
+        while u < u1 - 0.1:
+            gaw_box(P["white"], face, u - 0.07, u + 0.07, 0.0, 0.3, top - 0.4, top - 0.05); u += 0.55
+        gaw_box(P["white"], face, -0.1, u1 + (0.45 if face == "E" else 0.0), -0.3, 0.45, top - 0.05, top + 0.18)
+        gaw_box(P["wall"], face, 0.0, u1, -0.25, 0.0, top + 0.18, top + 0.8)
+        u = 0.25
+        while u < u1 - 0.8:
+            gaw_box(P["white"], face, u, u + 0.7, 0.0, 0.03, top + 0.3, top + 0.68); u += 0.95
+        gaw_box(P["white"], face, -0.1, u1 + (0.1 if face == "E" else 0.0), -0.3, 0.1, top + 0.8, top + 0.9)
+    for a, b_ in zip(ch, ch[1:]):
+        plate(P["white"], a, b_, top - 0.05, top + 0.18, 0.7)
+        plate(P["wall"], a, b_, top + 0.18, top + 0.8, 0.3)
+        plate(P["white"], a, b_, top + 0.8, top + 0.9, 0.4)
+    # ---- the tower: a square cream storey with round-arched windows, a dentil cornice, the curved mansard, cresting, flag
+    tx, ty, hw = 3.65, -1.5, 1.3; zb, zc = top + 0.9, top + 3.0
+    bm_box(P["wall"], tx - hw, tx + hw, ty - hw, ty + hw, top, zc)
+    for sx, sy in ((-1, -1), (-1, 1), (1, -1), (1, 1)):
+        bm_box(P["white"], tx + sx * hw - 0.18, tx + sx * hw + 0.18, ty + sy * hw - 0.18, ty + sy * hw + 0.18, zb, zc)
+    for plane, c, o in (("xz", tx, ty), ("yz", ty, tx)):  # a round-arched window on each face
+        for s in (-1, 1):
+            f = lambda d0, d1: (o + s * hw + (d0 if s > 0 else -d1), o + s * hw + (d1 if s > 0 else -d0))
+            bm_prism(P["white"], arch_opening(c - 0.55, c + 0.55, zb + 0.2, zc - 0.65, 0.4, 10), *f(0.0, 0.08), plane)
+            bm_prism(P["glass"], arch_opening(c - 0.4, c + 0.4, zb + 0.3, zc - 0.7, 0.3, 10), *f(0.08, 0.1), plane)
+    bm_box(P["white"], tx - hw - 0.2, tx + hw + 0.2, ty - hw - 0.2, ty + hw + 0.2, zc, zc + 0.12)
+    for k in range(4):                                    # the dentils
+        for j in range(12):
+            t = -hw - 0.1 + (2 * hw + 0.2) * (j + 0.5) / 12
+            x, y = [(tx + t, ty + hw + 0.2), (tx + hw + 0.2, ty + t), (tx + t, ty - hw - 0.2), (tx - hw - 0.2, ty + t)][k]
+            bm_box(P["white"], x - 0.05, x + 0.05, y - 0.05, y + 0.05, zc + 0.12, zc + 0.24)
+    bm_box(P["white"], tx - hw - 0.32, tx + hw + 0.32, ty - hw - 0.32, ty + hw + 0.32, zc + 0.24, zc + 0.4)
+    zm = zc + 0.4; s2 = math.sqrt(2)
+    bm_lathe(P["roof"], [(0, 0), ((hw + 0.2) * s2, 0), ((hw + 0.1) * s2, 0.5), ((hw - 0.15) * s2, 1.0), ((hw - 0.55) * s2, 1.3), (0, 1.3)],
+             4, T(tx, ty, zm) @ R(math.pi / 4, "Z"))
+    bm_lathe(P["white"], [(0, 0), (0.32, 0), (0.32, 0.06), (0, 0.06)], 16, T(tx, ty + hw + 0.12, zm + 0.55) @ R(-math.pi / 2, "X"))
+    bm_lathe(P["glass"], [(0, 0), (0.22, 0), (0.22, 0.02), (0, 0.02)], 16, T(tx, ty + hw + 0.18, zm + 0.55) @ R(-math.pi / 2, "X"))
+    zk = zm + 1.3; h_ = hw - 0.55
+    for a, b_ in (((tx - h_, ty - h_), (tx + h_, ty - h_)), ((tx + h_, ty - h_), (tx + h_, ty + h_)),
+                  ((tx + h_, ty + h_), (tx - h_, ty + h_)), ((tx - h_, ty + h_), (tx - h_, ty - h_))):
+        gaw_rail(P, a, b_, zk, 0.4)
+    bm_lathe(P["white"], [(0, 0), (0.05, 0), (0.04, 3.0), (0, 3.0)], 8, T(tx, ty, zk))
+    globe_lamp_bm(P["gold"], tx, ty, zk + 3.05, 0.08)
+    for j in range(7):                                    # the flag: stripes and the canton, flying north
+        bm_box(P["red" if j % 2 == 0 else "awhite"], tx - 1.35, tx - 0.05, ty - 0.01, ty + 0.01, zk + 2.2 + j * 0.1, zk + 2.3 + j * 0.1)
+    bm_box(P["navy"], tx - 0.6, tx - 0.05, ty - 0.02, ty + 0.02, zk + 2.6, zk + 2.9)
+    # ---- the big sign on the balcony (photos 1..3): navy, a gold frame, "Great American" / "WAFFLE COMPANY", the eagle
+    sx, sy = 5.55, d + 0.05
+    bm_prism(P["gold"], arch_opening(sx - 1.85, sx + 1.85, z1 + 0.15, z1 + 1.35, 0.45, 16), sy, sy + 0.1, "xz")
+    bm_prism(P["navy"], arch_opening(sx - 1.72, sx + 1.72, z1 + 0.25, z1 + 1.3, 0.4, 16), sy + 0.1, sy + 0.14, "xz")
+    bm_prism(P["gold"], arch_opening(sx - 1.6, sx + 1.6, z1 + 0.32, z1 + 1.25, 0.37, 16), sy + 0.14, sy + 0.15, "xz")
+    bm_prism(P["navy"], arch_opening(sx - 1.56, sx + 1.56, z1 + 0.35, z1 + 1.23, 0.36, 16), sy + 0.15, sy + 0.16, "xz")
+    text("ST_WBZ_gaw_sign1", "WAFFLE COMPANY", 0.34, (sx, sy + 0.17, z1 + 0.72), (math.pi / 2, 0, math.pi), "aw_red", 0.02)
+    text("ST_WBZ_gaw_sign1b", "WAFFLE COMPANY", 0.35, (sx, sy + 0.165, z1 + 0.715), (math.pi / 2, 0, math.pi), "gaw_gold", 0.01)
+    text("ST_WBZ_gaw_sign2", "Great American", 0.15, (sx, sy + 0.17, z1 + 1.18), (math.pi / 2, 0, math.pi), "t_white", 0.01)
+    V = [(sx, z1 + 0.35), (sx + 0.55, z1 + 0.2), (sx + 0.25, z1 - 0.05), (sx, z1 - 0.35), (sx - 0.25, z1 - 0.05), (sx - 0.55, z1 + 0.2)]
+    bm_prism(P["white"], V, sy + 0.1, sy + 0.2, "xz")    # the eagle below it
+    bm_prism(P["gold"], [(sx, z1 + 0.25), (sx + 0.15, z1 + 0.05), (sx, z1 - 0.2), (sx - 0.15, z1 + 0.05)], sy + 0.2, sy + 0.22, "xz")
+    # the Mickey head hanging off the corner column (photo 4), and the small oval sign over the return's window
+    mx, my = xc + 1.05, yc
+    bar(P["navy"], (xc, yc, 3.35), (mx + 0.25, my, 3.35), 0.06)
+    bar(P["navy"], (xc, yc, 2.85), (xc + 0.5, yc, 3.35), 0.04)
+    for (ox, oz, r_) in ((0.0, 2.75, 0.3), (-0.3, 3.03, 0.17), (0.3, 3.03, 0.17)):
+        bm_lathe(P["gold"], [(0, 0), (r_ + 0.04, 0), (r_ + 0.04, 0.06), (0, 0.06)], 16, T(mx + ox, my - 0.03, oz) @ R(-math.pi / 2, "X"))
+        bm_lathe(P["navy"], [(0, 0), (r_, 0), (r_, 0.1), (0, 0.1)], 16, T(mx + ox, my - 0.05, oz) @ R(-math.pi / 2, "X"))
+    for x in (mx - 0.1, mx + 0.1):
+        bm_box(P["navy"], x - 0.01, x + 0.01, my - 0.01, my + 0.01, 3.1, 3.35)
+    Mo = T(*gaw_pt("S", 1.08, 0.1, 3.3)) @ R(math.pi / 2, "Y") @ Matrix.Diagonal((0.5, 1.0, 1, 1))
+    bm_lathe(P["gold"], [(0, 0), (0.62, 0), (0.62, 0.05), (0, 0.05)], 20, Mo)
+    bm_lathe(P["navy"], [(0, 0.05), (0.55, 0.05), (0.55, 0.08), (0, 0.08)], 20, Mo)
+    text("ST_WBZ_gaw_sign3", "WAFFLE Co.", 0.13, (L + 0.19, -1.08, 3.3), (math.pi / 2, 0, math.pi / 2), "gaw_gold", 0.01)
+    # ---- the terrace: tables under the veranda, the umbrellas in front, a low hedge planter (photos 1, 3)
+    for x, y, n in ((1.2, 1.2, 2), (6.0, 1.2, 2), (8.9, -1.6, 2)):
+        gaw_table(P, x, y, n, q=0.4)
+    for x, y in ((0.3, 4.8), (3.4, 5.0), (6.6, 4.8), (11.9, 0.3)):
+        gaw_umbrella(P, x, y)
+    bm_box(P["white"], 4.2, 7.0, 7.0, 7.6, 0.0, 0.55)
+    bm_box(P["leaf"], 4.25, 6.95, 7.05, 7.55, 0.55, 0.95)
+    for k, bm_ in P.items():
+        if len(bm_.verts):
+            obj_bm(f"ST_WBZ_gaw_{k}", bm_, GAW_MATS[k], smooth=(k == "lamp"))
+        else:
+            bm_.free()
 
 
 # ================================================================ 3. paving and street furniture
@@ -1803,6 +2152,12 @@ def wbp(lx, ly):
     return (WB["x"] + lx * math.cos(a) - ly * math.sin(a), WB["y"] + lx * math.sin(a) + ly * math.cos(a))
 
 
+def gawp(x, y):
+    """The Waffle Company's frame (GAW) -> the mock's local metres."""
+    a = math.radians(GAW["ang"])
+    return wbp(GAW["x"] + x * math.cos(a) - y * math.sin(a), GAW["y"] + x * math.sin(a) + y * math.cos(a))
+
+
 def cams():
     return {
         "wbz_street": ((*wbp(1.5, -13.0), 1.65), (*wbp(0.0, -100.0), 5.5), 20),     # towards the castle end
@@ -1822,6 +2177,9 @@ def cams():
         "wbz_icc_arcade": ((*wbp(-11.4, -114.4), 1.6), (*wbp(-28.0, -113.2), 2.6), 16),  # along the arcade (photo 3)
         "wbz_icc_in": ((*wbp(-10.3, -109.9), 1.6), (*wbp(-17.4, -109.0), 1.9), 16),      # inside: the counter from the east window (photo 4)
         "wbz_icc_in2": ((*wbp(-19.4, -111.1), 1.6), (*wbp(-13.0, -108.3), 1.7), 16),     # inside: back along the counter to the return (photo 6)
+        "wbz_gaw": ((*gawp(1.5, 21.0), 1.7), (*gawp(4.5, 0.0), 5.8), 20),             # the Waffle Company's front (photo 3)
+        "wbz_gaw_corner": ((*gawp(16.0, 10.0), 1.7), (*gawp(6.0, 0.5), 4.2), 20),     # its south-east corner (photo 5)
+        "wbz_gaw_porch": ((*gawp(13.0, -1.2), 1.6), (*gawp(7.0, 1.6), 2.4), 18),     # along the veranda's return (photo 4)
         "wbz_aerial": ((*wbp(70.0, -10.0), 75.0), (*wbp(0.0, -58.0), 0.0), 32),
     }
 
