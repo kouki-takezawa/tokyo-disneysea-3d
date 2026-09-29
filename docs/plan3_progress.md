@@ -7,7 +7,7 @@
 | 0 | 資料(OSM・航空写真・Commons) → `docs/plaza/README.md` | 済 3939f88 |
 | 1 | アイスクリームコーン外観 | 済 086882c |
 | 2 | アイスクリームコーン店内 | 済(e2736d3 + 残りの確認) |
-| 3 | プラザの地面(新規 `ds_tdl_plaza_ground.py`、Blender なし)→ モックをユーザーに見せる | 未 |
+| 3 | プラザの地面(新規 `ds_tdl_plaza_ground.py`、Blender なし)→ モックをユーザーに見せる | 済(commit) |
 | 4 | 中央: パートナーズ像・ステージ2つ・街灯・ベンチ・柵 | 未 |
 | 5 | 周りの建物(新規 `ds_tdl_plaza_hub.py`) | 未 |
 | 6 | つなぎ目・散歩で駅→城を確認・圧縮・README・本番反映 | 未 |
@@ -33,11 +33,21 @@
 
 次は `/clear` → 「計画3のフェーズ3から」。
 
+## フェーズ3でやったこと
+
+新規 `src/ds_tdl_plaza_ground.py`(plain Python、Blender不要)。WB奥の出口(-477,794)〜シンデレラ城の門GATE(-388.6,578.2)のプラザ(ハブ)の地面。
+- 中心 HUB_C=(-427.0, 687.0) を採用。OSM「Partners」ノード(-456.5,751.8)は航空写真+実際の放射状ガーデン帯(OSM way 71900258 ほか)から約70mずれている(OSM側の点の位置誤りと判断)。航空写真の2点(クリスタルパレス、キャッスルフォアコート)でピクセル<->メートル較正を検証済み。
+- 舗装はOSMのhighway=pedestrian area全件+footway(Parade Route含む)+橋の小ポリゴン(舗装のまま)+隙間はpolygonizeで埋める(ds_tdl_hotel_ground.pyのFILL_BOXと同じ考え方)。花壇/芝はleisure=garden・landuse=grass等を全部ds_tdl_ground.add_planter相当(縁石+緑の上面、白い花のリボンTP_flower付き)で処理。中心の小さな円形ガーデンと周囲4区画が実データのまま「放射状の芝生くさび」になる(合成形状ではない)。
+- 既存モデルとの重なりはds_ground.model_footprint()で cinderella/tdl_world_bazaar/tdl_plaza_buildings/tdl_water/tdl_ground の実フットプリントを差し引いて回避。調査の結果、城のフォアコート(コンパスローズ舗装)はds_tdl_cinderella.pyのbuild_forecourt()で既に作成済みと判明(タスクの「GATE手前は細かめ」は不要、docstringに明記)。
+- `ds_ground.py`のZONES["tdl_land_ground"]["cut_models"]に"tdl_plaza_ground"を追加(既存の地面を切り抜く、tds_groundがplaza/aquasphere/volcanoを切り抜くのと同じ流儀)。`export_mock.py`のMODELSに登録。`mock_template.html`にTP_*マテリアルとHEDGE_KEYへのTP_soil追加。
+- Playwright確認: `python -m http.server`配信、`TDS_WALK(-477,794,-2.753,-0.05)`でWB出口から城向き(南158°)、`TDS_FOCUS(-427,687,0.5,190,0.6,1.35)`で俯瞰。俯瞰図は航空写真の放射状パターンとよく一致。Wキーで歩行、フォールなし・引っかかりなし(ただしモデル読み込みが重くメインスレッドが詰まるため移動量は小さい)。
+- モデル読み込みの注意: このモックは全モデル(~19個)をメインスレッドで1個ずつ同期読み込みするため、`tdl_plaza_ground`の読み込みに70〜90秒かかることがある。散歩モードで開始すると比較的早く読み込まれる。`page.screenshot()`のタイムアウトは長め(120秒)にすること。
+
 ## 手順メモ
 
 ```
-blender -b --python src/ds_tdl_world_bazaar.py -- --cams wbz_icc_in,wbz_icc_in2 --samples 24 --percent 40
-blender -b --python src/export_models.py -- --parts tdl_world_bazaar
+python src/ds_tdl_plaza_ground.py  # -> output/disneysea/models/tdl_plaza_ground.json + 要約
+python src/ds_ground.py tdl_land_ground   # cut_models適用後の再生成(1分程度)
 python src/export_mock.py          # 圧縮(models/web/)と tds_outline.html まで
 git push → Vercel 自動デプロイ → gh api repos/kouki-takezawa/tokyo-disneysea-3d/commits/<sha>/statuses
 ```

@@ -13,7 +13,7 @@ Zones (ZONES):
   Each zone leaves out the other zones, the entrance plaza (ds_tdl_ground.py) and the ground round the hotel (ds_tdl_hotel_ground.py).
 Models already there: their plan footprint (read from the glTF in output/disneysea/models/, rasterised at FOOT_PX m) is cut out of
   the ground, so nothing is drawn twice: DisneySea's water (with its quays and piers), the plaza, the AquaSphere and the volcano; the
-  a Land water model (WATER_MODEL_TDL), once it exists.
+  a Land water model (WATER_MODEL_TDL), once it exists; the Land's plaza hub (ds_tdl_plaza_ground.py, "tdl_plaza_ground").
 What each piece is (OSM, both extracts merged; the first that applies wins):
   (hole)   buildings (not the roofs on posts; not the booths and shelters under SMALL_BUILDING m2): nothing is built there, EXCEPT
            the passages through them: footways / service roads / pedestrian areas tagged tunnel=building_passage or covered=yes, and
@@ -67,7 +67,7 @@ LAND_KINDS = ("TL_paving", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_gro
 LAND_KEYS = ("wb", "adv", "west", "critter", "fan", "toon", "tom")                       # ds_disneyland.LANDS order; the mock colours them
 LAND_SAMPLE = 8.0                                                                        # m: spacing of the points along the buildings' outlines
 ZONES = {
-    "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=[]),
+    "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=["tdl_plaza_ground"]),
     "tds_ground": dict(cell=8.0, tile=64.0, water_models=["water"], cut_models=["water", "plaza", "aquasphere", "volcano"]),
 }
 
