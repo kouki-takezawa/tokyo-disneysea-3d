@@ -63,6 +63,9 @@ FOOT_SIMPLIFY = 0.6                       # m: the models' footprints (raster ou
 SIMPLIFY = 0.3                            # m: the pieces' outlines are simplified this much (together, as a coverage)
 WATER_MODEL_TDL = "tdl_water"            # a Land water model, when one is made (another tab: ds_tdl_water.py)
 KINDS = ("TL_paving", "TL_road", "TL_parking", "TL_rail", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_ground")
+LAND_KINDS = ("TL_paving", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_ground")   # split by land in the Land zone: TL_<kind>_<land>
+LAND_KEYS = ("wb", "adv", "west", "critter", "fan", "toon", "tom")                       # ds_disneyland.LANDS order; the mock colours them
+LAND_SAMPLE = 8.0                                                                        # m: spacing of the points along the buildings' outlines
 ZONES = {
     "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=[]),
     "tds_ground": dict(cell=8.0, tile=64.0, water_models=["water"], cut_models=["water", "plaza", "aquasphere", "volcano"]),
@@ -212,6 +215,34 @@ def zone_regions():
     return {"tdl_land_ground": tdl, "tds_ground": tds}, dict(station=HP["station"], done=done)
 
 
+# ---------------------------------------------------------------- lands
+def land_regions(clip):
+    """The Land's ground divided among its 7 lands: every point goes to the land whose buildings (ds_disneyland's land of each
+    building: POIs and names inside the footprint) are nearest -- a Voronoi diagram of points along the buildings' outlines,
+    merged per land. The buildings of the backstage / other group are left out, so their ground goes to the nearest land."""
+    datum = json.loads((ROOT / "plateau_data" / "disneysea_levels.json").read_text(encoding="utf-8"))
+    D = DL.build(datum.get("datum_exact", datum["datum_m"]))["disneyland"]
+    pts, owner = [], []
+    for b in D["buildings"]:
+        if b["p"] >= len(LAND_KEYS):
+            continue
+        ring = b["r"][0] if isinstance(b["r"][0][0], (list, tuple)) else b["r"]
+        ls = LineString(list(ring) + [ring[0]])
+        for d in np.arange(0.0, ls.length, LAND_SAMPLE):
+            q = ls.interpolate(d)
+            pts.append((q.x, q.y)); owner.append(b["p"])
+    cells = shapely.voronoi_polygons(shapely.MultiPoint(pts), extend_to=box(*clip.buffer(200).bounds))
+    per = {i: [] for i in range(len(LAND_KEYS))}
+    for c in cells.geoms:
+        per[owner[_nearest(pts, c.representative_point())]].append(c)
+    return {LAND_KEYS[i]: unary_union(v) for i, v in per.items() if v}
+
+
+def _nearest(pts, q):
+    a = np.asarray(pts)
+    return int(np.argmin((a[:, 0] - q.x) ** 2 + (a[:, 1] - q.y) ** 2))
+
+
 # ---------------------------------------------------------------- plan of one zone
 def plan(zone, region):
     cfg = ZONES[zone]
@@ -285,6 +316,14 @@ def plan(zone, region):
         zones[name] = unary_union([p for p in G._polys(g) if p.area > 0.5])
         taken = unary_union([taken, zones[name]])
     zones["TL_ground"] = unary_union([p for p in G._polys(open_.difference(taken)) if p.area > 0.5])
+    if zone == "tdl_land_ground":       # split the ground kinds by land: TL_paving -> TL_paving_wb, TL_paving_adv, ...
+        lands = land_regions(region)
+        for k in LAND_KINDS:
+            g = zones.pop(k)
+            for lk, lg in lands.items():
+                part = g.intersection(lg)
+                if not part.is_empty:
+                    zones[f"{k}_{lk}"] = unary_union([q for q in G._polys(part) if q.area > 0.5])
     # simplify all the pieces together, so their shared edges stay shared (no cracks between them)
     names = [k for k, v in zones.items() if not v.is_empty]
     simp = shapely.coverage_simplify(np.array([zones[k] for k in names], dtype=object), SIMPLIFY)
@@ -338,9 +377,10 @@ def build(zone, region, extra):
             flats.append((pz, json.loads((ROOT / "plateau_data" / "disneysea_plaza.json").read_text(encoding="utf-8"))["ground"] + 0.045, 0.5, 12.0))
     T = G.Terrain(P["region"].bounds, void=P["void"], flats=flats)
     print(f"  [{zone}] terrain {time.time() - t0:.0f} s", flush=True)
-    meshes = {n: G.Mesh(n) for n in KINDS + ("TL_edge",)}
+    kinds = list(P["zones"])
+    meshes = {n: G.Mesh(n) for n in kinds + ["TL_edge"]}
     all_tris = []
-    for name in KINDS:
+    for name in kinds:
         g = P["zones"][name]
         if not g.is_empty:
             all_tris += top_surface_cells(meshes[name], T, g, cfg["cell"], cfg["tile"])

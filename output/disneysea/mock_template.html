@@ -1496,6 +1496,11 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_mast: { color: 0x8a9095, roughness: 0.5, metalness: 0.5 }, ST_canopy: { color: 0xdcdedf, roughness: 0.6 }, ST_deck_top: { color: 0x3a3a3a, roughness: 1 },
   ST_barrier: { color: 0xb4b9b9, roughness: 0.5, metalness: 0.2 },
 };
+// ランドの地面をエリアごとに塗る (ds_ground.py: TL_<kind>_<land>)。道・駐車場・線路敷は灰色のまま
+const LAND_GROUND = { wb: 0xb84a42, adv: 0x4f8f3f, west: 0x8c4c36, critter: 0xdcb93a, fan: 0x2f9d94, toon: 0xdc8fab, tom: 0x3f70bd };
+const LAND_SHADE = { paving: 1, ground: 0.92, grass: 0.8, wood: 0.6, rock: 0.85, earth: 0.9 };
+for (const [lk, c] of Object.entries(LAND_GROUND)) for (const [k, f] of Object.entries(LAND_SHADE))
+  MODEL_MAT[`TL_${k}_${lk}`] = { color: [16, 8, 0].reduce((a, sh) => a | Math.round((c >> sh & 255) * f) << sh, 0), roughness: k === "wood" || k === "grass" ? 1 : 0.9 };
 /* ---------- the sky over 24 hours (0:00 - 24:00, Japan time) ----------
    The sun's height and direction come from the date and Maihama's position; how the sky looks (colours, light, stars)
    is read off SKY_KEYS by the sun's height, so dawn and dusk come at the right hour in every season.
