@@ -1530,6 +1530,26 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   TT_text: { color: 0xffffff, emissive: 0x9a9a9a, emissiveIntensity: 0.6, roughness: 0.4 },
   TT_hedge: { color: 0x355c2c, roughness: 0.95 }, TT_flower: { color: 0xf2c81c, roughness: 0.8 }, TT_planter: { color: 0x7fa5d8, roughness: 0.55 },
   TT_rail: { color: 0x9aa0a8, roughness: 0.4, metalness: 0.6 },
+  // スティッチ・エンカウンター (ds_tdl_stitch_encounter.py、ユーザー写真 images/stitch_encounter/): meshes SE_<part>
+  SE_white: { color: 0xf2f3f1, roughness: 0.55 }, SE_sky: { color: 0x9fc3e2, roughness: 0.5 }, SE_roof: { color: 0xe4e1d6, roughness: 0.85 },
+  SE_navy: { color: 0x243a8c, roughness: 0.5 }, SE_purple: { color: 0x5a4aa0, roughness: 0.6 }, SE_lilac: { color: 0x9c8fd6, roughness: 0.55 },
+  SE_lav: { color: 0xb9addf, roughness: 0.5 },
+  SE_glass: { color: 0x3c4c62, roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.6, depthWrite: false },
+  SE_paving: { color: 0x7d93b4, roughness: 0.85 }, SE_stripe: { color: 0xa9d4ee, roughness: 0.8 }, SE_planter: { color: 0xa9c8e6, roughness: 0.6 },
+  SE_hedge: { color: 0x3d6a2e, roughness: 0.95 }, SE_flower: { color: 0x8d5ac8, roughness: 0.8 },
+  SE_frame: { color: 0xa9adb3, roughness: 0.35, metalness: 0.55 }, SE_panel: { color: 0x2a2440, roughness: 0.4 },
+  SE_green: { color: 0x7dff5a, emissive: 0x57d63a, emissiveIntensity: 0.9, roughness: 0.4 },
+  SE_red: { color: 0xc8202a, roughness: 0.35 }, SE_redlit: { color: 0xff6040, emissive: 0xff3a20, emissiveIntensity: 0.8 },
+  SE_bronze: { color: 0xa88a5a, roughness: 0.45, metalness: 0.6 }, SE_text: { color: 0xffffff, emissive: 0x9a9a9a, emissiveIntensity: 0.5, roughness: 0.4 },
+  SE_dark: { color: 0x1a1c2c, roughness: 0.7 }, SE_blue: { color: 0x3a64b4, roughness: 0.5 },
+  SE_carpet: { color: 0x2f4f9c, roughness: 0.95 }, SE_dot: { color: 0x6e2330, roughness: 0.95 }, SE_wallin: { color: 0x3558a8, roughness: 0.7 },
+  SE_ceil: { color: 0x1d2440, roughness: 0.8 }, SE_gold: { color: 0xd9a032, roughness: 0.35, metalness: 0.5 },
+  SE_screen: { color: 0x2a4f9a, emissive: 0x3d78d8, emissiveIntensity: 0.7, roughness: 0.2 },
+  SE_stitch: { color: 0x4f86d4, emissive: 0x2a4c86, emissiveIntensity: 0.6, roughness: 0.6 }, SE_pink: { color: 0xe88aa8, emissive: 0x804050, emissiveIntensity: 0.5 },
+  SE_bench: { color: 0x33307a, roughness: 0.8 }, SE_steel: { color: 0xc9ced4, roughness: 0.25, metalness: 0.75 },
+  SE_light: { color: 0xdfe9ff, emissive: 0x8fb4ff, emissiveIntensity: 0.9 }, SE_shelf: { color: 0xeeeef2, roughness: 0.5 },
+  SE_goods: { color: 0x58a8e0, roughness: 0.6 }, SE_tfloor: { color: 0x232848, roughness: 0.95 },
+  SE_shopceil: { color: 0xf4f4f6, roughness: 0.8, emissive: 0x404048 }, SE_shopfloor: { color: 0xc9ccd8, roughness: 0.6 },
   // ランド・シーの地面 (ds_ground.py): meshes TL_<kind>
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
@@ -3150,13 +3170,13 @@ async function init3D() {
     aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
-    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland", dlplazab: "disneyland", dlplazahub: "disneyland", dltomterrace: "disneyland",
+    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland", dlplazab: "disneyland", dlplazahub: "disneyland", dltomterrace: "disneyland", dlstitch: "disneyland",
     mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhtdlhotel: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
-    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0", dlplazahub: "--l0", dltomterrace: "--l0",
+    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0", dlplazahub: "--l0", dltomterrace: "--l0", dlstitch: "--l0",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhtdlhotel: "--muted", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   const makeObjs = () => {   // the lines collected so far -> line objects; then collect afresh

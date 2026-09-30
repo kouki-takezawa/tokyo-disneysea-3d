@@ -7,17 +7,18 @@ trees, no round clipped shrubs, no night version):
 Sources: the user's 8 photos (images/tomorrowland_terrace/1-8.png, not in the repo: the pond side, the entrance under the
 faceted glass dome, the red-glass entrance, the covered terrace and its coffered ceiling, the park map), web photos
 looked at for reference only (castel.jp, tdrfan.com: the dining hall -- the walls (white: the user, 2026-09-30), a stainless band round a raised
-ceiling with a lit lattice, red patterned carpet, red chairs, white round tables, red booths; the stage with its pink
-proscenium; the sign: two pale-blue hexagons, a dark-blue band with the name, a red diamond), the GSI aerial photo
-(plan, the rotunda, the dome) and OSM:
-  way 217930860 "トゥモローランド・テラス" (the south-east lobe: the dining hall, the domed entrance, the covered terrace
-  along the parade route) + way 217930859 (unnamed, building=retail, toilets: the north-west lobe with the round rotunda).
+ceiling with a lit lattice, red patterned carpet, red chairs, white round tables, red booths; the sign: two pale-blue hexagons, a dark-blue band with the name, a red diamond), the GSI aerial photo
+(plan, the dome) and OSM way 217930860 "トゥモローランド・テラス" (the dining hall, the domed entrance, the covered
+terrace along the parade route). The unnamed way 217930859 next to it on the north-west, with the round drum, is Stitch
+Encounter (OSM node 12366545400 and the Google map put it there) -> ds_tdl_stitch_encounter.py; the wall on the shared
+edge is a solid party wall.
 The OSM outlines are the roof's edge (checked on the aerial photo): the walls stand WALL_IN m behind it under a deep
-white fascia; on the parade side and on the two pond sides they stand further back (covered terraces).
+white fascia (on the party wall with Stitch Encounter they stand at the edge); on the parade side and the pond side
+they stand further back (covered terraces).
 
 What is modelled (every height is an ESTIMATE from people in the photos, 1.70 m):
   outside  stepped roof: a white fascia (soffit 4.3 m, top 5.6 m) round the outline, two pale-blue tiers set back over
-           it (6.5 / 7.3 m); the rotunda's drum and low cone roof with a hexagonal cap (~10 m); the faceted glass dome on
+           it (6.5 / 7.3 m); the faceted glass dome on
            a white box over the south-east entrance (~11 m); walls of pale blue / lavender-grey panels, cream by the domed
            entrance, glazing with white mullions, a red glass wall by the south-west entrance; the covered terraces with
            white columns on blue bases, a coffered ceiling (blue pyramids, some lit), railings with planters on the pond
@@ -25,14 +26,13 @@ What is modelled (every height is an ESTIMATE from people in the photos, 1.70 m)
            blue-edged planters (hedge and yellow flowers) and white benches at the domed entrance.
   inside   red carpet, white walls (the user), a flat white ceiling (3.9 m) with a raised lit lattice over the middle of the hall
            edged by a stainless band; ordering counters (blue, stainless top, lit menu boards) along the kitchen on the
-           south-west side; a low partition with a red booth; the rotunda (ceiling up to ~8 m, a ring light) with the stage
-           and its pink proscenium and screen; white round tables with red chairs everywhere (the web photos), also on the
-           covered terraces. The kitchen and the back-of-house on the west are closed blocks.
-ESTIMATES: all heights, the positions of the doors, the counters, the stage and the kitchen, the table layout (the real
-  restaurant seats ~1,500), the colours of the walls not in any photo (the north and west sides).
+           south-west side; a low partition with a red booth; white round tables with red chairs everywhere (the web
+           photos), also on the covered terraces. The kitchen is a closed block.
+ESTIMATES: all heights, the positions of the doors, the counters and the kitchen, the table layout (the real
+  restaurant seats ~1,500), the colours of the walls not in any photo (the west side).
 Walk: the floor is one slab at the 85th percentile of the ground round the outline (the ground models leave a hole
   under it; from -0.9 to -0.2 m round it, so every door is a step of 0.5 m or less); the doors are openings in the
-  walls (the walls, glass and furniture stop the walker); the stage is too high to step onto.
+  walls (the walls, glass and furniture stop the walker).
 Frame: the mock's local metres (+x east, +y north), z up; plan (x, y, z) -> glTF (x, z, -y) by ds_tdl_ground.write_gltf.
 """
 import sys, json, math, pathlib
@@ -53,17 +53,15 @@ from ds_tdl_plaza_hub import Ground, quad, P3, UP
 
 MODELS = ROOT / "output" / "disneysea" / "models"
 OUT = MODELS / "tdl_tomorrowland_terrace.json"
-LOBE_A, LOBE_B = 217930860, 217930859        # the south-east lobe (named) and the north-west lobe with the rotunda
+LOBE_A, STITCH = 217930860, 217930859        # the terrace, and Stitch Encounter next to it (the party wall)
 WALL_IN = 1.6                                  # walls behind the roof's edge (m)
 Z_C, Z_E, Z_T1, Z_T2, Z_T3 = 3.9, 4.3, 5.6, 6.5, 7.3   # over the floor: ceiling, soffit, fascia top, the two tiers
-ROT_C, ROT_R = (-537.0, 624.0), 14.0          # the rotunda (aerial photo)
-ROT_OPEN = ((-78, -36), (-14, 14), (70, 100))  # its wall's openings (deg): to the hall, the pond deck, the north door
 DOME_C, DOME_R = (-493.0, 548.0), 3.5          # the faceted glass dome over the south-east entrance (aerial photo)
 HALL_C = (-510.0, 585.0)                       # the raised ceiling's centre
 AXU = np.array([-math.sqrt(0.5), math.sqrt(0.5)])   # the hall's long axis (north-west), from the south-west walls
 AXV = np.array([math.sqrt(0.5), math.sqrt(0.5)])    # across it (north-east)
 KIT_P0, KIT_D = np.array([-488.7, 543.8]), np.array([-0.729, 0.684])   # the south-west wall line (kitchen side)
-DOORS = {"se": (-491.8, 543.9), "sw": (-503.5, 550.0), "n": (-533.0, 652.8), "ne": (-517.0, 653.0)}
+DOORS = {"se": (-491.8, 543.9), "sw": (-503.5, 550.0)}
 PARADE_SIGN = (-476.5, 585.0)                  # the hexagon sign hangs under the fascia nearest this point
 PYLON = (-480.5, 551.0)
 NAMES = ("TT_white", "TT_sky", "TT_blue", "TT_navy", "TT_cream", "TT_grey", "TT_roof", "TT_glass", "TT_redglass", "TT_dome",
@@ -204,24 +202,22 @@ def rect(c, u, v, hu, hv):
 # ---------------------------------------------------------------- plan
 def plan():
     ways = {w["id"]: w for w in DL.DATA["ways"]}
-    A, B = Polygon(ways[LOBE_A]["pts"]).buffer(0), Polygon(ways[LOBE_B]["pts"]).buffer(0)
-    U = A.union(B).buffer(0.3, join_style=2).buffer(-0.3, join_style=2)
+    A, B = Polygon(ways[LOBE_A]["pts"]).buffer(0), Polygon(ways[STITCH]["pts"]).buffer(0)
+    U = A
+    party = A.boundary.intersection(B.boundary.buffer(0.05))           # the edge shared with Stitch Encounter
     pa = ways[LOBE_A]["pts"]
     east = LineString(pa[9:22]).buffer(6.5, join_style=2)          # the parade side
     north = LineString(pa[1:9]).buffer(5.0, join_style=2)          # the pond side of lobe A
-    beast = LineString([(-509.1, 647.5), (-506.1, 644.8), (-506.4, 636.5), (-506.7, 632.1), (-511.0, 617.3)]).buffer(5.0, join_style=2)
-    cov = unary_union([east, north, beast]).intersection(U)
-    inner = U.buffer(-WALL_IN, join_style=2).difference(cov)
+    cov = unary_union([east, north]).intersection(U)
+    inner = unary_union([U.buffer(-WALL_IN, join_style=2), U.buffer(-0.15, join_style=2).intersection(party.buffer(WALL_IN + 0.2, cap_style=2))]).difference(cov)
     inner = max(polys(inner), key=lambda p: p.area)
     # the kitchen: a band along the south-west walls (s along the wall line, t into the hall)
     k0 = KIT_P0; kn = np.array([KIT_D[1], -KIT_D[0]]) * -1
     kn = kn if np.dot(kn, AXV) > 0 else -kn
     kit = Polygon([k0 + s * KIT_D + t * kn for s, t in ((31, -5), (52, -5), (52, 8.5), (31, 8.5))]).intersection(inner)   # clear of the aisle from the domed entrance
-    boh = inner.intersection(sbox(-600, 560, -560, 670))
-    rot = Point(*ROT_C).buffer(ROT_R, 48)
     hall = rect(HALL_C, AXU, AXV, 13.0, 6.5).intersection(inner.buffer(-2.5))
-    return dict(U=U, cov=cov, inner=inner, east=east.intersection(U), decks=unary_union([north, beast]).intersection(U).difference(east),
-                kit=max(polys(kit), key=lambda p: p.area), boh=max(polys(boh), key=lambda p: p.area), rot=rot, hall=hall, kn=kn)
+    return dict(U=U, cov=cov, inner=inner, east=east.intersection(U), decks=north.intersection(U).difference(east),
+                kit=max(polys(kit), key=lambda p: p.area), hall=hall, kn=kn, party=party)
 
 
 # ---------------------------------------------------------------- the walls
@@ -234,7 +230,7 @@ def walls(M, L, zf, zb):
     cs = [np.array(c) for c in ring.coords]
     info = {"bays": 0, "glass": 0, "doors": 0}
     all_doors = []
-    kit_zone, cov_zone = L["kit"].buffer(1.2), L["cov"].buffer(0.6)
+    kit_zone, cov_zone, party = L["kit"].buffer(1.2), L["cov"].buffer(0.6), L["party"].buffer(0.5)
     idx = 0
     for a, b in zip(cs[:-1], cs[1:]):
         Ln = np.linalg.norm(b - a)
@@ -251,7 +247,7 @@ def walls(M, L, zf, zb):
                 door = True
             red = np.linalg.norm(m - door_pts["sw"]) < 6.0 and not door
             se = np.linalg.norm(m - door_pts["se"]) < 7.5
-            kind = ("door" if door else "red" if red else "glass" if by_cov or (se and idx % 2 == 0)
+            kind = ("solid" if party.contains(Point(*m)) else "door" if door else "red" if red else "glass" if by_cov or (se and idx % 2 == 0)
                     else "solid" if kit_zone.contains(Point(*m)) else "glass" if idx % 5 == 0 else "solid")
             if kind == "door":
                 all_doors.append(m)
@@ -284,10 +280,10 @@ def walls(M, L, zf, zb):
 # ---------------------------------------------------------------- roof, ceilings, floor
 def roof(M, L, zf):
     U, inner = L["U"], L["inner"]
-    rot = L["rot"]; dome_box = rect(DOME_C, np.array([1.0, 0]), np.array([0, 1.0]), 3.8, 3.8)
+    dome_box = rect(DOME_C, np.array([1.0, 0]), np.array([0, 1.0]), 3.8, 3.8)
     t2 = unary_union([p for p in polys(U.buffer(-3.0, join_style=2)) if p.area > 30])
     t3 = unary_union([p for p in polys(U.buffer(-9.0, join_style=2)) if p.area > 60])
-    hole = unary_union([rot, dome_box])
+    hole = dome_box
     # fascia and tiers
     sides(M["TT_white"], U, zf + Z_E, zf + Z_T1)
     cap(M["TT_roof"], U.difference(t2).difference(hole), zf + Z_T1)
@@ -315,7 +311,7 @@ def roof(M, L, zf):
         lit.append(lit_cell)
     cap(M["TT_ceil"], U.difference(inner).difference(unary_union(cells) if cells else Polygon()), zf + Z_E, down=True)
     hall = L["hall"]
-    cap(M["TT_ceil"], inner.difference(rot).difference(hall), zf + Z_C, down=True)
+    cap(M["TT_ceil"], inner.difference(hall), zf + Z_C, down=True)
     # the raised hall ceiling: a stainless band, white sides, a lit lattice
     sides(M["TT_steel"], hall, zf + Z_C, zf + Z_C + 0.55, inward=True)
     sides(M["TT_wallin"], hall, zf + Z_C + 0.55, zf + 5.3, inward=True)
@@ -338,47 +334,7 @@ def floor(M, L, zf, zb):
     sides(M["TT_white"], L["U"], zb, zf)
 
 
-# ---------------------------------------------------------------- the rotunda and the dome
-def rotunda(M, zf):
-    cx, cy = ROT_C; n = 48
-    def ang_open(a):
-        d = math.degrees(a)
-        return any(lo <= d <= hi for lo, hi in ROT_OPEN)
-    for k in range(n):
-        a0, a1 = 2 * math.pi * k / n - math.pi, 2 * math.pi * (k + 1) / n - math.pi
-        am = (a0 + a1) / 2
-        p = np.array([cx + ROT_R * math.cos(a0), cy + ROT_R * math.sin(a0)]); q = np.array([cx + ROT_R * math.cos(a1), cy + ROT_R * math.sin(a1)])
-        nrm = np.array([math.cos(am), math.sin(am), 0.0])
-        z0 = zf + (3.0 if ang_open(am) else 0.0)
-        for s in (1, -1):   # both faces of the wall, 0.2 m apart
-            o = nrm[:2] * 0.1 * s
-            quad(M["TT_wallin"], P3(p + o, z0), P3(q + o, z0), P3(q + o, zf + Z_C), P3(p + o, zf + Z_C), nrm * s)
-        quad(M["TT_wallin"], P3(p, zf + Z_C), P3(q, zf + Z_C), P3(q, zf + 7.0), P3(p, zf + 7.0), -nrm)   # the drum inside
-        po, qo = p + nrm[:2] * 0.3, q + nrm[:2] * 0.3   # outside, 0.3 m out (the same face would flicker with the inside)
-        quad(M["TT_sky"], P3(po, zf + Z_T1), P3(qo, zf + Z_T1), P3(qo, zf + 8.3), P3(po, zf + 8.3), nrm)
-        # the cone roof outside, the shallow cone ceiling inside
-        r2 = 2.0
-        P = lambda r, a, z: np.array([cx + r * math.cos(a), cy + r * math.sin(a), z])
-        quad(M["TT_roof"], P(ROT_R + 0.4, a0, zf + 8.3), P(ROT_R + 0.4, a1, zf + 8.3), P(r2, a1, zf + 10.0), P(r2, a0, zf + 10.0), UP + nrm * 0.1)
-        quad(M["TT_ceil"], P(ROT_R, a0, zf + 7.0), P(ROT_R, a1, zf + 7.0), P(r2, a1, zf + 8.0), P(r2, a0, zf + 8.0), -UP)
-        quad(M["TT_light"], P(7.5, a0, zf + 7.35), P(7.5, a1, zf + 7.35), P(6.7, a1, zf + 7.45), P(6.7, a0, zf + 7.45), -UP)   # the ring light
-        if k % 4 == 0:
-            bar(M["TT_white"], P(ROT_R + 0.4, a0, zf + 8.35), P(r2, a0, zf + 10.05), 0.08)   # roof ribs
-    hexa = Polygon([(cx + 2.4 * math.cos(math.pi * k / 3), cy + 2.4 * math.sin(math.pi * k / 3)) for k in range(6)])
-    slab(M["TT_roof"], M["TT_sky"], hexa, zf + 9.6, zf + 10.5)
-    cap(M["TT_ceil"], Point(cx, cy).buffer(2.0, 12), zf + 8.0, down=True)
-    # the stage on the west side: platform, pink proscenium, a screen
-    stage = Point(cx, cy).buffer(ROT_R - 0.15, 48).intersection(sbox(cx - 20, cy - 20, cx - 8.0, cy + 20))
-    slab(M["TT_stage"], M["TT_stage"], stage, zf - 0.1, zf + 0.8)
-    X = cx - 8.2
-    for yy in (cy - 5.4, cy + 5.4):
-        box(M["TT_stage"], (X, yy, zf + 0.8 + 1.9), (0.45, 0.6, 1.9))
-    box(M["TT_stage"], (X, cy, zf + 4.35), (0.45, 6.0, 0.35))
-    box(M["TT_screen"], (cx - ROT_R + 0.6, cy, zf + 2.7), (0.05, 4.4, 1.6))
-    box(M["TT_white"], (X - 0.2, cy, zf + 0.8 + 3.5), (0.2, 4.8, 0.08))   # the light bar under the header
-    return stage
-
-
+# ---------------------------------------------------------------- the dome
 def geodesic(M, c, z0, r):
     """A faceted glass dome (rings of 10 points, staggered), with white bars on its edges."""
     rings = [(0.0, 0.0), (28.0, 0.5), (56.0, 0.0), (78.0, 0.5)]
@@ -438,7 +394,6 @@ def counters(M, L, zf):
                     bar(M["TT_steel"], P3(p0, zf + 0.92), P3(p0 + e * 2.4, zf + 0.92), 0.02)
         tp = text_poly("TOMORROWLAND TERRACE", 0.32)
         plate(M["TT_text"], tp, P3(m + n * 0.03, zf + 3.55), np.array([*e, 0]) * -1 if n[0] * e[1] - n[1] * e[0] < 0 else np.array([*e, 0]), UP, np.array([*n, 0]))
-    slab(M["TT_wallin"], M["TT_wallin"], L["boh"], zf, zf + Z_C)
     return n_ct
 
 
@@ -458,18 +413,15 @@ def booth(M, L, zf):
     return c
 
 
-def furniture(M, L, zf, door_pts, all_doors, stage, booth_c):
+def furniture(M, L, zf, door_pts, all_doors, booth_c):
     inner, cov = L["inner"], L["cov"]
     aisles = []
-    hubs = [np.asarray(HALL_C), np.asarray(ROT_C)]
-    aisles.append(LineString(hubs).buffer(2.0))
+    hubs = [np.asarray(HALL_C)]
     for d in door_pts.values():   # a clear space inside each door and an aisle from it to the nearest middle
         aisles.append(Point(*d).buffer(3.5))
         aisles.append(LineString([d, min(hubs, key=lambda h: np.linalg.norm(h - d))]).buffer(2.0))
     aisles += [Point(*d).buffer(3.2) for d in all_doors]
-    avoid = unary_union([L["kit"].buffer(3.6), L["boh"].buffer(1.3), stage.buffer(2.0),
-                         Point(*ROT_C).buffer(ROT_R + 1.0).difference(Point(*ROT_C).buffer(ROT_R - 1.0)),
-                         LineString([booth_c - AXU * 11.5, booth_c + AXU * 11.5]).buffer(2.4), *aisles])
+    avoid = unary_union([L["kit"].buffer(3.6), LineString([booth_c - AXU * 11.5, booth_c + AXU * 11.5]).buffer(2.4), *aisles])
     free = inner.buffer(-1.2).difference(avoid)
     n_in = 0
     for p in grid_points(free, HALL_C, AXU, AXV, 3.2):
@@ -589,11 +541,10 @@ def build():
     info["walls"] = wi
     info["doors at"] = {k: tuple(np.round(v, 1)) for k, v in door_pts.items()}
     info["roof"] = roof(M, L, zf)
-    stage = rotunda(M, zf)
     dome(M, zf)
     info["menu boards"] = counters(M, L, zf)
     bc = booth(M, L, zf)
-    info["tables in/out"] = furniture(M, L, zf, door_pts, all_doors, stage, bc)
+    info["tables in/out"] = furniture(M, L, zf, door_pts, all_doors, bc)
     info["columns, planters"] = columns_rails(M, L, zf)
     # the hexagon sign under the parade-side fascia, facing out
     U = L["U"]
