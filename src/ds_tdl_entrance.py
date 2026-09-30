@@ -1122,8 +1122,10 @@ def build_gates():
 # straight above: round head, two round ears, the skin mask (lower oval + two tall lobes round the eyes with the
 # widow's peak between), tall eyes, an oval nose, a smile turned up at the cheeks.
 BED = dict(x=-538.0 - P0[0], y=927.3 - P0[1] - 1.0, ang=205.0,     # local +X: left to right for a guest at the gates,
-           tilt=7.0, zc=1.5,                                         # local +Y: away from the gates (towards World Bazaar)
-           fence=(12.0, 12.0), bank=(9.1, 9.1), brick=(8.8, 8.8), lawn=(8.1, 8.1))   # round (user, 2026-09-24); 24 m across
+           tilt=7.0, zc=1.0,                                         # local +Y: away from the gates (towards World Bazaar)
+           fence=(7.2, 6.7), bank=(5.7, 5.3), brick=(5.5, 5.1), lawn=(5.1, 4.7))
+# (2026-09-30, the user's photo of the whole front + OSM 1291649400: the planter is 14.4 x 13.3 m, the face in it about 6 m;
+#  a stone curb with the plaza's teal railing, clipped green inside it, red flowers round the face. It was 24 m across before.)
 # (2026-09-28: 34 m was too big -- only ~49 m between the World Bazaar portico and the gates' inner face, and the photos,
 #  against people, put the bed at 15-20 m across the planting; 24 m to the fence leaves ~12 m of walkway either side)
 
@@ -1162,13 +1164,13 @@ def build_flowerbed():
     fr.location = (BED["x"], BED["y"], zc); fr.rotation_euler = (t, 0, math.radians(BED["ang"]))
     prev = B.root; B.root = fr
     lx, ly = BED["lawn"]; bx, by = BED["brick"]
-    prism("ST_Bed_lawn", [ellipse(lx, ly)], -0.3, 0.0, "grass")
+    prism("ST_Bed_lawn", [ellipse(lx, ly)], -0.3, 0.0, "flowers_red")       # red flowers round the face (photo)
     bm = bmesh.new()
     for q in band(ellipse(bx, by), ellipse(lx, ly)):
         bm_prism(bm, q, -0.3, 0.04, "xy")
     obj_bm("ST_Bed_brick_edging", bm, "brick")
     # the Mickey face, in flowers (units of the head radius R, x to the right, y up for a guest at the gates)
-    R_ = 3.95; oy = -0.9                                   # head radius; the head sits a little low so the ears fit
+    k_ = lx / 8.1; R_ = 3.95 * k_; oy = -0.9 * k_                                   # head radius; the head sits a little low so the ears fit
     P_ = lambda x, y: (x * R_, y * R_ + oy)
     E_ = lambda rx, ry, cx, cy, n=48: ellipse(rx * R_, ry * R_, n, cx * R_, cy * R_ + oy)
     fz = 0.02
@@ -1192,17 +1194,13 @@ def build_flowerbed():
     feats.append(smile)
     prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "flower_purple")
     prism("ST_Bed_tongue", [E_(0.16, 0.07, 0.0, -0.55, 28)], fz + 0.2, fz + 0.27, "flowers_red")
-    prism("ST_Bed_red_flowers", [ellipse(0.85, 0.85, 32, 5.85, -5.1)], fz, fz + 0.3, "flowers_red")
-    prism("ST_Bed_white_flowers", [ellipse(0.8, 0.8, 32, 4.45, -6.35)], fz, fz + 0.3, "flower_white")
     # the planting round the face (photo: purple and white flowers with red): a ring of alternating clumps on the lawn
     bmr, bmw_, bmp_ = bmesh.new(), bmesh.new(), bmesh.new()
-    for k in range(40):
-        a = 2 * math.pi * k / 40; rr = lx - 0.55
-        cx_, cy_ = rr * math.cos(a), rr * math.sin(a)
-        if abs(cx_ - 5.85) < 1.3 and abs(cy_ + 5.1) < 1.3 or abs(cx_ - 4.45) < 1.3 and abs(cy_ + 6.35) < 1.3:
-            continue
-        bm_prism((bmr, bmw_, bmp_)[k % 3], ellipse(0.32, 0.32, 10, cx_, cy_), fz, fz + 0.22, "xy")
-    obj_bm("ST_Bed_ring_red", bmr, "flowers_red"); obj_bm("ST_Bed_ring_white", bmw_, "flower_white"); obj_bm("ST_Bed_ring_purple", bmp_, "flower_purple")
+    for k in range(36):
+        a = 2 * math.pi * k / 36
+        cx_, cy_ = (lx - 0.4) * math.cos(a), (ly - 0.4) * math.sin(a)
+        bm_prism((bmr, bmw_, bmp_)[k % 3], ellipse(0.3, 0.3, 10, cx_, cy_), fz, fz + 0.22, "xy")
+    obj_bm("ST_Bed_ring_red", bmr, "flowers_pink"); obj_bm("ST_Bed_ring_white", bmw_, "flower_white"); obj_bm("ST_Bed_ring_purple", bmp_, "flower_purple")
     B.root = prev
     # (b) the shrub bank: from the ground at the fence up to the brick edging on the tilted plane (a loft)
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
@@ -1212,7 +1210,7 @@ def build_flowerbed():
     kx, ky = BED["bank"]; fx_, fy_ = BED["fence"]
     n = 96
     bm = bmesh.new()
-    outer = [bm.verts.new((BED["x"] + X * ca - Y * sa, BED["y"] + X * sa + Y * ca, 0.02)) for X, Y in ellipse(fx_ - 0.6, fy_ - 0.6, n)]
+    outer = [bm.verts.new((BED["x"] + X * ca - Y * sa, BED["y"] + X * sa + Y * ca, 0.4)) for X, Y in ellipse(fx_ - 0.3, fy_ - 0.3, n)]
     mid = [bm.verts.new(to_plan(X, Y, -0.35)) for X, Y in ellipse((kx + fx_) / 2, (ky + fy_) / 2, n)]
     inner = [bm.verts.new(to_plan(X, Y, 0.02)) for X, Y in ellipse(kx, ky, n)]
     for ra, rb in ((outer, mid), (mid, inner)):
@@ -1227,22 +1225,15 @@ def build_flowerbed():
         if f.normal.z < 0:
             f.normal_flip()
     o = obj_bm("ST_Bed_shrubs", bm, "hedge", smooth=True, recalc=False)
-    # (c) the fence round the bed: one panel (post, rails, bars, an arched band) + Array + Curve round the oval
-    ring, L = ellipse_curve("ST_Bed_fence_path", fx_, fy_, 129, (BED["x"], BED["y"], 0.0), (0, 0, math.radians(BED["ang"])))
-    N = int(L / 2.4); pw = L / N
-    bm = bmesh.new()
-    bm_box(bm, -0.05, 0.05, -0.05, 0.05, 0.0, 1.0)                         # post
-    bm_lathe(bm, [(0, 0), (0.07, 0.02), (0.05, 0.1), (0, 0.13)], 8, T(0, 0, 1.0))
-    bm_box(bm, 0.0, pw, -0.02, 0.02, 0.86, 0.92)                            # top rail
-    bm_box(bm, 0.0, pw, -0.02, 0.02, 0.1, 0.15)                             # bottom rail
-    for k in range(1, int(pw / 0.12)):
-        bm_box(bm, k * 0.12 - 0.01, k * 0.12 + 0.01, -0.01, 0.01, 0.15, 0.86)
-    for c0 in (0.0, pw / 2):                                                # two arches per panel
-        pts, _ = seg_arc(c0 + pw / 4, 0.55, pw / 2 - 0.05, pw / 4 - 0.02, 12)
-        outer_arc = [(x, z) for x, z in pts]; inner_arc = [(x, z - 0.05) for x, z in pts[::-1]]
-        bm_prism(bm, outer_arc + inner_arc, -0.015, 0.015, "xz")
-    fence = obj_bm("ST_Bed_fence", bm, "rail_blue")
-    array_mod(fence, N, (pw, 0, 0)); bend(fence, ring)
+    # (c) the stone curb and the plaza's teal railing on it (photo 2026-09-30; it was a dark green fence on the paving)
+    with frame("BED_flat", BED["x"], BED["y"], BED["ang"]):
+        bm = bmesh.new()
+        for q in band(ellipse(fx_ + 0.2, fy_ + 0.2), ellipse(fx_ - 0.3, fy_ - 0.3)):
+            bm_prism(bm, q, 0.0, 0.45, "xy")
+        obj_bm("ST_Bed_curb", bm, "stone")
+        P = {"rail": bmesh.new()}
+        railing(P, ellipse(fx_, fy_, 40), 0.45)
+        obj_bm("ST_Bed_fence", P["rail"], "rail_teal")
 
 
 # ================================================================ 4. the plaza: paving lines, lamps
@@ -1268,7 +1259,7 @@ def build_plaza(context=True):
     fx, fy = BED["x"], BED["y"]
     # lamp posts with four globes: round the plaza and either side of the central pavilion
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
-    posts = [(fx + 15.0 * math.cos(t) * ca - 15.0 * math.sin(t) * sa, fy + 15.0 * math.cos(t) * sa + 15.0 * math.sin(t) * ca)
+    posts = [(fx + 10.0 * math.cos(t) * ca - 10.0 * math.sin(t) * sa, fy + 10.0 * math.cos(t) * sa + 10.0 * math.sin(t) * ca)
              for t in (0.35, 2.79, 3.49, 5.93)]   # round the bed, outside its fence
     for d in (-12.0, 12.0):
         a = math.radians(ARC["a_mid"]); t = (-math.sin(a), math.cos(a))
@@ -1304,7 +1295,7 @@ def build_plaza(context=True):
 # in front of the entrance has a hedge ring and red flowers. OSM: the planters are the inner rings of the plaza
 # (ds_tdl_ground builds their curbs and soil), the east greeting plaza is the pedestrian area 1291649416, the west one is
 # its mirror image (its ring 1291649409 is the east one's mirror), the middle planter 795427954 (not a ring of the plaza:
-# this builds it whole). Topiaries (spirals and balls) are left out on purpose (no trees or round shrubs in the mock).
+# this builds it whole). Topiaries (spirals and tiered balls) stand in the greeting plazas' planters only (the user, 2026-09-30).
 # ESTIMATES: the railing's size (0.9 m), the flower mix, the sign's size.
 PLANTERS = (788435491, 1291649410, 1291649411, 1291649412, 1291649413, 1291649424, 1291649409, 1291649418, 1291649414, 1291649415)
 GREET_WAY, MIDDLE_WAY = 1291649416, 795427954
@@ -1421,13 +1412,49 @@ def greeting_sign(x, y, ang):
         text("ST_GR_sign_text", "DISNEY CHARACTER\nGREETING", 0.09, (0, 0.18, 2.2), (math.pi / 2, 0, math.pi), "sign_ink", 0.005)
 
 
+def ball(bm, x, y, z, r, segs=7):
+    bm_lathe(bm, [(0, -r)] + [(r * math.sin(math.pi * i / 4), -r * math.cos(math.pi * i / 4)) for i in (1, 2, 3)] + [(0, r)], segs, T(x, y, z))
+
+
+def topiary(P, x, y, z0, kind, rng):
+    """The greeting plazas' topiaries (photos): a spiral on a stem, or three clipped balls one above the other."""
+    bm_box(P["trunk"], x - 0.04, x + 0.04, y - 0.04, y + 0.04, z0, z0 + 2.2)
+    if kind == 0:
+        ph = rng.uniform(0, 6.28); n = 18
+        for i in range(n):
+            f = i / (n - 1); a = ph + f * 6 * math.pi; rr = 0.36 * (1 - f) + 0.04
+            ball(P["hedge"], x + rr * math.cos(a), y + rr * math.sin(a), z0 + 0.35 + f * 2.0, 0.34 * (1 - f) + 0.12)
+    else:
+        for z, r in ((0.6, 0.5), (1.4, 0.4), (2.05, 0.3)):
+            ball(P["hedge"], x, y, z0 + z, r, 9)
+
+
 def build_greeting():
     rng = random.Random(3)
     rings = osm_wb(PLANTERS + (GREET_WAY, MIDDLE_WAY))
-    P = {k: bmesh.new() for k in ("rail", "fl_pink", "fl_purple", "fl_white", "hedge", "red")}
+    P = {k: bmesh.new() for k in ("rail", "fl_pink", "fl_purple", "fl_white", "hedge", "red", "trunk")}
     for i in PLANTERS:                                    # the plaza's planters: railing on the curb, flowers
         railing(P, inset(rings[i], 0.17), CURB_TOP)
         planting(P, inset(rings[i], 0.32), CURB_TOP - 0.06, rng)
+    k = 0
+    for i in (1291649409, 1291649418, 1291649414, 1291649415):      # topiaries in the greeting plazas' planters (the user, 2026-09-30)
+        ring = rings[i]; xs = [p[0] for p in ring]; ys = [p[1] for p in ring]
+        cand = []                                         # the planters are narrow: along their middle, 1.7 m apart
+        y = min(ys)
+        while y < max(ys):
+            x = min(xs)
+            while x < max(xs):
+                if inside(ring, (x, y)):
+                    d = edge_dist(ring, (x, y))
+                    if d >= 0.3:
+                        cand.append((d, x, y))
+                x += 0.25
+            y += 0.25
+        placed = []
+        for d, x, y in sorted(cand, reverse=True):
+            if all(math.hypot(x - px, y - py) >= 1.7 for px, py in placed):
+                placed.append((x, y)); topiary(P, x, y, CURB_TOP - 0.06, k % 2, rng); k += 1
+    print("[entrance] topiaries", k)
     mid = rings[MIDDLE_WAY]                               # the middle planter: curb, hedge ring, red flowers
     prism("ST_GR_mid_curb", [mid], -0.03, 0.42, "stone")
     railing(P, inset(mid, 0.17), 0.42)
@@ -1443,7 +1470,7 @@ def build_greeting():
         greeting_sign(s * 40.2, 12.9, 0.0)
     for k, bm_ in P.items():
         mat = {"rail": "rail_teal", "fl_pink": "flowers_pink", "fl_purple": "flower_purple", "fl_white": "flower_white",
-               "hedge": "hedge", "red": "flowers_red"}[k]
+               "hedge": "hedge", "red": "flowers_red", "trunk": "door_brown"}[k]
         obj_bm(f"ST_GR_{k}", bm_, mat)
 
 

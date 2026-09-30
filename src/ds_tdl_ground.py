@@ -25,7 +25,7 @@ import sys, json, math, base64, pathlib
 
 import numpy as np
 import shapely
-from shapely.geometry import Polygon, Point, box
+from shapely.geometry import Polygon, Point, LineString, box
 from shapely.ops import unary_union
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -274,16 +274,45 @@ def paving_pattern(zone, name):
     return [(name, p0), (name + "2", p1), ("TG_band", band)]
 
 
+# World Bazaar's front (ds_tdl_entrance.FRONT_CHAINS, its frame: centre (-521.3, 891.2), turned 25 deg): the ground within ASPHALT_D m
+# of it is dark asphalt (the user's photos 2026-09-30: round the greeting plazas and in front of Main Street House), edged by a
+# red brick band, with short yellow marks; the pink panels start beyond it. ASPHALT_D and the marks' spacing are ESTIMATES.
+WB_FRONT = [(-53.5, -17.0), (-52.5, -14.3), (-45.2, 3.7), (-35.8, -0.3), (-12.3, 0.1), (12.2, -0.2), (35.1, 0.1), (44.2, 2.9), (51.8, -15.2), (54.0, -20.5)]
+ASPHALT_D, BRICK_W = 16.0, 0.7
+
+
+def asphalt_zone(g):
+    """Split the inner plaza: (asphalt, brick band, yellow marks, the rest)."""
+    c, s_ = math.cos(math.radians(25.0)), math.sin(math.radians(25.0))
+    front = LineString([(-521.3 + x * c - y * s_, 891.2 + x * s_ + y * c) for x, y in WB_FRONT])
+    near, edge = front.buffer(ASPHALT_D, 24), front.buffer(ASPHALT_D + BRICK_W, 24)
+    asphalt = g.intersection(near)
+    ring = front.buffer(ASPHALT_D - 1.2, 24).exterior
+    marks = []
+    d = 0.0
+    while d < ring.length:
+        p = ring.interpolate(d); q = near.exterior.interpolate(near.exterior.project(p))
+        marks.append(LineString([(p.x, p.y), ((p.x + q.x) / 2, (p.y + q.y) / 2)]).buffer(0.07, cap_style=2))
+        d += 9.0
+    marks = unary_union(marks).intersection(asphalt)
+    return asphalt.difference(marks), g.intersection(edge).difference(near), marks, g.difference(edge)
+
+
 def build():
     P = plan()
     zones = [("TG_paving", P["out"]), ("TG_slate", P["inn"]), ("TG_gate", P["gate"])]
     station = unary_union([Polygon(o).buffer(0) for r in DL.DATA["relations"] if r["id"] == STATION_REL for o in DL.outer_rings(r)])
     T = Terrain(unary_union([g for _, g in zones] + P["planters"]).bounds, flats=[(station, STATION_GROUND, 4.0, 22.0)])
-    meshes = {n: Mesh(n) for n in ("TG_paving", "TG_paving2", "TG_slate", "TG_slate2", "TG_band", "TG_gate", "TG_curb", "TG_soil", "TG_edge")}
+    meshes = {n: Mesh(n) for n in ("TG_paving", "TG_paving2", "TG_slate", "TG_slate2", "TG_band", "TG_gate", "TG_curb", "TG_soil", "TG_edge", "TG_asphalt", "TG_brickband", "TG_yellow")}
     pl_lines = unary_union([q.exterior for q in P["planters"]])
     for name, g in zones:
         if g.is_empty:
             continue
+        if name == "TG_slate":                             # asphalt in front of World Bazaar, the pattern beyond it
+            asphalt, brick, marks, g = asphalt_zone(g)
+            for mat, piece in (("TG_asphalt", asphalt), ("TG_brickband", brick), ("TG_yellow", marks)):
+                if not piece.is_empty:
+                    add_zone(meshes, T, mat, piece, avoid=pl_lines)
         if name in ("TG_paving", "TG_slate"):              # the pattern: annular sectors in two tones, pale stone bands between
             for mat, piece in paving_pattern(g, name):
                 if not piece.is_empty:
