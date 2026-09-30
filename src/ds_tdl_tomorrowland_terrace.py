@@ -6,7 +6,7 @@ trees, no round clipped shrubs, no night version):
 
 Sources: the user's 8 photos (images/tomorrowland_terrace/1-8.png, not in the repo: the pond side, the entrance under the
 faceted glass dome, the red-glass entrance, the covered terrace and its coffered ceiling, the park map), web photos
-looked at for reference only (castel.jp, tdrfan.com: the dining hall -- purple walls, a stainless band round a raised
+looked at for reference only (castel.jp, tdrfan.com: the dining hall -- the walls (white: the user, 2026-09-30), a stainless band round a raised
 ceiling with a lit lattice, red patterned carpet, red chairs, white round tables, red booths; the stage with its pink
 proscenium; the sign: two pale-blue hexagons, a dark-blue band with the name, a red diamond), the GSI aerial photo
 (plan, the rotunda, the dome) and OSM:
@@ -23,7 +23,7 @@ What is modelled (every height is an ESTIMATE from people in the photos, 1.70 m)
            white columns on blue bases, a coffered ceiling (blue pyramids, some lit), railings with planters on the pond
            sides; the hexagon sign under the parade-side fascia, a pylon sign with the name by the south-east entrance;
            blue-edged planters (hedge and yellow flowers) and white benches at the domed entrance.
-  inside   red carpet, purple walls, a flat white ceiling (3.9 m) with a raised lit lattice over the middle of the hall
+  inside   red carpet, white walls (the user), a flat white ceiling (3.9 m) with a raised lit lattice over the middle of the hall
            edged by a stainless band; ordering counters (blue, stainless top, lit menu boards) along the kitchen on the
            south-west side; a low partition with a red booth; the rotunda (ceiling up to ~8 m, a ring light) with the stage
            and its pink proscenium and screen; white round tables with red chairs everywhere (the web photos), also on the
@@ -67,7 +67,7 @@ DOORS = {"se": (-491.8, 543.9), "sw": (-503.5, 550.0), "n": (-533.0, 652.8), "ne
 PARADE_SIGN = (-476.5, 585.0)                  # the hexagon sign hangs under the fascia nearest this point
 PYLON = (-480.5, 551.0)
 NAMES = ("TT_white", "TT_sky", "TT_blue", "TT_navy", "TT_cream", "TT_grey", "TT_roof", "TT_glass", "TT_redglass", "TT_dome",
-         "TT_carpet", "TT_purple", "TT_steel", "TT_ceil", "TT_light", "TT_lattice", "TT_chair", "TT_table", "TT_booth",
+         "TT_carpet", "TT_wallin", "TT_steel", "TT_ceil", "TT_light", "TT_lattice", "TT_chair", "TT_table", "TT_booth",
          "TT_stage", "TT_screen", "TT_hex", "TT_coffer", "TT_menu", "TT_sign", "TT_signb", "TT_signr", "TT_text",
          "TT_hedge", "TT_flower", "TT_planter", "TT_rail")
 
@@ -226,7 +226,7 @@ def plan():
 
 # ---------------------------------------------------------------- the walls
 def walls(M, L, zf, zb):
-    """The outer walls on the inner outline, bay by bay: glass, doors, red glass, solid panels (inside purple)."""
+    """The outer walls on the inner outline, bay by bay: glass, doors, red glass, solid panels (inside white)."""
     ring = L["inner"].exterior
     if not Polygon(ring).exterior.is_ccw:
         ring = LineString(list(ring.coords)[::-1])
@@ -261,7 +261,7 @@ def walls(M, L, zf, zb):
             if kind == "solid":
                 quad(M[ext], P3(p, zf), P3(q, zf), P3(q, zf + Z_E), P3(p, zf + Z_E), N3)
                 pi, qi = p - n * 0.25, q - n * 0.25
-                quad(M["TT_purple"], P3(pi, zf), P3(qi, zf), P3(qi, zf + Z_C), P3(pi, zf + Z_C), -N3)
+                quad(M["TT_wallin"], P3(pi, zf), P3(qi, zf), P3(qi, zf + Z_C), P3(pi, zf + Z_C), -N3)
                 quad(M["TT_white"], P3(p, zf + 0.0), P3(q, zf), P3(q, zf + 0.35), P3(p, zf + 0.35), N3 + 0.0)   # skirting line
             else:
                 info["glass" if kind != "door" else "doors"] += 1
@@ -316,9 +316,9 @@ def roof(M, L, zf):
     cap(M["TT_ceil"], U.difference(inner).difference(unary_union(cells) if cells else Polygon()), zf + Z_E, down=True)
     hall = L["hall"]
     cap(M["TT_ceil"], inner.difference(rot).difference(hall), zf + Z_C, down=True)
-    # the raised hall ceiling: a stainless band, purple sides, a lit lattice
+    # the raised hall ceiling: a stainless band, white sides, a lit lattice
     sides(M["TT_steel"], hall, zf + Z_C, zf + Z_C + 0.55, inward=True)
-    sides(M["TT_purple"], hall, zf + Z_C + 0.55, zf + 5.3, inward=True)
+    sides(M["TT_wallin"], hall, zf + Z_C + 0.55, zf + 5.3, inward=True)
     cap(M["TT_light"], hall, zf + 5.3, down=True)
     x0, y0, x1, y1 = hall.bounds
     for s in np.arange(-14, 14.01, 1.6):
@@ -352,8 +352,8 @@ def rotunda(M, zf):
         z0 = zf + (3.0 if ang_open(am) else 0.0)
         for s in (1, -1):   # both faces of the wall, 0.2 m apart
             o = nrm[:2] * 0.1 * s
-            quad(M["TT_purple"], P3(p + o, z0), P3(q + o, z0), P3(q + o, zf + Z_C), P3(p + o, zf + Z_C), nrm * s)
-        quad(M["TT_navy"], P3(p, zf + Z_C), P3(q, zf + Z_C), P3(q, zf + 7.0), P3(p, zf + 7.0), -nrm)   # the drum inside
+            quad(M["TT_wallin"], P3(p + o, z0), P3(q + o, z0), P3(q + o, zf + Z_C), P3(p + o, zf + Z_C), nrm * s)
+        quad(M["TT_wallin"], P3(p, zf + Z_C), P3(q, zf + Z_C), P3(q, zf + 7.0), P3(p, zf + 7.0), -nrm)   # the drum inside
         po, qo = p + nrm[:2] * 0.3, q + nrm[:2] * 0.3   # outside, 0.3 m out (the same face would flicker with the inside)
         quad(M["TT_sky"], P3(po, zf + Z_T1), P3(qo, zf + Z_T1), P3(qo, zf + 8.3), P3(po, zf + 8.3), nrm)
         # the cone roof outside, the shallow cone ceiling inside
@@ -411,7 +411,7 @@ def dome(M, zf):
 # ---------------------------------------------------------------- inside
 def counters(M, L, zf):
     kit = L["kit"]; kn = L["kn"]
-    slab(M["TT_navy"], M["TT_navy"], kit, zf, zf + Z_C)
+    slab(M["TT_wallin"], M["TT_wallin"], kit, zf, zf + Z_C)
     # the counter along the kitchen's hall side (the edge whose outward normal points along kn)
     cs = [np.array(c) for c in kit.exterior.coords]
     n_ct = 0
@@ -438,7 +438,7 @@ def counters(M, L, zf):
                     bar(M["TT_steel"], P3(p0, zf + 0.92), P3(p0 + e * 2.4, zf + 0.92), 0.02)
         tp = text_poly("TOMORROWLAND TERRACE", 0.32)
         plate(M["TT_text"], tp, P3(m + n * 0.03, zf + 3.55), np.array([*e, 0]) * -1 if n[0] * e[1] - n[1] * e[0] < 0 else np.array([*e, 0]), UP, np.array([*n, 0]))
-    slab(M["TT_purple"], M["TT_purple"], L["boh"], zf, zf + Z_C)
+    slab(M["TT_wallin"], M["TT_wallin"], L["boh"], zf, zf + Z_C)
     return n_ct
 
 
@@ -446,7 +446,7 @@ def booth(M, L, zf):
     """A low partition with a red booth along the raised hall's south-west side."""
     c = np.asarray(HALL_C) - AXV * 7.6
     u3, v3 = np.array([*AXU, 0]), np.array([*AXV, 0])
-    box(M["TT_purple"], P3(c, zf + 0.55), (11.0, 0.15, 0.55), basis=(u3, v3, UP))
+    box(M["TT_wallin"], P3(c, zf + 0.55), (11.0, 0.15, 0.55), basis=(u3, v3, UP))
     box(M["TT_steel"], P3(c, zf + 1.12), (11.05, 0.2, 0.03), basis=(u3, v3, UP))
     box(M["TT_booth"], P3(c + AXV * 0.45, zf + 0.23), (11.0, 0.3, 0.23), basis=(u3, v3, UP))
     box(M["TT_booth"], P3(c + AXV * 0.2, zf + 0.75), (11.0, 0.08, 0.3), basis=(u3, v3, UP))
