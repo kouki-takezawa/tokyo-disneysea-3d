@@ -1512,6 +1512,24 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   PH_step: { color: 0xa4a6a3, roughness: 0.85 }, PH_patio: { color: 0xd6d4ce, roughness: 0.85 }, PH_swirl: { color: 0x2e2f33, roughness: 0.7 },
   PH_hedge: { color: 0x355c2c, roughness: 0.95 }, PH_black: { color: 0x26282a, roughness: 0.5, metalness: 0.4 },
   PH_globe: { color: 0xfff6dc, roughness: 0.3, emissive: 0x554a30 }, PH_flower: { color: 0xe0506a, roughness: 0.8 }, PH_flag: { color: 0xf2c11c, roughness: 0.6 },
+  // トゥモローランド・テラス (ds_tdl_tomorrowland_terrace.py、ユーザー写真 images/tomorrowland_terrace/ + WEBの店内写真): meshes TT_<part>
+  TT_white: { color: 0xf1f2f0, roughness: 0.55 }, TT_sky: { color: 0xa9c4dc, roughness: 0.5 }, TT_blue: { color: 0x3a64b4, roughness: 0.45 },
+  TT_navy: { color: 0x2c3f86, roughness: 0.5 }, TT_cream: { color: 0xe6cf8e, roughness: 0.7 }, TT_grey: { color: 0xc9cbd6, roughness: 0.6 },
+  TT_roof: { color: 0xe7e2d2, roughness: 0.85 }, TT_ceil: { color: 0xf4f4f2, roughness: 0.8 },
+  TT_glass: { color: 0x4d6272, roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.55, depthWrite: false },
+  TT_redglass: { color: 0xa0141e, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.82, depthWrite: false },
+  TT_dome: { color: 0x9a96b6, roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.8, depthWrite: false },
+  TT_carpet: { color: 0x7c2231, roughness: 0.95 }, TT_purple: { color: 0x4e3d91, roughness: 0.7 },
+  TT_steel: { color: 0xc9ced4, roughness: 0.25, metalness: 0.75 }, TT_lattice: { color: 0x3a3f48, roughness: 0.5, metalness: 0.4 },
+  TT_light: { color: 0xeaf2ff, emissive: 0xb9d4ff, emissiveIntensity: 0.8 }, TT_chair: { color: 0xc8233f, roughness: 0.45 },
+  TT_table: { color: 0xf5f5f2, roughness: 0.35 }, TT_booth: { color: 0xb51e30, roughness: 0.4 },
+  TT_stage: { color: 0xe04a82, roughness: 0.5 }, TT_screen: { color: 0x1d3563, emissive: 0x3b6fc0, emissiveIntensity: 0.6, roughness: 0.2 },
+  TT_hex: { color: 0xb3b6bb, roughness: 0.85 }, TT_coffer: { color: 0x5367b8, roughness: 0.6 },
+  TT_menu: { color: 0x1a1d26, emissive: 0x7a6a48, emissiveIntensity: 0.7, roughness: 0.3 },
+  TT_sign: { color: 0x8fd3ec, roughness: 0.4 }, TT_signb: { color: 0x1f3f95, roughness: 0.45 }, TT_signr: { color: 0xc81f2e, roughness: 0.45 },
+  TT_text: { color: 0xffffff, emissive: 0x9a9a9a, emissiveIntensity: 0.6, roughness: 0.4 },
+  TT_hedge: { color: 0x355c2c, roughness: 0.95 }, TT_flower: { color: 0xf2c81c, roughness: 0.8 }, TT_planter: { color: 0x7fa5d8, roughness: 0.55 },
+  TT_rail: { color: 0x9aa0a8, roughness: 0.4, metalness: 0.6 },
   // ランド・シーの地面 (ds_ground.py): meshes TL_<kind>
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
@@ -3132,13 +3150,13 @@ async function init3D() {
     aqglobe: "landmarks", aqcoast: "landmarks", aqwire: "landmarks", volc: "landmarks", entrance: "entrance",
     dlpark: "disneyland", dlsite: "disneyland", dlwater: ["disneyland", "water"], dlgreen: ["disneyland", "green"], dltrees: ["disneyland", "trees"],
     dlpaths: ["disneyland", "paths"], dlbridge: ["disneyland", "bridges"], dltunnel: ["disneyland", "tunnels"], dlstairs: ["disneyland", "stairs"],
-    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland", dlplazab: "disneyland", dlplazahub: "disneyland",
+    dlwalls: ["disneyland", "walls"], dlcontours: ["disneyland", "contours"], dlrail: ["disneyland", "rail"], dlwbroof: "disneyland", dlplazab: "disneyland", dlplazahub: "disneyland", dltomterrace: "disneyland",
     mhline: "maihama", mhjr: "maihama", mhplace: "maihama", mhstation: "maihama", mhtdlhotel: "maihama", mhwalk: "maihama", lot: "parking" };
   const COLOR_OF = { park: "--ink", water: "--water", green: "--green", trees: "--tree", rock: "--rock", paths: "--path",
     rail: "--rail", land: "--land", pri: "--priority", grid: "--grid", stairs: "--st-dem", bridge: "--bridge", tunnel: "--muted",
     walls: "--wall", contours: "--contour-idx", aqglobe: "--water", aqcoast: "--p0", aqwire: "--land", volc: "--land", entrance: "--gate",
     dlpark: "--ink", dlsite: "--l6", dlwater: "--water", dlgreen: "--green", dltrees: "--tree", dlpaths: "--path", dlrail: "--rail",
-    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0", dlplazahub: "--l0",
+    dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0", dlplazahub: "--l0", dltomterrace: "--l0",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhtdlhotel: "--muted", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
   const makeObjs = () => {   // the lines collected so far -> line objects; then collect afresh
