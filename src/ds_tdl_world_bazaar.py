@@ -1126,9 +1126,9 @@ def build_block_walls():
                 continue                                  # the Sweetheart Cafe (sweetheart_cafe)
             if bid == 196943265 and math.hypot(mid[0] - GAW_EDGE[0][0], mid[1] - GAW_EDGE[0][1]) < GAW_EDGE[1]:
                 continue                                  # the Great American Waffle Company (waffle_company)
+            if bid in (365357846, 72216851) and mid[1] > -18.5 and abs(mid[0]) > 11.5:
+                continue                                  # the front round the corners to Main Street House (ds_tdl_entrance.wb_front)
             if ny > 0.5 and mid[1] > -30.0:
-                if 11.5 < abs(mid[0]) < 36.0 and abs(mid[1]) < 1.5:
-                    continue                              # the arcade shops beside the entrance (ds_tdl_entrance.wb_shops)
                 with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                     EN.arcade_front(f"block{bid}_{i}", 0.0, L)   # facing the plaza: the same arcade building (user, 2026-09-28)
                 continue

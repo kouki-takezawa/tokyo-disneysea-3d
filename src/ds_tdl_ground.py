@@ -42,6 +42,7 @@ CELL = 4.0                                    # height grid = cutting cells (m)
 BLUR = 1.2                                    # DEM smoothing (cells)
 CURB_H, CURB_W, SOIL_DROP, SKIRT = 0.30, 0.35, 0.06, 0.15
 MIN_PLANTER = 2.0                             # m2
+GREET_WAY = 1291649416                        # the east character greeting plaza (inside a planter ring in OSM)
 STATION_REL, STATION_GROUND = 17744015, -1.79   # the Resort Line station: the ground meets its floor (ds_tdl_station.FRAME)
 
 
@@ -65,7 +66,8 @@ def plan():
         if p.is_empty or p.area < MIN_PLANTER or p.centroid.distance(Point(*BED_C)) < BED_R:
             continue
         planters.append(p.intersection(out_ext.union(in_ext)))
-    planters = [q for p in planters for q in _polys(p) if q.area >= MIN_PLANTER]
+    greet = Polygon(DL.WAYS[GREET_WAY]["pts"]).buffer(0)          # the east greeting plaza is paved (ds_tdl_entrance lays its bricks)
+    planters = [q for p in planters for q in _polys(p.difference(greet)) if q.area >= MIN_PLANTER]
     pl_all = unary_union(planters)
     # paving zones: the outer plaza, the inner plaza, and the gate floor (the canopy + the slivers between the areas)
     closed = unary_union([out_ext, in_ext, canopy]).buffer(0.5, join_style=2).buffer(-0.5, join_style=2)

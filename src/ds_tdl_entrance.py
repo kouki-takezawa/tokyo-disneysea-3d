@@ -34,7 +34,7 @@ section 1): portico bays 3.9 / 4.0 / 3.9 m, capitals 6.6 m, balustrade 9.56 m, s
 depths (portico 4.6 m, the glass hall's gable 4.8 m behind the wall) are from perspective. Bay counts, gate positions, the lattice,
 the flowerbed's grass ring (radius 9 m) and the Mickey face pattern are drawn from the photos, not measured.
 """
-import sys, math, argparse, pathlib, time
+import sys, math, json, random, argparse, pathlib, time
 
 try:
     import bpy, bmesh
@@ -84,6 +84,19 @@ def extra_materials(M):
     M["hall_iron"] = P("st_hall_iron", (0.15, 0.30, 0.28), 0.45, Metallic=0.5)
     M["hall_glass"] = ST.clear_glass("st_hall_glass", (0.70, 0.86, 0.82), 0.35)
     M["person"] = P("st_person", (0.22, 0.26, 0.36), 0.8)                  # 1.70 m scale figures (check renders only)
+    # the World Bazaar front and the greeting plazas (2026-09-30, the user's photos)
+    M["lace"] = P("st_lace", (0.93, 0.92, 0.88), 0.9)
+    M["door_brown"] = P("st_door_brown", (0.16, 0.10, 0.07), 0.5)
+    for k, col in (("poster1", (0.30, 0.36, 0.62)), ("poster2", (0.35, 0.55, 0.45)), ("poster3", (0.62, 0.30, 0.45))):
+        M[k] = P("st_" + k, col, 0.4)
+    M["bench_green"] = P("st_bench_green", (0.12, 0.25, 0.16), 0.5)
+    M["cons_glass"] = ST.clear_glass("st_cons_glass", (0.80, 0.90, 0.92), 0.7)
+    M["rail_teal"] = P("st_rail_teal", (0.40, 0.74, 0.70), 0.5)
+    M["brick_paving"] = P("st_brick_paving", (0.55, 0.24, 0.15), 0.85)
+    M["brick_paving2"] = P("st_brick_paving2", (0.60, 0.29, 0.18), 0.85)
+    M["sign_face"] = P("st_sign_face", (0.86, 0.90, 0.88), 0.5)
+    M["sign_ink"] = P("st_sign_ink", (0.10, 0.25, 0.30), 0.5)
+    mat, nt, b = _principled("st_flowers_pink", (0.85, 0.40, 0.60), 0.9); _mottle(nt, b, (0.85, 0.40, 0.60), 40.0, 0.7, 0.5); M["flowers_pink"] = mat
     return M
 
 
@@ -535,11 +548,6 @@ def wb_hall():
     obj_bm("ST_WB_hall_trusses", bm, "hall_iron")
 
 
-def wb_shops(s):
-    """The shops either side (OSM 365357846 / 72216851, 8.85 m), x = 12.25 .. 35.5 on side s."""
-    arcade_front(f"shop{s}", 12.25, 35.5, s)
-
-
 def arcade_front(name, x0, x1, s=1):
     """A World Bazaar arcade building from x0 to x1 (mirrored by s = -1), front on y = 0 facing +y: cream walls, an
     arcade in front (y 0 .. 2.8, columns, arches, a balustrade with ball finials on its roof), paired arched windows
@@ -611,8 +619,232 @@ def build_world_bazaar():
         wb_wall()                                         # 3. the brick building behind, and its Main Street side
         wb_back()
         wb_hall()
+        wb_front()                                        # the rest of the front, round the corners (1b)
+
+
+# ================================================================ 1b. the World Bazaar front round to the corners (2026-09-30)
+# The user's photos (2026-09-30): Main Street House (three views of its portico), the whole front from the plaza, the
+# greeting plazas either side (four views). Plan from OSM: beyond the entrance building the blocks 365357846 / 72216851
+# keep the front on y = 0 out to x = +-35.5, turn 23 deg forward to a corner at x = +-44.5, y = 3.3, then run back 68 deg
+# towards the gates' ends (Main Street House is on the west one). Seen from the plaza the whole front is one design:
+# a white portico of paired columns on panelled pedestals, arches with ring fretwork and a balustrade on its roof (the
+# centre's, lower), red brick behind it with arched doors (lace curtains, cream fanlights) and framed posters, a
+# cream storey with windows, a maroon mansard with dormers; a glass conservatory on each corner (a round-ended glass
+# house under a glass half-dome) and a hipped glass roof over the corner behind it.
+# ESTIMATES: all heights (the portico is scaled from the photos' people, 1.70 m), the bay rhythm, the conservatory's
+# radius, what is on each poster.
+WB_S = dict(front=3.3, ped=0.9, cap=3.7, block=4.45, ent=5.1, rail=5.95)     # the side porticos
+SIDE = dict(wall=7.6, mansard=9.4, depth=7.5)
+FRONT_CHAINS = ([(-53.5, -17.0), (-52.5, -14.3), (-45.2, 3.7), (-35.8, -0.3), (-12.3, 0.1)],    # OSM 365357846, left to right
+                [(12.2, -0.2), (35.1, 0.1), (44.2, 2.9), (51.8, -15.2), (54.0, -20.5)])       # OSM 72216851
+CONS_CORNERS = ((-45.2, 3.7), (44.2, 2.9))
+CONS = dict(r=4.6, cy=0.6, zb=0.75, zw=6.0, zs=6.6, back=-4.5)
+
+
+def obox(bm, a, b, w, z0, z1):
+    """A box along the plan segment a -> b, w wide, from z0 to z1."""
+    dx, dy = b[0] - a[0], b[1] - a[1]; L = math.hypot(dx, dy) or 1e-6
+    nx, ny = -dy / L * w / 2, dx / L * w / 2
+    bm_prism(bm, [(a[0] - nx, a[1] - ny), (b[0] - nx, b[1] - ny), (b[0] + nx, b[1] + ny), (a[0] + nx, a[1] + ny)], z0, z1, "xy")
+
+
+def mansard_bm(bm, L, zw, zm, D, front=0.3, set_back=1.3):
+    """Steep front face, flat top back to -D, closed ends (x = 0 .. L, +y out)."""
+    V = lambda x, y, z: bm.verts.new((x, y, z))
+    a, b_, c, d = V(0, front, zw), V(L, front, zw), V(L, -set_back, zm), V(0, -set_back, zm)
+    e, f, g, h = V(L, -D, zm), V(0, -D, zm), V(L, -D, zw), V(0, -D, zw)
+    for q in ((a, b_, c, d), (d, c, e, f), (b_, g, e, c), (h, a, d, f)):
+        bm.faces.new(q)
+
+
+def door_bay(P, m):
+    """An arched door in the brick (photos: dark doors folded back, white lace curtains, a cream fanlight)."""
+    bm_prism(P["frame"], arch_band(m - 0.95, m + 0.95, 2.55, 0.5, 0.16, 14, leg=2.55), 0.0, 0.08, "xz")
+    bm_prism(P["dark"], arch_opening(m - 0.95, m + 0.95, 0.0, 2.55, 0.5, 14), 0.0, 0.03, "xz")
+    bm_prism(P["frame"], arch_opening(m - 0.95, m + 0.95, 2.4, 2.55, 0.5, 14), 0.03, 0.05, "xz")           # fanlight
+    bm_prism(P["glow"], arch_opening(m - 0.7, m + 0.7, 2.5, 2.58, 0.34, 12), 0.05, 0.06, "xz")
+    for s in (-1, 1):
+        bm_box(P["lace"], m + s * 0.62 - 0.26, m + s * 0.62 + 0.26, 0.04, 0.07, 0.3, 2.3)
+        bm_box(P["door"], m + s * 0.95 - 0.04, m + s * 0.95 + 0.04, 0.0, 0.85, 0.0, 2.35)      # leaves folded back
+
+
+def poster_bay(P, m, rng, bench):
+    bm_box(P["frame"], m - 0.72, m + 0.72, 0.0, 0.1, 0.75, 2.95)
+    bm_box(P[rng.choice(("poster1", "poster2", "poster3"))], m - 0.6, m + 0.6, 0.1, 0.12, 0.88, 2.82)
+    if bench:                                            # a green park bench in front (photos)
+        bm_box(P["bench"], m - 0.8, m + 0.8, 0.35, 0.8, 0.42, 0.47)
+        bm_box(P["bench"], m - 0.8, m + 0.8, 0.3, 0.36, 0.5, 0.9)
         for s in (-1, 1):
-            wb_shops(s)
+            bm_box(P["iron"], m + s * 0.72 - 0.03, m + s * 0.72 + 0.03, 0.3, 0.8, 0.0, 0.9)
+
+
+def pier_xs(x0p, x1p):
+    n = max(1, round((x1p - x0p) / 3.9))
+    return [x0p + k * (x1p - x0p) / n for k in range(n + 1)]
+
+
+def front_run(name, L, x0p, x1p, rng, doors=()):
+    """One straight piece of the front: x = 0 .. L on the OSM edge, +y out; portico piers from x0p to x1p."""
+    D, zw, zm, ze = SIDE["depth"], SIDE["wall"], SIDE["mansard"], WB_S["ent"]
+    box(f"ST_WB_{name}_brick", (0, L, -D, 0, 0, ze), "brick")
+    box(f"ST_WB_{name}_upper", (0, L, -D, 0, ze, zw), "cream")
+    box(f"ST_WB_{name}_trim", [(0, L, 0, 0.06, 0, 0.8), (0, L, 0, 0.3, zw - 0.35, zw), (-0.05, L + 0.05, 0, 0.45, zw, zw + 0.16)], "trim", 0.015)
+    bm = bmesh.new(); mansard_bm(bm, L, zw + 0.16, zm, D); obj_bm(f"ST_WB_{name}_mansard", bm, "mauve")
+    P = {k: bmesh.new() for k in ("frame", "dark", "glow", "lace", "door", "poster1", "poster2", "poster3", "bench", "iron",
+                                  "wframe", "wglass", "whood", "dormer")}
+    if x1p - x0p >= 3.0:
+        xs = pier_xs(x0p, x1p)
+        wb_portico(name, [(x, "pair") for x in xs], WB_S, (True, True))
+        for k, (xa, xb) in enumerate(zip(xs[:-1], xs[1:])):
+            m = (xa + xb) / 2
+            if k in doors or (not doors and k % 2 == 0):
+                door_bay(P, m)
+            else:
+                poster_bay(P, m, rng, rng.random() < 0.6)
+            paired_window(P["wframe"], P["wglass"], P["whood"], m, 0.0, 5.55, 7.05, 1.2)
+            if k % 2 == 1 or len(xs) == 2:              # a dormer over every second bay, a round window in it
+                bm_box(P["dormer"], m - 0.7, m + 0.7, -0.7, 0.45, zw, zw + 1.05)
+                bm_prism(P["dormer"], [(m - 0.85, zw + 1.0), (m + 0.85, zw + 1.0)] + seg_arc(m, zw + 1.0, 1.7, 0.35, 12)[0], -0.7, 0.52, "xz")
+                bm_lathe(P["dormer"], [(0.28, 0), (0.4, 0), (0.4, 0.08), (0.28, 0.08)], 16, T(m, 0.45, zw + 0.55) @ R(-math.pi / 2, "X"))
+                bm_lathe(P["wglass"], [(0, 0), (0.29, 0), (0.29, 0.02), (0, 0.02)], 16, T(m, 0.44, zw + 0.55) @ R(-math.pi / 2, "X"))
+    else:
+        paired_window(P["wframe"], P["wglass"], P["whood"], L / 2, 0.0, 5.55, 7.05, 1.2)
+    mats = {"frame": "trim", "dark": "win_dark", "glow": "amber", "lace": "lace", "door": "door_brown", "poster1": "poster1",
+            "poster2": "poster2", "poster3": "poster3", "bench": "bench_green", "iron": "iron", "wframe": "trim", "wglass": "win_dark",
+            "whood": "trim", "dormer": "trim"}
+    for k, bm_ in P.items():
+        if len(bm_.verts):
+            obj_bm(f"ST_WB_{name}_{k}", bm_, mats[k])
+        else:
+            bm_.free()
+
+
+def main_street_house(m, yf):
+    """The sign and what stands under the portico (the user's photos): a maroon oval board with a gold rim hung below
+    the frieze ("MAIN STREET HOUSE"), two gooseneck lamps over it on the frieze, a guest information stand by the door."""
+    zc, ze = 4.0, WB_S["ent"]
+    def oval(a_, b_, n=40, e=2.6):
+        return [(m + math.copysign(abs(math.cos(t)) ** (2 / e), math.cos(t)) * a_,
+                 zc + math.copysign(abs(math.sin(t)) ** (2 / e), math.sin(t)) * b_) for t in (2 * math.pi * k / n for k in range(n))]
+    prism("ST_WB_msh_sign_rim", [oval(1.12, 0.4)], yf + 0.62, yf + 0.7, "gold", "xz")
+    prism("ST_WB_msh_sign_board", [oval(1.04, 0.33)], yf + 0.6, yf + 0.74, "sign_red", "xz")
+    text("ST_WB_msh_sign_text", "MAIN STREET HOUSE", 0.17, (m, yf + 0.75, zc), (math.pi / 2, 0, math.pi), "letters", 0.01)
+    box("ST_WB_msh_sign_hangers", [(m + s * 0.6 - 0.02, m + s * 0.6 + 0.02, yf + 0.64, yf + 0.68, zc + 0.35, WB_S["block"]) for s in (-1, 1)], "iron")
+    bm, bmg = bmesh.new(), bmesh.new()
+    for s in (-1, 1):
+        x = m + s * 0.75
+        bm_box(bm, x - 0.03, x + 0.03, yf + 0.3, yf + 0.36, ze, ze + 0.55)                  # gooseneck: post, arm, shade
+        bm_box(bm, x - 0.03, x + 0.03, yf + 0.3, yf + 0.95, ze + 0.5, ze + 0.56)
+        bm_lathe(bm, [(0, 0.2), (0.07, 0.2), (0.2, 0.0), (0.2, -0.03), (0, -0.03)], 12, T(x, yf + 0.95, ze + 0.3))
+        globe_lamp_bm(bmg, x, yf + 0.95, ze + 0.27, 0.06)
+    x = m + 1.5                                           # the guest information stand
+    bm_box(bm, x - 0.04, x + 0.04, 1.3, 1.38, 0.05, 1.5)
+    bm_lathe(bm, [(0, 0), (0.25, 0), (0.25, 0.05), (0, 0.05)], 12, T(x, 1.34, 0))
+    obj_bm("ST_WB_msh_lamps", bm, "iron"); obj_bm("ST_WB_msh_lamp_glow", bmg, "lamp", smooth=True)
+    box("ST_WB_msh_stand", [(x - 0.28, x + 0.28, 1.38, 1.42, 0.85, 1.7)], "sign_red")
+    box("ST_WB_msh_stand_rim", [(x - 0.32, x + 0.32, 1.35, 1.38, 0.8, 1.75)], "trim")
+
+
+def conservatory(name):
+    """The glass house on a corner (photos): a cream plinth, glass walls on white mullions round a semicircular front
+    and straight sides, a white band, a glass half-dome and barrel on white ribs, a finial; the doorway at the front.
+    Behind it, over the corner of the block, a glass clerestory under a hipped glass roof. Frame: +y out along the corner's
+    bisector, the origin on the OSM corner."""
+    r, cy, zb, zw, zs, back = CONS["r"], CONS["cy"], CONS["zb"], CONS["zw"], CONS["zs"], CONS["back"]
+    n = 12
+    apse = [(r * math.cos(math.pi * k / n), cy + r * math.sin(math.pi * k / n)) for k in range(n + 1)]
+    path = [(r, back)] + apse + [(-r, back)]
+    def grow(p, d):
+        return (p[0] * (r + d) / r, cy + (p[1] - cy) * (r + d) / r) if p[1] >= cy - 1e-6 else (math.copysign(r + d, p[0]), p[1])
+    bmw, bmg, bmr = bmesh.new(), bmesh.new(), bmesh.new()
+    bm_prism(bmw, [grow(p, 0.2) for p in path], 0.0, zb, "xy")                                      # plinth
+    for a, b in zip(path[:-1], path[1:]):
+        v = [bmg.verts.new((a[0], a[1], zb)), bmg.verts.new((b[0], b[1], zb)), bmg.verts.new((b[0], b[1], zw)), bmg.verts.new((a[0], a[1], zw))]
+        bmg.faces.new(v)
+        obox(bmw, grow(a, 0.05), grow(b, 0.05), 0.3, zw, zs - 0.1)                                    # the band and its cornice
+        obox(bmw, grow(a, 0.1), grow(b, 0.1), 0.4, zs - 0.12, zs)
+        for z in (zb, 4.6):                                                                            # transoms
+            obox(bmr, grow(a, 0.03), grow(b, 0.03), 0.08, z, z + 0.1)
+        L = math.hypot(b[0] - a[0], b[1] - a[1]); k = max(1, round(L / 1.3))
+        for j in range(k + 1):                                                                         # mullions
+            f = j / k; p = grow((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f), 0.04)
+            bm_box(bmr, p[0] - 0.05, p[0] + 0.05, p[1] - 0.05, p[1] + 0.05, zb, zw)
+    yf = cy + r + 0.06                                                                                 # the doorway at the front
+    bm_prism(bmw, arch_band(-1.1, 1.1, 2.9, 0.7, 0.2, 14, leg=2.9), yf, yf + 0.12, "xz")
+    bm = bmesh.new(); bm_prism(bm, arch_opening(-1.1, 1.1, 0.0, 2.9, 0.7, 14), yf - 0.02, yf + 0.03, "xz")
+    obj_bm(f"ST_WB_{name}_doorway", bm, "win_dark")
+    # roof: a quarter-sphere over the apse, a half-cylinder over the straight part
+    bmd = bmesh.new(); m_el, m_az = 6, 16
+    rows = [[bmd.verts.new((r * math.cos(el) * math.cos(az), cy + r * math.cos(el) * math.sin(az), zs + r * math.sin(el)))
+             for az in (math.pi * j / m_az for j in range(m_az + 1))] for el in (math.pi / 2 * i / m_el for i in range(m_el))]
+    top = bmd.verts.new((0, cy, zs + r))
+    for i in range(m_el - 1):
+        for j in range(m_az):
+            bmd.faces.new((rows[i][j], rows[i][j + 1], rows[i + 1][j + 1], rows[i + 1][j]))
+    for j in range(m_az):
+        bmd.faces.new((rows[-1][j], rows[-1][j + 1], top))
+    semi = [(r * math.cos(math.pi * j / m_az), r * math.sin(math.pi * j / m_az)) for j in range(m_az + 1)]
+    v0 = [bmd.verts.new((x, cy, zs + z)) for x, z in semi]; v1 = [bmd.verts.new((x, back, zs + z)) for x, z in semi]
+    for j in range(m_az):
+        bmd.faces.new((v0[j], v1[j], v1[j + 1], v0[j + 1]))
+    obj_bm(f"ST_WB_{name}_roof_glass", bmd, "cons_glass", recalc=False)
+    obj_bm(f"ST_WB_{name}_glass", bmg, "cons_glass", recalc=False)
+    for k in range(9):                                    # ribs: meridians over the dome, arches over the barrel
+        az = math.pi * k / 8
+        curve_obj(f"ST_WB_{name}_rib{k}", [(r * 1.01 * math.cos(el) * math.cos(az), cy + r * 1.01 * math.cos(el) * math.sin(az), zs + r * 1.01 * math.sin(el))
+                                           for el in (math.pi / 2 * i / 8 for i in range(9))], "white", 0.06)
+    for j, y in enumerate((cy, (cy + back) / 2, back)):
+        curve_obj(f"ST_WB_{name}_arch{j}", [(x * 1.01, y, zs + z * 1.01) for x, z in semi], "white", 0.07)
+    bm_lathe(bmw, [(0, 0), (0.3, 0), (0.22, 0.25), (0.12, 0.3), (0.16, 0.6), (0.05, 0.9), (0.02, 1.4), (0, 1.4)], 12, T(0, cy, zs + r - 0.05))
+    obj_bm(f"ST_WB_{name}_white", bmw, "white")
+    obj_bm(f"ST_WB_{name}_frames", bmr, "white")
+    # the hipped glass roof over the corner behind it (photos: higher than the mansard, green iron, a white balustrade)
+    hx, y0, y1, zb2 = 4.8, back - 8.0, back + 0.5, SIDE["mansard"] - 0.2
+    bmh, bmi, bmb = bmesh.new(), bmesh.new(), bmesh.new()
+    corners = ((-hx, y0), (hx, y0), (hx, y1), (-hx, y1))
+    for (xa, ya), (xb, yb) in zip(corners, corners[1:] + corners[:1]):
+        v = [bmh.verts.new((xa, ya, zb2)), bmh.verts.new((xb, yb, zb2)), bmh.verts.new((xb, yb, zb2 + 1.6)), bmh.verts.new((xa, ya, zb2 + 1.6))]
+        bmh.faces.new(v)
+        obox(bmi, (xa, ya), (xb, yb), 0.14, zb2 + 1.55, zb2 + 1.75)
+        obox(bmb, (xa, ya), (xb, yb), 0.3, zb2, zb2 + 0.12)                                            # balustrade
+        obox(bmb, (xa, ya), (xb, yb), 0.3, zb2 + 0.72, zb2 + 0.84)
+        L = math.hypot(xb - xa, yb - ya); nb, ni = int(L / 0.28), int(L / 1.2)
+        for j in range(nb):
+            f = (j + 0.5) / nb; p = (xa + (xb - xa) * f, ya + (yb - ya) * f)
+            bm_box(bmb, p[0] - 0.05, p[0] + 0.05, p[1] - 0.05, p[1] + 0.05, zb2 + 0.12, zb2 + 0.72)
+        for j in range(ni + 1):
+            f = j / ni; p = (xa + (xb - xa) * f, ya + (yb - ya) * f)
+            bm_box(bmi, p[0] - 0.05, p[0] + 0.05, p[1] - 0.05, p[1] + 0.05, zb2, zb2 + 1.6)
+    bm = bmesh.new(); ST.hip_y(bm, -hx, hx, y0, y1, zb2 + 1.7, zb2 + 4.6)
+    obj_bm(f"ST_WB_{name}_hip_glass", bm, "hall_glass", recalc=False)
+    obj_bm(f"ST_WB_{name}_clerestory", bmh, "hall_glass", recalc=False)
+    ym, half = (y0 + y1) / 2, max((y1 - y0) / 2 - hx, 0.0)
+    for k, (cx_, cy_) in enumerate(corners):                                                           # the hips
+        curve_obj(f"ST_WB_{name}_hip{k}", [(cx_, cy_, zb2 + 1.7), (0, ym + math.copysign(half, cy_ - ym), zb2 + 4.6)], "hall_iron", 0.06)
+    obj_bm(f"ST_WB_{name}_clerestory_iron", bmi, "hall_iron"); obj_bm(f"ST_WB_{name}_balustrade", bmb, "white")
+
+
+def wb_front():
+    """The front beyond the entrance building, round the corners (1b)."""
+    rng = random.Random(11)
+    for side, chain in zip((-1, 1), FRONT_CHAINS):
+        for i, (a, b) in enumerate(zip(chain[:-1], chain[1:])):
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            x0p = 1.2 + (4.4 if a in CONS_CORNERS else 0.0) + (1.9 if a == chain[0] and side > 0 else 0.0)   # (clear of the wing portico)
+            x1p = L - 1.2 - (4.4 if b in CONS_CORNERS else 0.0) - (1.9 if b == chain[-1] and side < 0 else 0.0)
+            msh = side < 0 and i == 1                     # Main Street House: the west face towards the gates
+            with frame(f"WBF_{side}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
+                front_run(f"front{side}_{i}", L, x0p, x1p, rng, doors=(1, 2) if msh else ())
+                if msh:
+                    xs = pier_xs(x0p, x1p)
+                    main_street_house((xs[1] + xs[2]) / 2, WB_S["front"])
+    for k, c in enumerate(CONS_CORNERS):                  # the conservatories face out along the corner's bisector
+        chain = FRONT_CHAINS[k]; i = chain.index(c)
+        nx = ny = 0.0
+        for a, b in ((chain[i - 1], c), (c, chain[i + 1])):
+            L = math.hypot(b[0] - a[0], b[1] - a[1]); nx -= (b[1] - a[1]) / L; ny += (b[0] - a[0]) / L
+        with frame(f"WB_cons{k}", c[0], c[1], math.degrees(math.atan2(-nx, ny))):
+            conservatory(f"cons{k}")
 
 
 # ================================================================ 2. the main entrance gates: one bay + Array + Curve
@@ -1031,6 +1263,8 @@ def build_plaza(context=True):
         bm_prism(bm, [(p0[0] + px, p0[1] + py), (p1[0] + px, p1[1] + py), (p1[0] - px, p1[1] - py), (p0[0] - px, p0[1] - py)], 0.0, 0.012, "xy")
     obj_bm("ST_Plaza_lines", bm, "white")
     build_flowerbed()
+    with frame("GREET_frame", WB["x"], WB["y"], WB["ang"]):
+        build_greeting()
     fx, fy = BED["x"], BED["y"]
     # lamp posts with four globes: round the plaza and either side of the central pavilion
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
@@ -1062,6 +1296,157 @@ def build_plaza(context=True):
     obj_bm("ST_Plaza_bed_red", bmr, "flowers_red", smooth=True); obj_bm("ST_Plaza_bed_white", bmw, "flower_white", smooth=True)
 
 
+# ================================================================ 5. the planters in front of World Bazaar, the greeting plazas (2026-09-30)
+# The user's photos (2026-09-30): every planter here has a stone curb with a pale teal iron railing on it (square posts
+# with ball finials, top and bottom rails, pickets under an arched rail in each panel) and is planted with pink, purple
+# and white flowers; the "Disney Character Greeting" spots either side are brick-paved (herringbone, terracotta) inside
+# a C of planters, with a white sign post (a teal cap and a red roundel on top) at the opening; the planter in the middle
+# in front of the entrance has a hedge ring and red flowers. OSM: the planters are the inner rings of the plaza
+# (ds_tdl_ground builds their curbs and soil), the east greeting plaza is the pedestrian area 1291649416, the west one is
+# its mirror image (its ring 1291649409 is the east one's mirror), the middle planter 795427954 (not a ring of the plaza:
+# this builds it whole). Topiaries (spirals and balls) are left out on purpose (no trees or round shrubs in the mock).
+# ESTIMATES: the railing's size (0.9 m), the flower mix, the sign's size.
+PLANTERS = (788435491, 1291649410, 1291649411, 1291649412, 1291649413, 1291649424, 1291649409, 1291649418, 1291649414, 1291649415)
+GREET_WAY, MIDDLE_WAY = 1291649416, 795427954
+CURB_TOP = -0.03 + 0.30                                   # ds_tdl_ground: the flat ground + CURB_H
+
+
+def osm_wb(way_ids):
+    """OSM ways -> their rings in the World Bazaar frame (counter-clockwise)."""
+    ways = {w["id"]: w for w in json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))["ways"]}
+    a = math.radians(WB["ang"]); out = {}
+    for i in way_ids:
+        pts = [((x + 521.3) * math.cos(a) + (y - 891.2) * math.sin(a), -(x + 521.3) * math.sin(a) + (y - 891.2) * math.cos(a))
+               for x, y in ways[i]["pts"][:-1]]
+        out[i] = pts if poly_area(pts) > 0 else pts[::-1]
+    return out
+
+
+def poly_area(p):
+    return sum(p[i][0] * p[(i + 1) % len(p)][1] - p[(i + 1) % len(p)][0] * p[i][1] for i in range(len(p))) / 2
+
+
+def inset(p, d):
+    """A counter-clockwise ring moved d inwards (mitred, clamped at sharp corners)."""
+    out = []
+    for i in range(len(p)):
+        a, b, c = p[i - 1], p[i], p[(i + 1) % len(p)]
+        n1 = (-(b[1] - a[1]), b[0] - a[0]); l1 = math.hypot(*n1) or 1; n1 = (n1[0] / l1, n1[1] / l1)
+        n2 = (-(c[1] - b[1]), c[0] - b[0]); l2 = math.hypot(*n2) or 1; n2 = (n2[0] / l2, n2[1] / l2)
+        m = (n1[0] + n2[0], n1[1] + n2[1]); lm = math.hypot(*m) or 1
+        k = d / max(0.5, (m[0] * n1[0] + m[1] * n1[1]) / lm)
+        out.append((b[0] + m[0] / lm * k, b[1] + m[1] / lm * k))
+    return out
+
+
+def inside(p, q):
+    x, y = q; c = False
+    for i in range(len(p)):
+        (x1, y1), (x2, y2) = p[i - 1], p[i]
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            c = not c
+    return c
+
+
+def edge_dist(p, q):
+    best = 1e9
+    for i in range(len(p)):
+        (ax, ay), (bx, by) = p[i - 1], p[i]; dx, dy = bx - ax, by - ay; L2 = dx * dx + dy * dy or 1e-9
+        t = max(0.0, min(1.0, ((q[0] - ax) * dx + (q[1] - ay) * dy) / L2))
+        best = min(best, math.hypot(q[0] - ax - dx * t, q[1] - ay - dy * t))
+    return best
+
+
+def railing(P, ring, z0, h=0.9):
+    """The teal railing round a ring (its path already inset onto the curb)."""
+    for i in range(len(ring)):
+        a, b = ring[i - 1], ring[i]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 0.05:
+            continue
+        obox(P["rail"], a, b, 0.05, z0 + 0.08, z0 + 0.13)
+        obox(P["rail"], a, b, 0.06, z0 + h - 0.06, z0 + h)
+        n = max(1, math.ceil(L / 1.7))
+        for j in range(n):                                # panels: a post, an arched rail, pickets up to it
+            f0, f1 = j / n, (j + 1) / n
+            pa = (a[0] + (b[0] - a[0]) * f0, a[1] + (b[1] - a[1]) * f0)
+            bm_box(P["rail"], pa[0] - 0.05, pa[0] + 0.05, pa[1] - 0.05, pa[1] + 0.05, z0, z0 + h + 0.06)
+            bm_lathe(P["rail"], [(0, 0), (0.05, 0.02), (0.07, 0.07), (0.05, 0.12), (0, 0.14)], 6, T(pa[0], pa[1], z0 + h + 0.06))
+            pl = L * (f1 - f0); arc = lambda t: z0 + 0.5 + 0.28 * math.sin(math.pi * t)
+            steps = 6
+            for s in range(steps):
+                t0, t1 = s / steps, (s + 1) / steps
+                q0 = (a[0] + (b[0] - a[0]) * (f0 + (f1 - f0) * t0), a[1] + (b[1] - a[1]) * (f0 + (f1 - f0) * t0))
+                q1 = (a[0] + (b[0] - a[0]) * (f0 + (f1 - f0) * t1), a[1] + (b[1] - a[1]) * (f0 + (f1 - f0) * t1))
+                zt = arc((t0 + t1) / 2)
+                obox(P["rail"], q0, q1, 0.035, zt - 0.02, zt + 0.02)
+            npk = max(1, int(pl / 0.15))
+            for s in range(1, npk):
+                t = s / npk; q = (a[0] + (b[0] - a[0]) * (f0 + (f1 - f0) * t), a[1] + (b[1] - a[1]) * (f0 + (f1 - f0) * t))
+                bm_box(P["rail"], q[0] - 0.013, q[0] + 0.013, q[1] - 0.013, q[1] + 0.013, z0 + 0.13, arc(t))
+
+
+def planting(P, ring, z0, rng, core="soil", band=(0.05, 2.4), step=0.5):
+    """Flower clumps on a grid in the band `band` m in from the ring's edge; the deeper middle: `core`."""
+    xs = [p[0] for p in ring]; ys = [p[1] for p in ring]
+    y = min(ys) + step / 2
+    while y < max(ys):
+        x = min(xs) + step / 2 + (step / 2 if round(y / step) % 2 else 0)
+        while x < max(xs):
+            q = (x + rng.uniform(-0.1, 0.1), y + rng.uniform(-0.1, 0.1))
+            if inside(ring, q):
+                d = edge_dist(ring, q)
+                if band[0] <= d < band[1]:
+                    k = rng.choice(("fl_pink", "fl_pink", "fl_purple", "fl_white"))
+                    s = rng.uniform(0.8, 1.15)
+                    bm_lathe(P[k], [(0, 0), (0.33 * s, 0), (0.28 * s, 0.24 * s), (0, 0.42 * s)], 5, T(q[0], q[1], z0))
+                elif d >= band[1] and core != "soil":
+                    s = rng.uniform(0.9, 1.1)
+                    bm_lathe(P[core], [(0, 0), (0.33 * s, 0), (0.28 * s, 0.2 * s), (0, 0.34 * s)], 5, T(q[0], q[1], z0))
+            x += step
+        y += step
+
+
+def greeting_sign(x, y, ang):
+    """The white sign post (photos): a square post on a base, a framed board with a teal cap, a red roundel on top."""
+    with frame(f"GREET_sign{round(x)}", x, y, ang):
+        box("ST_GR_sign_post", [(-0.09, 0.09, -0.09, 0.09, 0.0, 2.6), (-0.2, 0.2, -0.2, 0.2, 0.0, 0.25), (-0.13, 0.13, -0.13, 0.13, 1.12, 1.2)], "white")
+        box("ST_GR_sign_board", [(-0.55, 0.55, 0.1, 0.16, 1.25, 2.35)], "white")
+        box("ST_GR_sign_face", [(-0.45, 0.45, 0.16, 0.17, 1.35, 2.05)], "sign_face")
+        box("ST_GR_sign_cap", [(-0.62, 0.62, 0.02, 0.22, 2.35, 2.45)], "rail_teal")
+        bm = bmesh.new(); bm_lathe(bm, [(0, 0), (0.22, 0), (0.22, 0.05), (0, 0.05)], 16, T(0, 0.14, 2.72) @ R(-math.pi / 2, "X"))
+        obj_bm("ST_GR_sign_roundel", bm, "flowers_red")
+        bm = bmesh.new(); bm_lathe(bm, [(0.2, 0), (0.26, 0), (0.26, 0.06), (0.2, 0.06)], 16, T(0, 0.13, 2.72) @ R(-math.pi / 2, "X"))
+        obj_bm("ST_GR_sign_roundel_rim", bm, "rail_teal")
+        text("ST_GR_sign_text", "DISNEY CHARACTER\nGREETING", 0.09, (0, 0.18, 2.2), (math.pi / 2, 0, math.pi), "sign_ink", 0.005)
+
+
+def build_greeting():
+    rng = random.Random(3)
+    rings = osm_wb(PLANTERS + (GREET_WAY, MIDDLE_WAY))
+    P = {k: bmesh.new() for k in ("rail", "fl_pink", "fl_purple", "fl_white", "hedge", "red")}
+    for i in PLANTERS:                                    # the plaza's planters: railing on the curb, flowers
+        railing(P, inset(rings[i], 0.17), CURB_TOP)
+        planting(P, inset(rings[i], 0.32), CURB_TOP - 0.06, rng)
+    mid = rings[MIDDLE_WAY]                               # the middle planter: curb, hedge ring, red flowers
+    prism("ST_GR_mid_curb", [mid], -0.03, 0.42, "stone")
+    railing(P, inset(mid, 0.17), 0.42)
+    planting(P, inset(mid, 1.1), 0.42, rng, core="red", band=(0.0, 0.0))
+    ring = inset(mid, 0.55)
+    for j in range(len(ring)):                            # the clipped hedge just inside the curb
+        obox(P["hedge"], ring[j - 1], ring[j], 0.55, 0.42, 0.95)
+    g = rings[GREET_WAY]                                  # the greeting plazas: brick floor, a pale stone edge
+    for pts in (g, [(-x, y) for x, y in g][::-1]):
+        prism(f"ST_GR_floor{round(pts[0][0])}", [pts], -0.03, 0.006, "brick_paving")
+        prism(f"ST_GR_floor_inner{round(pts[0][0])}", [inset(pts, 0.45)], 0.006, 0.012, "brick_paving2")
+    for s in (-1, 1):
+        greeting_sign(s * 40.2, 12.9, 0.0)
+    for k, bm_ in P.items():
+        mat = {"rail": "rail_teal", "fl_pink": "flowers_pink", "fl_purple": "flower_purple", "fl_white": "flower_white",
+               "hedge": "hedge", "red": "flowers_red"}[k]
+        obj_bm(f"ST_GR_{k}", bm_, mat)
+
+
 # ================================================================ scene
 def cams():
     a = math.radians(ARC["a_mid"]); pav = arc_point(ARC["a_mid"]); ou = (math.cos(a), math.sin(a))
@@ -1079,6 +1464,10 @@ def cams():
         "wb_porch": ((*wbp(9.0, 14.0), 1.7), (*wbp(-2.0, 2.0), 5.5), 20),
         "wb_sign": ((*wbp(0.0, 11.5), 1.6), (*wbp(0.0, 4.8), 5.4), 22),
         "wb_back": ((*wbp(0.0, -36.0), 1.6), (*wbp(0.0, WB_BACK), 6.5), 22),  # from Main Street, as the user's photo
+        "wb_whole": ((*wbp(0.0, 47.0), 1.7), (*wbp(0.0, 0.0), 6.0), 16),         # the user's photo of the whole front
+        "wb_msh": ((*wbp(-56.0, -1.8), 1.6), (*wbp(-48.8, -6.0), 3.3), 18),      # Main Street House, as the user's photos
+        "wb_greet": ((*wbp(-27.0, 21.0), 1.6), (*wbp(-45.0, 1.0), 4.0), 16),    # the west greeting plaza and the conservatory
+        "wb_greet_e": ((*wbp(29.0, 17.5), 2.2), (*wbp(37.0, 9.0), 0.0), 16),
         "flowerbed": bed_cam(20.5, 1.7, 16),              # from the gates' side, as the photos (the face reads upright)
         "flowerbed_top": bed_cam(26.0, 14.0, 26),
         "flowerbed_plan": ((BED["x"], BED["y"] - 0.01, 70.0), (BED["x"], BED["y"], 0.0), 35),   # straight down
