@@ -59,3 +59,4 @@
 (範囲が終わるごとに `済(commit、日付)` を追記)
 
 - 時刻表(README・segments.json)と本計画: 2026-09-30 作成。
+- 範囲1 済(79f82b7、2026-09-30、Vercel success)。詳細は [range1.md](range1.md)
