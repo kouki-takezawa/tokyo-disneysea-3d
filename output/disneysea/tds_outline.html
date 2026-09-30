@@ -3326,18 +3326,29 @@ async function init3D() {
     ["VO_", "プロメテウス火山の岩山"], ["PZ_Blue", "プラザの石畳"], ["PZ_Brick", "プラザのレンガ舗装"], ["PZ_Lines", "プラザの白線"],
     ["PZ_Curb", "植え込みの縁石"], ["PZ_Soil", "植え込み"], ["PZ_Trunk", "プラザの木"], ["PZ_Canopy", "プラザの木"],
     ["AQ_Globe", "アクアスフィアの地球儀"], ["AQ_Water", "アクアスフィアの池"], ["AQ_", "アクアスフィア"]];
-  let grid = null, gridKey = "";
+  // phones: only the surfaces within GRID_R m (a square) of the walker, built again once the walker is GRID_MOVE m from its centre.
+  // The whole park at once is up to 2 M triangles: seconds of freeze and ~0.5 GB, enough for the phone to close the tab.
+  const GRID_R = coarse ? 120 : Infinity, GRID_MOVE = 50;
+  let grid = null, gridKey = "", gridC = null;
   const walkable = o => o.isMesh && !/^AQ_(WaterFilm|Curtain)/.test(o.name);
   function buildGrid() {
-    const loaded = Object.entries(three.models).filter(([id]) => mdl[id] !== false);
+    const near = GRID_R < Infinity, gx = wk.x, gz = wk.z;
+    const rx0 = gx - GRID_R, rx1 = gx + GRID_R, rz0 = gz - GRID_R, rz1 = gz + GRID_R;
+    const inReach = b => !near || !b || (b[3] >= rx0 && b[0] <= rx1 && b[5] >= rz0 && b[2] <= rz1);   // b: [min xyz, max xyz]
+    const loaded = Object.entries(three.models).filter(([id, m]) => mdl[id] !== false && inReach(m.box));
     const act = m => (m.near && m.near.visible) || !m.farObj ? m.near : m.farObj;   // the full model or the far copy, whichever is on show
     const key = loaded.map(([id, m]) => id + (act(m) === m.near ? "" : "~")).join(",");
-    if (grid && key === gridKey) return;
+    if (grid && key === gridKey && (!near || Math.hypot(gx - gridC[0], gz - gridC[1]) < GRID_MOVE)) return;
     root.updateMatrixWorld(true);
-    const tris = [], labs = [], cells = new Map(), p = new T.Vector3();
+    const tris = [], labs = [], cells = new Map(), p = new T.Vector3(), bb = new T.Box3();
     const walls = [], wcells = new Map();   // standing faces (walls, fences, railings, pillars, rock faces): plan segment + the face in (along, up)
     for (const [, m] of loaded) act(m).traverse(o => {
       if (!walkable(o)) return;
+      if (near) {
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+        if (!inReach([bb.min.x, 0, bb.min.z, bb.max.x, 0, bb.max.z])) return;
+      }
       const li = SURF.findIndex(([pre]) => o.name.startsWith(pre)), lab = li < 0 ? 255 : li;
       const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
       const w = new Float32Array(pos.count * 3);
@@ -3346,6 +3357,7 @@ async function init3D() {
         const a = idx ? idx.getX(t) : t, b = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
         const ax = w[a * 3], az = w[a * 3 + 2], bx = w[b * 3], bz = w[b * 3 + 2], cx = w[c * 3], cz = w[c * 3 + 2];
         const ay = w[a * 3 + 1], by = w[b * 3 + 1], cy = w[c * 3 + 1];
+        if (near && (Math.max(ax, bx, cx) < rx0 || Math.min(ax, bx, cx) > rx1 || Math.max(az, bz, cz) < rz0 || Math.min(az, bz, cz) > rz1)) continue;
         const plan2 = Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az));   // twice the area in plan
         const e1x = bx - ax, e1y = by - ay, e1z = bz - az, e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
         const nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x, nl = Math.hypot(nx, ny, nz);
@@ -3369,7 +3381,7 @@ async function init3D() {
         }
       }
     });
-    grid = { tris: new Float32Array(tris), lab: Uint8Array.from(labs), cells, walls: new Float32Array(walls), wcells }; gridKey = key;
+    grid = { tris: new Float32Array(tris), lab: Uint8Array.from(labs), cells, walls: new Float32Array(walls), wcells }; gridKey = key; gridC = [gx, gz];
   }
   // heights of the model surfaces straight above/below (x, z); labsOut (optional) receives their surface kinds
   function modelHits(x, z, labsOut) {
@@ -3514,10 +3526,10 @@ async function init3D() {
   // start at (x, y) in local metres facing yaw (default: on the plaza 22 m from the AquaSphere, between the east lamps, facing the globe)
   three.walkEnter = (x, y, yaw, pitch, anim = false, first) => {
     loadWoody();
-    buildGrid();
     if (x == null) [x, y, yaw, pitch] = walkStart();
     const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     wk.x = x; wk.z = -y;
+    buildGrid();   // after the position is set: on phones the grid covers only round it
     const hits = modelHits(wk.x, wk.z);
     wk.y = groundAt(wk.x, wk.z, (heightAt(wk.x, -wk.z) ?? 0) + 1) ?? (hits.length ? Math.max(...hits) : 0);   // not on a tree top
     wk.yaw = yaw ?? 0; wk.pitch = pitch ?? -0.05;
@@ -3611,7 +3623,7 @@ async function init3D() {
       three.walkDirty = false; buildGrid();
       const g = groundAt(wk.x, wk.z, Math.max(wk.y, heightAt(wk.x, -wk.z) ?? 0) + 1);
       if (g != null && g !== wk.y) { wk.y = g; placeCamera(); }
-    }
+    } else if (!ride && gridC && GRID_R < Infinity && Math.hypot(wk.x - gridC[0], wk.z - gridC[1]) >= GRID_MOVE) buildGrid();   // phones: walked far from the grid's centre (the feet stay as they are)
     const k = wk.keys;
     const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0) - joy.y;
     const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0) + joy.x;
@@ -3689,6 +3701,7 @@ async function init3D() {
     wk.dist = ride.dist; ride = null;
     const [x, y] = ridePlat;
     wk.x = x; wk.z = -y;
+    buildGrid();   // phones: the platform may be outside the grid
     const bz = RL.at(RL.stations.find(st => st.n === RIDE_ST)?.s ?? 0)[4];   // the beam top there (level through the station)
     wk.y = groundAt(wk.x, wk.z, bz + CAR_FLOOR + 0.3) ?? bz + CAR_FLOOR;
     placeCamera(); updateRideBtn();
