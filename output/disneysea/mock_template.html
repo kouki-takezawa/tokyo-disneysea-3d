@@ -418,7 +418,7 @@ body.intro .introfx{opacity:1}
    3D api: {D, css, on, seg(key, flatArray), V(x,y,z), prism(key, ring, z0, z1), heightAt, T, root} - called while building the scene;
    seg("water", ...) / prism("water", ...) lines are coloured and toggled with the 水面 layer. */
 (() => {
-const W3 = JSON.parse(document.getElementById("data").textContent).water3;
+const W3 = (window.TDS_DATA = JSON.parse(document.getElementById("data").textContent)).water3;   // parsed once: the main script reads TDS_DATA
 if (!W3) return;
 const SH = {  // shore type -> [label, css var, dash]
   quay: ["石積みの護岸", "--sh-quay", []], building: ["建物が水際に立つ", "--sh-bldg", []],
@@ -457,6 +457,9 @@ const inBody = (b, x, y) => pip(x, y, b.r) && !b.i.some(h => pip(x, y, h));
 const segD = (px, py, r) => { let m = 1e9; for (let i = 0; i < r.length; i++) { const [ax, ay] = r[i], [bx, by] = r[(i + 1) % r.length];
   const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L));
   m = Math.min(m, Math.hypot(px - ax - t * dx, py - ay - t * dy)); } return m; };
+let prepped = false;
+const prep = () => {   // on the first plan drawing / hover only (about 1 s on a phone, and the plan is only the fallback view)
+if (prepped) return; prepped = true;
 W3.bodies.forEach((b, i) => {  // label point: the interior point farthest from the shore (coarse grid)
   const xs = b.r.map(p => p[0]), ys = b.r.map(p => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -468,12 +471,14 @@ W3.bodies.forEach((b, i) => {  // label point: the interior point farthest from 
 });
 W3.shores.forEach(s => { let L = 0; for (let i = 1; i < s.l.length; i++) L += Math.hypot(s.l[i][0] - s.l[i - 1][0], s.l[i][1] - s.l[i - 1][1]);
   const m = W3.bodies[s.b].mix; m[s.t] = (m[s.t] || 0) + L; });
+};
 const fz = z => (z >= 0 ? "+" : "−") + Math.abs(z).toFixed(2) + " m";
 
 let T2 = null, hot = null;
 function card(b) {
   const el = document.getElementById("wxCard"); if (!el) return;
   if (!b) { el.innerHTML = `<span class="mono">水面にマウスを乗せると、水位・水深・岸の内訳が出ます。</span>`; return; }
+  prep();
   const tot = Object.values(b.mix).reduce((a, v) => a + v, 0) || 1;
   const mix = Object.entries(b.mix).sort((a, c) => c[1] - a[1]).map(([k, v]) =>
     `<span style="color:var(${SH[k][1]})">■</span> ${SH[k][0]} ${Math.round(v / tot * 100)}%`).join("<br>");
@@ -492,7 +497,7 @@ cv?.addEventListener("pointerleave", () => { hot = null; card(null); });
 
 window.TDS_EXT = {
   water2d({ ctx, X, Y, sc, lw }) {
-    T2 = { ox: X(0), oy: Y(0), sc };
+    T2 = { ox: X(0), oy: Y(0), sc }; prep();
     ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
     for (const [k, [, v, dash]] of Object.entries(SH)) {
       ctx.beginPath();
@@ -540,7 +545,8 @@ window.TDS_EXT = {
 </script>
 <script>
 (() => {
-const D = JSON.parse(document.getElementById("data").textContent);
+const D = window.TDS_DATA || JSON.parse(document.getElementById("data").textContent);   // (the water script parsed it already)
+delete window.TDS_DATA;
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const LAT0 = D.origin[0], LON0 = D.origin[1];
@@ -1651,6 +1657,8 @@ function makeWater(T, o = {}) {
     Object.assign(m, { transmission: 0, envMapIntensity: 0.35, roughness: 0.08 });
     m.color.set(o.color);
   }
+  m.customProgramCacheKey = () => "water" + JSON.stringify(o);   // the options are written into the shader
+  if (o.real) { (three.waterMats ||= []).push(m); setWaterLite(m); }
   m.onBeforeCompile = sh => {
     sh.uniforms.uTime = FX_TIME; sh.uniforms.uSunDir = skyUniform(T, "dir"); sh.uniforms.uSunK = skyUniform(T, "k"); sh.uniforms.uLum = skyUniform(T, "lum");
     sh.vertexShader = sh.vertexShader
@@ -1694,6 +1702,15 @@ vec2 waveGrad(vec2 p, float t, float d) {
 #include <output_fragment>` : "#include <output_fragment>");
   };
   return m;
+}
+// refraction (transmission) draws the whole scene a second time while the water is in view: phones, and PCs from quality
+// step 2, get see-through deep water instead
+const waterLite = () => coarse || qual.level >= 2;
+function setWaterLite(m, lite = waterLite()) {
+  if (m.userData.lite === lite) return;
+  m.userData.lite = lite;
+  Object.assign(m, lite ? { transmission: 0, transparent: true, opacity: 0.85 } : { transmission: 1, transparent: false, opacity: 1 });
+  m.color.set(lite ? 0x1f5a60 : 0xffffff); m.needsUpdate = true;
 }
 // the falling curtain under the globe: aerated white water in long streaks running down, whiter at the foot
 function makeCurtain(T) {
@@ -2041,7 +2058,7 @@ function prepModel(T, scene) {
             if (o.name === "CC_water") { o.material.transparent = true; o.material.opacity = 0.55; o.material.depthWrite = false; }
             if (o.name === "CC_glass") { o.material.transparent = true; o.material.opacity = 0.6; }
             if (o.name === "CC_gold" || o.name === "CC_iron") { o.material.metalness = 0.25; o.material.roughness = 0.4; }   // no environment map: metal would go black
-            if (o.name === "BC_glass" || o.name === "BC_bell") { o.material.transparent = true; o.material.opacity = 0.35; o.material.depthWrite = false; }
+            if (o.name === "BC_glass" || o.name === "BC_bell") { o.material.transparent = true; o.material.opacity = 0.35; o.material.depthWrite = false; o.material.transmission = 0; }   // transmission: the whole scene drawn twice
           }
           // the page renders in linear output (line colours come straight from CSS): show textures as stored
           if (o.material.map) { o.material.map.encoding = T.LinearEncoding; o.material.needsUpdate = true; }
@@ -2921,7 +2938,7 @@ async function init3D() {
     if (!modelsStarted) { three.finishGrow(); root.scale.y = 1; startModels(); }
     else three.finishGrow();
   };
-  const groups = {};
+  let groups = {};
   function seg(key, arr) { (groups[key] = groups[key] || []).push(...arr); }
   function prism(key, r, z0, z1) {
     for (let i = 0; i < r.length; i++) {
@@ -2939,167 +2956,173 @@ async function init3D() {
     seg(key, [...V(x1, y1, gz(x1, y1) + dz), ...V(x2, y2, gz(x2, y2) + dz)]); } };
   const lineZ = (key, l, z) => { for (let i = 1; i < l.length; i++) seg(key, [...V(l[i - 1][0], l[i - 1][1], z[i - 1] + 0.05), ...V(l[i][0], l[i][1], z[i] + 0.05)]); };
   ringH("park", D.park, 0);
-  D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
-  D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
-  D.green.forEach(r => ringH("green", r, 0.05));
-  // woods: the outline on the ground only (no tree symbols: no trees, the user's request)
-  function woods(key, r, gzf) {
-    const g = (x, y) => gzf(x, y) ?? 0;
-    for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; seg(key, [...V(x1, y1, g(x1, y1) + 0.1), ...V(x2, y2, g(x2, y2) + 0.1)]); }
-  }
-  D.trees.forEach(r => woods("trees", r, gz));
-  D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
-  function paths3d(list, keys) {
-    for (const p of list) {
-      if (p.s) continue;
-      const z = p.z || p.l.map(([x, y]) => gz(x, y)), key = p.u ? keys.tunnel : p.b ? keys.bridge : keys.paths;
-      if (p.a) { for (let i = 0; i < p.l.length; i++) { const j = (i + 1) % p.l.length;
-        seg(key, [...V(p.l[i][0], p.l[i][1], z[i] + 0.05), ...V(p.l[j][0], p.l[j][1], z[j] + 0.05)]); } }
-      else lineZ(key, p.l, z);
+  // the layers' lines: built when a layer is first shown (keys 2 / 3). They all start hidden, and building them takes 0.2-0.5 s on a phone
+  let wiresBuilt = false;
+  function buildWires() {
+    wiresBuilt = true;
+    D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
+    D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
+    D.green.forEach(r => ringH("green", r, 0.05));
+    // woods: the outline on the ground only (no tree symbols: no trees, the user's request)
+    function woods(key, r, gzf) {
+      const g = (x, y) => gzf(x, y) ?? 0;
+      for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; seg(key, [...V(x1, y1, g(x1, y1) + 0.1), ...V(x2, y2, g(x2, y2) + 0.1)]); }
     }
-  }
-  function stairs3d(list, key) {  // stepped profile on both edges + nosing lines
-    for (const p of list) {
-      const l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
-      const z0 = p.z ? p.z[0] : 0, z1 = p.z ? p.z[p.z.length - 1] : 0;
-      for (let k = 0; k < n; k++) {
-        const [xa, ya, ux, uy] = alongAt(l, L * k / n), [xb, yb] = alongAt(l, L * (k + 1) / n);
-        const hk = z0 + (z1 - z0) * k / n, hk1 = z0 + (z1 - z0) * (k + 1) / n, asc = z1 > z0;
-        const za = asc ? hk1 : hk;                        // tread height
-        const [rx, ry] = asc ? [xa, ya] : [xb, yb];        // riser sits on the uphill side of the tread
-        for (const sd of [1, -1]) {
-          const ox_ = -uy * hw * sd, oy_ = ux * hw * sd;
-          seg(key, [...V(xa + ox_, ya + oy_, za), ...V(xb + ox_, yb + oy_, za)]);            // tread
-          seg(key, [...V(rx + ox_, ry + oy_, hk), ...V(rx + ox_, ry + oy_, hk1)]);           // riser
+    D.trees.forEach(r => woods("trees", r, gz));
+    D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));
+    function paths3d(list, keys) {
+      for (const p of list) {
+        if (p.s) continue;
+        const z = p.z || p.l.map(([x, y]) => gz(x, y)), key = p.u ? keys.tunnel : p.b ? keys.bridge : keys.paths;
+        if (p.a) { for (let i = 0; i < p.l.length; i++) { const j = (i + 1) % p.l.length;
+          seg(key, [...V(p.l[i][0], p.l[i][1], z[i] + 0.05), ...V(p.l[j][0], p.l[j][1], z[j] + 0.05)]); } }
+        else lineZ(key, p.l, z);
+      }
+    }
+    function stairs3d(list, key) {  // stepped profile on both edges + nosing lines
+      for (const p of list) {
+        const l = p.l, L = polyLen(l), n = Math.max(1, p.s.steps), hw = (p.w || 3.5) / 2;
+        const z0 = p.z ? p.z[0] : 0, z1 = p.z ? p.z[p.z.length - 1] : 0;
+        for (let k = 0; k < n; k++) {
+          const [xa, ya, ux, uy] = alongAt(l, L * k / n), [xb, yb] = alongAt(l, L * (k + 1) / n);
+          const hk = z0 + (z1 - z0) * k / n, hk1 = z0 + (z1 - z0) * (k + 1) / n, asc = z1 > z0;
+          const za = asc ? hk1 : hk;                        // tread height
+          const [rx, ry] = asc ? [xa, ya] : [xb, yb];        // riser sits on the uphill side of the tread
+          for (const sd of [1, -1]) {
+            const ox_ = -uy * hw * sd, oy_ = ux * hw * sd;
+            seg(key, [...V(xa + ox_, ya + oy_, za), ...V(xb + ox_, yb + oy_, za)]);            // tread
+            seg(key, [...V(rx + ox_, ry + oy_, hk), ...V(rx + ox_, ry + oy_, hk1)]);           // riser
+          }
+          seg(key, [...V(xa - uy * hw, ya + ux * hw, za), ...V(xa + uy * hw, ya - ux * hw, za)]);
         }
-        seg(key, [...V(xa - uy * hw, ya + ux * hw, za), ...V(xa + uy * hw, ya - ux * hw, za)]);
       }
     }
-  }
-  function walls3d(list, key) {
-    list.forEach(w => { for (let i = 0; i < w.l.length; i++) {
-      const [x, y] = w.l[i], z = w.z[i];
-      if (i) { const [xp, yp] = w.l[i - 1], zp = w.z[i - 1];
-        seg(key, [...V(xp, yp, zp + w.h), ...V(x, y, z + w.h)]); seg(key, [...V(xp, yp, zp), ...V(x, y, z)]); }
-      if (i === 0 || i === w.l.length - 1 || i % 4 === 0) seg(key, [...V(x, y, z), ...V(x, y, z + w.h)]); } });
-  }
-  function contours3d(obj, key) {
-    for (const [lv, segs] of Object.entries(obj)) {
-      for (let k = 0; k < segs.length; k += 4) seg(key, [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+    function walls3d(list, key) {
+      list.forEach(w => { for (let i = 0; i < w.l.length; i++) {
+        const [x, y] = w.l[i], z = w.z[i];
+        if (i) { const [xp, yp] = w.l[i - 1], zp = w.z[i - 1];
+          seg(key, [...V(xp, yp, zp + w.h), ...V(x, y, z + w.h)]); seg(key, [...V(xp, yp, zp), ...V(x, y, z)]); }
+        if (i === 0 || i === w.l.length - 1 || i % 4 === 0) seg(key, [...V(x, y, z), ...V(x, y, z + w.h)]); } });
     }
-  }
-  paths3d(D.paths, { paths: "paths", bridge: "bridge", tunnel: "tunnel" });
-  stairs3d(STAIRS, "stairs");
-  walls3d(D.walls, "walls");
-  contours3d(D.contours, "contours");
-  D.rail.forEach(l => { const zs = l.map(([x, y]) => gz(x, y)); lineZ("rail", l, zs.map(z => z + 7)); lineZ("rail", l, zs.map(z => z + 7.8)); });
-  // roof-only structures (OSM building=roof): the slab and a few posts, open underneath
-  function roof3d(key, r, z, h) {
-    prism(key, r, z + h - 0.4, z + h);
-    const n = r.length, k = Math.max(1, Math.floor(n / 6));
-    for (let i = 0; i < n; i += k) seg(key, [...V(r[i][0], r[i][1], z), ...V(r[i][0], r[i][1], z + h - 0.4)]);
-  }
-  D.buildings.forEach(b => b.r.forEach(r => (b.rf ? roof3d : prism)(b.x ? "pri" : `p${b.p}`, r, b.z || 0, b.rf ? b.h : (b.z || 0) + b.h)));
-  if (D.volcano) for (const [lv, segs] of Object.entries(D.volcano.contours))
-    for (let k = 0; k < segs.length; k += 4) seg("volc", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
-  if (D.water_tunnels) D.water_tunnels.forEach(r => prism("tunnel", r, D.water_tunnels_z, D.water_tunnels_z));
-  window.TDS_EXT?.water3d?.({ D, css, on, seg, V, prism, heightAt, T, root });
-  for (const m of D.landmarks) {
-    if (m.t === "cone") {
-      const bz = m.z || 0;
-      for (let k = 0; k <= 6; k++) { const t = k / 6; circ("land", m.x, m.y, m.r1 + (m.r2 - m.r1) * t, bz + m.h * t, 48); }
-      circ("land", m.x, m.y, m.r2 * 0.45, bz + m.h - m.crater, 24);
-      for (let k = 0; k < 24; k++) { const a = k / 24 * 6.2832, c = Math.cos(a), s = Math.sin(a);
-        seg("land", [...V(m.x + c * m.r1, m.y + s * m.r1, bz), ...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h)]);
-        seg("land", [...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h), ...V(m.x + c * m.r2 * .45, m.y + s * m.r2 * .45, bz + m.h - m.crater)]); }
-    } else if ((m.t === "sphere" && !D.aquasphere) || m.t === "dome") {
-      const R = m.r, zc = m.z || 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
-      for (let k = lo; k <= 6; k++) { const ph = k / 6 * Math.PI / 2; circ("land", m.x, m.y, R * Math.cos(ph), zc + R * Math.sin(ph) * sz, 40); }
-      for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832;
-        for (let j = lo; j < 6; j++) { const p1 = j / 6 * Math.PI / 2, p2 = (j + 1) / 6 * Math.PI / 2;
-          seg("land", [...V(m.x + Math.cos(a) * R * Math.cos(p1), m.y + Math.sin(a) * R * Math.cos(p1), zc + R * Math.sin(p1) * sz),
-                       ...V(m.x + Math.cos(a) * R * Math.cos(p2), m.y + Math.sin(a) * R * Math.cos(p2), zc + R * Math.sin(p2) * sz)]); } }
-      if (m.basin) {  // pool rim (0.40 m) + pedestal column up to the globe's underside
-        const g0 = m.g || 0, rh = m.rim_h || 0.4;
-        circ("land", m.x, m.y, m.basin, g0, 64); circ("land", m.x, m.y, m.basin, g0 + rh, 64); circ("land", m.x, m.y, m.basin - 0.6, g0 + rh, 64);
-        for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("land", [...V(m.x + Math.cos(a) * 1.3, m.y + Math.sin(a) * 1.3, g0 - 0.25), ...V(m.x + Math.cos(a) * 1.2, m.y + Math.sin(a) * 1.2, g0 + (m.ped || 2))]); }
+    function contours3d(obj, key) {
+      for (const [lv, segs] of Object.entries(obj)) {
+        for (let k = 0; k < segs.length; k += 4) seg(key, [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
       }
-    } else if (m.t === "ship") {
-      const bb = bboxOf([m.r]), cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
-      prism("pri", m.r, 0, 9);
-      prism("pri", m.r.map(([x, y]) => [cx + (x - cx) * 0.55, cy + (y - cy) * 0.55]), 9, 20);
-      [0.35, 0.62].forEach(t => { const fx = bb[0] + (bb[2] - bb[0]) * t; circ("pri", fx, cy, 2.2, 20, 16); circ("pri", fx, cy, 2.2, 29, 16); });
     }
-  }
-  if (D.aquasphere) {  // AquaSphere as built in Blender (ds_aquasphere): pool, rim, paving, blocks, lamps, foam, oriented globe
-    const A = D.aquasphere, g = A.g, P = (r, a, z) => V(A.cx + Math.cos(a) * r, A.cy + Math.sin(a) * r, z);
-    const cc = (key, r, z, n = 72) => { for (let k = 0; k < n; k++) seg(key, [...P(r, k / n * 6.2832, z), ...P(r, (k + 1) / n * 6.2832, z)]); };
-    cc("aqwire", A.pool_r, g); cc("aqwire", A.pool_r, g + A.rim_h); cc("aqwire", A.pool_r - A.rim_w, g + A.rim_h);
-    cc("aqwire", A.pool_r - A.rim_w, A.water); cc("aqwire", A.ring_r, g + 0.05); cc("aqwire", A.plaza_r, g + 0.05, 96);
-    for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; seg("aqwire", [...P(A.pool_r, a, g), ...P(A.pool_r, a, g + A.rim_h)]); }
-    A.lines.forEach(l => seg("aqwire", [...V(l[0], l[1], g + 0.05), ...V(l[2], l[3], g + 0.05)]));
-    A.patches.forEach(([x, y]) => circ("aqwire", x, y, A.patch_r, g + 0.05, 16));
-    A.inlays.forEach(([x, y]) => circ("aqwire", x, y, A.inlay_r, g + 0.05, 10));
-    A.blocks.forEach(b => prism("aqwire", b, g, g + A.block_h));
-    A.lamps.forEach(([x, y]) => { seg("aqwire", [...V(x, y, g), ...V(x, y, g + A.lamp_h)]); circ("aqwire", x, y, 0.22, g + A.lamp_h - 0.45, 8); });
-    const top = g + A.ped_h;
-    for (let j = 0; j <= 4; j++) { const t = j / 4; cc("aqwire", A.foam_r[0] + (A.foam_r[1] - A.foam_r[0]) * t, A.water + (top - A.water) * t, 36); }
-    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("aqwire", [...P(A.foam_r[0], a, A.water), ...P(A.foam_r[1], a, top)]); }
-    const gp = (lo, la) => { const p = aquaPt(lo, la); return V(p[0], p[1], p[2]); };
-    for (let la = -60; la <= 60; la += 30) for (let lo = -180; lo < 180; lo += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo + 6, la)]);
-    for (let lo = -180; lo < 180; lo += 30) for (let la = -90; la < 90; la += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo, la + 6)]);
-    const n1 = aquaPt(0, 90), s1 = aquaPt(0, -90), G = A.globe, ext = 1.2;   // axis through the poles
-    seg("aqglobe", [...V(A.cx + (n1[0] - A.cx) * ext, A.cy + (n1[1] - A.cy) * ext, G.cz + (n1[2] - G.cz) * ext),
-                    ...V(A.cx + (s1[0] - A.cx) * ext, A.cy + (s1[1] - A.cy) * ext, G.cz + (s1[2] - G.cz) * ext)]);
-    const s = A.coast;
-    for (let k = 0; k < s.length; k += 4) seg("aqcoast", [...gp(s[k], s[k + 1]), ...gp(s[k + 2], s[k + 3])]);
-  }
-  if (D.entrance) {   // station platforms and track on the viaduct, gate booths on the plaza
-    const E = D.entrance, zs = (heightAt(E.station.x, E.station.y) ?? 0) + E.station.z;
-    E.station.platforms.forEach(r => prism("entrance", r, zs - 0.4, zs));
-    E.rail.forEach(l => { line("entrance", l, zs - 1.0); line("entrance", l, zs - 1.9);   // the beam: its top 1 m under the car floor (= platform)
-      for (let i = 0; i < l.length; i += 3) seg("entrance", [...V(l[i][0], l[i][1], gz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], zs - 1.9)]); });
-    E.walks.forEach(l => lineZ("entrance", l, l.map(([x, y]) => gz(x, y))));
-    for (const row of E.gates) {
-      const p = row.pts, a = p[0], b = p[p.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
-      p.forEach(([x, y]) => { const h = 0.35, w = 0.6, z0 = gz(x, y);
-        prism("entrance", [[x - ux * h - uy * w, y - uy * h + ux * w], [x + ux * h - uy * w, y + uy * h + ux * w], [x + ux * h + uy * w, y + uy * h - ux * w], [x - ux * h + uy * w, y - uy * h - ux * w]], z0, z0 + E.gate_h); });
+    paths3d(D.paths, { paths: "paths", bridge: "bridge", tunnel: "tunnel" });
+    stairs3d(STAIRS, "stairs");
+    walls3d(D.walls, "walls");
+    contours3d(D.contours, "contours");
+    D.rail.forEach(l => { const zs = l.map(([x, y]) => gz(x, y)); lineZ("rail", l, zs.map(z => z + 7)); lineZ("rail", l, zs.map(z => z + 7.8)); });
+    // roof-only structures (OSM building=roof): the slab and a few posts, open underneath
+    function roof3d(key, r, z, h) {
+      prism(key, r, z + h - 0.4, z + h);
+      const n = r.length, k = Math.max(1, Math.floor(n / 6));
+      for (let i = 0; i < n; i += k) seg(key, [...V(r[i][0], r[i][1], z), ...V(r[i][0], r[i][1], z + h - 0.4)]);
     }
+    D.buildings.forEach(b => b.r.forEach(r => (b.rf ? roof3d : prism)(b.x ? "pri" : `p${b.p}`, r, b.z || 0, b.rf ? b.h : (b.z || 0) + b.h)));
+    if (D.volcano) for (const [lv, segs] of Object.entries(D.volcano.contours))
+      for (let k = 0; k < segs.length; k += 4) seg("volc", [...V(segs[k], segs[k + 1], +lv), ...V(segs[k + 2], segs[k + 3], +lv)]);
+    if (D.water_tunnels) D.water_tunnels.forEach(r => prism("tunnel", r, D.water_tunnels_z, D.water_tunnels_z));
+    window.TDS_EXT?.water3d?.({ D, css, on, seg, V, prism, heightAt, T, root });
+    for (const m of D.landmarks) {
+      if (m.t === "cone") {
+        const bz = m.z || 0;
+        for (let k = 0; k <= 6; k++) { const t = k / 6; circ("land", m.x, m.y, m.r1 + (m.r2 - m.r1) * t, bz + m.h * t, 48); }
+        circ("land", m.x, m.y, m.r2 * 0.45, bz + m.h - m.crater, 24);
+        for (let k = 0; k < 24; k++) { const a = k / 24 * 6.2832, c = Math.cos(a), s = Math.sin(a);
+          seg("land", [...V(m.x + c * m.r1, m.y + s * m.r1, bz), ...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h)]);
+          seg("land", [...V(m.x + c * m.r2, m.y + s * m.r2, bz + m.h), ...V(m.x + c * m.r2 * .45, m.y + s * m.r2 * .45, bz + m.h - m.crater)]); }
+      } else if ((m.t === "sphere" && !D.aquasphere) || m.t === "dome") {
+        const R = m.r, zc = m.z || 0, sz = m.t === "dome" ? m.h / m.r : 1, lo = m.t === "dome" ? 0 : -6;
+        for (let k = lo; k <= 6; k++) { const ph = k / 6 * Math.PI / 2; circ("land", m.x, m.y, R * Math.cos(ph), zc + R * Math.sin(ph) * sz, 40); }
+        for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832;
+          for (let j = lo; j < 6; j++) { const p1 = j / 6 * Math.PI / 2, p2 = (j + 1) / 6 * Math.PI / 2;
+            seg("land", [...V(m.x + Math.cos(a) * R * Math.cos(p1), m.y + Math.sin(a) * R * Math.cos(p1), zc + R * Math.sin(p1) * sz),
+                         ...V(m.x + Math.cos(a) * R * Math.cos(p2), m.y + Math.sin(a) * R * Math.cos(p2), zc + R * Math.sin(p2) * sz)]); } }
+        if (m.basin) {  // pool rim (0.40 m) + pedestal column up to the globe's underside
+          const g0 = m.g || 0, rh = m.rim_h || 0.4;
+          circ("land", m.x, m.y, m.basin, g0, 64); circ("land", m.x, m.y, m.basin, g0 + rh, 64); circ("land", m.x, m.y, m.basin - 0.6, g0 + rh, 64);
+          for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("land", [...V(m.x + Math.cos(a) * 1.3, m.y + Math.sin(a) * 1.3, g0 - 0.25), ...V(m.x + Math.cos(a) * 1.2, m.y + Math.sin(a) * 1.2, g0 + (m.ped || 2))]); }
+        }
+      } else if (m.t === "ship") {
+        const bb = bboxOf([m.r]), cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+        prism("pri", m.r, 0, 9);
+        prism("pri", m.r.map(([x, y]) => [cx + (x - cx) * 0.55, cy + (y - cy) * 0.55]), 9, 20);
+        [0.35, 0.62].forEach(t => { const fx = bb[0] + (bb[2] - bb[0]) * t; circ("pri", fx, cy, 2.2, 20, 16); circ("pri", fx, cy, 2.2, 29, 16); });
+      }
+    }
+    if (D.aquasphere) {  // AquaSphere as built in Blender (ds_aquasphere): pool, rim, paving, blocks, lamps, foam, oriented globe
+      const A = D.aquasphere, g = A.g, P = (r, a, z) => V(A.cx + Math.cos(a) * r, A.cy + Math.sin(a) * r, z);
+      const cc = (key, r, z, n = 72) => { for (let k = 0; k < n; k++) seg(key, [...P(r, k / n * 6.2832, z), ...P(r, (k + 1) / n * 6.2832, z)]); };
+      cc("aqwire", A.pool_r, g); cc("aqwire", A.pool_r, g + A.rim_h); cc("aqwire", A.pool_r - A.rim_w, g + A.rim_h);
+      cc("aqwire", A.pool_r - A.rim_w, A.water); cc("aqwire", A.ring_r, g + 0.05); cc("aqwire", A.plaza_r, g + 0.05, 96);
+      for (let k = 0; k < 16; k++) { const a = k / 16 * 6.2832; seg("aqwire", [...P(A.pool_r, a, g), ...P(A.pool_r, a, g + A.rim_h)]); }
+      A.lines.forEach(l => seg("aqwire", [...V(l[0], l[1], g + 0.05), ...V(l[2], l[3], g + 0.05)]));
+      A.patches.forEach(([x, y]) => circ("aqwire", x, y, A.patch_r, g + 0.05, 16));
+      A.inlays.forEach(([x, y]) => circ("aqwire", x, y, A.inlay_r, g + 0.05, 10));
+      A.blocks.forEach(b => prism("aqwire", b, g, g + A.block_h));
+      A.lamps.forEach(([x, y]) => { seg("aqwire", [...V(x, y, g), ...V(x, y, g + A.lamp_h)]); circ("aqwire", x, y, 0.22, g + A.lamp_h - 0.45, 8); });
+      const top = g + A.ped_h;
+      for (let j = 0; j <= 4; j++) { const t = j / 4; cc("aqwire", A.foam_r[0] + (A.foam_r[1] - A.foam_r[0]) * t, A.water + (top - A.water) * t, 36); }
+      for (let k = 0; k < 12; k++) { const a = k / 12 * 6.2832; seg("aqwire", [...P(A.foam_r[0], a, A.water), ...P(A.foam_r[1], a, top)]); }
+      const gp = (lo, la) => { const p = aquaPt(lo, la); return V(p[0], p[1], p[2]); };
+      for (let la = -60; la <= 60; la += 30) for (let lo = -180; lo < 180; lo += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo + 6, la)]);
+      for (let lo = -180; lo < 180; lo += 30) for (let la = -90; la < 90; la += 6) seg("aqglobe", [...gp(lo, la), ...gp(lo, la + 6)]);
+      const n1 = aquaPt(0, 90), s1 = aquaPt(0, -90), G = A.globe, ext = 1.2;   // axis through the poles
+      seg("aqglobe", [...V(A.cx + (n1[0] - A.cx) * ext, A.cy + (n1[1] - A.cy) * ext, G.cz + (n1[2] - G.cz) * ext),
+                      ...V(A.cx + (s1[0] - A.cx) * ext, A.cy + (s1[1] - A.cy) * ext, G.cz + (s1[2] - G.cz) * ext)]);
+      const s = A.coast;
+      for (let k = 0; k < s.length; k += 4) seg("aqcoast", [...gp(s[k], s[k + 1]), ...gp(s[k + 2], s[k + 3])]);
+    }
+    if (D.entrance) {   // station platforms and track on the viaduct, gate booths on the plaza
+      const E = D.entrance, zs = (heightAt(E.station.x, E.station.y) ?? 0) + E.station.z;
+      E.station.platforms.forEach(r => prism("entrance", r, zs - 0.4, zs));
+      E.rail.forEach(l => { line("entrance", l, zs - 1.0); line("entrance", l, zs - 1.9);   // the beam: its top 1 m under the car floor (= platform)
+        for (let i = 0; i < l.length; i += 3) seg("entrance", [...V(l[i][0], l[i][1], gz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], zs - 1.9)]); });
+      E.walks.forEach(l => lineZ("entrance", l, l.map(([x, y]) => gz(x, y))));
+      for (const row of E.gates) {
+        const p = row.pts, a = p[0], b = p[p.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+        p.forEach(([x, y]) => { const h = 0.35, w = 0.6, z0 = gz(x, y);
+          prism("entrance", [[x - ux * h - uy * w, y - uy * h + ux * w], [x + ux * h - uy * w, y + uy * h + ux * w], [x + ux * h + uy * w, y + uy * h - ux * w], [x - ux * h + uy * w, y - uy * h - ux * w]], z0, z0 + E.gate_h); });
+      }
+    }
+    if (DL) {
+      const hz = (x, y) => heightAt(x, y) ?? 0;
+      const ringG = (key, r, dz) => { for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+        seg(key, [...V(x1, y1, hz(x1, y1) + dz), ...V(x2, y2, hz(x2, y2) + dz)]); } };
+      ringG("dlpark", DL.park, 0);
+      DL.water.forEach(r => ringG("dlwater", r, -0.3));
+      DL.green.forEach(r => ringG("dlgreen", r, 0.05));
+      DL.trees.forEach(r => woods("dltrees", r, hz));
+      paths3d(DL.paths, { paths: "dlpaths", bridge: "dlbridge", tunnel: "dltunnel" });
+      stairs3d(DL_STAIRS, "dlstairs");
+      walls3d(DL.walls, "dlwalls");
+      contours3d(DL.contours, "dlcontours");
+      DL.construction.forEach(c => ringG("dlsite", c.r, 0.1));
+      DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
+      DL.buildings.forEach(b => b.r.forEach(r => b.rf ? roof3d(b.k || `l${b.p}`, r, b.z || 0, b.h) : prism(b.k || `l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));   // b.k: its own key (a model replaces it)
+    }
+    if (MH) {
+      const hz = (x, y) => heightAt(x, y) ?? 0;
+      if (MH.beam) {   // the beam (top and bottom, 0.9 m) along its profile, a pier line every 20 m
+        const b = MH.beam.concat([MH.beam[0]]);
+        lineZ("mhline", b, b.map(p => p[2])); lineZ("mhline", b, b.map(p => p[2] - 0.9));
+        for (let i = 0; i < b.length - 1; i += 4) seg("mhline", [...V(b[i][0], b[i][1], hz(b[i][0], b[i][1])), ...V(b[i][0], b[i][1], b[i][2] - 0.9)]);
+      } else MH.loop.forEach(l => { line("mhline", l, MH.loop_z + 0.9); line("mhline", l, MH.loop_z);
+        for (let i = 0; i < l.length; i += 4) seg("mhline", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.loop_z)]); });
+      const beamAt = (x, y) => MH.beam ? MH.beam.reduce((a, p) => (p[0] - x) ** 2 + (p[1] - y) ** 2 < (a[0] - x) ** 2 + (a[1] - y) ** 2 ? p : a)[2] : MH.loop_z + 0.9;
+      MH.jr.forEach(l => { line("mhjr", l, MH.jr_z + 1); line("mhjr", l, MH.jr_z);
+        for (let i = 0; i < l.length; i += 3) seg("mhjr", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.jr_z)]); });
+      // platforms: JR at its viaduct; the Resort Line's at the car floor (1 m above the beam top)
+      MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : beamAt(cx, cy) + 1.0; prism("mhline", r, z - 0.4, z); });
+      // station buildings get their own key, so a Blender station model can replace its box only
+      MH.places.forEach(p => p.r.forEach(r => prism(p.key || (p.k === "station" ? "mhstation" : "mhplace"), r, p.z || 0, (p.z || 0) + p.h)));
+      MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
+    }
+    (D.parking || []).forEach(p => p.r.forEach(r => p.k === "multi" ? prism("lot", r, p.z || 0, (p.z || 0) + (p.h || 15)) : ringH("lot", r, 0.08)));
+    makeObjs();
   }
-  if (DL) {
-    const hz = (x, y) => heightAt(x, y) ?? 0;
-    const ringG = (key, r, dz) => { for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
-      seg(key, [...V(x1, y1, hz(x1, y1) + dz), ...V(x2, y2, hz(x2, y2) + dz)]); } };
-    ringG("dlpark", DL.park, 0);
-    DL.water.forEach(r => ringG("dlwater", r, -0.3));
-    DL.green.forEach(r => ringG("dlgreen", r, 0.05));
-    DL.trees.forEach(r => woods("dltrees", r, hz));
-    paths3d(DL.paths, { paths: "dlpaths", bridge: "dlbridge", tunnel: "dltunnel" });
-    stairs3d(DL_STAIRS, "dlstairs");
-    walls3d(DL.walls, "dlwalls");
-    contours3d(DL.contours, "dlcontours");
-    DL.construction.forEach(c => ringG("dlsite", c.r, 0.1));
-    DL.rail.forEach(l => lineZ("dlrail", l, l.map(([x, y]) => hz(x, y) + 0.3)));
-    DL.buildings.forEach(b => b.r.forEach(r => b.rf ? roof3d(b.k || `l${b.p}`, r, b.z || 0, b.h) : prism(b.k || `l${b.p}`, r, b.z || 0, (b.z || 0) + b.h)));   // b.k: its own key (a model replaces it)
-  }
-  if (MH) {
-    const hz = (x, y) => heightAt(x, y) ?? 0;
-    if (MH.beam) {   // the beam (top and bottom, 0.9 m) along its profile, a pier line every 20 m
-      const b = MH.beam.concat([MH.beam[0]]);
-      lineZ("mhline", b, b.map(p => p[2])); lineZ("mhline", b, b.map(p => p[2] - 0.9));
-      for (let i = 0; i < b.length - 1; i += 4) seg("mhline", [...V(b[i][0], b[i][1], hz(b[i][0], b[i][1])), ...V(b[i][0], b[i][1], b[i][2] - 0.9)]);
-    } else MH.loop.forEach(l => { line("mhline", l, MH.loop_z + 0.9); line("mhline", l, MH.loop_z);
-      for (let i = 0; i < l.length; i += 4) seg("mhline", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.loop_z)]); });
-    const beamAt = (x, y) => MH.beam ? MH.beam.reduce((a, p) => (p[0] - x) ** 2 + (p[1] - y) ** 2 < (a[0] - x) ** 2 + (a[1] - y) ** 2 ? p : a)[2] : MH.loop_z + 0.9;
-    MH.jr.forEach(l => { line("mhjr", l, MH.jr_z + 1); line("mhjr", l, MH.jr_z);
-      for (let i = 0; i < l.length; i += 3) seg("mhjr", [...V(l[i][0], l[i][1], hz(l[i][0], l[i][1])), ...V(l[i][0], l[i][1], MH.jr_z)]); });
-    // platforms: JR at its viaduct; the Resort Line's at the car floor (1 m above the beam top)
-    MH.platforms.forEach(r => { const [cx, cy] = r[0]; const z = Math.hypot(cx - MH.station.x, cy - MH.station.y) < 60 ? MH.jr_z : beamAt(cx, cy) + 1.0; prism("mhline", r, z - 0.4, z); });
-    // station buildings get their own key, so a Blender station model can replace its box only
-    MH.places.forEach(p => p.r.forEach(r => prism(p.key || (p.k === "station" ? "mhstation" : "mhplace"), r, p.z || 0, (p.z || 0) + p.h)));
-    MH.walks.forEach(l => lineZ("mhwalk", l, l.map(([x, y]) => hz(x, y))));
-  }
-  (D.parking || []).forEach(p => p.r.forEach(r => p.k === "multi" ? prism("lot", r, p.z || 0, (p.z || 0) + (p.h || 15)) : ringH("lot", r, 0.08)));
   // 100 m grid under the park
   for (let x = Math.floor(PB[0] / 100) * 100; x <= PB[2] + 100; x += 100) seg("grid", [...V(x, PB[1] - 100, -1.2), ...V(x, PB[3] + 100, -1.2)]);
   for (let y = Math.floor(PB[1] / 100) * 100; y <= PB[3] + 100; y += 100) seg("grid", [...V(PB[0] - 100, y, -1.2), ...V(PB[2] + 100, y, -1.2)]);
@@ -3118,14 +3141,18 @@ async function init3D() {
     dlbridge: "--bridge", dltunnel: "--muted", dlstairs: "--st-dem", dlwalls: "--wall", dlcontours: "--contour-idx", dlwbroof: "--l0", dlplazab: "--l0", dlplazahub: "--l0",
     mhline: "--mh", mhjr: "--rail", mhplace: "--muted", mhstation: "--mh", mhtdlhotel: "--muted", mhwalk: "--mh", lot: "--lot" };
   const objs = {};
-  for (const [k, arr] of Object.entries(groups)) {
-    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
-    const dashed = k === "tunnel" || k === "dltunnel";
-    const mat = dashed ? new T.LineDashedMaterial({ transparent: true, dashSize: 2, gapSize: 2 }) : new T.LineBasicMaterial({ transparent: true });
-    objs[k] = new T.LineSegments(geo, mat);
-    if (dashed) objs[k].computeLineDistances();
-    root.add(objs[k]);
-  }
+  const makeObjs = () => {   // the lines collected so far -> line objects; then collect afresh
+    for (const [k, arr] of Object.entries(groups)) {
+      const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.Float32BufferAttribute(arr, 3));
+      const dashed = k === "tunnel" || k === "dltunnel";
+      const mat = dashed ? new T.LineDashedMaterial({ transparent: true, dashSize: 2, gapSize: 2 }) : new T.LineBasicMaterial({ transparent: true });
+      objs[k] = new T.LineSegments(geo, mat);
+      if (dashed) objs[k].computeLineDistances();
+      root.add(objs[k]);
+    }
+    groups = {};
+  };
+  makeObjs();   // the park outline and the grid now, the layers' lines in buildWires
   three.colors = () => {
     renderer.setClearColor(new T.Color(css("--sheet")));
     for (const [k, o] of Object.entries(objs)) {
@@ -3139,6 +3166,7 @@ async function init3D() {
   three.models = {};   // Blender-built 3D models (GLB) that replace the draft wireframe of their layer
   three.visibility = () => {
     const shown = m => mdl[m.id] !== false;
+    if (!wiresBuilt && LAYERS.some(([n]) => on[n])) buildWires();
     const replaced = mdl.overlay ? new Set() : new Set(Object.values(three.models).filter(shown).flatMap(m => m.hides));
     for (const [k, o] of Object.entries(objs)) {
       const layer = /^p\d$/.test(k) ? "buildings" : /^l\d$/.test(k) ? ["disneyland", "buildings"] : LAYER_OF[k];
@@ -3362,7 +3390,7 @@ async function init3D() {
   }
   // over frames: works up to ms on the next grid; true when the grid in use is up to date
   function stepGrid(ms) {
-    if (!gridJob) { const pl = gridPlan(); if (!pl) return true; gridJob = gridSteps(pl); }
+    if (!gridJob) { const pl = gridPlan(); if (!pl) return true; gridJob = gridSteps(pl); gridJob.key = pl.key; }
     const t0 = performance.now();
     while (performance.now() - t0 < ms) if (gridJob.next().done) { gridJob = null; return true; }
     return false;
@@ -3650,9 +3678,14 @@ async function init3D() {
   });
   addEventListener("keyup", e => wk.keys.delete(e.code));
   addEventListener("blur", () => wk.keys.clear());
+  // walking or riding: every frame; standing still, Woody's idle is drawn as often as when idle (the render loop)
+  three.walkBusy = () => three.walking && (!!wk.move || !!ride);
   three.walkTick = dt => {
     if (!ride) {
-      if (three.walkDirty) { three.walkDirty = false; gridJob = null; reseat = true; }   // models loaded or toggled: build again, then re-seat the feet
+      if (three.walkDirty) {   // models loaded or toggled: build again (unless the grid being built already holds the same models), then re-seat the feet
+        three.walkDirty = false; reseat = true;
+        if (gridJob) { const pl = gridPlan(); if (pl && pl.key !== gridJob.key) gridJob = null; }
+      }
       const off = gridC ? Math.hypot(wk.x - gridC[0], wk.z - gridC[1]) : Infinity;   // from the grid's centre (walking on: the feet stay as they are)
       let fresh = true;
       if (off > GRID_EDGE) buildGrid(); else fresh = stepGrid(off > 75 ? GRID_MS * 3 : GRID_MS);   // nearing the edge: more a frame
@@ -4076,6 +4109,7 @@ async function init3D() {
   const applyQuality = () => {
     renderer.setPixelRatio(Math.max(0.6, PIXEL_RATIO * QUALITY[qual.level].res));
     three.resize(); lodTick();
+    three.waterMats?.forEach(m => setWaterLite(m));
   };
   const qualityTick = (now, gap) => {
     if (gap > 250) return;   // a one-off stall (a model parsed, the tab switched back), not a slow GPU
@@ -4108,9 +4142,9 @@ async function init3D() {
     if (three.walking) three.rideTick?.();
     three.shadowTick?.();
     // draw every frame while something changes; when idle, only as often as the trains and water need (or 1 a second)
-    const busy = growing.size || intro || three.anim || three.walking || fol.tr || moved || three.dirty ||
+    const busy = growing.size || intro || three.anim || three.walkBusy() || fol.tr || moved || three.dirty ||
       renderer.shadowMap.needsUpdate || now - three.inputAt < 1500;
-    if (!busy && now - drawLast < 1000 / [1, WATER_FPS, IDLE_FPS][animInView(now)] - 2) return;
+    if (!busy && now - drawLast < 1000 / [1, WATER_FPS, IDLE_FPS][three.walking ? 2 : animInView(now)] - 2) return;   // walking, standing still: Woody's idle
     if (intro && three.popCovers?.()) return;   // hidden behind the pop-up book
     drawLast = now; three.dirty = false; three.draws = (three.draws || 0) + 1;
     if (drewLast && !intro) qualityTick(now, dt * 1000);   // before the draw: a resize clears the canvas
