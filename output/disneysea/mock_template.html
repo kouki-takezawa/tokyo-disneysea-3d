@@ -3326,34 +3326,56 @@ async function init3D() {
     ["VO_", "プロメテウス火山の岩山"], ["PZ_Blue", "プラザの石畳"], ["PZ_Brick", "プラザのレンガ舗装"], ["PZ_Lines", "プラザの白線"],
     ["PZ_Curb", "植え込みの縁石"], ["PZ_Soil", "植え込み"], ["PZ_Trunk", "プラザの木"], ["PZ_Canopy", "プラザの木"],
     ["AQ_Globe", "アクアスフィアの地球儀"], ["AQ_Water", "アクアスフィアの池"], ["AQ_", "アクアスフィア"]];
-  // phones: only the surfaces within GRID_R m (a square) of the walker, built again once the walker is GRID_MOVE m from its centre.
-  // The whole park at once is up to 2 M triangles: seconds of freeze and ~0.5 GB, enough for the phone to close the tab.
-  const GRID_R = coarse ? 120 : Infinity, GRID_MOVE = 50;
-  let grid = null, gridKey = "", gridC = null;
+  // only the surfaces within GRID_R m (a square) of the walker, built again once the walker is GRID_MOVE m from its centre.
+  // The whole park at once is up to 2 M triangles: seconds of freeze and ~0.5-1.3 GB (phones close the tab; PCs stall 1-2.5 s).
+  // While walking, the new grid is built a few ms a frame and the old one stays in use: it still covers GRID_R - GRID_MOVE m round
+  // the walker, enough for the feet, the walls and the camera (25 m). Past GRID_EDGE m from its centre the rest is built at once.
+  const GRID_R = 120, GRID_MOVE = 50, GRID_EDGE = 95, GRID_MS = 8;
+  let grid = null, gridKey = "", gridC = null, gridJob = null, reseat = false;
   const walkable = o => o.isMesh && !/^AQ_(WaterFilm|Curtain)/.test(o.name);
-  function buildGrid() {
+  // what the grid round the walker would hold now; null when the current grid is still right
+  function gridPlan() {
     const near = GRID_R < Infinity, gx = wk.x, gz = wk.z;
     const rx0 = gx - GRID_R, rx1 = gx + GRID_R, rz0 = gz - GRID_R, rz1 = gz + GRID_R;
     const inReach = b => !near || !b || (b[3] >= rx0 && b[0] <= rx1 && b[5] >= rz0 && b[2] <= rz1);   // b: [min xyz, max xyz]
     const loaded = Object.entries(three.models).filter(([id, m]) => mdl[id] !== false && inReach(m.box));
     const act = m => (m.near && m.near.visible) || !m.farObj ? m.near : m.farObj;   // the full model or the far copy, whichever is on show
     const key = loaded.map(([id, m]) => id + (act(m) === m.near ? "" : "~")).join(",");
-    if (grid && key === gridKey && (!near || Math.hypot(gx - gridC[0], gz - gridC[1]) < GRID_MOVE)) return;
+    if (grid && key === gridKey && (!near || Math.hypot(gx - gridC[0], gz - gridC[1]) < GRID_MOVE)) return null;
+    return { near, gx, gz, rx0, rx1, rz0, rz1, inReach, objs: loaded.map(([, m]) => act(m)), key };
+  }
+  // at once (entering the walk, getting off the train, far off the old grid)
+  function buildGrid() {
+    gridJob = null;
+    const pl = gridPlan(); if (!pl) return;
+    for (const _ of gridSteps(pl));
+  }
+  // over frames: works up to ms on the next grid; true when the grid in use is up to date
+  function stepGrid(ms) {
+    if (!gridJob) { const pl = gridPlan(); if (!pl) return true; gridJob = gridSteps(pl); }
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) if (gridJob.next().done) { gridJob = null; return true; }
+    return false;
+  }
+  function* gridSteps({ near, gx, gz, rx0, rx1, rz0, rz1, inReach, objs, key }) {
     root.updateMatrixWorld(true);
     const tris = [], labs = [], cells = new Map(), p = new T.Vector3(), bb = new T.Box3();
     const walls = [], wcells = new Map();   // standing faces (walls, fences, railings, pillars, rock faces): plan segment + the face in (along, up)
-    for (const [, m] of loaded) act(m).traverse(o => {
-      if (!walkable(o)) return;
+    const parts = [];
+    for (const obj of objs) obj.traverse(o => { if (walkable(o)) parts.push(o); });
+    for (const o of parts) {
       if (near) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
-        if (!inReach([bb.min.x, 0, bb.min.z, bb.max.x, 0, bb.max.z])) return;
+        if (!inReach([bb.min.x, 0, bb.min.z, bb.max.x, 0, bb.max.z])) continue;
       }
+      yield;
       const li = SURF.findIndex(([pre]) => o.name.startsWith(pre)), lab = li < 0 ? 255 : li;
       const pos = o.geometry.attributes.position, idx = o.geometry.index, n = idx ? idx.count : pos.count;
       const w = new Float32Array(pos.count * 3);
-      for (let i = 0; i < pos.count; i++) { p.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); w[i * 3] = p.x; w[i * 3 + 1] = p.y; w[i * 3 + 2] = p.z; }
+      for (let i = 0; i < pos.count; i++) { if (i && i % 30000 === 0) yield; p.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); w[i * 3] = p.x; w[i * 3 + 1] = p.y; w[i * 3 + 2] = p.z; }
       for (let t = 0; t < n; t += 3) {
+        if (t && t % 30000 === 0) yield;   // every 10000 triangles
         const a = idx ? idx.getX(t) : t, b = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
         const ax = w[a * 3], az = w[a * 3 + 2], bx = w[b * 3], bz = w[b * 3 + 2], cx = w[c * 3], cz = w[c * 3 + 2];
         const ay = w[a * 3 + 1], by = w[b * 3 + 1], cy = w[c * 3 + 1];
@@ -3380,7 +3402,7 @@ async function init3D() {
           const ck = i * 65536 + j; let l = cells.get(ck); if (!l) cells.set(ck, l = []); l.push(k);
         }
       }
-    });
+    }
     grid = { tris: new Float32Array(tris), lab: Uint8Array.from(labs), cells, walls: new Float32Array(walls), wcells }; gridKey = key; gridC = [gx, gz];
   }
   // heights of the model surfaces straight above/below (x, z); labsOut (optional) receives their surface kinds
@@ -3529,7 +3551,7 @@ async function init3D() {
     if (x == null) [x, y, yaw, pitch] = walkStart();
     const p0 = cam.position.clone(), q0 = cam.quaternion.clone(), f0 = cam.fov;
     wk.x = x; wk.z = -y;
-    buildGrid();   // after the position is set: on phones the grid covers only round it
+    buildGrid();   // after the position is set: the grid covers only round it
     const hits = modelHits(wk.x, wk.z);
     wk.y = groundAt(wk.x, wk.z, (heightAt(wk.x, -wk.z) ?? 0) + 1) ?? (hits.length ? Math.max(...hits) : 0);   // not on a tree top
     wk.yaw = yaw ?? 0; wk.pitch = pitch ?? -0.05;
@@ -3619,11 +3641,17 @@ async function init3D() {
   addEventListener("keyup", e => wk.keys.delete(e.code));
   addEventListener("blur", () => wk.keys.clear());
   three.walkTick = dt => {
-    if (three.walkDirty && !ride) {   // models loaded or toggled: re-seat the feet on what is there now
-      three.walkDirty = false; buildGrid();
-      const g = groundAt(wk.x, wk.z, Math.max(wk.y, heightAt(wk.x, -wk.z) ?? 0) + 1);
-      if (g != null && g !== wk.y) { wk.y = g; placeCamera(); }
-    } else if (!ride && gridC && GRID_R < Infinity && Math.hypot(wk.x - gridC[0], wk.z - gridC[1]) >= GRID_MOVE) buildGrid();   // phones: walked far from the grid's centre (the feet stay as they are)
+    if (!ride) {
+      if (three.walkDirty) { three.walkDirty = false; gridJob = null; reseat = true; }   // models loaded or toggled: build again, then re-seat the feet
+      const off = gridC ? Math.hypot(wk.x - gridC[0], wk.z - gridC[1]) : Infinity;   // from the grid's centre (walking on: the feet stay as they are)
+      let fresh = true;
+      if (off > GRID_EDGE) buildGrid(); else fresh = stepGrid(off > 75 ? GRID_MS * 3 : GRID_MS);   // nearing the edge: more a frame
+      if (fresh && reseat) {   // on what is there now
+        reseat = false;
+        const g = groundAt(wk.x, wk.z, Math.max(wk.y, heightAt(wk.x, -wk.z) ?? 0) + 1);
+        if (g != null && g !== wk.y) { wk.y = g; placeCamera(); }
+      }
+    }
     const k = wk.keys;
     const f = (k.has("KeyW") || k.has("ArrowUp") ? 1 : 0) - (k.has("KeyS") || k.has("ArrowDown") ? 1 : 0) - joy.y;
     const s = (k.has("KeyD") || k.has("ArrowRight") ? 1 : 0) - (k.has("KeyA") || k.has("ArrowLeft") ? 1 : 0) + joy.x;
@@ -3701,7 +3729,7 @@ async function init3D() {
     wk.dist = ride.dist; ride = null;
     const [x, y] = ridePlat;
     wk.x = x; wk.z = -y;
-    buildGrid();   // phones: the platform may be outside the grid
+    buildGrid();   // the platform may be outside the grid
     const bz = RL.at(RL.stations.find(st => st.n === RIDE_ST)?.s ?? 0)[4];   // the beam top there (level through the station)
     wk.y = groundAt(wk.x, wk.z, bz + CAR_FLOOR + 0.3) ?? bz + CAR_FLOOR;
     placeCamera(); updateRideBtn();
