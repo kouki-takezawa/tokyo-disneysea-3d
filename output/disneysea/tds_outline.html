@@ -2271,7 +2271,7 @@ async function init3D() {
     };
     // watercolour: a wash clipped to the shape (blooms, thinner at the top, pigment pooled at the edge), then a hand-inked line
     const wash = (g, path, col, edge = true) => {
-      const w = g.canvas.width, h = g.canvas.height;
+      const tf = g.getTransform(), w = g.canvas.width / tf.a, h = g.canvas.height / tf.d;   // the canvas in the art's own units (an art may draw scaled)
       g.save(); path(); g.clip();
       g.globalAlpha = 0.92; g.fillStyle = col; g.fillRect(0, 0, w, h); g.globalAlpha = 1;
       for (let i = 0; i < 40; i++) {
@@ -2421,18 +2421,18 @@ async function init3D() {
     });
 
     // ---- the pop-ups: paper cut-outs hinged on the spread, folded flat until the pages have turned
-    const cut = (W, H, art) => {   // the art, a cream paper margin with a tan edge, paper grain
-      const PX = Math.min(18, 1024 / W, 1024 / H), w = Math.round(W * PX), h = Math.round(H * PX);
+    const cut = (W, H, art, px = 18) => {   // the art, a cream paper margin with a tan edge, paper grain (px: texels per unit; the margin keeps its width)
+      const fit = Math.min(1024 / W, 1024 / H), PX = Math.min(px, fit), k = PX / Math.min(18, fit), n = Math.ceil(16 * k), w = Math.round(W * PX), h = Math.round(H * PX);
       const a = canvas(w, h); art(a.getContext("2d"), w, h);
       const sil = col => { const c = canvas(w, h), g = c.getContext("2d"); g.drawImage(a, 0, 0); g.globalCompositeOperation = "source-in"; g.fillStyle = col; g.fillRect(0, 0, w, h); return c; };
       const out = canvas(w, h), g = out.getContext("2d"), rim = sil("#a88f66"), margin = sil("#f1e6cc");
-      for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(rim, Math.cos(t) * 6.5, Math.sin(t) * 6.5); }
-      for (let i = 0; i < 16; i++) { const t = i / 16 * 6.2832; g.drawImage(margin, Math.cos(t) * 5.5, Math.sin(t) * 5.5); }
+      for (let i = 0; i < n; i++) { const t = i / n * 6.2832; g.drawImage(rim, Math.cos(t) * 6.5 * k, Math.sin(t) * 6.5 * k); }
+      for (let i = 0; i < n; i++) { const t = i / n * 6.2832; g.drawImage(margin, Math.cos(t) * 5.5 * k, Math.sin(t) * 5.5 * k); }
       g.drawImage(a, 0, 0); grain(g, w, h, 10);
       return tex(out);
     };
-    const piece = (W, H, art) => {
-      const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: cut(W, H, art), alphaTest: 0.5, side: T.DoubleSide }));
+    const piece = (W, H, art, px) => {
+      const m = new T.Mesh(new T.PlaneGeometry(W, H), lam({ map: cut(W, H, art, px), alphaTest: 0.5, side: T.DoubleSide }));
       m.castShadow = m.receiveShadow = true; return m;
     };
     const tower = (g, x, base, bw, bh, rh, wall = C.cream, roof = C.navy) => {   // a castle tower: body, a window, a cone roof, a gold tip
@@ -2527,21 +2527,95 @@ async function init3D() {
         for (const [x, y, rr] of [[.5, .3, .3], [.3, .45, .22], [.7, .45, .22], [.5, .5, .24]]) sh(g, O(g, w * x, h * y, w * rr), C.moss);
         for (const [x, y] of [[.4, .3], [.62, .4], [.5, .52], [.3, .48]]) wash(g, O(g, w * x, h * y, 5), C.burg, false);
       },
-      mickeyMinnie(g, w, h) {   // Mickey and Minnie, hand in hand, standing between the two parks
-        const b = h - 4;
-        const figure = (cx, bodyCol, mirror) => {
-          sh(g, O(g, cx - w * 0.09, h * 0.14, w * 0.075), C.ink); sh(g, O(g, cx + w * 0.09, h * 0.14, w * 0.075), C.ink);   // ears
-          sh(g, O(g, cx, h * 0.22, w * 0.1), C.cream);   // face
-          sh(g, P(g, [[cx - w * 0.09, h * 0.34], [cx + w * 0.09, h * 0.34], [cx + w * 0.13, b - h * 0.06], [cx - w * 0.13, b - h * 0.06]]), bodyCol);   // body
-          sh(g, O(g, cx - w * 0.075, b - 3, w * 0.045, 4), C.ochre); sh(g, O(g, cx + w * 0.075, b - 3, w * 0.045, 4), C.ochre);   // shoes
-          const ax = cx + mirror * w * 0.14;
-          sh(g, P(g, [[cx + mirror * w * 0.08, h * 0.38], [ax, h * 0.5], [ax - mirror * w * 0.02, h * 0.55], [cx + mirror * w * 0.04, h * 0.44]]), C.cream);   // reaching arm
+      mickeyMinnie(g, w, h) {   // Mickey (waving) and Minnie hand in hand on a little mound, drawn on a 200 x 220 grid
+        g.save(); g.scale(w / 200, w / 200);
+        const K = { blk: "#1d1816", red: "#b5372e", yel: "#e2b23d", skin: "#f1d1ab", wht: "#f8f2e4", mouth: "#5a1c1c", tongue: "#d9786b" };
+        const E = (x, y, rx, ry = rx, rot = 0) => () => { g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, 6.2832); };
+        const S = (path, col, lw = 2.6) => { wash(g, path, col); ink(g, path, lw); };
+        const fill = (path, col) => { g.fillStyle = col; path(); g.fill(); };
+        const dots = path => {   // white polka dots, clipped to the shape
+          g.save(); path(); g.clip(); g.fillStyle = K.wht;
+          for (let y = 0, r = 0; y < 224; y += 8.5, r++) for (let x = r % 2 * 4.5; x < 204; x += 9) { g.beginPath(); g.arc(x, y, 2.3, 0, 6.2832); g.fill(); }
+          g.restore();
         };
-        figure(w * 0.3, C.ink, 1); figure(w * 0.7, C.burg, -1);
-        sh(g, P(g, [[w * 0.66, h * 0.1], [w * 0.7, h * 0.14], [w * 0.66, h * 0.18]]), C.burg);   // Minnie's bow
-        sh(g, P(g, [[w * 0.74, h * 0.1], [w * 0.7, h * 0.14], [w * 0.74, h * 0.18]]), C.burg);
-        sh(g, O(g, w * 0.7, h * 0.14, w * 0.02), C.gold);
-        sh(g, O(g, w * 0.5, h * 0.47, w * 0.05), C.cream);   // the joined hands, drawn once to hide the seam
+        const SD = (path, col) => { wash(g, path, col); dots(path); ink(g, path, 2.6); };
+        const SB = (path, lw = 2.6) => { fill(path, K.blk); ink(g, path, lw); };   // black stays solid (a wash over it turns grey), like the arms and legs
+        const limb = (x0, y0, cx, cy, x1, y1, wd) => {   // a thin black arm, leg or tail with an inked edge
+          g.save(); g.lineCap = "round"; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1);
+          g.strokeStyle = C.ink; g.lineWidth = wd + 2.4; g.stroke(); g.strokeStyle = K.blk; g.lineWidth = wd; g.stroke(); g.restore();
+        };
+        const arm = (x0, y0, cx, cy, x1, y1) => {   // the arm, then the puffy white glove with its rolled cuff and two finger lines
+          limb(x0, y0, cx, cy, x1, y1, 5.5);
+          const a = Math.atan2(y1 - cy, x1 - cx), dx = Math.cos(a), dy = Math.sin(a), gx = x1 + dx * 7, gy = y1 + dy * 7;
+          S(E(gx - dx * 8.5, gy - dy * 8.5, 4, 7.5, a), K.wht, 2);
+          S(E(gx, gy, 9, 8, a), K.wht);
+          g.save(); g.strokeStyle = C.ink; g.globalAlpha = 0.6; g.lineWidth = 1.2; g.lineCap = "round";
+          for (const o of [-2.6, 2.6]) { g.beginPath(); g.moveTo(gx + dx * 1.5 - dy * o, gy + dy * 1.5 + dx * o); g.lineTo(gx + dx * 7.5 - dy * o, gy + dy * 7.5 + dx * o); g.stroke(); }
+          g.restore();
+        };
+        const head = (cx, cy, girl) => {
+          for (const sx of [-1, 1]) SB(E(cx + sx * 27, cy - 27, 18));   // the round ears
+          SB(E(cx, cy, 30));
+          S(() => { g.beginPath(); g.moveTo(cx, cy - 7);   // the face: two bumps over the eyes, a peak between them, the wide muzzle
+            g.bezierCurveTo(cx + 2, cy - 24, cx + 19, cy - 25, cx + 20, cy - 9); g.bezierCurveTo(cx + 22, cy - 3, cx + 30, cy + 1, cx + 29, cy + 13);
+            g.bezierCurveTo(cx + 28, cy + 36, cx - 28, cy + 36, cx - 29, cy + 13); g.bezierCurveTo(cx - 30, cy + 1, cx - 22, cy - 3, cx - 20, cy - 9);
+            g.bezierCurveTo(cx - 19, cy - 25, cx - 2, cy - 24, cx, cy - 7); g.closePath(); }, K.skin, 2);
+          for (const sx of [-1, 1]) {   // tall eyes with a glint; Minnie's lashes flick out from the top
+            const ex = cx + sx * 7.5, ey = cy - 9;
+            fill(E(ex, ey, 3.8, 8.2), K.blk); fill(E(ex - 1.2, ey - 3.6, 1.3, 2), K.wht);
+            if (girl) { g.save(); g.strokeStyle = K.blk; g.lineWidth = 1.5; g.lineCap = "round";
+              for (const [a, b, c, d] of [[1.9, -7.1, 5, -11.5], [3.3, -4.1, 7.8, -6.8], [3.8, -0.7, 8.4, -1.6]]) { g.beginPath(); g.moveTo(ex + sx * a, ey + b); g.lineTo(ex + sx * c, ey + d); g.stroke(); }
+              g.restore(); }
+          }
+          const mouth = () => { g.beginPath(); g.moveTo(cx - 15, cy + 11); g.quadraticCurveTo(cx, cy + 17, cx + 15, cy + 11); g.bezierCurveTo(cx + 12, cy + 28, cx - 12, cy + 28, cx - 15, cy + 11); g.closePath(); };
+          fill(mouth, K.mouth); g.save(); mouth(); g.clip(); fill(E(cx, cy + 24, 7.5, 4.5), K.tongue); g.restore(); ink(g, mouth, 1.6);
+          g.save(); g.strokeStyle = C.ink; g.lineWidth = 1.3; g.globalAlpha = 0.8;   // the dimples at the corners of the smile
+          for (const sx of [-1, 1]) { g.beginPath(); g.arc(cx + sx * 16.5, cy + 10, 2.6, sx > 0 ? 2.2 : -0.6, sx > 0 ? 3.9 : 0.94); g.stroke(); }
+          g.restore();
+          SB(E(cx, cy + 5, 7.5, 5), 1.6); fill(E(cx - 2.6, cy + 3.3, 2.4, 1.2), "rgba(255,250,235,.55)");   // the big nose
+          if (girl) {   // the red bow with white dots, between the ears
+            const lobe = sx => () => { g.beginPath(); g.moveTo(cx + sx * 3, cy - 29);
+              g.bezierCurveTo(cx + sx * 12, cy - 47, cx + sx * 31, cy - 44, cx + sx * 28, cy - 29);
+              g.bezierCurveTo(cx + sx * 31, cy - 15, cx + sx * 12, cy - 12, cx + sx * 3, cy - 29); g.closePath(); };
+            for (const sx of [-1, 1]) SD(lobe(sx), K.red);
+            SD(E(cx, cy - 29, 6.5, 7.5), K.red);
+          }
+        };
+        const mound = () => { g.beginPath(); g.moveTo(2, 220); g.bezierCurveTo(24, 198, 176, 198, 198, 220); g.closePath(); };   // the grass they stand on
+        S(mound, C.moss); hatch(g, mound, 100, 200, 200, 220, 5, 0.18);
+        for (const [x, y, c] of [[20, 214, C.rose], [38, 209, K.yel], [100, 214, C.rose], [162, 209, K.yel], [180, 214, C.rose]]) {
+          for (let i = 0; i < 5; i++) fill(E(x + Math.cos(i * 1.257) * 2.8, y + Math.sin(i * 1.257) * 2.8, 2.3), c);
+          fill(E(x, y, 1.4), K.wht);
+        }
+        const mx = 56, nx = 144, hy = 60;
+        // Mickey: the tail, legs and big yellow shoes, the body, the red shorts with two buttons, one arm waving
+        limb(mx - 14, 140, mx - 40, 160, mx - 44, 130, 2.4);
+        limb(mx - 8, 146, mx - 11, 170, mx - 13, 196, 5.5); limb(mx + 8, 146, mx + 11, 170, mx + 13, 196, 5.5);
+        for (const sx of [-1, 1]) { S(E(mx + sx * 18, 203, 14, 8.5, sx * 0.12), K.yel); fill(E(mx + sx * 21, 199.5, 4.5, 2, sx * 0.12), "rgba(255,250,230,.45)"); }
+        SB(E(mx, 111, 15, 19));
+        const shorts = () => { g.beginPath(); g.moveTo(mx - 18, 122); g.lineTo(mx + 18, 122); g.bezierCurveTo(mx + 23, 134, mx + 22, 147, mx + 18, 150);
+          g.lineTo(mx + 3, 150); g.lineTo(mx, 143); g.lineTo(mx - 3, 150); g.lineTo(mx - 18, 150); g.bezierCurveTo(mx - 22, 147, mx - 23, 134, mx - 18, 122); g.closePath(); };
+        S(shorts, K.red); hatch(g, shorts, mx + 4, 122, mx + 24, 150, 4, 0.2);
+        for (const sx of [-1, 1]) S(E(mx + sx * 7, 132, 3.2, 4.8), K.wht, 1.4);
+        arm(mx - 12, 100, mx - 32, 104, mx - 38, 78);
+        head(mx, hy, false);
+        arm(mx + 12, 101, 82, 126, 91, 120);
+        // Minnie: legs and yellow shoes, the white petticoat, the red polka-dot dress with puff sleeves, the bow
+        SB(E(nx, 104, 11, 12));
+        limb(nx - 7, 160, nx - 9, 178, nx - 10, 196, 4.8); limb(nx + 7, 160, nx + 9, 178, nx + 10, 196, 4.8);
+        for (const sx of [-1, 1]) { S(E(nx + sx * 12, 202, 10.5, 6.5, sx * 0.1), K.yel); fill(E(nx + sx * 14, 199.5, 3.5, 1.6, sx * 0.1), "rgba(255,250,230,.45)"); }
+        S(() => { g.beginPath(); g.moveTo(nx - 33, 152); g.lineTo(nx + 33, 152); g.lineTo(nx + 34, 160);
+          for (let i = 0; i < 8; i++) { const x0 = nx + 34 - i * 8.5; g.quadraticCurveTo(x0 - 4.25, 167, x0 - 8.5, 160); } g.closePath(); }, K.wht, 2);
+        const dress = () => { g.beginPath(); g.moveTo(nx - 12, 97); g.lineTo(nx + 12, 97); g.bezierCurveTo(nx + 14, 106, nx + 12, 113, nx + 9, 118);
+          g.bezierCurveTo(nx + 20, 128, nx + 31, 146, nx + 36, 159);
+          for (let i = 0; i < 6; i++) { const x0 = nx + 36 - i * 12; g.quadraticCurveTo(x0 - 6, 166, x0 - 12, 159); }
+          g.bezierCurveTo(nx - 31, 146, nx - 20, 128, nx - 9, 118); g.bezierCurveTo(nx - 12, 113, nx - 14, 106, nx - 12, 97); g.closePath(); };
+        SD(dress, K.red); hatch(g, dress, nx + 6, 118, nx + 40, 162, 4, 0.18);
+        arm(nx + 12, 101, nx + 27, 106, nx + 30, 128);
+        for (const sx of [-1, 1]) SD(E(nx + sx * 13, 102, 7.5, 7), K.red);
+        head(nx, hy, true);
+        arm(nx - 18, 105, 118, 126, 109, 120);   // the joined hands, Minnie's glove over Mickey's (the arm starts at the sleeve's edge)
+        g.restore();
       },
       curtains(g, w, h) {   // the front frame: drawn-back theatre curtains at both sides
         for (const s of [1, -1]) {
@@ -2601,12 +2675,12 @@ async function init3D() {
       ["castleBack", 26, 28, 12, -9.4, 120, { quiet: 1 }], ["castle", 13, 28, 12, -7, 170, { half: -1, yaw: 0.22 }], ["castle", 13, 28, 12, -7, 170, { half: 1, yaw: 0.22, quiet: 1 }],
       ["harbor", 14, 14, -16, -6.5, 320, { half: -1, yaw: 0.18 }], ["harbor", 14, 14, -16, -6.5, 320, { half: 1, yaw: 0.18, quiet: 1 }],
       ["box", 0, 8, 12, -3.6, 380, { quiet: 1, box: { w: 6, d: 3.4, h: 8, col: C.stone, roof: "flat", cols: 1, rows: 2, door: 1 } }], ...BOXES,
-      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["mickeyMinnie", 7, 9, 0, 5, 670], ["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
+      ["pedestal", 9, 8, -2, 1, 470], ["tree", 7, 10, -33, 4, 560], ["tree", 7, 10, 33, 3, 620], ["mickeyMinnie", 10, 11, 5.5, 3, 670, { px: 40 }],["waves", 76, 6, 0, 9, 720], ["curtains", 80, 22, 0, 13.6, 900]]
       .map(([k, w, h, x, z, delay, o = {}]) => {
         const hinge = new T.Group(); hinge.position.set(x, 0.05, z);
         let m;
         if (o.box) { m = makeBox(o.box); hinge.add(m); }
-        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k]); m.position.set(o.half ? o.half * w / 2 : 0, h / 2, 0); hinge.add(m); }
+        else { m = piece(w, h, o.half ? half(k, o.half) : arts[k], o.px); m.position.set(o.half ? o.half * w / 2 : 0, h / 2, 0); hinge.add(m); }
         book.add(hinge); hinge.visible = false;
         return { k, hinge, m, delay, h, x, z, quiet: o.quiet, box: !!o.box, yaw: o.half ? -o.half * o.yaw : 0 };
       });
