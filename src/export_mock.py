@@ -246,6 +246,8 @@ def main():
               ("tdl_plaza_hub", "disneyland", ["dlplazahub"]),            # ds_tdl_plaza_hub.py: Crystal Palace, Plaza Pavilion, the bandstand, kiosks, the land gates (plain Python)                       # ds_tdl_plaza_center.py: the Partners statue, the Plaza Garden stage, fences, lamps, benches (plain Python)
               ("tdl_tomorrowland_terrace", "disneyland", ["dltomterrace"]),
               ("tdl_stitch_encounter", "disneyland", ["dlstitch"]),         # ds_tdl_stitch_encounter.py: スティッチ・エンカウンター, outside and inside (plain Python)   # ds_tdl_tomorrowland_terrace.py: トゥモローランド・テラス, outside and inside (plain Python)
+              ("tdl_adv_ground", "disneyland", []),                         # ds_tdl_adventureland.py: Adventureland's paving, kerbs and beds (plain Python)
+              ("tdl_adventureland", "disneyland", ["dladv"]),               # ds_tdl_adventureland.py: New Orleans Square, the bazaar, Jungle Cruise, Tiki Room, planting
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)

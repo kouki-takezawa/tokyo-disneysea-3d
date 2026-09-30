@@ -44,6 +44,7 @@
 /output/disneysea/models/tdl_hotel.json
 /output/disneysea/models/tdl_world_bazaar.json
 /output/disneysea/models/tdl_plaza_buildings.json
+/output/disneysea/models/tdl_adventureland.json
 !/output/disneysea/models/woody.glb
 
 __pycache__/

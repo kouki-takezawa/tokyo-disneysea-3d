@@ -20,9 +20,9 @@ WEB = MODELS / "web"
 SKIP = {"woody"}                                        # the walker is loaded from its own Draco .glb
 # models no script reads back and too big for git uncompressed (tdl_hotel is ~70 MB): only models/web/ is committed
 # (.gitignore); regenerate the plain file with export_models.py before compressing again
-WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar", "tdl_plaza_buildings"}
+WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar", "tdl_plaza_buildings", "tdl_adventureland"}
 # models with a far copy (the castles, the AquaSphere and the volcano hardly shrink or lose their look: none)
-LOD = {"tdl_hotel", "tdl_world_bazaar", "tdl_entrance", "tdl_plaza_buildings", "tdl_station"}
+LOD = {"tdl_hotel", "tdl_world_bazaar", "tdl_entrance", "tdl_plaza_buildings", "tdl_station", "tdl_adventureland"}
 LOD_TOOL = ROOT / "tools" / "lod"
 
 

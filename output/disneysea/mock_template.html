@@ -1558,6 +1558,36 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   SE_light: { color: 0xdfe9ff, emissive: 0x8fb4ff, emissiveIntensity: 0.9 }, SE_shelf: { color: 0xeeeef2, roughness: 0.5 },
   SE_goods: { color: 0x58a8e0, roughness: 0.6 }, SE_tfloor: { color: 0x232848, roughness: 0.95 },
   SE_shopceil: { color: 0xf4f4f6, roughness: 0.8, emissive: 0x404048 }, SE_shopfloor: { color: 0xc9ccd8, roughness: 0.6 },
+  // アドベンチャーランドの地面 (ds_tdl_adventureland.py → tdl_adv_ground): meshes AG_<part>。色は昼の動画 v2 0:07:40〜0:14:10 から
+  AG_green: { color: 0x6a947d, roughness: 0.9 }, AG_joint: { color: 0x84a290, roughness: 0.85 }, AG_street: { color: 0x66737c, roughness: 0.92 },
+  AG_flag: { color: 0xa99a86, roughness: 0.85 }, AG_flag2: { color: 0x9c8d79, roughness: 0.85 }, AG_kerb: { color: 0xa39a8e, roughness: 0.85 },
+  AG_cobble: { color: 0x8a857c, roughness: 0.9 }, AG_cobble2: { color: 0x7b766e, roughness: 0.9 }, AG_sand: { color: 0xa29379, roughness: 0.92 },
+  AG_poly: { color: 0x91877a, roughness: 0.92 }, AG_manhole: { color: 0x4d4a46, roughness: 0.5, metalness: 0.4 }, AG_edge: { color: 0x7a746b, roughness: 0.9 },
+  AG_curb: { color: 0xc9bb9f, roughness: 0.8 }, AG_brick: { color: 0x9a4c3a, roughness: 0.85 }, AG_rock: { color: 0x4a4541, roughness: 0.95 },
+  AG_bed: { color: 0x3d3326, roughness: 1 }, AG_soil: { color: 0x3f6a30, roughness: 1 }, AG_floor: { color: 0x6b5238, roughness: 0.9 },
+  // アドベンチャーランドの建物・小物・植栽 (ds_tdl_adventureland.py → tdl_adventureland): meshes AD_<part>
+  AD_pink: { color: 0xe7a99a, roughness: 0.8 }, AD_mint: { color: 0x9fd2a2, roughness: 0.8 }, AD_yellow: { color: 0xdcb45c, roughness: 0.8 },
+  AD_cream: { color: 0xeee0bf, roughness: 0.8 }, AD_blue: { color: 0x2f6a8a, roughness: 0.7 }, AD_brick: { color: 0xa24e3b, roughness: 0.9 },
+  AD_pgreen: { color: 0x8fc4a0, roughness: 0.8 }, AD_salmon: { color: 0xe39a73, roughness: 0.8 },
+  AD_trim: { color: 0xf3ecdc, roughness: 0.7 }, AD_shutter: { color: 0x2f7d6e, roughness: 0.6 }, AD_iron: { color: 0x2d5a55, roughness: 0.5, metalness: 0.3 },
+  AD_glass: { color: 0x27323a, roughness: 0.15, metalness: 0.3 }, AD_door: { color: 0x7a3f2a, roughness: 0.7 },
+  AD_slate: { color: 0x5b6570, roughness: 0.75 }, AD_slated: { color: 0x4a525b, roughness: 0.8 }, AD_roofred: { color: 0xb8644a, roughness: 0.85 },
+  AD_ochre: { color: 0xe2bb62, roughness: 0.85 }, AD_timber: { color: 0xc49a6c, roughness: 0.9 }, AD_timberd: { color: 0x5c4130, roughness: 0.9 },
+  AD_orange: { color: 0xde8a54, roughness: 0.85 }, AD_tgreen: { color: 0x5e9a52, roughness: 0.7 }, AD_thatch: { color: 0xb99b62, roughness: 1 },
+  AD_thatchd: { color: 0x8a6f44, roughness: 1 }, AD_show: { color: 0x8f9a8c, roughness: 0.9 }, AD_showroof: { color: 0x8d9296, roughness: 0.8 },
+  AD_sign: { color: 0xf1e3c2, roughness: 0.6 }, AD_signr: { color: 0xc0282a, roughness: 0.5 }, AD_signg: { color: 0xd4a53a, roughness: 0.35, metalness: 0.5 },
+  AD_text: { color: 0x2a2320, roughness: 0.6 }, AD_lamp: { color: 0x23443c, roughness: 0.5, metalness: 0.4 },
+  AD_globe: { color: 0xfff1c8, emissive: 0xc9a660, emissiveIntensity: 0.6, roughness: 0.3 }, AD_bench: { color: 0xf4f4f0, roughness: 0.5 },
+  AD_bin: { color: 0xd8c29a, roughness: 0.7 }, AD_umb_r: { color: 0xc8303c, roughness: 0.8 }, AD_umb_w: { color: 0xf4efe6, roughness: 0.8 },
+  AD_umb_t: { color: 0x2f9a9a, roughness: 0.7 }, AD_umb_o: { color: 0xb86a4c, roughness: 0.85 }, AD_canvas: { color: 0xe8c24a, roughness: 0.85 },
+  AD_pot: { color: 0xb56a45, roughness: 0.85 }, AD_fern: { color: 0x4f8a36, roughness: 0.9 }, AD_leaf: { color: 0x2f5f2a, roughness: 0.9 },
+  AD_leafr: { color: 0x9a2a3a, roughness: 0.85 }, AD_bamboo: { color: 0xc9b060, roughness: 0.7 }, AD_rope: { color: 0x3a3a3a, roughness: 0.8 },
+  AD_post: { color: 0xe6c02a, roughness: 0.6 }, AD_rust: { color: 0x6e5540, roughness: 0.95 }, AD_rock: { color: 0x4d4843, roughness: 1 },
+  AD_stitch: { color: 0xd02838, roughness: 0.35 }, AD_flag1: { color: 0xd8342c, roughness: 0.8 }, AD_flag2: { color: 0xf2c230, roughness: 0.8 },
+  AD_flag3: { color: 0x2f7ac0, roughness: 0.8 }, AD_carve: { color: 0xb8402c, roughness: 0.8 }, AD_carvey: { color: 0xe0a93a, roughness: 0.8 },
+  AD_table: { color: 0xf0f0ea, roughness: 0.6 }, AD_stone: { color: 0xb3ab9e, roughness: 0.9 },
+  AD_fl_red: { color: 0xd8242e, roughness: 0.8 }, AD_fl_pink: { color: 0xee7fb0, roughness: 0.8 }, AD_fl_yel: { color: 0xf2cc2a, roughness: 0.8 },
+  AD_fl_org: { color: 0xef7d22, roughness: 0.8 }, AD_fl_wht: { color: 0xf6f3ee, roughness: 0.8 }, AD_fl_pur: { color: 0x8a5cc8, roughness: 0.8 },
   // ランド・シーの地面 (ds_ground.py): meshes TL_<kind>
   TL_paving: { color: 0xa39582, roughness: 0.9 }, TL_ground: { color: 0x9c978c, roughness: 0.9 }, TL_road: { color: 0x44474c, roughness: 0.95 },
   TL_parking: { color: 0x575a5f, roughness: 0.95 }, TL_grass: { color: 0x5b7f41, roughness: 1 }, TL_wood: { color: 0x3e5a32, roughness: 1 },
@@ -1976,7 +2006,7 @@ function lodTick() {
 /* Planting beds: the models carry each bed as a flat green sheet a little below its curb. Here it becomes a clipped shrub mass:
    the sheet is lifted by 0.4-0.8 m (varying across the park), the outline gets a rounded shoulder and walls down to the soil, and the
    material is a procedural leaf texture (clumps, leaves, dark gaps, lighter tips) with a bump and darker roots. */
-const HEDGE_KEY = /^(TG_soil|TH_soil|TP_soil|PZ_Soil)/;
+const HEDGE_KEY = /^(TG_soil|TH_soil|TP_soil|AG_soil|PZ_Soil)/;
 function hedgeHeight(x, z) { return 0.6 + 0.16 * Math.sin(x * 0.23 + 1.7) * Math.cos(z * 0.19) + 0.12 * Math.sin(x * 0.61 + z * 0.47) + 0.06 * Math.sin(x * 1.7 - z * 1.3); }   // 0.26-0.94 m
 function shrubify(T, o) {
   const g = o.geometry, pos = g.attributes.position, idx = g.index, n = idx ? idx.count : pos.count;
