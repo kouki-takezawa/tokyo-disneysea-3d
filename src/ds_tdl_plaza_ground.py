@@ -38,11 +38,12 @@ What is modelled (OSM, plateau_data/disneyland_osm.json):
            compass rose, the ramps) up to about y=649 -- its model footprint is cut out of this one, so this script
            only paves the approach between that and the hub, not the forecourt pattern the task sheet asked about
            (checked: it turned out to already exist).
-Centre of the hub (HUB_C): the OSM "Partners" node (1345595271, tourism=artwork) and the "プラザガーデン" node sit at
-  about (-456, 750), some 70 m from the round island the aerial photo clearly shows (the radiating garden beds
-  above are centred at (-427, 687), confirmed against two more aerial calibration points -- Crystal Palace and
-  the Castle forecourt node landed exactly where OSM says once the same pixel<->metre mapping was used). Read as an
-  OSM placement error (a single point, not surveyed) and the photo + the bed ways taken as the true centre.
+Centre of the hub (HUB_C): the round island the aerial photo clearly shows (the radiating garden beds above are
+  centred at (-427, 687), confirmed against two more aerial calibration points -- Crystal Palace and the Castle
+  forecourt node landed exactly where OSM says once the same pixel<->metre mapping was used). The OSM "Partners"
+  node (1345595271, tourism=artwork) and the "プラザガーデン" node sit at about (-456, 750), some 70 m away: that is
+  NOT an OSM error (as this docstring once said) -- the real statue stands on a terrace at the end of World Bazaar,
+  a level above the hub, not at the hub's centre (see ds_tdl_plaza_center.py).
 Overlaps avoided: this script cuts its own paving/planters against (a) OSM building polygons inside CLIP (nothing is
   built there yet in the mock for Crystal Palace / Plaza Pavilion / the bandstand -- phase 5 -- but their footprints
   are already real) and (b) the actual exported footprints (model_footprint(), reusing ds_ground.py's function) of
@@ -81,7 +82,7 @@ CLIP = box(-530.0, 555.0, -345.0, 800.0)          # WB's far exit (-477, 794) to
                                                     # reaches -530 (not -495) so the Tomorrowland-ward pedestrian bridge (way 1283322088,
                                                     # highway=pedestrian/bridge=yes/area=yes, x -525.0..-482.1) is inside CLIP whole,
                                                     # not cut in half by the box (phase 6: this was the hub-west seam's cause, see below)
-HUB_C = (-427.0, 687.0)                            # the round island's real centre (see docstring); OSM's POI is ~70 m off
+HUB_C = (-427.0, 687.0)                            # the round island's real centre (see docstring); not where the statue is
 HUB_PATTERN_R = 75.0                               # the two-tone ring pattern reaches this far from HUB_C
 RING_STEP, RING_ARC, LINE_W = 9.0, 12.0, 0.8       # the ring pattern: spacing, panel arc length, joint-line width (m)
 W_FOOT, W_PARADE = 3.0, 9.0                        # footway / Parade Route width (m, ESTIMATES: OSM gives no width here)

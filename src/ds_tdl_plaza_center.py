@@ -8,15 +8,24 @@ Blender is not needed; no trees, no round clipped shrubs, no night version):
 What is modelled:
   statue   the Partners statue (Walt Disney holding Mickey's hand, his right hand raised and pointing ahead) in bronze,
            as low-poly figures (frustums and spheres, no likeness), on a multi-tier pale stone round pedestal with a
-           bronze plaque, in the middle of the hub's small round bed (way 71900258). Placed at HUB_C (phase 3's centre,
-           not the OSM "Partners" node 1345595271, which is ~70 m off; the bed's own centroid is 0.7 m from HUB_C).
+           bronze plaque, on its own flat-topped podium (prism(flat_top=...)) atop tier2 of the "プラザガーデン"
+           terrace below (see next paragraph). Placed at STATUE_C, 2.6 m from the real OSM "Partners" node 1345595271
+           (an ordinary GPS-level offset) -- an earlier version of this file placed it at HUB_C (the hub's own centre)
+           instead, ~70 m off: a real mistake, corrected after web research confirmed the real statue stands "at the
+           end of World Bazaar, tiered a level above The Hub", not at the hub's own centre. The podium is wider than
+           the terrace's real ~2 m tier depth (the wall arcs measure only ~2 m apart along their whole length: an
+           ESTIMATE's correction), so rather than resize the pedestal itself, it gets its own flat-topped podium with
+           a retaining wall down to whichever surface (tier1, or plain ground) is really below it at each point.
            It faces World Bazaar (WB_EXIT), its back to the castle. No photo (Commons has none): general knowledge only.
   stage    "プラザガーデン" (OSM 12028823101, amenity=theatre, no way of its own): the curved band of barrier=wall
-           lines with steps (ways 1298497935-42, steps 1298497922-27) at the south edge of the crescent lawn 72241312
-           is read as a two-tier curved stage, tier 1 between the two wall arcs (+0.30 m), tier 2 from the inner arc
+           lines with steps (ways 1298497935-42, steps 1298497922-27) at the south edge of the crescent lawn 72241312,
+           read as a two-tier terrace, tier 1 between the two wall arcs (+0.30 m), tier 2 from the inner arc
            to the lawn (+0.60 m, each tier no higher than the walker's step so it can be walked on), stair treads
-           at the three passages the steps mark. The outline comes from the OSM lines; its use as a stage is an
-           ESTIMATE. The other stage, "キャッスルフォアコート" (6293190962, (-411, 655)), is the castle's own forecourt
+           at the three passages the steps mark. Very likely the Partners statue's own terrace rather than a separate
+           performance stage: both the OSM "Partners" POI (1345595271) and the "プラザガーデン" node itself fall inside
+           tier2 and tier1 respectively, matching the real statue's description above (reinterpreted here after the
+           statue's placement was corrected); its exact original appearance beyond the OSM wall/step outline is still
+           an ESTIMATE. The other stage, "キャッスルフォアコート" (6293190962, (-411, 655)), is the castle's own forecourt
            stage, already built by ds_tdl_cinderella.py's build_forecourt() (the model ends 6.4 m south of the node,
            which marks the audience area in front of it): nothing is added for it here, so nothing is doubled.
   fences   a low iron fence (dark green, posts and two rails, 0.55 m over the curb) on the curb of every planter
@@ -52,6 +61,7 @@ MODELS = ROOT / "output" / "disneysea" / "models"
 GROUND = MODELS / "tdl_plaza_ground.json"
 OUT = MODELS / "tdl_plaza_center.json"
 WB_EXIT = (-477.0, 794.0)                        # the statue faces this way (World Bazaar), its back to the castle
+STATUE_C = (-454.1, 750.7)                       # the statue's podium centre, on the terrace's tier2 (not HUB_C, ~70 m off)
 FENCE_R = 80.0                                   # fence the beds within this distance of HUB_C
 LAMP_R, BENCH_R = 75.0, 48.0                     # lamps / benches along the beds within these distances of HUB_C
 LAMP_STEP, LAMP_GAP, LAMP_OFF = 15.0, 11.0, 0.9  # along a bed's edge; min gap between lamps; out from the curb (m)
@@ -194,13 +204,15 @@ def lathe(mesh, c, prof, n=24):
             tri(mesh, a, b, cc, want); tri(mesh, a, cc, d, want)
 
 
-def prism(mesh, poly, z_of, h, bottom_drop=0.15, wall_mesh=None):
+def prism(mesh, poly, z_of, h, bottom_drop=0.15, wall_mesh=None, flat_top=None):
     """A slab over the shapely polygon, its top h over the ground at every corner (it follows the plaza's gentle slope,
-    so every edge stays h high -- a flat top would stand up to 0.7 m over the low side here), its sides down below it."""
+    so every edge stays h high -- a flat top would stand up to 0.7 m over the low side here), its sides down below it.
+    With flat_top, the top is level at that height instead (h unused); the sides still reach down to z_of."""
     wall_mesh = wall_mesh or mesh
+    top_of = (lambda x, y: flat_top) if flat_top is not None else (lambda x, y: z_of(x, y) + h)
     for p in G._polys(poly.segmentize(1.5)):
         for c in G.cdt(p):
-            top = np.column_stack([c[:, :2], [z_of(x, y) + h for x, y in c[:, :2]]])
+            top = np.column_stack([c[:, :2], [top_of(x, y) for x, y in c[:, :2]]])
             tri(mesh, *top, want=(0, 0, 1.0))
         for ring in [p.exterior] + list(p.interiors):
             cs = list(ring.coords)
@@ -209,9 +221,9 @@ def prism(mesh, poly, z_of, h, bottom_drop=0.15, wall_mesh=None):
                 nrm = np.array([e[1], -e[0], 0.0])
                 if p.contains(Point(*(mid + 0.01 * nrm[:2] / (np.linalg.norm(nrm) or 1)))):
                     nrm = -nrm
-                za, zb = z_of(xa, ya), z_of(xb, yb)
-                tri(wall_mesh, (xa, ya, za - bottom_drop), (xb, yb, zb - bottom_drop), (xb, yb, zb + h), nrm)
-                tri(wall_mesh, (xa, ya, za - bottom_drop), (xb, yb, zb + h), (xa, ya, za + h), nrm)
+                za, zb, ta, tb = z_of(xa, ya), z_of(xb, yb), top_of(xa, ya), top_of(xb, yb)
+                tri(wall_mesh, (xa, ya, za - bottom_drop), (xb, yb, zb - bottom_drop), (xb, yb, tb), nrm)
+                tri(wall_mesh, (xa, ya, za - bottom_drop), (xb, yb, tb), (xa, ya, ta), nrm)
 
 
 # ---------------------------------------------------------------- the statue and its pedestal
@@ -379,21 +391,10 @@ def build():
     hub = Point(*HUB_C)
     info = {}
 
-    # the statue on its pedestal, in the round bed at the centre
-    fx, fy = WB_EXIT[0] - HUB_C[0], WB_EXIT[1] - HUB_C[1]; L_ = math.hypot(fx, fy); fwd = (fx / L_, fy / L_)
-    zc = ground.z(*HUB_C) or paving_z.z(HUB_C[0], HUB_C[1] - 8.0)
-    zs = [ground.z(HUB_C[0] + 2.05 * math.cos(a), HUB_C[1] + 2.05 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 12, endpoint=False)]
-    z_ped = min([z for z in zs + [zc] if z is not None]) - 0.10
-    top = pedestal(M, HUB_C[0], HUB_C[1], z_ped, fwd)
-    statue(M, HUB_C[0], HUB_C[1], top, fwd)
-    centre_bed = min(planters, key=lambda q: q.distance(hub) + (0 if q.contains(hub) else 1000))
-    info["statue"] = dict(at=HUB_C, heading_deg=round(math.degrees(math.atan2(fwd[1], fwd[0])), 1), pedestal_z=round(float(z_ped), 2),
-                          top_z=round(float(top), 2), bed_centroid=(round(centre_bed.centroid.x, 2), round(centre_bed.centroid.y, 2)),
-                          bed_r=round(math.sqrt(centre_bed.area / math.pi), 2))
-
-    # the Plaza Garden stage
+    # the Plaza Garden terrace (first: the statue stands on it)
+    default_z = ground.z(*HUB_C) or paving_z.z(HUB_C[0], HUB_C[1] - 8.0)
+    zfun = lambda x, y: paving_z.z(x, y) if paving_z.z(x, y) is not None else (ground.z(x, y) if ground.z(x, y) is not None else default_z)
     tier1, tier2, treads, sc = stage_plan(planters)
-    zfun = lambda x, y: paving_z.z(x, y) if paving_z.z(x, y) is not None else (ground.z(x, y) if ground.z(x, y) is not None else z_ped)
     prism(M["PC_stage"], tier1, zfun, TIER1, wall_mesh=M["PC_stone2"])
     if not tier2.is_empty:
         prism(M["PC_stage2"], tier2, zfun, TIER2, wall_mesh=M["PC_stone2"])
@@ -402,8 +403,24 @@ def build():
     stage_all = unary_union([tier1, tier2])
     info["stage"] = dict(tier1_m2=round(tier1.area, 1), tier2_m2=round(tier2.area, 1), bounds=[round(b, 1) for b in stage_all.bounds])
 
+    # the statue on its pedestal, on a podium on the terrace's tier2
+    fx, fy = WB_EXIT[0] - STATUE_C[0], WB_EXIT[1] - STATUE_C[1]; L_ = math.hypot(fx, fy); fwd = (fx / L_, fy / L_)
+
+    def tier_z(x, y):
+        p = Point(x, y)
+        return zfun(x, y) + (TIER2 if tier2.contains(p) else TIER1 if tier1.contains(p) else 0.0)
+    podium = Point(*STATUE_C).buffer(PEDESTAL[0][0] + 0.15, resolution=16)
+    top_z = max(tier_z(*c) for c in list(podium.segmentize(0.5).exterior.coords) + [STATUE_C]) + 0.05   # proud of tier2 everywhere under it
+    prism(M["PC_stone2"], podium, tier_z, 0.0, flat_top=top_z)
+    z_ped = top_z - 0.05
+    top = pedestal(M, STATUE_C[0], STATUE_C[1], z_ped, fwd)
+    statue(M, STATUE_C[0], STATUE_C[1], top, fwd)
+    info["statue"] = dict(at=STATUE_C, heading_deg=round(math.degrees(math.atan2(fwd[1], fwd[0])), 1), podium_top_z=round(float(top_z), 2),
+                          podium_rim_z=[round(float(min(tier_z(*c) for c in podium.exterior.coords)), 2), round(float(max(tier_z(*c) for c in podium.exterior.coords)), 2)],
+                          top_z=round(float(top), 2))
+
     # fences on the curbs of the beds round the hub (not where the stage abuts the lawn)
-    keep_out = stage_all.buffer(0.6)
+    keep_out = unary_union([stage_all, podium]).buffer(0.6)
     nposts = 0; fence_len = 0.0
     for q in planters:
         if q.distance(hub) > FENCE_R:
@@ -421,7 +438,7 @@ def build():
     info["fence"] = dict(posts=nposts, length_m=round(fence_len))
 
     # lamps along the beds' edges, benches with their backs to the beds
-    blocked = unary_union([pl_all.buffer(0.35), stage_all.buffer(0.5), Point(*HUB_C).buffer(8.5)])
+    blocked = unary_union([pl_all.buffer(0.35), stage_all.buffer(0.5), podium.buffer(0.5)])
     lamps, benches = [], []
     order = sorted([q for q in planters if q.area > 30.0], key=lambda q: q.distance(hub))
     for q in order:
@@ -435,7 +452,7 @@ def build():
                 continue
             lamps.append((p.x, p.y))
     for q in order:
-        if q.distance(hub) > BENCH_R or q.area < 60.0 or q.contains(hub):   # none round the statue's own bed
+        if q.distance(hub) > BENCH_R or q.area < 60.0:
             continue
         ring = q.buffer(BENCH_OFF, join_style=2).exterior
         for d in np.arange(BENCH_STEP / 2, ring.length, BENCH_STEP):
@@ -448,7 +465,7 @@ def build():
                 face = -face
             fp = Polygon([(p.x + t[0] * s + face[0] * v, p.y + t[1] * s + face[1] * v) for s, v in ((-0.9, -0.3), (0.9, -0.3), (0.9, 0.9), (-0.9, 0.9))])
             if (not paving.contains(fp) or fp.intersects(pl_all.buffer(0.1)) or fp.intersects(stage_all.buffer(0.5))
-                    or fp.intersects(Point(*HUB_C).buffer(7.0))
+                    or fp.intersects(podium.buffer(0.5))
                     or any(math.hypot(p.x - a, p.y - b) < 2.2 for a, b in lamps)
                     or any(math.hypot(p.x - a, p.y - b) < BENCH_GAP for a, b, _ in benches)):
                 continue
