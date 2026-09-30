@@ -1862,8 +1862,13 @@ function boxDist(b, p) {
   if (!b || !p) return 1e6;
   return Math.hypot(Math.max(b[0] - p.x, 0, p.x - b[3]), Math.max(b[1] - p.y, 0, p.y - b[4]), Math.max(b[2] - p.z, 0, p.z - b[5]));
 }
-// full models near the camera, far copies elsewhere. Phones hold at most LOD_MAX full models and free the ones left behind.
-const LOD_NEAR = coarse ? 170 : 320, LOD_MAX = coarse ? 2 : 99;
+// full models near the camera, far copies elsewhere; at most LOD_MAX full models, the ones left behind are freed.
+const LOD_NEAR = coarse ? 170 : 320, LOD_MAX = coarse ? 2 : 3;
+// quality steps, lowered while frames are slow (loop): res x PIXEL_RATIO, reach x LOD_NEAR, full-model cap LOD_MAX + max
+const QUALITY = [{ res: 1, reach: 1, max: 0 }, { res: 0.85, reach: 1, max: 0 }, { res: 0.7, reach: 0.8, max: -1 }, { res: 0.6, reach: 0.6, max: -1 }];
+const qual = { level: 0 };
+const lodReach = () => LOD_NEAR * Math.min(QUALITY[qual.level].reach, three.tight ? 0.6 : 1);   // tight: after the GPU ran out of memory once
+const lodCap = () => Math.max(1, LOD_MAX + QUALITY[qual.level].max);
 let lodBusy = false;
 function freeModel(obj) {
   obj.traverse(o => {
@@ -1873,7 +1878,7 @@ function freeModel(obj) {
 }
 function lodTick() {
   const eye = three.eyePoint?.(); if (!eye || !three.loadGLTF) return;
-  const reach = LOD_NEAR * (three.tight ? 0.6 : 1);   // tight: after the GPU ran out of memory once
+  const reach = lodReach(), cap = lodCap();
   let changed = false, want = null, wantD = Infinity;
   const withNear = [];
   for (const m of Object.values(three.models)) {
@@ -1885,11 +1890,15 @@ function lodTick() {
       withNear.push([m, d]);
     } else if (d < reach && !m.loading && !m.failed && d < wantD) { want = m; wantD = d; }
   }
-  if (coarse || three.tight) {   // free the full models left behind (and the farthest beyond LOD_MAX)
-    withNear.sort((a, b) => a[1] - b[1]).forEach(([m, d], i) => {
-      if (d > reach * 1.6 || i >= LOD_MAX) { m.obj.remove(m.near); freeModel(m.near); m.near = null; m.farObj.visible = true; changed = true; }
-    });
-  }
+  // free the full models left behind and the farthest beyond the cap
+  let kept = 0;
+  withNear.sort((a, b) => a[1] - b[1]).forEach(([m, d]) => {
+    if (d > reach * 1.6 || kept >= cap) { m.obj.remove(m.near); freeModel(m.near); m.near = null; m.farObj.visible = true; changed = true; }
+    else kept++;
+  });
+  // at the cap, load a new one only if it is 30 m nearer than the farthest kept (that one is freed on the next tick);
+  // the margin stops two neighbours swapping back and forth when walking along their border
+  if (want && kept >= cap && !(wantD < withNear.filter(([m]) => m.near)[kept - 1][1] - 30)) want = null;
   if (want && !lodBusy) {
     lodBusy = want.loading = true;
     three.loadGLTF(want.src).then(obj => {
@@ -3214,9 +3223,10 @@ async function init3D() {
   window.TDS_SKIP = () => three.skipIntro();   // for checking: skip the opening
   window.TDS_MODELS = () => Object.keys(three.models);   // for checking: the models loaded so far
   window.TDS_LOD = () => ({ draws: three.draws || 0, tight: !!three.tight, lost: !!three.lost, info: { ...renderer.info.render, ...renderer.info.memory },
+    reach: Math.round(lodReach()), cap: lodCap(), quality: three.quality?.(),
     models: Object.fromEntries(Object.values(three.models).map(m => [m.id, m.near && m.near.visible ? "full" : m.farObj ? (m.near ? "far+full(hidden)" : "far") : "full"])) });
   window.TDS_STATS = () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, lines: renderer.info.render.lines,
-    geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio() });   // for checking load
+    geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, pixelRatio: renderer.getPixelRatio(), quality: three.quality?.() });   // for checking load
 
   /* ---------- walking as a 170 cm person ---------- */
   // Feet follow the Blender models (plaza, volcano, water surface, piers) where there are any, else the DEM.
@@ -4061,9 +4071,30 @@ async function init3D() {
       }) ? 1 : 0;
     return animSeen;
   };
+  // quality steps (QUALITY): frame gaps are timed only while every frame is drawn; the median of each 2 s decides
+  const qt = { gaps: [], sum: 0, good: 0, downAt: -1e9, upAt: -1e9, wait: 5000, drewLast: false, median: 0 };
+  const applyQuality = () => {
+    renderer.setPixelRatio(Math.max(0.6, PIXEL_RATIO * QUALITY[qual.level].res));
+    three.resize(); lodTick();
+  };
+  const qualityTick = (now, gap) => {
+    if (gap > 250) return;   // a one-off stall (a model parsed, the tab switched back), not a slow GPU
+    qt.gaps.push(gap); qt.sum += gap;
+    if (qt.sum < 2000) return;
+    const s = qt.gaps.sort((a, b) => a - b), med = qt.median = s[s.length >> 1];
+    qt.gaps = []; qt.sum = 0;
+    if (med > 42 && qual.level < QUALITY.length - 1) {
+      if (now - qt.upAt < 10000) qt.wait = Math.min(60000, qt.wait * 2);   // the last step up did not hold: wait longer before the next
+      qual.level++; qt.good = 0; qt.downAt = now; applyQuality();
+    } else if (med < 22 && qual.level > 0) {
+      if (++qt.good >= 2 && now - qt.downAt > qt.wait) { qual.level--; qt.good = 0; qt.upAt = now; applyQuality(); }
+    } else qt.good = 0;
+  };
+  three.quality = () => ({ level: qual.level, median: +qt.median.toFixed(1) });
   (function loop() {
     requestAnimationFrame(loop);
     const now = performance.now(), dt = (now - last) / 1000; last = now;
+    const drewLast = qt.drewLast; qt.drewLast = false;
     if (!three.active || three.lost) return;
     if (growing.size) stepGrow(now); else growLast = 0;
     let moved = false;
@@ -4082,6 +4113,8 @@ async function init3D() {
     if (!busy && now - drawLast < 1000 / [1, WATER_FPS, IDLE_FPS][animInView(now)] - 2) return;
     if (intro && three.popCovers?.()) return;   // hidden behind the pop-up book
     drawLast = now; three.dirty = false; three.draws = (three.draws || 0) + 1;
+    if (drewLast && !intro) qualityTick(now, dt * 1000);   // before the draw: a resize clears the canvas
+    qt.drewLast = true;
     three.skyDome.mesh.position.copy(cam.position);
     renderer.render(scene, cam);
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
