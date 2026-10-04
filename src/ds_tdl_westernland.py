@@ -206,6 +206,21 @@ def plan():
     gardens = unary_union([p for p in closed_polys(lambda t: t.get("leisure") == "garden" or t.get("landuse") in GREEN_LANDUSE
                                                    or t.get("natural") in GREEN_NATURAL) if p.intersects(BOX)])
     open_ = area.difference(buildings).difference(mountain.buffer(0.3))
+    # guest paths (OSM footways / pedestrian lines and areas) and the railway's berm: the narrow-gauge corridor is planted
+    # except where a guest path crosses it (there the track goes over on a trestle)
+    pl, pa_ = [], []
+    for w in DL.DATA["ways"]:
+        hw = w["tags"].get("highway")
+        if hw in ("footway", "pedestrian", "path", "steps") and len(w["pts"]) >= 2 and w["tags"].get("tunnel") != "yes":
+            if w["closed"] and len(w["pts"]) >= 4 and (hw == "pedestrian" or w["tags"].get("area") == "yes"):
+                pa_.append(Polygon(w["pts"]).buffer(0))
+            else:
+                pl.append(LineString(w["pts"]).buffer(2.2, cap_style=2))
+    paths = unary_union(pl + pa_).intersection(BOX.buffer(20))
+    rails = [LineString(w["pts"]) for w in DL.DATA["ways"] if w["tags"].get("railway") == "narrow_gauge" and w["tags"].get("tunnel") != "yes" and len(w["pts"]) >= 2]
+    berm = unary_union([r.buffer(3.2, cap_style=2) for r in rails]).intersection(open_).difference(paths.buffer(0.6))
+    berm = unary_union([q for q in G._polys(berm) if q.area > 6.0])
+    gardens = unary_union([gardens, berm])
     beds = [q for q in G._polys(open_.intersection(gardens)) if q.area >= 2.0]
     beds = [q.buffer(-0.02, join_style=2) for q in beds]
     beds = [q for q in beds if not q.is_empty and q.geom_type == "Polygon"]
@@ -213,7 +228,7 @@ def plan():
     sand = unary_union([p for p in closed_polys(lambda t: t.get("natural") == "sand") if p.intersects(BOX)]).difference(mountain)
     island = poly_of(ISLAND_REL).buffer(4.0)
     return dict(area=area, paving=paving, beds=beds, buildings=buildings, water=water, cut=cut, mountain=mountain,
-                sand=sand, island=island, bld_list=bld_list)
+                sand=sand, island=island, bld_list=bld_list, paths=paths, berm=berm)
 
 
 def zone_of_pt(p, P):
@@ -348,7 +363,7 @@ def build_ground():
     for q in P["beds"]:
         z = zone_of(q, P)
         near_mtn = q.distance(P["mountain"]) < 12
-        kind = "wild" if z == "wild" else ("board" if (z == "tan" or near_mtn or (q.representative_point().y < 575 and q.area < 400)) else "stone")
+        kind = "wild" if (z == "wild" or P["berm"].buffer(0.5).contains(q.representative_point())) else ("board" if (z == "tan" or near_mtn or (q.representative_point().y < 575 and q.area < 400)) else "stone")
         if z == "rose" and q.area > 600:
             kind = "stone"
         rib, inner, soil_h = add_bed(meshes, T, q, kind)
@@ -650,7 +665,7 @@ def storefront(ctx, pa, pb, nrm, zb, zf, style, n, sign=None, deck=True, top="fl
                 for s in (-1, 1):
                     tri(M["WL_awn"], P3(c + e * s * 0.7, zz + 2.75) + n3 * 0.05, P3(c + e * s * 0.7, zz + 2.05) + n3 * 0.75, P3(c + e * s * 0.7, zz + 2.05) + n3 * 0.05, N3(e * s))
             else:
-                window(M, c, nrm, e, zz + 0.7, 0.9, 1.5, trim=trim, shutters="WL_trimr" if style in ("cream", "yellow") and k % 2 == 0 else None)
+                window(M, c, nrm, e, zz + 0.7, 0.9, 1.5, trim=trim, mullion=False, shutters="WL_trimr" if style in ("cream", "yellow") and k % 2 == 0 else None)
     # cornice with brackets under the false front, corner boards
     box(M[trim], P3((pa + pb) / 2, zt - 0.15) + n3 * 0.2, (L / 2 + 0.1, 0.22, 0.12), B)
     for t in np.arange(0.3, L - 0.2, 1.5):
@@ -1088,7 +1103,7 @@ def coaster(ctx):
         if not BOX.contains(ls.centroid):
             continue
         L += ls.length
-        pts = [ls.interpolate(d) for d in np.arange(0.0, ls.length + 0.01, 1.5)]
+        pts = [ls.interpolate(d) for d in np.arange(0.0, ls.length + 0.01, 2.5)]
         zs = []
         for q in pts:
             zg = gr.z(q.x, q.y)
@@ -1121,7 +1136,7 @@ def railway(ctx):
     with a plank deck, bents and railings (0:19:32-0:19:44, 0:21:20). Height 4.6 m over the ground (ESTIMATE)."""
     M = ctx.M; gr = ctx.gr; P = ctx.P
     blocked = unary_union([P["buildings"].buffer(1.0), P["mountain"].buffer(0.5), P["water"].buffer(0.5)])
-    walk = P["paving"].buffer(3.5)
+    walk = P["paths"].intersection(P["paving"].buffer(0.5)).buffer(2.0)
     total = tr = 0.0
     for w in DL.DATA["ways"]:
         t = w["tags"]
@@ -1160,7 +1175,7 @@ def railway(ctx):
                     quad(M["WL_timber"], P3(a - n * 1.6, za - 0.65), P3(a + n * 1.6, za - 0.65), P3(b + n * 1.6, zb_ - 0.65), P3(b - n * 1.6, zb_ - 0.65), -UP)
                     if k % 2 == 0:                                   # a bent: two posts, a cap, X braces
                         zg0 = gr.z(*a)
-                        if not walk.buffer(-3.2).contains(Point(*a)):
+                        if not P["paving"].buffer(0.4).contains(Point(*a)):
                             for s in (-1.2, 1.2):
                                 box(M["WL_timber"], P3(a + n * s, (zg0 - 0.2 + za - 0.65) / 2), (0.15, 0.15, (za - 0.45 - zg0) / 2), B)
                             bar(M["WL_timber"], P3(a - n * 1.2, zg0 + 0.4), P3(a + n * 1.2, za - 1.0), w=0.08, d=0.08)
@@ -1902,7 +1917,8 @@ def build():
             for d in np.arange(0.0, r2.length, 0.85):
                 s = r2.interpolate(d)
                 rr = rng.uniform(0.28, 0.4)
-                sphere(M["WL_stone"], (s.x, s.y, gr.z(s.x, s.y) + CURB_H * 0.5), rr, n=6, m=3, sc=(1.3, 1.1, 0.7))
+                a = rng.uniform(0, 3.14); ea = np.array([math.cos(a), math.sin(a), 0.0])
+                box(M["WL_stone"], (s.x, s.y, gr.z(s.x, s.y) + CURB_H + 0.05), (rr * 0.75, rr * 0.6, rr * 0.45), (ea, np.cross(UP, ea), UP))
                 stones += 1
     for x, y in lamps:
         lamp(M, x, y, gr.z(x, y))
