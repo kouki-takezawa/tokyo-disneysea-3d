@@ -572,7 +572,7 @@ try { localStorage.removeItem("tds-layers"); localStorage.removeItem("tds-models
 const MODELS = [
   ["water", "水面"], ["aquasphere", "アクアスフィア"], ["plaza", "プラザ"], ["volcano", "プロメテウス火山"],
   ["tdl_station", "東京ディズニーランド・ステーション"], ["tdl_entrance", "東京ディズニーランドのエントランス"],
-  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "植え込みの刈り込み"],
+  ["tdl_world_bazaar", "ワールドバザール"], ["tdl_hotel", "東京ディズニーランドホテル"], ["tdl_plaza_buildings", "広場まわりの建物"], ["trees3d", "木と刈り込み(OSM の木の位置・植え込み)"],
   ["tdl_ground", "エントランス広場の地面"], ["tdl_hotel_ground", "ホテル周辺の道"], ["tdl_land_ground", "ランド全体の地面"], ["tds_ground", "シー全体の地面"],
   ["tracks", "線路(リゾートライン・京葉線)"], ["bb_castle", "美女と野獣の城"], ["cinderella", "シンデレラ城"], ["tdl_water", "ランドの水面"],
   ["trains", "電車(リゾートライン・京葉線)"],
@@ -1418,25 +1418,30 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_lamp: { color: 0xfff3d6, emissive: 0xffe2a8, emissiveIntensity: 0.9 },
   // 東京ディズニーランドのエントランス (ds_tdl_entrance.py): meshes EN_<material>; the station's colours are shared
   ST_slate_blue: { color: 0x44566f, roughness: 0.6 }, ST_mint: { color: 0x9cc7b8, roughness: 0.7 }, ST_magenta: { color: 0x8e2458, roughness: 0.5 },
-  ST_sign_red: { color: 0x8c1d24, roughness: 0.5 }, ST_letters: { color: 0xf0c040, roughness: 0.4, metalness: 0.4 }, ST_booth: { color: 0xe3d7ba, roughness: 0.7 },
+  ST_sign_red: { color: 0x8e1937, roughness: 0.5 }, ST_letters: { color: 0xf0c040, roughness: 0.4, metalness: 0.4 }, ST_booth: { color: 0xe3d7ba, roughness: 0.7 },
   ST_green_sign: { color: 0x14705e, roughness: 0.6 }, ST_bulb: { color: 0xfff1d6, emissive: 0xffd88a, emissiveIntensity: 1.2 },
   ST_flower_purple: { color: 0x6a3f9e, roughness: 1 }, ST_flower_white: { color: 0xeeeee6, roughness: 1 }, ST_flowers_red: { color: 0xc23350, roughness: 1 },
   ST_hedge: { color: 0x2d5a26, roughness: 1 }, ST_grass: { color: 0x4f7d3a, roughness: 1 }, ST_win_dark: { color: 0x1a2229, roughness: 0.2 },
   ST_rail_blue: { color: 0x234f52, roughness: 0.5, metalness: 0.4 }, ST_blue_disc: { color: 0x3350a0, roughness: 0.5 }, ST_screen: { color: 0x14304a, emissive: 0x3a7ab8, emissiveIntensity: 0.6, roughness: 0.2 },
   // ワールドバザール (ds_tdl_entrance.py 1 節 + ds_tdl_world_bazaar.py): EN_* / WZ_* meshes
-  ST_mauve: { color: 0x5e2229, roughness: 0.7 }, ST_hall_iron: { color: 0x3f6e68, roughness: 0.5, metalness: 0.3 },
+  ST_mauve: { color: 0x642228, roughness: 0.7 }, ST_hall_iron: { color: 0x34635e, roughness: 0.5, metalness: 0.3 },
   ST_hall_glass: { color: 0xc4e0da, roughness: 0.05, transparent: true, opacity: 0.2, depthWrite: false },
   // the World Bazaar front and the greeting plazas (2026-09-30)
   ST_lace: { color: 0xefede4, roughness: 0.9 }, ST_door_brown: { color: 0x3a2518, roughness: 0.6 }, ST_bench_green: { color: 0x2c4a33, roughness: 0.6 },
   ST_poster1: { color: 0x5a6aa8, roughness: 0.5 }, ST_poster2: { color: 0x6a9a80, roughness: 0.5 }, ST_poster3: { color: 0xa85a7e, roughness: 0.5 },
   ST_cons_glass: { color: 0xd4e6ea, roughness: 0.08, metalness: 0.2, transparent: true, opacity: 0.5, depthWrite: false },
   ST_rail_teal: { color: 0x8fd6cc, roughness: 0.6 }, ST_flowers_pink: { color: 0xe07aa6, roughness: 1 },
+  // video refinement R1 (docs/video_frames/refine_R1.md): the summer Mickey bed, the passage, the statue, the conservatories' domes
+  ST_bed_lime: { color: 0x96be5a, roughness: 1 }, ST_bed_olive: { color: 0x5a6e28, roughness: 1 }, ST_bed_lawn: { color: 0x6f9a3e, roughness: 1 },
+  ST_hedge_bright: { color: 0x5e9433, roughness: 1 }, ST_bed_brick: { color: 0xbe6955, roughness: 0.9 }, ST_wine_floor: { color: 0x962d32, roughness: 0.45 },
+  ST_ped_stone: { color: 0xc4b070, roughness: 0.7 }, ST_bronze: { color: 0x5a4630, roughness: 0.45, metalness: 0.6 },
+  ST_cons_dome: { color: 0xeee2b8, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.7, depthWrite: false },
   ST_brick_paving: { color: 0xa65a42, roughness: 0.9 }, ST_brick_paving2: { color: 0xb3664a, roughness: 0.9 },
   ST_sign_face: { color: 0xe4ece8, roughness: 0.5 }, ST_sign_ink: { color: 0x284850, roughness: 0.5 },
   ST_wbz_pink: { color: 0xe8b2aa, roughness: 0.8 }, ST_wbz_cream: { color: 0xeed9ac, roughness: 0.8 }, ST_wbz_yellow: { color: 0xf1d48e, roughness: 0.8 },
   ST_wbz_blue: { color: 0x9fb4c6, roughness: 0.8 }, ST_wbz_mint: { color: 0xb1d2c2, roughness: 0.8 }, ST_wbz_peach: { color: 0xf2c49e, roughness: 0.8 },
   ST_wbz_sand: { color: 0xe0c89c, roughness: 0.8 }, ST_wbz_sage: { color: 0xa7b89f, roughness: 0.8 }, ST_wbz_lilac: { color: 0xc7bad0, roughness: 0.8 },
-  ST_wbz_stone: { color: 0xe1d9ca, roughness: 0.8 }, ST_wbz_icc_mint: { color: 0xb4dccf, roughness: 0.85 }, ST_wbz_icc_pink: { color: 0xec94a8, roughness: 0.5 },
+  ST_wbz_stone: { color: 0xe1d9ca, roughness: 0.8 }, ST_wbz_plum: { color: 0x8e5a70, roughness: 0.8 }, ST_wbz_mustard: { color: 0xe0b850, roughness: 0.8 }, ST_wbz_icc_mint: { color: 0xb4dccf, roughness: 0.85 }, ST_wbz_icc_pink: { color: 0xec94a8, roughness: 0.5 },
   ST_wbz_icc_salmon: { color: 0xe8a09c, roughness: 0.8 }, ST_wbz_icc_blue: { color: 0xa8cbe8, roughness: 0.35 }, ST_wbz_icc_rose: { color: 0xb86072, roughness: 0.5 },
   ST_wbz_icc_steel: { color: 0xb9bdc1, roughness: 0.3, metalness: 0.6 }, ST_wbz_icc_waffle: { color: 0xc98f52, roughness: 0.8 },
   ST_wbz_gaw_cream: { color: 0xf3e2b8, roughness: 0.8 }, ST_wbz_gaw_navy: { color: 0x1f3470, roughness: 0.45 }, ST_wbz_gaw_rose: { color: 0xe39a8e, roughness: 0.8 },
@@ -1446,7 +1451,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_wbz_trim_white: { color: 0xf1ede1, roughness: 0.7 }, ST_wbz_trim_cream: { color: 0xece0c3, roughness: 0.7 }, ST_wbz_trim_teal: { color: 0x5a9f9b, roughness: 0.7 },
   ST_wbz_trim_dkgreen: { color: 0x2c5048, roughness: 0.7 }, ST_wbz_trim_maroon: { color: 0x7a2f33, roughness: 0.7 }, ST_wbz_trim_blue: { color: 0x4a5f7a, roughness: 0.7 },
   ST_wbz_display: { color: 0xead8b4, emissive: 0x6b5330, emissiveIntensity: 0.6, roughness: 0.3 }, ST_wbz_door: { color: 0x4a2a18, roughness: 0.6 },
-  ST_wbz_road: { color: 0x59616c, roughness: 0.9 }, ST_wbz_walk: { color: 0x9e5446, roughness: 0.9 }, ST_wbz_edging: { color: 0xbdb8ae, roughness: 0.85 },
+  ST_wbz_road: { color: 0x6f8580, roughness: 0.9 }, ST_wbz_walk: { color: 0x9e5446, roughness: 0.9 }, ST_wbz_edging: { color: 0xbdb8ae, roughness: 0.85 },
   ST_wbz_awning_green: { color: 0x245c4a, roughness: 0.9 }, ST_wbz_awning_red: { color: 0xa8303a, roughness: 0.9 },
   ST_wbz_awning_white: { color: 0xefece4, roughness: 0.9 }, ST_wbz_awning_blue: { color: 0x3d5a8a, roughness: 0.9 },
   ST_wbz_shingle: { color: 0x59626e, roughness: 0.8 }, ST_wbz_clock: { color: 0xf6f3ea, emissive: 0x77736a, emissiveIntensity: 0.4 },
@@ -2133,7 +2138,6 @@ function prepModel(T, scene) {
     {
       scene.traverse(o => {
         if (!o.isMesh) return;
-        if (/^PZ_(Trunk|Canopy)/.test(o.name)) { o.visible = false; return; }   // the plaza model's trees: no trees (the user's request)
         const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (HEDGE_KEY.test(o.name)) shrubify(T, o);   // planting beds: raised, clipped shrub masses
@@ -3067,10 +3071,21 @@ async function init3D() {
     D.water.forEach((r, i) => prism("water", r, D.water_z[i], D.water_z[i]));
     D.ponds.forEach((r, i) => prism("water", r, D.ponds_z[i], D.ponds_z[i]));
     D.green.forEach(r => ringH("green", r, 0.05));
-    // woods: the outline on the ground only (no tree symbols: no trees, the user's request)
+    // woods: the outline on the ground and a tree symbol every 9 m inside (trunk + crown), instead of a 2-7 m box
+    // that hid the water and the buildings behind it (the symbols back with the trees, the user 2026-10-04)
     function woods(key, r, gzf) {
       const g = (x, y) => gzf(x, y) ?? 0;
       for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; seg(key, [...V(x1, y1, g(x1, y1) + 0.1), ...V(x2, y2, g(x2, y2) + 0.1)]); }
+      const [a, b, c, d] = bboxOf([r]), st = 9;
+      for (let x = Math.ceil(a / st) * st; x <= c; x += st) for (let y = Math.ceil(b / st) * st; y <= d; y += st) {
+        const jx = x + ((y * 7) % 5) - 2, jy = y + ((x * 3) % 5) - 2;   // a little irregular
+        if (!pip(jx, jy, r)) continue;
+        const z = g(jx, jy);
+        seg(key, [...V(jx, jy, z), ...V(jx, jy, z + 3.2)]);
+        for (let k = 0; k < 6; k++) { const a1 = k / 6 * 6.2832, a2 = (k + 1) / 6 * 6.2832;
+          seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx + Math.cos(a2) * 2, jy + Math.sin(a2) * 2, z + 4.6)]);
+          if (k % 2 === 0) seg(key, [...V(jx + Math.cos(a1) * 2, jy + Math.sin(a1) * 2, z + 4.6), ...V(jx, jy, z + 6.2)]); }
+      }
     }
     D.trees.forEach(r => woods("trees", r, gz));
     D.rock.forEach(k => prism("rock", k.r, k.z, k.z + k.h));

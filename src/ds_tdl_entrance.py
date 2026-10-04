@@ -67,7 +67,7 @@ def extra_materials(M):
     M["slate"] = P("st_slate_blue", (0.20, 0.27, 0.40), 0.45, Metallic=0.1)
     M["mint"] = P("st_mint", (0.50, 0.70, 0.63), 0.6)
     M["magenta"] = P("st_magenta", (0.50, 0.07, 0.26), 0.4)
-    M["sign_red"] = P("st_sign_red", (0.40, 0.04, 0.06), 0.4, Coat_Weight=0.6)
+    M["sign_red"] = P("st_sign_red", (0.42, 0.03, 0.14), 0.4, Coat_Weight=0.6)   # (R1 #15: crimson towards magenta; was 0.40, 0.04, 0.06)
     M["letters"] = P("st_letters", (0.95, 0.72, 0.12), 0.3, Metallic=0.6)
     M["booth"] = P("st_booth", (0.88, 0.83, 0.68), 0.5)
     M["green_sign"] = P("st_green_sign", (0.04, 0.36, 0.30), 0.4)
@@ -80,8 +80,8 @@ def extra_materials(M):
     M["flowers_red"] = P("st_flowers_red", (0.75, 0.10, 0.20), 0.8)
     M["blue_disc"] = P("st_blue_disc", (0.12, 0.25, 0.55), 0.4)
     M["screen"] = P("st_screen", (0.05, 0.12, 0.20), 0.15, Emission_Color=(0.3, 0.6, 0.9, 1), Emission_Strength=0.6)
-    M["mauve"] = P("st_mauve", (0.30, 0.09, 0.13), 0.6)                    # the World Bazaar shops' mansards
-    M["hall_iron"] = P("st_hall_iron", (0.15, 0.30, 0.28), 0.45, Metallic=0.5)
+    M["mauve"] = P("st_mauve", (0.34, 0.09, 0.12), 0.6)                    # the World Bazaar shops' mansards (R1 #10: a little lighter)
+    M["hall_iron"] = P("st_hall_iron", (0.10, 0.24, 0.22), 0.45, Metallic=0.5)   # (R1 S6: darker blue-green; was 0.15, 0.30, 0.28)
     M["hall_glass"] = ST.clear_glass("st_hall_glass", (0.70, 0.86, 0.82), 0.35)
     M["person"] = P("st_person", (0.22, 0.26, 0.36), 0.8)                  # 1.70 m scale figures (check renders only)
     # the World Bazaar front and the greeting plazas (2026-09-30, the user's photos)
@@ -97,6 +97,17 @@ def extra_materials(M):
     M["sign_face"] = P("st_sign_face", (0.86, 0.90, 0.88), 0.5)
     M["sign_ink"] = P("st_sign_ink", (0.10, 0.25, 0.30), 0.5)
     mat, nt, b = _principled("st_flowers_pink", (0.85, 0.40, 0.60), 0.9); _mottle(nt, b, (0.85, 0.40, 0.60), 40.0, 0.7, 0.5); M["flowers_pink"] = mat
+    # video refinement R1 (docs/video_frames/refine_R1.md, 2026-10-04; v2 = the July daytime walk)
+    for key, name, col in (("bed_lime", "st_bed_lime", (0.36, 0.52, 0.13)),          # #1 the summer Mickey: lime face
+                           ("bed_olive", "st_bed_olive", (0.09, 0.17, 0.04)),        #    dark olive head, ears, features
+                           ("bed_lawn", "st_bed_lawn", (0.20, 0.36, 0.06)),          # #2 plain lawn round the face
+                           ("hedge_bright", "st_hedge_bright", (0.10, 0.27, 0.05))): # #4 the bed's bright clipped bank
+        mat, nt, b = _principled(name, col, 0.9); _mottle(nt, b, col, 40.0, 0.7, 0.5); M[key] = mat
+    M["bed_brick"] = P("st_bed_brick", (0.55, 0.23, 0.17), 0.85)                 # #3 the pinkish terracotta edging
+    M["wine_floor"] = P("st_wine_floor", (0.34, 0.05, 0.06), 0.35)               # #19 the portico and passage floor
+    M["ped_stone"] = P("st_ped_stone", (0.60, 0.50, 0.24), 0.6)                  # #17 #20 the olive-yellow pedestals
+    M["bronze"] = P("st_bronze", (0.14, 0.10, 0.06), 0.4, Metallic=0.7)          # #21 the Sharing the Magic statue
+    M["cons_dome"] = ST.clear_glass("st_cons_dome", (0.88, 0.82, 0.62), 0.6)     # #11 the conservatories' cream glass
     return M
 
 
@@ -231,8 +242,10 @@ def wb_sign(yf):
     top, (zc, Rr, half) = seg_arc(0.0, zs, 2 * hw, rise, 33)
     board = [(-hw, zb), (hw, zb)] + top
     prism("ST_WB_sign_board", [board], yf + 0.04, yf + 0.14, "sign_red", "xz")
-    rim = [(-hw - 0.07, zb - 0.07), (hw + 0.07, zb - 0.07)] + [(x * (hw + 0.07) / hw, z + 0.07) for x, z in top]
-    prism("ST_WB_sign_rim", [rim], yf, yf + 0.11, "gold", "xz")
+    # (R1 #15, v2 0:50: a broad cream border with a thin gold line inside it, round the crimson board)
+    rim = lambda d: [(-hw - d, zb - d), (hw + d, zb - d)] + [(x * (hw + d) / hw, z + d) for x, z in top]
+    prism("ST_WB_sign_rim", [rim(0.15)], yf, yf + 0.11, "trim", "xz")
+    prism("ST_WB_sign_rim_gold", [rim(0.04)], yf + 0.02, yf + 0.13, "gold", "xz")
     prism("ST_WB_sign_moulding", [arch_band(-hw - 0.08, hw + 0.08, zs, rise, 0.13, 33, leg=0.3)], yf, yf + 0.16, "trim", "xz")
     for s in (-1, 1):                                    # the ends curl out and down into scrolls, with a red roundel
         P = [(s * (hw + 0.55 - a), yf + 0.08, zs - 0.42 + z) for a, z in scroll_pts(0.45, 0.42, 0.14, 0.08, 10)]
@@ -257,7 +270,8 @@ def wb_sign(yf):
     def cart(a_, b_, n=64, e=3.0):
         return [(math.copysign(abs(math.cos(t)) ** (2 / e), math.cos(t)) * a_,
                  4.87 + math.copysign(abs(math.sin(t)) ** (2 / e), math.sin(t)) * b_) for t in (2 * math.pi * k / n for k in range(n))]
-    prism("ST_WB_welcome_rim", [cart(1.53, 0.43)], yf + 0.14, yf + 0.22, "gold", "xz")
+    prism("ST_WB_welcome_rim", [cart(1.6, 0.5)], yf + 0.14, yf + 0.21, "trim", "xz")         # (R1 #15: cream, a gold line in it)
+    prism("ST_WB_welcome_rim_gold", [cart(1.5, 0.41)], yf + 0.15, yf + 0.235, "gold", "xz")
     prism("ST_WB_welcome_board", [cart(1.45, 0.36)], yf + 0.16, yf + 0.25, "sign_red", "xz")
     t = text("ST_WB_welcome_text", "Welcome", 0.32, (0, yf + 0.26, 4.86), (math.pi / 2, 0, math.pi), "letters", 0.02)
     if pathlib.Path("C:/Windows/Fonts/georgiaz.ttf").exists():
@@ -297,13 +311,13 @@ def wb_portico(name, piers, H, ends=(True, True)):
     yf = H["front"]; ped, cap, blk, ent, rail = H["ped"], H["cap"], H["block"], H["ent"], H["rail"]
     OFF = {"pair": [(-0.21, 0.0), (0.21, 0.0)], "cluster": [(-0.42, 0.06), (0.0, -0.24), (0.42, 0.06)]}
     PW = {"pair": (0.6, 0.55, 0.42), "cluster": (0.8, 0.6, 0.55)}              # pedestal half x / half y, block half
-    bmp, bmc, bmr, bmk = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bmp, bmc, bmr, bmk, bmy = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
     for x, kind in piers:
         px, py, pb = PW[kind]
-        bm_box(bmp, x - px - 0.05, x + px + 0.05, yf - py - 0.05, yf + py + 0.05, 0, 0.2)      # pedestal: plinth, die, cap
+        bm_box(bmy, x - px - 0.05, x + px + 0.05, yf - py - 0.05, yf + py + 0.05, 0, 0.2)      # pedestal: plinth, die, cap
         bm_box(bmp, x - px, x + px, yf - py, yf + py, 0.2, ped - 0.14)
         bm_box(bmp, x - px - 0.05, x + px + 0.05, yf - py - 0.05, yf + py + 0.05, ped - 0.14, ped)
-        bm_box(bmk, x - px + 0.14, x + px - 0.14, yf + py, yf + py + 0.03, 0.36, ped - 0.3)     # raised panel
+        bm_box(bmy, x - px + 0.14, x + px - 0.14, yf + py, yf + py + 0.03, 0.36, ped - 0.3)     # raised panel
         for dx, dy in OFF[kind]:
             column_bm(bmc, x + dx, yf + dy, ped, cap - ped, 0.14, 12)
             for f in (0.36, 0.68):                                                              # collars on the shaft
@@ -312,6 +326,7 @@ def wb_portico(name, piers, H, ends=(True, True)):
         bm_box(bmp, x - pb, x + pb, yf - pb, yf + pb, cap + 0.1, blk)
         bm_box(bmk, x - pb + 0.1, x + pb - 0.1, yf + pb, yf + pb + 0.03, cap + 0.3, blk - 0.2)
     obj_bm(f"ST_WB_{name}_piers", bmp, "trim"); obj_bm(f"ST_WB_{name}_panels", bmk, "trim")
+    obj_bm(f"ST_WB_{name}_pedestal_stone", bmy, "ped_stone")   # (R1 #17, v2 0:50: the plinths and panels olive-yellow)
     obj_bm(f"ST_WB_{name}_columns", bmc, "trim", smooth=True); obj_bm(f"ST_WB_{name}_collars", bmr, "trim", smooth=True)
     # arches between the blocks (and on the returns, in the yz plane): a thin rib, a ring and a C-scroll at each
     # springing, two pendant drops under the entablature, a lantern hanging in the middle of the bay
@@ -358,7 +373,7 @@ def wb_portico(name, piers, H, ends=(True, True)):
     box(f"ST_WB_{name}_frieze", pnl, "cream")
     box(f"ST_WB_{name}_roof", (xl, xr, 0.0, yf, ent - 0.3, ent - 0.05), "trim")
     box(f"ST_WB_{name}_ceiling", [(xl, xr, 0.0, yf - 0.4, blk - 0.05, blk)] + [(x - 0.18, x + 0.18, 0.0, yf, blk - 0.32, blk) for x, _ in piers], "trim")
-    box(f"ST_WB_{name}_floor", (xl - 0.3, xr + 0.3, 0.0, yf + 0.8, 0.0, 0.04), "tile")
+    box(f"ST_WB_{name}_floor", (xl - 0.3, xr + 0.3, 0.0, yf + 0.8, 0.0, 0.04), "wine_floor")   # (R1 #19: wine red, was tile)
     # balustrade on the roof: posts over the piers, runs between them and back along the returns
     bmt, bmb = bmesh.new(), bmesh.new()
     yb = yf + 0.2
@@ -387,6 +402,87 @@ def paired_window(bmf, bmp, bmh, x, y, z0, z1, sw):
     bm_box(bmh, x - sw / 2 - 0.12, x + sw / 2 + 0.12, y, y + 0.2, z0 - 0.12, z0)                 # sill
 
 
+PASSAGE = dict(x=9.3, y0=WB_BACK + 1.0, y1=-1.0, ceil=4.0, piers=(-5.9, -1.975, 1.975, 5.9), yp=-4.25, pw=0.9,
+               alcove=(9.0, 12.0, -6.2, -3.8))
+# (R1 #20, v2 1:00 .. 1:34, v1 1:19:00 .. 1:19:50: behind the front arches the passage is one hall, not five tunnels: a flat
+#  cream ceiling with a cornice, a row of square brick piers on olive-yellow stone pedestals carrying brick arches both
+#  ways, a brass lantern hanging in each bay, the floor wine red. The front and back faces keep their arches (the user's
+#  photos); the piers stand on the line of the front's pilasters (x = +-1.975, +-5.9). #21: the Sharing the Magic statue
+#  (OSM tourism=artwork, DS (-508.55, 891.64) = WB (11.7, -5.0)) in a brick alcove off the hall's east end.)
+# ESTIMATES: the walls' thickness (1.0 m), the ceiling height (4.0 m), the pier size, the spring of the arches.
+
+
+def span_wall(x0, x1, spring, rise, ztop, n=14):
+    """The brick over an arch between two piers: the rectangle x0..x1 x spring..ztop less the arch (a plan polygon)."""
+    return [(x0, ztop), (x1, ztop)] + seg_arc((x0 + x1) / 2, spring, x1 - x0, rise, n)[0]
+
+
+def wb_passage_hall(wall):
+    H = PASSAGE; hx, y0, y1, zc = H["x"], H["y0"], H["y1"], H["ceil"]
+    ax0, ax1, ay0, ay1 = H["alcove"]
+    cutter("ST_WB_cut_hall", [(-hx, hx, y0, y1, -0.5, zc), (ax0, ax1, ay0, ay1, -0.5, zc)], wall, "xz")
+    box("ST_WB_passage", [(-hx, hx, WB_BACK, 0.0, 0.0, 0.03), (hx, ax1, ay0, ay1, 0.0, 0.03)], "wine_floor")
+    box("ST_WB_passage_ceiling", [(-hx, hx, y0, y1, zc - 0.15, zc), (hx - 0.01, ax1, ay0, ay1, zc - 0.15, zc)], "trim")
+    cor = 0.16                                            # the cornice round the hall
+    box("ST_WB_passage_cornice", [(-hx, hx, y1 - cor, y1, zc - 0.4, zc - 0.15), (-hx, hx, y0, y0 + cor, zc - 0.4, zc - 0.15),
+                                  (-hx, -hx + cor, y0, y1, zc - 0.4, zc - 0.15), (hx - cor, hx, y0, ay0, zc - 0.4, zc - 0.15),
+                                  (hx - cor, hx, ay1, y1, zc - 0.4, zc - 0.15)], "trim")
+    yp, h = H["yp"], H["pw"] / 2
+    spring, rise = 2.65, 0.75
+    bmb, bms, bmt = bmesh.new(), bmesh.new(), bmesh.new()
+    for x in H["piers"]:
+        bm_box(bmb, x - h, x + h, yp - h, yp + h, 0.9, zc - 0.15)                           # the brick pier
+        bm_box(bms, x - h - 0.06, x + h + 0.06, yp - h - 0.06, yp + h + 0.06, 0.0, 0.9)     # its stone pedestal
+        bm_box(bms, x - h - 0.1, x + h + 0.1, yp - h - 0.1, yp + h + 0.1, 0.0, 0.12)
+        bm_box(bmt, x - h - 0.06, x + h + 0.06, yp - h - 0.06, yp + h + 0.06, spring - 0.15, spring)   # impost
+        for ya, yb in ((y1, yp + h), (yp - h, y0)):       # the arches across, front and back of the pier
+            bm_prism(bmb, span_wall(yb, ya, spring, rise, zc - 0.15) if yb < ya else span_wall(ya, yb, spring, rise, zc - 0.15),
+                     x - h, x + h, "yz")
+    xs = [-hx] + [v for x in H["piers"] for v in (x - h, x + h)] + [hx]
+    for xa, xb in zip(xs[0::2], xs[1::2]):                # the arches along the row
+        bm_prism(bmb, span_wall(xa, xb, spring, rise, zc - 0.15), yp - h, yp + h, "xz")
+    obj_bm("ST_WB_passage_piers", bmb, "brick"); obj_bm("ST_WB_passage_pedestals", bms, "ped_stone")
+    obj_bm("ST_WB_passage_imposts", bmt, "trim")
+    bml, bmg = bmesh.new(), bmesh.new()                   # a brass lantern in the middle of each bay
+    for xa, xb in zip(xs[0::2], xs[1::2]):
+        for y in ((y1 + yp + h) / 2, (yp - h + y0) / 2):
+            m = (xa + xb) / 2
+            bm_box(bml, m - 0.015, m + 0.015, y - 0.015, y + 0.015, 3.3, zc - 0.15)
+            bm_lathe(bml, [(0, 2.68), (0.06, 2.68), (0.1, 2.75), (0.17, 2.85), (0.17, 3.2), (0.2, 3.24), (0.06, 3.32), (0, 3.32)], 8, T(m, y, 0))
+            globe_lamp_bm(bmg, m, y, 3.0, 0.12)
+    obj_bm("ST_WB_passage_lanterns", bml, "gold"); obj_bm("ST_WB_passage_lantern_glow", bmg, "lamp", smooth=True)
+    sharing_the_magic(ax1, (ay0 + ay1) / 2)
+
+
+def sharing_the_magic(xw, yc):
+    """Roy O. Disney and Minnie on a park bench (bronze, v2 1:12 .. 1:24) against the alcove's end wall at x = xw, facing
+    -x (towards the hall); a plaque on the wall above. Simple forms: boxes and balls."""
+    bm = bmesh.new()
+    xb = xw - 0.12                                         # the bench: back, seat, arms, legs
+    bm_box(bm, xb - 0.06, xb, yc - 0.8, yc + 0.8, 0.45, 1.0)
+    bm_box(bm, xb - 0.5, xb, yc - 0.8, yc + 0.8, 0.42, 0.47)
+    for s in (-1, 1):
+        bm_box(bm, xb - 0.52, xb, yc + s * 0.8 - 0.03, yc + s * 0.8 + 0.03, 0.0, 0.7)
+        bm_box(bm, xb - 0.5, xb - 0.44, yc + s * 0.75 - 0.03, yc + s * 0.75 + 0.03, 0.0, 0.42)
+    yr, ym = yc + 0.32, yc - 0.42                         # Roy on the left, Minnie on the right, seen from the hall (v2 1:16)
+    bm_box(bm, xb - 0.42, xb - 0.08, yr - 0.22, yr + 0.22, 0.47, 1.12)                   # torso
+    bm_box(bm, xb - 0.38, xb - 0.12, yr - 0.15, yr + 0.15, 1.12, 1.2)                    # neck, shoulders
+    globe_lamp_bm(bm, xb - 0.25, yr, 1.33, 0.13)                                          # head
+    bm_box(bm, xb - 0.85, xb - 0.35, yr - 0.2, yr + 0.2, 0.47, 0.64)                     # thighs
+    bm_box(bm, xb - 0.92, xb - 0.74, yr - 0.2, yr + 0.2, 0.0, 0.6)                       # shins
+    for s in (-1, 1):
+        bm_box(bm, xb - 0.62, xb - 0.15, yr + s * 0.25 - 0.05, yr + s * 0.25 + 0.05, 0.75, 0.88)   # forearms
+    bm_lathe(bm, [(0, 0), (0.17, 0), (0.12, 0.3), (0.1, 0.42), (0, 0.45)], 10, T(xb - 0.25, ym, 0.47))   # Minnie: body (skirt)
+    globe_lamp_bm(bm, xb - 0.25, ym, 1.04, 0.13)
+    bm_lathe(bm, [(0, -0.015), (0.08, -0.015), (0.08, 0.015), (0, 0.015)], 12, T(xb - 0.25, ym - 0.11, 1.21) @ R(math.pi / 2, "Y"))
+    bm_lathe(bm, [(0, -0.015), (0.08, -0.015), (0.08, 0.015), (0, 0.015)], 12, T(xb - 0.25, ym + 0.11, 1.21) @ R(math.pi / 2, "Y"))
+    bm_lathe(bm, [(0, 0), (0.07, 0), (0.07, 0.03), (0, 0.03)], 8, T(xb - 0.25, ym, 1.16) @ R(math.pi / 2, "Y"))     # the bow
+    bm_box(bm, xb - 0.62, xb - 0.42, ym - 0.12, ym + 0.12, 0.47, 0.6)                    # her legs over the seat edge
+    bm_box(bm, xb - 0.68, xb - 0.58, ym - 0.1, ym + 0.1, 0.12, 0.5)
+    obj_bm("ST_WB_statue", bm, "bronze", smooth=False)
+    box("ST_WB_statue_plaque", [(xw - 0.03, xw, yc - 0.27, yc + 0.27, 1.72, 2.1)], "copper")
+
+
 def wb_wall():
     """The entrance building (brick, x = -12.25 .. 12.25, y = -8.5 .. 0, 8.6 m) behind the porticos: arched ground
     floor (five arches go through to Main Street, as the photo from inside; the outermost are shop doors), a balcony over each
@@ -400,7 +496,7 @@ def wb_wall():
     cutter("ST_WB_cut_through", [arch_opening(x - w / 2, x + w / 2, -0.5, sp, r) for x, w, sp, r, th in bays if th], wall, "xz", (WB_BACK - 0.2, 0.3))
     cutter("ST_WB_cut_doors", [arch_opening(x - w / 2, x + w / 2, -0.5, sp, r) for x, w, sp, r, th in bays if not th], wall, "xz", (-0.35, 0.3))
     box("ST_WB_doors", [(x - w / 2, x + w / 2, -0.36, -0.3, 0.0, sp + r) for x, w, sp, r, th in bays if not th], "win_dark")
-    box("ST_WB_passage", [(x - w / 2, x + w / 2, WB_BACK, 0.0, 0.0, 0.03) for x, w, sp, r, th in bays if th], "tile")
+    wb_passage_hall(wall)
     prism("ST_WB_arch_bands", [arch_band(x - w / 2, x + w / 2, sp, r, 0.22, 16, leg=0.15) for x, w, sp, r, th in bays], 0.0, 0.08, "trim", "xz")
     box("ST_WB_keystones", [(x - 0.14, x + 0.14, 0.0, 0.12, sp + r - 0.05, sp + r + 0.38) for x, w, sp, r, th in bays], "trim")
     bms, bmr, bmg, bmfl = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
@@ -787,7 +883,7 @@ def conservatory(name):
     v0 = [bmd.verts.new((x, cy, zs + z)) for x, z in semi]; v1 = [bmd.verts.new((x, back, zs + z)) for x, z in semi]
     for j in range(m_az):
         bmd.faces.new((v0[j], v1[j], v1[j + 1], v0[j + 1]))
-    obj_bm(f"ST_WB_{name}_roof_glass", bmd, "cons_glass", recalc=False)
+    obj_bm(f"ST_WB_{name}_roof_glass", bmd, "cons_dome", recalc=False)   # (R1 #11, v2 0:02: the dome reads cream, was cons_glass)
     obj_bm(f"ST_WB_{name}_glass", bmg, "cons_glass", recalc=False)
     for k in range(9):                                    # ribs: meridians over the dome, arches over the barrel
         az = math.pi * k / 8
@@ -795,7 +891,9 @@ def conservatory(name):
                                            for el in (math.pi / 2 * i / 8 for i in range(9))], "white", 0.06)
     for j, y in enumerate((cy, (cy + back) / 2, back)):
         curve_obj(f"ST_WB_{name}_arch{j}", [(x * 1.01, y, zs + z * 1.01) for x, z in semi], "white", 0.07)
-    bm_lathe(bmw, [(0, 0), (0.3, 0), (0.22, 0.25), (0.12, 0.3), (0.16, 0.6), (0.05, 0.9), (0.02, 1.4), (0, 1.4)], 12, T(0, cy, zs + r - 0.05))
+    bmfin = bmesh.new()                                   # the finial (R1 #11, v2 0:02: gilt)
+    bm_lathe(bmfin, [(0, 0), (0.3, 0), (0.22, 0.25), (0.12, 0.3), (0.16, 0.6), (0.05, 0.9), (0.02, 1.4), (0, 1.4)], 12, T(0, cy, zs + r - 0.05))
+    obj_bm(f"ST_WB_{name}_finial", bmfin, "gold", smooth=True)
     obj_bm(f"ST_WB_{name}_white", bmw, "white")
     obj_bm(f"ST_WB_{name}_frames", bmr, "white")
     # the hipped glass roof over the corner behind it (photos: higher than the mansard, green iron, a white balustrade)
@@ -1123,7 +1221,11 @@ def build_gates():
 # widow's peak between), tall eyes, an oval nose, a smile turned up at the cheeks.
 BED = dict(x=-538.0 - P0[0], y=927.3 - P0[1] - 1.0, ang=205.0,     # local +X: left to right for a guest at the gates,
            tilt=7.0, zc=1.0,                                         # local +Y: away from the gates (towards World Bazaar)
-           fence=(7.2, 6.7), bank=(5.7, 5.3), brick=(5.5, 5.1), lawn=(5.1, 4.7))
+           fence=(7.2, 6.7), bank=(5.9, 5.5), brick=(5.8, 5.4), lawn=(5.1, 4.7))
+# (R1 #3, 2026-10-04: the terracotta edging is about as broad as the lawn ring in the video, v2 0:00 .. 0:06: 0.7 m, was
+#  0.4 m (brick 5.5 x 5.1, bank 5.7 x 5.3); the lawn and the face keep their size)
+BED_SUMMER = True     # R1 #1 #2 #4: the summer planting of the daytime video (v2, July): a lime face with dark olive
+                      # outlines on a plain lawn, a bright clipped bank. False: the winter one (purple and white, red ring)
 # (2026-09-30, the user's photo of the whole front + OSM 1291649400: the planter is 14.4 x 13.3 m, the face in it about 6 m;
 #  a stone curb with the plaza's teal railing, clipped green inside it, red flowers round the face. It was 24 m across before.)
 # (2026-09-28: 34 m was too big -- only ~49 m between the World Bazaar portico and the gates' inner face, and the photos,
@@ -1164,11 +1266,12 @@ def build_flowerbed():
     fr.location = (BED["x"], BED["y"], zc); fr.rotation_euler = (t, 0, math.radians(BED["ang"]))
     prev = B.root; B.root = fr
     lx, ly = BED["lawn"]; bx, by = BED["brick"]
-    prism("ST_Bed_lawn", [ellipse(lx, ly)], -0.3, 0.0, "flowers_red")       # red flowers round the face (photo)
+    S = BED_SUMMER
+    prism("ST_Bed_lawn", [ellipse(lx, ly)], -0.3, 0.0, "bed_lawn" if S else "flowers_red")   # summer: plain lawn (v2 0:00); winter: red flowers (photo)
     bm = bmesh.new()
     for q in band(ellipse(bx, by), ellipse(lx, ly)):
         bm_prism(bm, q, -0.3, 0.04, "xy")
-    obj_bm("ST_Bed_brick_edging", bm, "brick")
+    obj_bm("ST_Bed_brick_edging", bm, "bed_brick" if S else "brick")
     # the Mickey face, in flowers (units of the head radius R, x to the right, y up for a guest at the gates)
     k_ = lx / 8.1; R_ = 3.95 * k_; oy = -0.9 * k_                                   # head radius; the head sits a little low so the ears fit
     P_ = lambda x, y: (x * R_, y * R_ + oy)
@@ -1177,11 +1280,11 @@ def build_flowerbed():
     bm = bmesh.new()                                   # purple head and ears (each a little higher: no coincident faces)
     for k, e in enumerate((E_(1.0, 1.0, 0.0, 0.0, 96), E_(0.62, 0.62, -0.95, 0.95, 64), E_(0.62, 0.62, 0.95, 0.95, 64))):
         bm_prism(bm, e, fz, fz + 0.14 + 0.01 * k, "xy")
-    obj_bm("ST_Bed_mickey_head", bm, "flower_purple")
+    obj_bm("ST_Bed_mickey_head", bm, "bed_olive" if S else "flower_purple")
     bm = bmesh.new()                                   # the skin mask: a wide lower oval + two tall lobes (widow's peak between)
     for k, e in enumerate((E_(0.86, 0.6, 0.0, -0.3, 72), E_(0.3, 0.5, -0.27, 0.3, 48), E_(0.3, 0.5, 0.27, 0.3, 48))):
         bm_prism(bm, e, fz + 0.12, fz + 0.2 + 0.012 * k, "xy")
-    obj_bm("ST_Bed_mickey_face", bm, "flower_white")
+    obj_bm("ST_Bed_mickey_face", bm, "bed_lime" if S else "flower_white")
     feats = [E_(0.12, 0.25, -0.2, 0.36, 32), E_(0.12, 0.25, 0.2, 0.36, 32),          # eyes
              E_(0.22, 0.14, 0.0, -0.02, 36)]                                         # nose
     smile = []                                          # the smile: a crescent, turned up at the cheeks
@@ -1192,15 +1295,17 @@ def build_flowerbed():
         u = -1 + 2 * k / 32
         smile.append(P_(0.56 * u, -0.22 - 0.2 * (1 - u * u) + 0.1 * u ** 4))
     feats.append(smile)
-    prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "flower_purple")
-    prism("ST_Bed_tongue", [E_(0.16, 0.07, 0.0, -0.55, 28)], fz + 0.2, fz + 0.27, "flowers_red")
+    prism("ST_Bed_mickey_features", feats, fz + 0.2, fz + 0.28, "bed_olive" if S else "flower_purple")
+    prism("ST_Bed_tongue", [E_(0.16, 0.07, 0.0, -0.55, 28)], fz + 0.2, fz + 0.27, "bed_olive" if S else "flowers_red")
     # the planting round the face (photo: purple and white flowers with red): a ring of alternating clumps on the lawn
-    bmr, bmw_, bmp_ = bmesh.new(), bmesh.new(), bmesh.new()
-    for k in range(36):
-        a = 2 * math.pi * k / 36
-        cx_, cy_ = (lx - 0.4) * math.cos(a), (ly - 0.4) * math.sin(a)
-        bm_prism((bmr, bmw_, bmp_)[k % 3], ellipse(0.3, 0.3, 10, cx_, cy_), fz, fz + 0.22, "xy")
-    obj_bm("ST_Bed_ring_red", bmr, "flowers_pink"); obj_bm("ST_Bed_ring_white", bmw_, "flower_white"); obj_bm("ST_Bed_ring_purple", bmp_, "flower_purple")
+    # (winter only: in summer the lawn round the face is plain, v2 0:00 .. 0:14)
+    if not S:
+        bmr, bmw_, bmp_ = bmesh.new(), bmesh.new(), bmesh.new()
+        for k in range(36):
+            a = 2 * math.pi * k / 36
+            cx_, cy_ = (lx - 0.4) * math.cos(a), (ly - 0.4) * math.sin(a)
+            bm_prism((bmr, bmw_, bmp_)[k % 3], ellipse(0.3, 0.3, 10, cx_, cy_), fz, fz + 0.22, "xy")
+        obj_bm("ST_Bed_ring_red", bmr, "flowers_pink"); obj_bm("ST_Bed_ring_white", bmw_, "flower_white"); obj_bm("ST_Bed_ring_purple", bmp_, "flower_purple")
     B.root = prev
     # (b) the shrub bank: from the ground at the fence up to the brick edging on the tilted plane (a loft)
     ca, sa = math.cos(math.radians(BED["ang"])), math.sin(math.radians(BED["ang"]))
@@ -1224,7 +1329,7 @@ def build_flowerbed():
     for f in bm.faces:
         if f.normal.z < 0:
             f.normal_flip()
-    o = obj_bm("ST_Bed_shrubs", bm, "hedge", smooth=True, recalc=False)
+    o = obj_bm("ST_Bed_shrubs", bm, "hedge_bright" if S else "hedge", smooth=True, recalc=False)
     # (c) the stone curb and the plaza's teal railing on it (photo 2026-09-30; it was a dark green fence on the paving)
     with frame("BED_flat", BED["x"], BED["y"], BED["ang"]):
         bm = bmesh.new()
@@ -1266,13 +1371,16 @@ def build_plaza(context=True):
         for rr in (49.0, 71.0):
             posts.append((A["cx"] + rr * math.cos(a) + t[0] * d, A["cy"] + rr * math.sin(a) + t[1] * d))
     bmp, bmg = bmesh.new(), bmesh.new()
+    # (R1 #8, v2 0:08 .. 0:12, 0:38, v1 1:21:08 .. 1:21:20: the posts are about three people tall, ~5 m, on a pedestal,
+    #  with big white globes: post 3.7 -> 4.8 m, arm globes 3.75 -> 4.8 m, the top one 4.05 -> 5.1 m, globes r 0.2 -> 0.28)
     for x, y in posts:
-        bm_lathe(bmp, [(0, 0), (0.3, 0), (0.3, 0.4), (0.12, 0.6), (0.09, 3.4), (0.14, 3.6), (0, 3.7)], 12, T(x, y, 0))
+        bm_lathe(bmp, [(0, 0), (0.32, 0), (0.32, 0.12), (0.28, 0.16), (0.28, 0.82), (0.32, 0.86), (0.32, 0.92), (0.14, 1.1),
+                       (0.1, 4.5), (0.15, 4.68), (0, 4.8)], 12, T(x, y, 0))
         for k in range(4):
             a = k * math.pi / 2
-            bm_box(bmp, x + 0.02 * math.cos(a) - 0.03, x + 0.45 * math.cos(a) + 0.03, y + 0.02 * math.sin(a) - 0.03, y + 0.45 * math.sin(a) + 0.03, 3.45, 3.52)
-            globe_lamp_bm(bmg, x + 0.5 * math.cos(a), y + 0.5 * math.sin(a), 3.75, 0.2)
-        globe_lamp_bm(bmg, x, y, 4.05, 0.22)
+            bm_box(bmp, x + 0.02 * math.cos(a) - 0.035, x + 0.55 * math.cos(a) + 0.035, y + 0.02 * math.sin(a) - 0.035, y + 0.55 * math.sin(a) + 0.035, 4.5, 4.58)
+            globe_lamp_bm(bmg, x + 0.6 * math.cos(a), y + 0.6 * math.sin(a), 4.82, 0.28)
+        globe_lamp_bm(bmg, x, y, 5.1, 0.28)
     obj_bm("ST_Plaza_lampposts", bmp, "iron", smooth=True); obj_bm("ST_Plaza_globes", bmg, "lamp", smooth=True)
     # round flower beds at the feet of the lamp posts before and behind the central pavilion (ESTIMATE from the plan's
     # "花壇": a cream stone kerb 2.4 m across, a mound of clipped green edged with red and white flowers)
@@ -1285,6 +1393,17 @@ def build_plaza(context=True):
             globe_lamp_bm(bmr if k % 2 else bmw, x + 0.8 * math.cos(a_), y + 0.8 * math.sin(a_), 0.56, 0.15)
     obj_bm("ST_Plaza_bed_kerbs", bmk, "stone"); obj_bm("ST_Plaza_bed_green", bmh, "hedge", smooth=True)
     obj_bm("ST_Plaza_bed_red", bmr, "flowers_red", smooth=True); obj_bm("ST_Plaza_bed_white", bmw, "flower_white", smooth=True)
+    # (R1 #6, v2 0:36 .. 0:44: a mint cabinet, ~1.2 x 1.2 x 1.0 m with an oval panel, just outside the Mickey bed's fence on its
+    #  World Bazaar side; one each side by symmetry. ESTIMATE: no web source places them)
+    with frame("BED_boxes", BED["x"], BED["y"], BED["ang"]):
+        bmb, bmo = bmesh.new(), bmesh.new()
+        for s in (-1, 1):
+            x, y = s * 5.2, 6.0
+            bm_box(bmb, x - 0.6, x + 0.6, y - 0.6, y + 0.6, 0.0, 0.95)
+            bm_box(bmb, x - 0.66, x + 0.66, y - 0.66, y + 0.66, 0.95, 1.03)
+            bm_box(bmb, x - 0.63, x + 0.63, y - 0.63, y + 0.63, 0.0, 0.08)
+            bm_lathe(bmo, [(0, 0), (0.3, 0), (0.3, 0.02), (0, 0.02)], 16, T(x, y + 0.6, 0.5) @ R(-math.pi / 2, "X") @ Matrix.Diagonal((1.0, 0.7, 1.0, 1.0)))
+        obj_bm("ST_Plaza_cabinets", bmb, "mint"); obj_bm("ST_Plaza_cabinet_panels", bmo, "trim")
 
 
 # ================================================================ 5. the planters in front of World Bazaar, the greeting plazas (2026-09-30)
@@ -1424,15 +1543,34 @@ def topiary(P, x, y, z0, kind, rng):
         for i in range(n):
             f = i / (n - 1); a = ph + f * 6 * math.pi; rr = 0.36 * (1 - f) + 0.04
             ball(P["hedge"], x + rr * math.cos(a), y + rr * math.sin(a), z0 + 0.35 + f * 2.0, 0.34 * (1 - f) + 0.12)
-    else:
+    elif kind == 1:
         for z, r in ((0.6, 0.5), (1.4, 0.4), (2.05, 0.3)):
             ball(P["hedge"], x, y, z0 + z, r, 9)
+    else:                                                 # a clipped ball on a stem (R1 #12, v2 0:02, 0:38)
+        bm_box(P["trunk"], x - 0.06, x + 0.06, y - 0.06, y + 0.06, z0, z0 + 1.4)
+        ball(P["hedge"], x, y, z0 + 1.9, 0.8, 12)
+
+
+def build_front_topiaries(P, rng):
+    """R1 #12 (v2 0:02, 0:38): a tall clipped ball on a stem in a round stone tub beside each conservatory, on the
+    outer side (the inner side is the greeting plaza's small planter, which has its topiary already). Placed 6 m along
+    the angled front from the OSM corner, 5.2 m out (clear of the side portico). ESTIMATE: the tub, the sizes."""
+    for k, c in enumerate(CONS_CORNERS):
+        chain = FRONT_CHAINS[k]; i = chain.index(c)
+        o = chain[i - 1] if k == 0 else chain[i + 1]       # the far end of the angled face
+        a, b = (o, c) if k == 0 else (c, o)               # the face's own direction (its +y side is out)
+        L = math.hypot(b[0] - a[0], b[1] - a[1]); n = (-(b[1] - a[1]) / L, (b[0] - a[0]) / L)
+        u = ((o[0] - c[0]) / L, (o[1] - c[1]) / L)
+        x, y = c[0] + u[0] * 6.0 + n[0] * 5.2, c[1] + u[1] * 6.0 + n[1] * 5.2
+        bm_lathe(P["tub"], [(0.0, 0), (0.85, 0), (0.85, 0.5), (0.75, 0.55), (0.0, 0.55)], 24, T(x, y, 0))
+        bm_lathe(P["hedge"], [(0.0, 0.5), (0.72, 0.5), (0.7, 0.7), (0.4, 0.82), (0.0, 0.85)], 16, T(x, y, 0))
+        topiary(P, x, y, 0.55, 2, rng)
 
 
 def build_greeting():
     rng = random.Random(3)
     rings = osm_wb(PLANTERS + (GREET_WAY, MIDDLE_WAY))
-    P = {k: bmesh.new() for k in ("rail", "fl_pink", "fl_purple", "fl_white", "hedge", "red", "trunk")}
+    P = {k: bmesh.new() for k in ("rail", "fl_pink", "fl_purple", "fl_white", "hedge", "red", "trunk", "tub")}
     for i in PLANTERS:                                    # the plaza's planters: railing on the curb, flowers
         railing(P, inset(rings[i], 0.17), CURB_TOP)
         planting(P, inset(rings[i], 0.32), CURB_TOP - 0.06, rng)
@@ -1455,6 +1593,7 @@ def build_greeting():
             if all(math.hypot(x - px, y - py) >= 1.7 for px, py in placed):
                 placed.append((x, y)); topiary(P, x, y, CURB_TOP - 0.06, k % 2, rng); k += 1
     print("[entrance] topiaries", k)
+    build_front_topiaries(P, rng)
     mid = rings[MIDDLE_WAY]                               # the middle planter: curb, hedge ring, red flowers
     prism("ST_GR_mid_curb", [mid], -0.03, 0.42, "stone")
     railing(P, inset(mid, 0.17), 0.42)
@@ -1470,7 +1609,7 @@ def build_greeting():
         greeting_sign(s * 40.2, 12.9, 0.0)
     for k, bm_ in P.items():
         mat = {"rail": "rail_teal", "fl_pink": "flowers_pink", "fl_purple": "flower_purple", "fl_white": "flower_white",
-               "hedge": "hedge", "red": "flowers_red", "trunk": "door_brown"}[k]
+               "hedge": "hedge", "red": "flowers_red", "trunk": "door_brown", "tub": "stone"}[k]
         obj_bm(f"ST_GR_{k}", bm_, mat)
 
 

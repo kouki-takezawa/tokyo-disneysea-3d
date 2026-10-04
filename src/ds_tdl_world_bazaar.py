@@ -85,6 +85,17 @@ FRONTS = [
 PALETTE = {"pink": (0.86, 0.60, 0.57), "cream": (0.87, 0.79, 0.60), "yellow": (0.90, 0.75, 0.42), "blue": (0.44, 0.55, 0.64),
            "mint": (0.60, 0.77, 0.69), "peach": (0.91, 0.69, 0.53), "sand": (0.80, 0.68, 0.50), "sage": (0.52, 0.62, 0.50),
            "lilac": (0.68, 0.60, 0.71), "stone": (0.78, 0.74, 0.66)}
+VIDEO_PALETTE = {"plum": (0.36, 0.16, 0.24), "mustard": (0.86, 0.66, 0.20)}   # (R1 S3: two of the video's colours the palette lacked;
+                                                                             #  kept out of PALETTE so random_style's draws do not change)
+# R1 S3 (v2 1:36 .. 3:10): the colours of the unnamed shops on Main Street's first half, from the entrance building north
+# (towards the crossing). Only the shops with no real-shop style (SHOP_STYLE) take them; the photo-based corner shops
+# (SPECIAL) keep theirs. East: brick with cream trim, pale blue with red panels between the floors (S4), mint, mustard.
+# West: cream with green awnings, sand with arched windows, plum, pink.
+VIDEO_WALLS = {"ME1": [dict(wall="brick", trim="cream"), dict(wall="blue", trim="white", bands=True), dict(wall="mint", trim="white"),
+                       dict(wall="mustard", trim="white")],
+               "MW1": [dict(wall="cream", trim="dkgreen", awning=("aw_green", None)), dict(wall="sand", trim="dkgreen", win="arch"),
+                       dict(wall="plum", trim="cream"), dict(wall="pink", trim="white")]}
+VIDEO_FROM_END = {"ME1": True, "MW1": False}     # ME1 runs from the crossing to the entrance building, MW1 the other way
 TRIMS = {"white": (0.93, 0.91, 0.85), "cream": (0.90, 0.84, 0.68), "teal": (0.30, 0.60, 0.58), "dkgreen": (0.12, 0.28, 0.22),
          "maroon": (0.42, 0.11, 0.13), "blue": (0.20, 0.30, 0.45)}
 
@@ -98,13 +109,13 @@ MERCH = ("m_red", "m_blue", "m_yellow", "m_pink", "m_purple", "m_white", "m_gree
 
 def wbz_materials(M):
     P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
-    for k, c in PALETTE.items():
+    for k, c in {**PALETTE, **VIDEO_PALETTE}.items():
         mat, nt, b = _principled(f"st_wbz_{k}", c, 0.7); _mottle(nt, b, c, 6.0, 0.93, 0.03); M["w_" + k] = mat
     for k, c in TRIMS.items():
         M["t_" + k] = P(f"st_wbz_trim_{k}", c, 0.5)
     M["display"] = P("st_wbz_display", (0.80, 0.70, 0.52), 0.2, Emission_Color=(1.0, 0.82, 0.55, 1), Emission_Strength=0.5)
     M["door"] = P("st_wbz_door", (0.22, 0.11, 0.06), 0.5)
-    M["road"] = P("st_wbz_road", (0.27, 0.31, 0.37), 0.75)
+    M["road"] = P("st_wbz_road", (0.21, 0.30, 0.26), 0.75)       # (R1 S1, v2 1:36 .. 3:10: mint grey; was blue grey 0.27, 0.31, 0.37)
     M["walk"] = ST.mat_tiles("st_wbz_walk", (0.60, 0.25, 0.19), (0.56, 0.23, 0.18), 0.3, (0.50, 0.40, 0.36))
     M["edging"] = P("st_wbz_edging", (0.72, 0.70, 0.66), 0.8)
     M["aw_green"] = P("st_wbz_awning_green", (0.10, 0.36, 0.28), 0.8)
@@ -495,7 +506,7 @@ def shop(name, w, st, room=None):
     zf = [gf + sum(fhs[:k]) for k in range(len(fhs))]    # the upper floors' levels
     H = gf + sum(fhs) + 0.3
     P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display", "door", "iron", "roof", "sign", "flowers", "aw1", "aw2",
-                                  "shopglass", "brass", "lamp", "lit", "shutter", "wa1", "wa2", "quoin")}
+                                  "shopglass", "brass", "lamp", "lit", "shutter", "wa1", "wa2", "quoin", "band")}
     rng = random.Random(name)
     if room and room[1] - room[0] < 2.8:
         room = None
@@ -588,7 +599,18 @@ def shop(name, w, st, room=None):
         fh = fhs[f - 1]; ww_ = ww0 * (0.55 + 0.45 * fh / 3.0)
         z0 = zf[f - 1] + 0.22 * fh; z1 = z0 + 0.65 * fh
         bm_box(P["trim"], 0, w, 0.0, 0.1, zf[f - 1] - 0.05, zf[f - 1] + 0.12)
-        if st.get("deco") is True:                       # Center Street: fluted fins between the bays, floor to cornice
+        if st.get("bands"):                              # R1 S4 (v2 1:50 .. 2:00): red panels along the floor line, between the windows
+            gaps = [0.4] + [(xs[k - 1] + xs[k]) / 2 for k in range(1, nwin)] + [w - 0.4]
+            pw = min(1.3, (w - 0.8) / nwin - ww_ - 0.3)
+            for k, x in enumerate(gaps):
+                a, b_ = x - pw / 2, x + pw / 2
+                if k == 0:
+                    a, b_ = 0.45, 0.45 + pw / 2
+                elif k == len(gaps) - 1:
+                    a, b_ = w - 0.45 - pw / 2, w - 0.45
+                if pw > 0.25:
+                    bm_box(P["band"], a, b_, 0.0, 0.13, zf[f - 1] + 0.16, zf[f - 1] + 0.5)
+        if st.get("deco") is True:                      # Center Street: fluted fins between the bays, floor to cornice
             for k in range(1, nwin):
                 x = (xs[k - 1] + xs[k]) / 2
                 for dx_ in (-0.12, 0.0, 0.12):
@@ -767,7 +789,7 @@ def shop(name, w, st, room=None):
             "flowers": "flowers_red", "aw1": st["awning"][0] if st["awning"] else "aw_green",
             "aw2": (st["awning"][1] or "aw_white") if st["awning"] else "aw_white",
             "shutter": st.get("shuttermat", "t_dkgreen" if st["trim"] != "dkgreen" else "t_maroon"),
-            "quoin": "t_" + ("cream" if st["wall"] == "brick" else "white" if st["trim"] != "white" else "cream")}
+            "quoin": "t_" + ("cream" if st["wall"] == "brick" else "white" if st["trim"] != "white" else "cream"), "band": "aw_red"}
     wa = P.pop("_wawn", None) or ("aw_green", "aw_white")
     mats["wa1"] = wa[0]; mats["wa2"] = wa[1] or wa[0]
     for k, bm_ in P.items():
@@ -1012,6 +1034,8 @@ def build_shops(seed=7):
                 wd = rest
             widths.append(wd); rest -= wd
         seq = ([("S", first)] if first else []) + [("R", w_) for w_ in widths] + ([("S", last)] if last else [])
+        rs = [i for i, (kind, _) in enumerate(seq) if kind == "R"]          # R1 S3: the video's colours, from the entrance on
+        video = dict(zip(rs[::-1] if VIDEO_FROM_END.get(fid) else rs, VIDEO_WALLS.get(fid, [])))
         with frame(f"FRONT_{fid}", p0[0], p0[1], ang):
             x = 0.0; prev = None
             for i, (kind, v) in enumerate(seq):
@@ -1021,7 +1045,9 @@ def build_shops(seed=7):
                     st = random_style(rng, prev); wd = v
                     if fid[0] in "CA":                    # Center Street: flat parapets, the Art Deco touches (deco_front)
                         st.update(deco=True, portal=False, roof="parapet" if rng.random() < 0.75 else st["roof"])
-                prev = st["wall"]
+                prev = st["wall"]                         # (before the video's colour: the random draws stay as they were)
+                if i in video:
+                    st.update(video[i])
                 a_ = math.radians(ang); mx, my = p0[0] + (x + wd / 2) * math.cos(a_), p0[1] + (x + wd / 2) * math.sin(a_)
                 best = min(((math.hypot(sx - mx, sy - my), k) for k, (sx, sy, _, _) in enumerate(REAL_SHOPS) if k not in used), default=None)
                 if best and best[0] < 14.0:                  # the real shop on this front
@@ -2617,24 +2643,37 @@ def build_street():
     obj_bm("ST_WBZ_road", bm, "road"); obj_bm("ST_WBZ_edging", bme, "edging")
     # lamp posts along the kerbs, street clocks at the crossing, trees in planters and benches near the castle end
     bmp, bml, bmc, bmf, bmt, bmw = bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new(), bmesh.new()
+    bmk, bmfl = bmesh.new(), bmesh.new()                  # the lamp posts' hanging baskets and their flowers (R1 S7)
     posts = [(s * (rw + 1.1), y) for s in (-1, 1) for y in (-16.0, -29.0, -76.0, -90.0, -102.0)]
     for x, y in posts:
         bm_lathe(bmp, [(0, 0), (0.2, 0), (0.2, 0.3), (0.14, 0.5), (0.09, 0.9), (0.07, 3.5), (0.12, 3.6), (0.06, 3.7), (0, 3.7)], 10, T(x, y, 0.04))
         bm_lathe(bmp, [(0, 0), (0.1, 0), (0.22, 0.12), (0.22, 0.62), (0.26, 0.66), (0.08, 0.85), (0, 0.95)], 6, T(x, y, 3.74))
         globe_lamp_bm(bml, x, y, 4.1, 0.16)
+        for d in (-1, 1):                                 # R1 S7 (v2 1:50, 2:00, 2:28): two arms at 2.7 m along the kerb, each with a hanging basket of red flowers
+            bm_box(bmp, x - 0.03, x + 0.03, y + d * 0.05, y + d * 0.5, 2.68, 2.74)
+            bm_box(bmp, x - 0.008, x + 0.008, y + d * 0.47 - 0.008, y + d * 0.47 + 0.008, 2.5, 2.7)
+            bm_lathe(bmk, [(0, 0), (0.08, 0.01), (0.17, 0.08), (0.21, 0.2), (0.21, 0.24), (0, 0.24)], 10, T(x, y + d * 0.47, 2.28))
+            globe_lamp_bm(bmfl, x, y + d * 0.47, 2.56, 0.22)
     for x, y in ((9.6, CROSS["y0"] + 3.5), (-9.6, CROSS["y1"] - 3.5)):   # street clocks
-        bm_lathe(bmp, [(0, 0), (0.3, 0), (0.3, 0.4), (0.18, 0.6), (0.12, 1.2), (0.1, 3.3), (0.2, 3.4), (0, 3.4)], 12, T(x, y, 0.04))
-        bm_lathe(bmp, [(0, 0), (0.62, 0), (0.62, 0.34), (0, 0.34)], 24, T(x, y + 0.17, 4.05) @ R(math.pi / 2, "X"))
+        # (R1 S8, v2 2:44, 2:56, v1 1:18:00: a white dial about 0.9 m across in a broad green rim, on a post with a moulded
+        #  pedestal and a finial; was a 1.24 m drum on a plain post)
+        zc_ = 4.0
+        bm_lathe(bmp, [(0, 0), (0.36, 0), (0.36, 0.15), (0.3, 0.2), (0.3, 0.75), (0.35, 0.82), (0.35, 0.9), (0.2, 1.05), (0.13, 1.4),
+                       (0.1, 3.3), (0.17, 3.42), (0.17, 3.5), (0, 3.5)], 12, T(x, y, 0.04))
+        bm_lathe(bmp, [(0, 0), (0.52, 0), (0.52, 0.3), (0, 0.3)], 24, T(x, y + 0.15, zc_) @ R(math.pi / 2, "X"))
         for s in (-1, 1):
-            bm_lathe(bmc, [(0, 0), (0.5, 0), (0.5, 0.02), (0, 0.02)], 24, T(x, y + s * 0.18, 4.05) @ R(-s * math.pi / 2, "X"))
+            bm_lathe(bmc, [(0, 0), (0.45, 0), (0.45, 0.02), (0, 0.02)], 24, T(x, y + s * 0.16, zc_) @ R(-s * math.pi / 2, "X"))
             for k in range(12):
                 a = 2 * math.pi * k / 12
-                bm_box(bmp, x + 0.42 * math.cos(a) - 0.02, x + 0.42 * math.cos(a) + 0.02, y + s * 0.2 - 0.01, y + s * 0.2 + 0.01, 4.05 + 0.42 * math.sin(a) - 0.04, 4.05 + 0.42 * math.sin(a) + 0.04)
-            bm_box(bmp, x - 0.015, x + 0.015, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.05, 4.36)
-            bm_box(bmp, x - 0.015, x + 0.2, y + s * 0.21 - 0.01, y + s * 0.21 + 0.01, 4.035, 4.065)
-        bm_lathe(bmp, [(0, 0), (0.1, 0), (0.05, 0.3), (0, 0.4)], 8, T(x, y, 4.72))
-    for x, y in ((-10.0, -84.0), (10.0, -84.0), (-10.0, -97.0), (10.0, -97.0)):   # planters (clear of the arcade; no trees, the user's request)
+                bm_box(bmp, x + 0.38 * math.cos(a) - 0.02, x + 0.38 * math.cos(a) + 0.02, y + s * 0.18 - 0.01, y + s * 0.18 + 0.01, zc_ + 0.38 * math.sin(a) - 0.035, zc_ + 0.38 * math.sin(a) + 0.035)
+            bm_box(bmp, x - 0.015, x + 0.015, y + s * 0.19 - 0.01, y + s * 0.19 + 0.01, zc_, zc_ + 0.28)
+            bm_box(bmp, x - 0.015, x + 0.18, y + s * 0.19 - 0.01, y + s * 0.19 + 0.01, zc_ - 0.015, zc_ + 0.015)
+        bm_lathe(bmp, [(0, 0), (0.1, 0), (0.05, 0.3), (0, 0.4)], 8, T(x, y, zc_ + 0.52))
+    for x, y in ((-10.0, -84.0), (10.0, -84.0), (-10.0, -97.0), (10.0, -97.0)):   # trees in planters (clear of the arcade; trees back, 2026-10-04)
         bm_box(bmw, x - 0.8, x + 0.8, y - 0.8, y + 0.8, 0.04, 0.7)
+        bm_lathe(bmt, [(0, 0), (0.1, 0), (0.07, 2.4), (0, 2.4)], 8, T(x, y, 0.7))
+        for dx, dy, dz, r in ((0, 0, 3.3, 1.1), (0.6, 0.3, 2.9, 0.8), (-0.5, -0.4, 3.0, 0.8), (0.1, -0.6, 3.8, 0.7)):
+            globe_lamp_bm(bmf, x + dx, y + dy, dz, r)
     for x, y in ((-10.8, -22.0), (10.6, -35.0), (-10.2, -79.0), (10.2, -91.0)):     # benches
         s = 1 if x < 0 else -1
         bm_box(bmp, x - 0.3, x + 0.3, y - 0.9, y - 0.8, 0.04, 0.45); bm_box(bmp, x - 0.3, x + 0.3, y + 0.8, y + 0.9, 0.04, 0.45)
@@ -2642,7 +2681,8 @@ def build_street():
         bm_box(bmw, x - s * 0.28 - 0.04, x - s * 0.28 + 0.04, y - 0.95, y + 0.95, 0.5, 0.9)
     obj_bm("ST_WBZ_furniture", bmp, "hall_iron", smooth=True); obj_bm("ST_WBZ_lamps", bml, "lamp", smooth=True)
     obj_bm("ST_WBZ_clock_faces", bmc, "clock"); obj_bm("ST_WBZ_planters_benches", bmw, "wood")
-    bmf.free(); bmt.free()
+    obj_bm("ST_WBZ_tree_crowns", bmf, "leaf", smooth=True); obj_bm("ST_WBZ_trunks", bmt, "wood")
+    obj_bm("ST_WBZ_baskets", bmk, "hall_iron", smooth=True); obj_bm("ST_WBZ_basket_flowers", bmfl, "flowers_red", smooth=True)
 
 
 # ================================================================ scene

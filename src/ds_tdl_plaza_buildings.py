@@ -446,8 +446,8 @@ def monsters(bid, pts, H):
     standing forward at the north end of the east face; grooves round the upper wall and a coping on the parapet; a
     low faceted dome of light and dark triangles (glazed on its south-west side) on a deep drum; behind it the tower
     whose frame dips to a V over the dark tiled panel with the round logo, rounded niches either side, grooved sides,
-    and a finned block south of it; wall signs, a sign on a column, hedge beds, lamps (the photos' palms left out:
-    no trees, the user's request)."""
+    and a finned block south of it; wall signs, a sign on a column, hedge beds with palms, lamps (the palms were left
+    out 2026-09-28 .. 10-04, while there were to be no trees)."""
     H, Z0 = MI_H, MI_Z0
     pts = cw(MI_OUTLINE); n = len(pts)
     prism(f"PB_{bid}_ground", [offset_edges(pts, [MI_FRONT.get(i, 0.0) for i in range(n)])], 0, Z0, "pb_tan")
@@ -468,10 +468,13 @@ def monsters(bid, pts, H):
     for (bx, by, bl) in ((-575.5, 790.0, 9.0), (-574.5, 813.5, 7.0)):
         bm_box(bmc, bx - 1.6, bx + 1.6, by - bl / 2, by + bl / 2, 0, 0.45)
         bm_box(bmh, bx - 1.4, bx + 1.4, by - bl / 2 + 0.2, by + bl / 2 - 0.2, 0.45, 1.05)
+        for k in range(3 if bl > 8 else 2):                                               # the photos' palms (trees back, 2026-10-04)
+            yy = by - bl / 2 + bl * (k + 0.5) / (3 if bl > 8 else 2)
+            palm(bmt, bml, bx + rng.uniform(-0.4, 0.4), yy, rng.uniform(7.0, 9.5), rng.uniform(0, 2 * math.pi), rng)
     for (lx, ly) in ((-576.0, 800.5), (-576.0, 782.0), (-576.0, 769.0)):                  # the lamps
         bm_lathe(bmpost, [(0, 0), (0.2, 0), (0.2, 0.5), (0.1, 0.7), (0.07, 3.8), (0.12, 3.9), (0.12, 4.0), (0, 4.0)], 10, T(lx, ly, 0))
         bm_lathe(bmlamp, [(0, 0), (0.22, 0.1), (0.25, 0.55), (0.12, 0.75), (0, 0.8)], 10, T(lx, ly, 4.0))
-    bmt.free(); bml.free()                                                                # no trees (the user's request)
+    obj_bm(f"PB_{bid}_palmtrunk", bmt, "pb_trunk"); obj_bm(f"PB_{bid}_palmleaf", bml, "pb_leaf")
     obj_bm(f"PB_{bid}_hedge", bmh, "pb_hedge"); obj_bm(f"PB_{bid}_bedcurb", bmc, "pb_tan3")
     obj_bm(f"PB_{bid}_lamppost", bmpost, "pb_white"); obj_bm(f"PB_{bid}_lamp", bmlamp, "pb_display")
     mi_tower(bid, H)

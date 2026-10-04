@@ -292,6 +292,8 @@ def main():
                 h = round(float(str(h).replace("m", "")), 1) if h else 0
             except ValueError:
                 h = 0
+            if not h and fn == "disneyland_osm.json" and -640 < x < -430 and 800 < y < 990:
+                h = round(10.0 + (int(abs(x * 7 + y * 3) * 10) % 41) / 10, 1)   # round the entrance: tall evergreens, 10-14 m (video R1 #13, v2 0:12 .. 0:22)
             trees += [x, y, h]
     # the planting beds of the entrance plaza and round the hotel (the ground models' planters, from OSM; the park map
     # shows a tree or clipped shrubs in each): a tree in each bed (a row along the long ones), clipped shrubs at the ends
@@ -300,9 +302,14 @@ def main():
         import ds_tdl_ground, ds_tdl_hotel_ground
         from shapely.geometry import LineString, Point
         beds = list(ds_tdl_ground.plan()["planters"]) + list(ds_tdl_hotel_ground.plan()["planters"])
+        wa = math.radians(25.0)                               # the World Bazaar frame (ds_tdl_entrance.WB)
         for q in beds:
             if q.is_empty or q.area < 3.0:
                 continue
+            c = q.centroid; du, dv = c.x + 521.3, c.y - 891.2
+            u, v = du * math.cos(wa) + dv * math.sin(wa), -du * math.sin(wa) + dv * math.cos(wa)
+            if abs(u) < 45.0 and -5.0 < v < 35.0:             # the flower planters in front of World Bazaar (ds_tdl_entrance builds
+                continue                                      # their flowers and topiaries; the video shows no trees there, R1 #14)
             mr = q.minimum_rotated_rectangle
             c = list(mr.exterior.coords)[:4]
             e1 = math.hypot(c[1][0] - c[0][0], c[1][1] - c[0][1]); e2 = math.hypot(c[2][0] - c[1][0], c[2][1] - c[1][1])
@@ -322,8 +329,27 @@ def main():
                         shrubs += [round(x, 1), round(y, 1), round(min(1.1, bw * 0.25), 2)]
     except Exception as e:                                    # the ground scripts need shapely: without it, only OSM's trees
         print("[mock] plaza planting skipped:", e)
-    out["trees3d"] = []                                      # no trees (the user's request, 2026-09-28); was: flat [x, y, height, ...]
-    out["shrubs3d"] = []                                     # no round shrubs either (the user's request, 2026-09-28); was: shrubs, flat [x, y, radius, ...]
+    try:                                                      # drop OSM tree points that fall inside a building footprint (they would poke through the walls/roofs)
+        from shapely.geometry import Polygon, Point as _Pt
+        from shapely.strtree import STRtree
+        fp = []
+        for b in list(out.get("disneyland", {}).get("buildings", [])) + list(out.get("buildings", [])):
+            try:
+                fp.append(Polygon(b["r"][0]).buffer(0))
+            except Exception:
+                pass
+        tree_idx = STRtree(fp)
+        kept = []
+        for i in range(0, len(trees), 3):
+            p = _Pt(trees[i], trees[i + 1])
+            if not any(fp[j].contains(p) for j in tree_idx.query(p)):
+                kept += trees[i:i + 3]
+        print(f"[mock] trees inside buildings dropped: {(len(trees) - len(kept)) // 3}")
+        trees = kept
+    except Exception as e:
+        print("[mock] tree/building filter skipped:", e)
+    out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...] (trees back, the user 2026-10-04)
+    out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
