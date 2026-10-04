@@ -294,6 +294,11 @@ def main():
                 h = 0
             if not h and fn == "disneyland_osm.json" and -640 < x < -430 and 800 < y < 990:
                 h = round(10.0 + (int(abs(x * 7 + y * 3) * 10) % 41) / 10, 1)   # round the entrance: tall evergreens, 10-14 m (video R1 #13, v2 0:12 .. 0:22)
+            if not h and fn == "disneyland_osm.json":     # outside World Bazaar's east exit (WB x 55 .. 110, y -125 .. -60): the big
+                _a = math.radians(25.0); _dx, _dy = x + 521.3, y - 891.2          # spreading trees of v2 6:32 .. 7:30, 14 m (R2-29)
+                _u, _v = _dx * math.cos(_a) + _dy * math.sin(_a), -_dx * math.sin(_a) + _dy * math.cos(_a)
+                if 55.0 < _u < 110.0 and -125.0 < _v < -60.0:
+                    h = 14.0
             trees += [x, y, h]
     # the planting beds of the entrance plaza and round the hotel (the ground models' planters, from OSM; the park map
     # shows a tree or clipped shrubs in each): a tree in each bed (a row along the long ones), clipped shrubs at the ends
