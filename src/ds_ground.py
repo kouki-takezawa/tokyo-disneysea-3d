@@ -67,7 +67,7 @@ LAND_KINDS = ("TL_paving", "TL_grass", "TL_wood", "TL_rock", "TL_earth", "TL_gro
 LAND_KEYS = ("wb", "adv", "west", "critter", "fan", "toon", "tom")                       # ds_disneyland.LANDS order; the mock colours them
 LAND_SAMPLE = 8.0                                                                        # m: spacing of the points along the buildings' outlines
 ZONES = {
-    "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=["tdl_plaza_ground", "tdl_adv_ground"]),
+    "tdl_land_ground": dict(cell=8.0, tile=64.0, water_models=[WATER_MODEL_TDL], cut_models=["tdl_plaza_ground", "tdl_adv_ground", "tdl_west_ground"]),
     "tds_ground": dict(cell=8.0, tile=64.0, water_models=["water"], cut_models=["water", "plaza", "aquasphere", "volcano"]),
 }
 

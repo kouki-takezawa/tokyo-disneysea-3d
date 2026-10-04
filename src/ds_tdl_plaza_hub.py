@@ -68,6 +68,9 @@ from ds_tdl_plaza_center import tri, frustum, sphere, box, lathe, Surface
 MODELS = ROOT / "output" / "disneysea" / "models"
 OUT = MODELS / "tdl_plaza_hub.json"
 CRYSTAL, PAVILION, BANDSTAND = 72865093, 196942701, 1293623988
+# the Westernland half of the pavilion's way (the Diamond Horseshoe on the south, Pecos Bill Cafe on the east: frames v2
+# 0:16:40-0:16:46, Google labels) is built by ds_tdl_westernland.py; the pavilion keeps the hub side
+DH_PART = Polygon([(-350, 640), (-350, 663), (-318, 663), (-318, 695), (-280, 695), (-280, 640)])
 KIOSK_MIN, KIOSK_MAX = 3.5, 40.0                 # small mapped buildings inside CLIP (m^2) become kiosks / canopies
 SKIP_MODELS = ("cinderella", "tdl_world_bazaar", "tdl_plaza_buildings", "tdl_plaza_center")
 # land gates: (land, style, a point on the path, the path's direction there (plan bearing, deg from +x))
@@ -804,7 +807,7 @@ def build():
 
     crystal_palace(M, gr, bpolys[CRYSTAL], info)
     avoid = unary_union([buildings.difference(bpolys[PAVILION].buffer(0.3)), water, taken])
-    plaza_pavilion(M, gr, bpolys[PAVILION], info, avoid)
+    plaza_pavilion(M, gr, max(getattr(bpolys[PAVILION].difference(DH_PART), "geoms", [bpolys[PAVILION].difference(DH_PART)]), key=lambda g: g.area), info, avoid)
     bandstand(M, gr, bpolys[BANDSTAND], info)
 
     kiosks = []

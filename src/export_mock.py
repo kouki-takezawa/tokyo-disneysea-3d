@@ -248,6 +248,8 @@ def main():
               ("tdl_stitch_encounter", "disneyland", ["dlstitch"]),         # ds_tdl_stitch_encounter.py: スティッチ・エンカウンター, outside and inside (plain Python)   # ds_tdl_tomorrowland_terrace.py: トゥモローランド・テラス, outside and inside (plain Python)
               ("tdl_adv_ground", "disneyland", []),                         # ds_tdl_adventureland.py: Adventureland's paving, kerbs and beds (plain Python)
               ("tdl_adventureland", "disneyland", ["dladv"]),               # ds_tdl_adventureland.py: New Orleans Square, the bazaar, Jungle Cruise, Tiki Room, planting
+              ("tdl_west_ground", "disneyland", []),                        # ds_tdl_westernland.py: Westernland's paving, beds, kerbs, marks (plain Python)
+              ("tdl_westernland", "disneyland", ["dlwest"]),               # ds_tdl_westernland.py: the frontier town, Big Thunder, the landing and riverboat, the island
               ("tdl_hotel_ground", "maihama", []),                          # ds_tdl_hotel_ground.py: the roads and paths round the Tokyo Disneyland Hotel (plain Python)
               ("tdl_land_ground", "disneyland", []),                        # ds_ground.py: the ground of the whole Land and its car parks (plain Python)
               ("tds_ground", "paths", []),                                  # ds_ground.py: the ground of DisneySea (round the water, plaza and volcano models)

@@ -60,3 +60,4 @@
 
 - 時刻表(README・segments.json)と本計画: 2026-09-30 作成。
 - 範囲1 済(79f82b7、2026-09-30、Vercel success)。詳細は [range1.md](range1.md)
+- 範囲2 済(2026-10-04)。詳細は [range2.md](range2.md)
