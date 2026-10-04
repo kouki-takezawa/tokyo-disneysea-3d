@@ -2,8 +2,8 @@
 
 新規 `src/ds_tdl_westernland.py`(plain Python、Blender なし)1 本で 2 つのモデルを書き出す。詳細は同ファイルの docstring。
 
-- `tdl_west_ground` … 地面・縁石・花壇・目印(Web 0.53 MB、128,776 三角形)。`ds_ground.py` の `tdl_land_ground` はこのフットプリントで切り抜く
-- `tdl_westernland` … 建物・岩山・小物・植栽(Web 2.06 MB + 遠景 `_far` 0.81 MB、337,415 三角形。平の JSON は git に入れない = WEB_ONLY)
+- `tdl_west_ground` … 地面・縁石・花壇・目印(Web 0.56 MB、144,291 三角形)。`ds_ground.py` の `tdl_land_ground` はこのフットプリントで切り抜く
+- `tdl_westernland` … 建物・岩山・小物・植栽(Web 1.79 MB + 遠景 `_far` 0.60 MB、318,204 三角形。平の JSON は git に入れない = WEB_ONLY)
 - 下書き箱は `ds_disneyland.MODEL_KEYS` のキー `dlwest`(way 約 90 件)で隠す。材質はモックの `WG_*`(地面)・`WL_*`(建物)。`WG_soil` は `HEDGE_KEY` に追加
 - ダイヤモンドホースシューとペコスビル(way 196942701)は Westernland 側を本モデル、ハブ側を `ds_tdl_plaza_hub.py` が作る。切り分けは `plaza_hub.DH_PART`(継ぎ目の壁セルは 14 個だけで体積の重なりなし)
 
