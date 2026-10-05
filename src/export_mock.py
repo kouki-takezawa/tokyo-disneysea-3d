@@ -355,8 +355,20 @@ def main():
         trees = kept
     except Exception as e:
         print("[mock] tree/building filter skipped:", e)
+    palm_list = [p for v in palms.values() for p in v]
+    try:                                                      # only the plants the walk videos / photos show (the user 2026-10-06,
+        import plant_zones                                    # docs/plants/confirmed_zones.md): the rest are deleted
+        if plant_zones.area() is not None:
+            n0 = (len(trees) // 3, len(palm_list), len(shrubs) // 3)
+            trees = plant_zones.filter_flat(trees, 3)
+            shrubs = plant_zones.filter_flat(shrubs, 3)
+            palm_list = [p for p in palm_list if plant_zones.inside(p[0], p[1])]
+            print(f"[mock] plants kept in the confirmed zones: trees {len(trees) // 3}/{n0[0]}, palms {len(palm_list)}/{n0[1]}, "
+                  f"shrubs {len(shrubs) // 3}/{n0[2]}")
+    except Exception as e:
+        print("[mock] confirmed-zone filter skipped:", e)
     out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...] (trees back, the user 2026-10-04)
-    out["palms3d"] = [p for v in palms.values() for p in v]   # [x, y, ground, height, crown dx, dy, kind 0 canary / 1 washingtonia]: plants.js grows them
+    out["palms3d"] = palm_list                               # [x, y, ground, height, crown dx, dy, kind 0 canary / 1 washingtonia]: plants.js grows them
     out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"

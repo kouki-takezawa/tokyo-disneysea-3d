@@ -24,6 +24,12 @@ WEB_ONLY = {"tdl_hotel", "tdl_world_bazaar", "tdl_plaza_buildings", "tdl_adventu
 # models with a far copy (the castles, the AquaSphere and the volcano hardly shrink or lose their look: none)
 LOD = {"tdl_hotel", "tdl_world_bazaar", "tdl_entrance", "tdl_plaza_buildings", "tdl_station", "tdl_adventureland", "tdl_westernland"}
 LOD_TOOL = ROOT / "tools" / "lod"
+# models with plant meshes (docs/plants/inventory.md): compressed again when the confirmed zones change (plant_zones.py)
+PLANT_MODELS = {"plaza", "tdl_adv_ground", "tdl_adventureland", "tdl_entrance", "tdl_ground", "tdl_hotel", "tdl_hotel_ground",
+                "tdl_land_ground", "tdl_plaza_buildings", "tdl_plaza_ground", "tdl_plaza_hub", "tdl_stitch_encounter",
+                "tdl_tomorrowland_terrace", "tdl_water", "tdl_west_ground", "tdl_westernland", "tdl_world_bazaar",
+                "tds_ground", "water", "bb_castle", "cinderella"}
+ZONES = ROOT / "docs" / "plants" / "confirmed_zones.json"
 
 
 def make_far(ids):
@@ -63,6 +69,17 @@ def compress(src, dst):
     if not npx:
         raise RuntimeError("npx (Node.js) not found: the page falls back to the uncompressed models")
     doc0 = json.loads(src.read_text(encoding="utf-8"))
+    try:                                                  # the plants outside the confirmed zones go (plant_zones.py; the plain file stays whole)
+        import plant_zones
+        uri = doc0["buffers"][0].get("uri", "") if doc0.get("buffers") else ""
+        if uri.startswith("data:"):
+            doc0, blob, st = plant_zones.filter_doc(doc0, base64.b64decode(uri.split(",", 1)[1]))
+            if st:
+                doc0["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(blob).decode("ascii")
+                print(f"[compress] {src.stem}: plants outside the zones (kept / taken out) " +
+                      ", ".join(f"{k} {v[0]}/{v[1]}" for k, v in sorted(st.items())))
+    except Exception as e:
+        print(f"[compress] {src.stem}: zone filter skipped ({e})")
     with tempfile.TemporaryDirectory() as td:
         tmp_in = pathlib.Path(td) / "in.gltf"
         for im in doc0.get("images", []):                 # images: copied beside the input so the relative URIs resolve
@@ -95,7 +112,9 @@ def run(ids=None, force=False):
         if name in SKIP or (ids is not None and name not in ids):
             continue
         dst = WEB / src.name
-        if force or not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
+        stale = dst.exists() and (dst.stat().st_mtime < src.stat().st_mtime or
+                                  (name in PLANT_MODELS and ZONES.exists() and dst.stat().st_mtime < ZONES.stat().st_mtime))
+        if force or not dst.exists() or stale:
             try:
                 compress(src, dst)
                 print(f"[compress] {name}: {src.stat().st_size / 1e6:.1f} MB -> {dst.stat().st_size / 1e6:.2f} MB")
