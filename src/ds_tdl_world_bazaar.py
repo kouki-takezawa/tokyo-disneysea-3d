@@ -1739,14 +1739,30 @@ def exit_building(P, L, wall, sign, umbrellas):
     with white frames, a two-storey white veranda in front, the sign board between the storeys, a green mansard with a
     dormer; for the Refreshment Corner, red-and-white umbrellas over tables in white planters in front."""
     H = 9.0; d = 3.0
-    bm_box(P[wall], 0, L, -0.3, 0, 0, H)
-    n = max(1, round(L / 3.3))
+    n = max(1, round(L / 3.3)); mid = L / 2
+    if umbrellas:                                         # the Refreshment Corner: a wide door in the middle (its room, refreshment_room)
+        hw = 1.15
+        bm_box(P[wall], 0, mid - hw, -0.3, 0, 0, H); bm_box(P[wall], mid + hw, L, -0.3, 0, 0, H)
+        bm_box(P[wall], mid - hw, mid + hw, -0.3, 0, 3.2, H)
+        bm_box(P["white"], mid - hw - 0.1, mid - hw, -0.3, 0.12, 0.0, 3.2); bm_box(P["white"], mid + hw, mid + hw + 0.1, -0.3, 0.12, 0.0, 3.2)
+        bm_box(P["white"], mid - hw - 0.1, mid + hw + 0.1, -0.3, 0.12, 3.2, 3.35)
+        bm_prism(P["glass"], [(mid - hw, 3.35), (mid + hw, 3.35), (mid + hw, 4.0), (mid - hw, 4.0)], 0.0, 0.05, "xz")   # the transom
+        for sx in (-1, 1):                                # the leaves stand open against the reveals
+            bm_box(P["white"], mid + sx * (hw - 0.04) - 0.03, mid + sx * (hw - 0.04) + 0.03, -0.9, -0.3, 0.0, 3.0)
+    else:
+        bm_box(P[wall], 0, L, -0.3, 0, 0, H)
     for k in range(n):
         m = L * (k + 0.5) / n
         for z0, h in ((0.3, 3.2), (4.6, 2.9)):
+            if umbrellas and z0 < 1.0 and abs(m - mid) < 0.5:
+                continue                                 # (the door's place)
             bm_prism(P["white"], arch_opening(m - 0.9, m + 0.9, z0 - 0.1, z0 + h - 0.5, 0.5, 10), 0.0, 0.1, "xz")
             bm_prism(P["glass"], arch_opening(m - 0.75, m + 0.75, z0, z0 + h - 0.55, 0.4, 10), 0.1, 0.12, "xz")
             bm_box(P["white"], m - 0.02, m + 0.02, 0.12, 0.14, z0, z0 + h - 0.6)
+            if umbrellas and z0 > 4.0:                    # (photos: a white balustrade panel under each tall upper window)
+                bm_box(P["white"], m - 0.8, m + 0.8, 0.1, 0.2, z0, z0 + 0.08)
+                EN.baluster_run(P["white"], P["white"], (m - 0.78, 0.17), (m + 0.78, 0.17), z0 + 0.08, z0 + 0.75, 0.16)
+                bm_box(P["white"], m - 0.8, m + 0.8, 0.1, 0.2, z0 + 0.75, z0 + 0.82)
     bm_box(P["white"], 0, L, 0.0, 0.15, 4.05, 4.3)
     veranda_level(P, L, 0.0, 4.3, d, rail=False)
     veranda_level(P, L, 4.3, 8.4, d, rail=True)
@@ -1755,6 +1771,19 @@ def exit_building(P, L, wall, sign, umbrellas):
     V = lambda x, y, z: P["green"].verts.new((x, y, z))
     a, b_, c, e = V(0, 0.2, H), V(L, 0.2, H), V(L, -1.8, H + 2.6), V(0, -1.8, H + 2.6)
     P["green"].faces.new((a, b_, c, e))
+    if umbrellas:                                         # (photos: scale-patterned green mansard, round-windowed dormers, a flag)
+        for q in range(int(L / 0.5)):
+            if q % 2:
+                nx_, ny_ = 0.0, 0.024; nz_ = 0.018
+                A, B_ = (q * 0.5 + 0.0, 0.2 + ny_, H + nz_), (q * 0.5 + 0.5, 0.2 + ny_, H + nz_)
+                C, E = (q * 0.5 + 0.5, -1.8 + ny_, H + 2.6 + nz_), (q * 0.5 + 0.0, -1.8 + ny_, H + 2.6 + nz_)
+                P["rc_roof_b"].faces.new([P["rc_roof_b"].verts.new(v_) for v_ in (A, B_, C, E)])
+        for dxm in (L * 0.2, L * 0.5, L * 0.8):
+            bm_box(P["white"], dxm - 0.6, dxm + 0.6, -0.9, -0.4, H + 0.55, H + 1.9)
+            bm_prism(P["white"], [(dxm - 0.75, H + 1.9), (dxm + 0.75, H + 1.9), (dxm, H + 2.6)], -0.95, -0.35, "xz")
+            bm_lathe(P["glass"], [(0, 0), (0.3, 0), (0.3, 0.04), (0, 0.04)], 14, T(dxm, -0.38, H + 1.25) @ R(-math.pi / 2, "X"))
+            bm_lathe(P["white"], [(0.3, 0), (0.42, 0), (0.42, 0.06), (0.3, 0.06)], 14, T(dxm, -0.38, H + 1.25) @ R(-math.pi / 2, "X"))
+        bm_lathe(P["iron"], [(0, 0), (0.04, 0), (0.03, 4.2), (0, 4.2)], 6, T(L / 2, -1.5, H + 2.9))
     bm_box(P["white"], -0.1, L + 0.1, -0.2, 0.35, H - 0.3, H)
     m = L / 2
     bm_box(P["white"], m - 1.6, m + 1.6, -1.0, 0.3, H, H + 1.8)
@@ -1776,7 +1805,7 @@ def exit_building(P, L, wall, sign, umbrellas):
             bm_lathe(P["wood"], [(0, 0), (0.45, 0), (0.45, 0.04), (0, 0.04)], 12, T(ux, d + 2.3, 0.72))
 
 
-EXIT_MATS = {"white": "t_white", "teal": "t_teal", "green": "t_dkgreen", "brick": "brick", "w_mint": "w_mint", "glass": "win_dark",
+EXIT_MATS = {"rc_roof_b": "rc_roof_b", "white": "t_white", "teal": "t_teal", "green": "t_dkgreen", "brick": "brick", "w_mint": "w_mint", "glass": "win_dark",
              "iron": "iron", "sign": "aw_red", "lamp": "lamp", "aw_red": "aw_red", "aw_white": "aw_white", "wood": "wood", "leaf": "leaf"}
 
 
@@ -2311,6 +2340,8 @@ def build_exit():
     with frame("EXIT_1", 29.0, -115.3, 180.0):
         Q = {k: bmesh.new() for k in EXIT_MATS}
         exit_building(Q, 16.5, "brick", "REFRESHMENT CORNER", True)
+        import ds_tdl_wb_refine as WR
+        WR.refreshment_room(16.5, 8.25)                   # its room behind the centre door (user photos, 2026-10-05)
         for k, bm_ in Q.items():
             if len(bm_.verts):
                 obj_bm(f"ST_WBZ_exit1_{k}", bm_, EXIT_MATS[k], smooth=(k == "lamp"))

@@ -65,6 +65,7 @@ def materials(M):
     M["es_blue"] = P("st_wbz_es_blue", (0.474, 0.546, 0.768), 0.7)       # the arm-end face: pale periwinkle (#B7C3E3)
     M["es_box"] = P("st_wbz_es_box", (0.27, 0.40, 0.62), 0.7)            # its planters' blue panels (#8FA9CF)
     _cf_materials(M)
+    _rc_materials(M)
     return M
 
 
@@ -1072,3 +1073,75 @@ def coffeehouse(name, w):
                 for lx, ly in ((-0.2, -0.2), (0.2, -0.2), (-0.2, 0.2), (0.2, 0.2)):
                     bm_box(P["chrome"], cxx + lx - 0.015, cxx + lx + 0.015, cyy + ly - 0.015, cyy + ly + 0.015, 0.05, 0.44)
     P.flush(f"coffeehouse_{name}", smooth=("lamp",))
+
+
+# ================================================================ 9. Refreshment Corner's room (user photos 2026-10-05)
+def _rc_materials(M):
+    P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
+    M["rc_pink"] = P("st_wbz_rc_pink", (0.80, 0.36, 0.34), 0.8)           # the walls: salmon pink (#E4A09C)
+    M["rc_mint"] = P("st_wbz_rc_mint", (0.55, 0.78, 0.68), 0.5)           # the wainscot and counter panels (#B9DDD0)
+    M["rc_white"] = P("st_wbz_rc_white", (0.85, 0.83, 0.78), 0.5)         # the counter's body, the fretwork
+    M["rc_ceiling"] = P("st_wbz_rc_ceiling", (0.84, 0.80, 0.70), 0.8)     # the cream ceiling
+    M["rc_tile"] = P("st_wbz_rc_tile", (0.82, 0.80, 0.76), 0.35)          # the floor's white tile
+    M["rc_tilered"] = P("st_wbz_rc_tilered", (0.62, 0.12, 0.10), 0.4)     # the red diamonds in it
+    M["rc_cola_red"] = P("st_wbz_rc_cola_red", (0.55, 0.03, 0.04), 0.3, Emission_Color=(1.0, 0.25, 0.2, 1), Emission_Strength=0.8)
+    M["rc_cola_green"] = P("st_wbz_rc_cola_green", (0.20, 0.55, 0.10), 0.3, Emission_Color=(0.5, 0.9, 0.2, 1), Emission_Strength=0.8)
+    M["rc_roof_a"] = P("st_wbz_rc_roof_a", (0.10, 0.30, 0.16), 0.6)       # the mansard's scales: deep green,
+    M["rc_roof_b"] = P("st_wbz_rc_roof_b", (0.12, 0.42, 0.30), 0.6)       # and the lighter teal-green between
+    return M
+
+
+def refreshment_room(L, m, D=7.0):
+    """The counter-service room behind the Refreshment Corner's centre door (photos: the pink walls with a mint panelled
+    wainscot and a frieze, the cream ceiling, the white tile floor with red diamonds, the white curved counter with mint
+    panels and the white fretwork gallery over the back bar, brass queue rails, three Coca-Cola stained-glass drum lamps).
+    In the exit building's frame: x 0..L, the front wall on y = 0 (thickness to -0.3), the room behind on -y; the door at m."""
+    P = Parts(); top = 4.0; x0, x1 = 0.2, L - 0.2
+    # floor: white tile with red diamonds (and the doorstep across the wall's thickness out to the pavement)
+    bm_box(P["rc_tile"], x0, x1, -D, -0.3, 0.0, 0.05)
+    bm_box(P["rc_tile"], m - 1.3, m + 1.3, -0.35, 0.6, 0.0, 0.05)
+    nx = int((x1 - x0) / 0.7); ny = int((D - 0.3) / 0.7)
+    for i in range(nx):
+        for j in range(ny):
+            cx_ = x0 + 0.7 * (i + 0.5); cy_ = -0.3 - 0.7 * (j + 0.5)
+            bm_prism(P["rc_tilered"], [(cx_ - 0.14, cy_), (cx_, cy_ + 0.14), (cx_ + 0.14, cy_), (cx_, cy_ - 0.14)], 0.05, 0.057, "xy")
+    # walls and ceiling
+    for a, b_, c0, c1 in ((x0, x0 + 0.15, -D, -0.3), (x1 - 0.15, x1, -D, -0.3), (x0, x1, -D - 0.15, -D)):
+        bm_box(P["rc_pink"], a, b_, c0, c1, 0.05, top)
+        bm_box(P["rc_mint"], a, b_, c0, c1, 0.05, 1.1)                                   # the wainscot
+        bm_box(P["rc_white"], a, b_, c0, c1, 1.1, 1.18)
+        bm_box(P["rc_white"], a, b_, c0, c1, 3.55, 3.62)                                 # the frieze: a band of lighter pink
+        bm_box(P["rc_white"], a, b_, c0, c1, top - 0.1, top)
+    bm_box(P["rc_ceiling"], x0, x1, -D - 0.15, -0.3, top, top + 0.15)
+    for k in range(int((x1 - x0 - 0.6) / 1.2)):                                          # the inset wainscot panels, back wall
+        px = x0 + 0.5 + k * 1.2
+        bm_box(P["rc_white"], px, px + 0.9, -D + 0.0, -D + 0.03, 0.25, 0.95)
+    # the back bar: a gallery of white fretwork arches over the serving counter
+    cy = -D + 2.6
+    bm_box(P["rc_white"], x0 + 2.0, x1 - 2.0, cy - 0.45, cy + 0.45, 0.05, 0.9)          # the counter's body
+    bm_box(P["rc_mint"], x0 + 1.95, x1 - 1.95, cy - 0.5, cy + 0.5, 0.9, 1.0)            # its top
+    n = int((x1 - x0 - 4.0) / 1.2)
+    for k in range(n):
+        ax = x0 + 2.0 + (x1 - x0 - 4.0) * (k + 0.5) / n
+        bm_box(P["rc_mint"], ax - 0.45, ax + 0.45, cy + 0.45, cy + 0.5, 0.2, 0.8)       # the mint inset panels on the counter's front
+    ga, gb = x0 + 1.8, x1 - 1.8
+    bm_box(P["rc_white"], ga, gb, -D + 0.05, -D + 0.25, 2.6, 2.75)                       # the gallery over the back bar
+    for k in range(int((gb - ga) / 0.25) + 1):
+        bm_box(P["rc_white"], ga + k * 0.25 - 0.02, ga + k * 0.25 + 0.02, -D + 0.1, -D + 0.18, 2.75, 3.3)
+    bm_box(P["rc_white"], ga, gb, -D + 0.05, -D + 0.25, 3.3, 3.4)
+    bm_box(P["rc_mint"], ga, gb, -D + 0.05, -D + 0.5, 0.05, 0.9)                         # the back bar
+    # queue rails: brass posts and rails in a zig-zag in front of the counter
+    for k in range(6):
+        px = x0 + 3.2 + (x1 - x0 - 6.4) * k / 5; py = cy + 1.6 + (0.5 if k % 2 else 0.0)
+        bm_box(P["brass"], px - 0.025, px + 0.025, py - 0.025, py + 0.025, 0.05, 1.0)
+        if k and k != 3:                                  # (no rail across the middle: the way to the counter)
+            qx = x0 + 3.2 + (x1 - x0 - 6.4) * (k - 1) / 5; qy = cy + 1.6 + (0.5 if (k - 1) % 2 else 0.0)
+            bm_prism(P["brass"], [(qx, qy - 0.01), (px, py - 0.01), (px, py + 0.01), (qx, qy + 0.01)], 0.95, 0.99, "xy")
+    # three Coca-Cola stained-glass drum lamps on rods
+    for lx in (L * 0.25, L * 0.5, L * 0.75):
+        ly = cy + 1.0
+        bm_box(P["brass"], lx - 0.01, lx + 0.01, ly - 0.01, ly + 0.01, 3.3, top)
+        bm_lathe(P["rc_cola_green"], [(0, 3.28), (0.55, 3.28), (0.55, 3.4), (0, 3.4)], 14, T(lx, ly, 0.0))
+        bm_lathe(P["rc_cola_red"], [(0.55, 3.4), (0.55, 3.72), (0.5, 3.72), (0.5, 3.4)], 14, T(lx, ly, 0.0))
+        bm_lathe(P["rc_cola_green"], [(0.55, 3.72), (0.55, 3.8), (0, 3.8)], 14, T(lx, ly, 0.0))
+    P.flush("refreshment_room", smooth=("lamp",))
