@@ -1,6 +1,6 @@
 """アドベンチャーランド -- Adventureland of Tokyo Disneyland: New Orleans Square, the Adventureland plaza and bazaar, the
 Jungle Cruise / Western River Railroad station and the Polynesian corner (video-frame plan, range 1; plain Python, Blender
-is not needed; no trees, no palms, no round clipped shrubs, no night version):
+is not needed; no night version; the only trees are the two palms by the Pirates, the rest are the page's OSM trees):
 
   python src/ds_tdl_adventureland.py   # -> output/disneysea/models/tdl_adv_ground.json (ground, beds, kerbs)
                                        #    + output/disneysea/models/tdl_adventureland.json (buildings, props, planting)
@@ -103,7 +103,11 @@ B_NAMES = PALETTE + ("AD_trim", "AD_shutter", "AD_iron", "AD_glass", "AD_door", 
                      "AD_showroof", "AD_sign", "AD_signr", "AD_signg", "AD_text", "AD_lamp", "AD_globe", "AD_bench", "AD_bin",
                      "AD_umb_r", "AD_umb_w", "AD_umb_t", "AD_umb_o", "AD_canvas", "AD_pot", "AD_fern", "AD_leaf", "AD_leafr",
                      "AD_bamboo", "AD_rope", "AD_post", "AD_rust", "AD_rock", "AD_stitch", "AD_flag1", "AD_flag2", "AD_flag3",
-                     "AD_carve", "AD_carvey", "AD_table", "AD_stone") + FLOWERS
+                     "AD_carve", "AD_carvey", "AD_table", "AD_stone",
+                     # the photographed facades (Pirates, Cafe Orleans)
+                     "AD_ashlar", "AD_mortar", "AD_tealdoor", "AD_signbr", "AD_flagblk", "AD_navy", "AD_dome", "AD_tan",
+                     "AD_vroof", "AD_oblue", "AD_giron", "AD_black", "AD_louver", "AD_osalmon", "AD_odoor", "AD_awning",
+                     "AD_ppanel", "AD_pshut", "AD_brickj", "AD_tan2", "AD_curtain", "AD_louverd", "AD_palmt", "AD_palml") + FLOWERS
 RNG = np.random.default_rng(1983)
 
 
@@ -194,6 +198,8 @@ def plan():
     area = BOX.intersection(lands["adv"].buffer(6.0)).difference(NORTH).difference(JUNGLE)
     cut = unary_union([g for g in (GR.model_footprint(m) for m in CUT_MODELS) if g is not None and not g.is_empty])
     buildings = unary_union([p for p in closed_polys(lambda t: "building" in t and t["building"] not in ("roof", "no")) if p.intersects(BOX)])
+    pa = Polygon(DL.WAYS[PIRATES]["pts"]).buffer(0)
+    buildings = buildings.difference(pa).union(unary_union(pirates_parts(pa)))   # the straightened photo fronts
     water = unary_union([p for p in closed_polys(lambda t: t.get("natural") == "water" or bool(t.get("water"))) if p.intersects(BOX)])
     area = area.difference(cut.buffer(0.05)).difference(water)
     gardens = unary_union([p for p in closed_polys(lambda t: t.get("leisure") == "garden" or t.get("landuse") in GREEN_LANDUSE
@@ -341,7 +347,7 @@ class Ctx:
     def __init__(self, M, gr, paving):
         self.M, self.gr, self.paving = M, gr, paving
         self.pv = paving.buffer(0.6)
-        self.lamp_spots, self.pot_spots = [], []
+        self.lamp_spots, self.pot_spots, self.fixed_lamps = [], [], []
         self.bld = Polygon()
 
     def space(self, a, b, nrm):
@@ -443,12 +449,27 @@ def nola_edge(ctx, a, b, nrm, zb, zf, n, sh, colours, galleries, cafe=False):
     return ztop
 
 
-def nola_block(ctx, poly, n=3, sh=3.4, colours=PALETTE, back="AD_cream", galleries=True, cafe=False, roof=True, chimneys=True):
+def nola_block(ctx, poly, n=3, sh=3.4, colours=PALETTE, back="AD_cream", galleries=True, cafe=False, roof=True, chimneys=True,
+               custom=()):
+    """custom: (a, b, fn) -- the edges lying on the line a-b are one photographed facade, fn(ctx, zb, zf, ztop) draws it."""
     M = ctx.M
     zb, zf = floor_of(ctx, poly)
     ztop = zf + 4.0 + (n - 1) * sh + 0.7
     fronts = 0
+    done = set()
+
+    def custom_of(a, b):
+        for k, (p0, p1, fn) in enumerate(custom):
+            seg = LineString([p0, p1])
+            if seg.distance(Point(*a)) < 0.15 and seg.distance(Point(*b)) < 0.15:
+                return k
+        return None
     for a, b, nrm in ring_edges(poly):
+        k = custom_of(a, b)
+        if k is not None:
+            if k not in done:
+                done.add(k); custom[k][2](ctx, zb, zf, ztop); fronts += 1
+            continue
         if ctx.is_front(a, b, nrm):
             nola_edge(ctx, a, b, nrm, zb, zf, n, sh, colours, galleries, cafe); fronts += 1
         else:
@@ -466,7 +487,7 @@ def nola_block(ctx, poly, n=3, sh=3.4, colours=PALETTE, back="AD_cream", galleri
         # dormers on the public slopes
         for a, b, nrm in ring_edges(poly):
             L = np.linalg.norm(b - a)
-            if L < 5 or not ctx.is_front(a, b, nrm):
+            if L < 5 or not ctx.is_front(a, b, nrm) or custom_of(a, b) is not None:
                 continue
             e = (b - a) / L
             for t in np.arange(2.5, L - 1.5, 4.5):
@@ -478,58 +499,984 @@ def nola_block(ctx, poly, n=3, sh=3.4, colours=PALETTE, back="AD_cream", galleri
     return dict(fronts=fronts, top=round(ztop, 1))
 
 
-def pirates(ctx, poly_all):
-    """72865092: the Cafe Orleans lobe, a 12 m deep row of townhouse facades on the public edges, the show building behind."""
-    M = ctx.M
+def osm_pt(i):
+    """A point of way 72865092 (the Pirates / Cafe Orleans way) by its index."""
+    return V(DL.WAYS[PIRATES]["pts"][i])
+
+
+def pirates_parts(poly_all):
+    """Way 72865092 split into the main block and the Cafe Orleans lobe. OSM's jogs are kept (they are the real
+    projections and set-backs); only the notch behind the Pirates gallery and the kink behind Cafe Orleans' awning are
+    filled."""
     pts = DL.WAYS[PIRATES]["pts"]
     lobe = Polygon(pts[LOBE]).buffer(0).intersection(poly_all)
     lobe = max(G._polys(lobe), key=lambda p: p.area)
     rest = poly_all.difference(lobe.buffer(0.01))
     rest = max(G._polys(rest), key=lambda p: p.area)
+    rest = straighten(rest, osm_pt(69), osm_pt(66), depth=3.0)
+    lobe = straighten(lobe, osm_pt(40), osm_pt(37), depth=3.0)
+    lobe = straighten(lobe, osm_pt(36), osm_pt(34), depth=3.0)
+    rest = max(G._polys(rest.difference(lobe.buffer(0.01))), key=lambda p: p.area)
+    return rest, lobe
+
+
+def pirates(ctx, poly_all):
+    """72865092: the Pirates group as separate photographed masses (pc_masses), a 12 m deep row of generic townhouse
+    facades on the other public edges, the show building behind, the Cafe Orleans lobe as three houses."""
+    M = ctx.M
+    rest, lobe = pirates_parts(poly_all)
     fronts = [LineString([a, b]) for a, b, nrm in ring_edges(rest) if ctx.is_front(a, b, nrm)]
     strip = rest.intersection(unary_union([f.buffer(12.0, cap_style=2, join_style=2) for f in fronts]))
     strip = unary_union([p for p in G._polys(strip) if p.area > 20]).buffer(0.3).buffer(-0.3)
-    back = rest.difference(strip.buffer(0.02))
-    info = {}
-    for p in G._polys(strip):
-        info.setdefault("front", []).append(nola_block(ctx, p, n=3, sh=3.4))
-    zb, zf = floor_of(ctx, rest)
+    masses = pc_masses(rest)
+    back = rest.difference(strip.buffer(0.02)).difference(unary_union([m["poly"] for m in masses]).buffer(0.05))
+    zb, zf = floor_of(ctx, unary_union([m["poly"] for m in masses]))
+    for m in masses:
+        draw_mass(ctx, m, masses, zb, zf)
+    info = {"masses": {m["name"]: round(m["poly"].area) for m in masses}}
+    taken = unary_union([m["poly"] for m in masses]).buffer(0.05)
+    for p in G._polys(strip.difference(taken)):
+        if p.area > 20:
+            info.setdefault("front", []).append(nola_block(ctx, p, n=2, sh=3.6))   # 2 storeys + galleries (v2 0:07:48 right)
+    zb2, zf2 = floor_of(ctx, rest)
     for p in G._polys(back):
         if p.area < 5:
             continue
-        sides(M["AD_show"], p, zb, zf + 15.0)
-        cap(M["AD_showroof"], p, zf + 15.0)
-    info["cafe"] = nola_block(ctx, lobe, n=2, sh=3.6, colours=("AD_mint",), back="AD_mint", cafe=True)
-    # the cupola over the facade's west part (0:07:40), ESTIMATE of its place
-    fp = max(G._polys(strip), key=lambda p: p.area)
-    q = min([np.array(c) for c in fp.exterior.coords], key=lambda c: c[0])
-    q = np.array(fp.buffer(-5).representative_point().coords[0]) if fp.buffer(-5).area > 0 else q
-    zt = zf + 4.0 + 2 * 3.4 + 0.7 + 2.4
-    loft_rect(M["AD_cream"], P3(q, zt - 1), (1, 0), (0, 1), [(1.8, 1.8, 0), (1.8, 1.8, 3.2)])
-    for s in ((1, 0), (0, 1), (-1, 0), (0, -1)):
-        n2 = np.array(s, float); e2 = np.array([-s[1], s[0]], float)
-        arched_window(M["AD_glass"], q + n2 * 1.8 - e2 * 0.5, q + n2 * 1.8 + e2 * 0.5, n2, zt - 0.3, zt + 1.3, off=0.03)
-    lathe(M["AD_slate"], (q[0], q[1], zt + 2.2), [(2.2, 0), (1.9, 0.5), (1.2, 1.3), (0.5, 1.9), (0.12, 2.3), (0.0, 2.4)], n=12)
-    lathe(M["AD_signg"], (q[0], q[1], zt + 4.6), [(0.1, 0), (0.05, 1.0), (0, 1.3)], n=6)
-    # the Pirates sign over the entrance: an oval on the facade nearest the plaza's middle
-    best = None
-    for a, b, nrm in ring_edges(fp):
-        if ctx.is_front(a, b, nrm):
-            m = (a + b) / 2
-            d = np.linalg.norm(m - np.array([-380.0, 826.0]))
-            if best is None or d < best[0]:
-                best = (d, m, (b - a) / np.linalg.norm(b - a), nrm)
-    if best:
-        _, m, e, nrm = best
-        c3 = P3(m, zf + 4.9) + np.array([*nrm, 0]) * 2.45
-        el = Point(0, 0).buffer(1.0, 24)
-        el = shapely.affinity.scale(el, 2.1, 0.8)
-        plate(M["AD_signg"], el, c3, np.array([*e, 0]), UP, np.array([*nrm, 0]), off=0.0, t=0.08)
-        plate(M["AD_umb_t"], shapely.affinity.scale(el, 0.9, 0.82), c3, np.array([*e, 0]), UP, np.array([*nrm, 0]), off=0.02)
-        plate(M["AD_trim"], text_poly("PIRATES OF THE CARIBBEAN", 0.26), c3, np.array([*e, 0]), UP, np.array([*nrm, 0]), off=0.04)
-    # the painted arch at Royal Street's east end (the street is not opened through the block)
+        sides(M["AD_show"], p, zb2, zf2 + 6.0)           # hidden behind the facades (sky over the Pirates in v2 0:07:48)
+        cap(M["AD_showroof"], p, zf2 + 6.0)
+    # Cafe Orleans: three houses split at OSM's corners 40 and 37 (co1-3): the blue one and the cream one 3 storeys,
+    # the salmon one 2 storeys under a slate roof, 1.4 m forward of the cream one
+    Fc, Fs = Face(*co_line("cream")), Face(*co_line("salmon"))
+    p40, p37 = osm_pt(40), osm_pt(37)
+    west = Polygon([p40 + Fc.n * 30, p40 - Fc.n * 30, p40 - Fc.n * 30 - Fc.e * 40, p40 + Fc.n * 30 - Fc.e * 40])
+    east = Polygon([p37 + Fs.n * 30, p37 - Fs.n * 30, p37 - Fs.n * 30 + Fs.e * 40, p37 + Fs.n * 30 + Fs.e * 40])
+    big = lambda g: max(G._polys(g), key=lambda p: p.area)
+    blue_p, sal_p = big(lobe.intersection(west)), big(lobe.intersection(east).difference(west))
+    cream_p = big(lobe.difference(west).difference(east))
+    info["cafe"] = [
+        nola_block(ctx, blue_p, n=3, sh=3.4, colours=("AD_oblue",), back="AD_oblue", galleries=False, custom=((*co_line("blue"), co_blue),)),
+        nola_block(ctx, cream_p, n=3, sh=3.4, colours=("AD_cream",), back="AD_cream", galleries=False, custom=((*co_line("cream"), co_cream),)),
+        nola_block(ctx, sal_p, n=2, sh=3.6, colours=("AD_osalmon",), back="AD_osalmon", galleries=False, custom=((*co_line("salmon"), co_salmon),))]
     info["show_area"] = round(back.area)
     return info
+
+
+# ---------------------------------------------------------------- photo facades: Pirates of the Caribbean, Cafe Orleans
+# (images/pirates_caribbean/pc1-3, images/cafe_orleans/co1-3, and three more photos seen in the conversation only: the
+# Pirates front straight on, an older wide view, a close view of the entrance). OSM's jagged fronts are straightened to
+# these lines (plan, a -> b with the street on the right hand). Sizes are read off the photos with people (~1.65 m) for
+# scale: ESTIMATES. Everything has depth: openings are holes in the wall with reveals, pilasters, bands, cornices on
+# modillions, keystones, rusticated blocks one by one, louvred shutters, cast-iron lace as a pierced pattern.
+class Face:
+    """A straight facade a -> b (plan) with its outward normal: points by (s along, d out, z)."""
+    def __init__(self, a, b):
+        self.a, self.b = V(a), V(b)
+        self.L = float(np.linalg.norm(self.b - self.a))
+        self.e = (self.b - self.a) / self.L
+        self.n = np.array([self.e[1], -self.e[0]])
+        self.E, self.N = np.r_[self.e, 0.0], np.r_[self.n, 0.0]
+        self.B = (self.E, self.N, UP)
+
+    def p(self, s, d=0.0):
+        return self.a + self.e * s + self.n * d
+
+    def P(self, s, z, d=0.0):
+        return P3(self.p(s, d), z)
+
+    def box(self, mesh, s, z, d, hs, hd, hz):
+        """A box centred at (s, d, z) with half sizes along / out / up."""
+        box(mesh, self.P(s, z, d), (hs, hd, hz), self.B)
+
+    def plate(self, mesh, shape, d=0.0, t=0.0):
+        """A shape drawn in (s, z) facade coordinates on the plane d out of the wall (t: thickness behind it)."""
+        plate(mesh, shape, self.P(0.0, 0.0), self.E, UP, self.N, off=d, t=t)
+
+    def side(self, s, dep, left=True):
+        """The face of a projection's end at s (0 .. dep out), facing away from the facade's middle."""
+        return Face(self.p(s, 0), self.p(s, dep)) if left else Face(self.p(s, dep), self.p(s, 0))
+
+
+PC_D = 12.0                                        # m: depth of the photographed Pirates masses
+
+
+def co_line(name):
+    """Cafe Orleans' photographed fronts on OSM's corners of way 72865092: the blue house (41-40, south-west), the cream
+    Cafe Orleans house (40-37), the salmon house (36-34, 1.4 m forward of the cream one)."""
+    i, j = {"blue": (41, 40), "cream": (40, 37), "salmon": (36, 34)}[name]
+    return osm_pt(i), osm_pt(j)
+
+
+def straighten(poly, a, b, depth=6.0):
+    """poly with its front between a and b replaced by the straight line a-b (filled behind, cut in front)."""
+    F = Face(a, b)
+    fill = Polygon([F.p(0.05), F.p(F.L - 0.05), F.p(F.L - 0.05, -depth), F.p(0.05, -depth)])
+    cut = Polygon([F.p(0.05), F.p(F.L - 0.05), F.p(F.L - 0.05, depth), F.p(0.05, depth)])
+    g = poly.union(fill).difference(cut).buffer(0)
+    return max(G._polys(g), key=lambda p: p.area)
+
+
+# ---- 2D shapes in facade coordinates (s, z)
+def opening(s, w, z0, zs, rise=0.0):
+    """A door / window outline: a rectangle up to the springing zs, an (elliptical / segmental) arch of `rise` on top."""
+    g = sbox(s - w / 2, z0, s + w / 2, zs)
+    if rise > 0:
+        top = shapely.affinity.scale(Point(s, zs).buffer(1.0, 16), w / 2, rise).intersection(sbox(s - w, zs, s + w, zs + rise + 1))
+        g = g.union(top)
+    return g
+
+
+def ellipse(s, z, rx, rz, n=16):
+    return shapely.affinity.scale(Point(s, z).buffer(1.0, n), rx, rz)
+
+
+_TILE = {}
+
+
+def lace_tile(cell, W, H):
+    """Cast-iron lace: octagonal rings that touch, a boss in each, small diamonds between (a pierced pattern)."""
+    key = (cell, W, H)
+    if key not in _TILE:
+        bw = cell * 0.11
+        r = cell * 0.53
+        ring = Point(0, 0).buffer(r, 2).difference(Point(0, 0).buffer(r - bw, 2))
+        boss = Point(0, 0).buffer(cell * 0.08, 1)
+        h = cell * 0.2
+        dia = Polygon([(0, -h), (h, 0), (0, h), (-h, 0)])
+        dia = dia.difference(dia.buffer(-bw * 0.8, join_style=2))
+        parts = []
+        for i in range(int(W / cell) + 2):
+            for j in range(int(H / cell) + 2):
+                x, y = i * cell, j * cell
+                parts += [shapely.affinity.translate(ring, x, y), shapely.affinity.translate(boss, x, y),
+                          shapely.affinity.translate(dia, x + cell / 2, y + cell / 2)]
+        _TILE[key] = unary_union(parts)
+    return _TILE[key]
+
+
+def lace_geom(clip, cell=0.26):
+    x0, y0, x1, y1 = clip.bounds
+    W, H = (16.0, 6.0) if cell > 0.2 else (16.0, 1.4)
+    t = shapely.affinity.translate(lace_tile(cell, W, H), x0 - cell * 0.3, y0 - cell * 0.3)
+    return t.intersection(clip).union(clip.boundary.buffer(cell * 0.09).intersection(clip))
+
+
+def lattice_geom(clip, step=0.22, bw=0.03):
+    """A diagonal (X) lattice, e.g. the veranda's valance."""
+    x0, y0, x1, y1 = clip.bounds
+    lines = []
+    for k in np.arange(x0 - (y1 - y0) - 1, x1 + 1, step):
+        lines.append(LineString([(k, y0), (k + (y1 - y0), y1)]).buffer(bw / 2, cap_style=2))
+        lines.append(LineString([(k, y1), (k + (y1 - y0), y0)]).buffer(bw / 2, cap_style=2))
+    return unary_union(lines).intersection(clip).union(clip.boundary.buffer(bw).intersection(clip))
+
+
+def lines_in(shape, step, vertical=True):
+    """Bars at a regular step clipped to a shape (glazing bars, slats): list of ((s0, z0), (s1, z1))."""
+    x0, y0, x1, y1 = shape.bounds
+    out = []
+    for k in np.arange((x0 if vertical else y0) + step, (x1 if vertical else y1) - step * 0.3, step):
+        ln = LineString([(k, y0 - 1), (k, y1 + 1)] if vertical else [(x0 - 1, k), (x1 + 1, k)]).intersection(shape)
+        for g in getattr(ln, "geoms", [ln]):
+            if g.geom_type == "LineString" and g.length > 0.05:
+                out.append((g.coords[0], g.coords[-1]))
+    return out
+
+
+# ---- 3D pieces on a Face
+def wall_with(M, F, mat, s0, s1, z0, z1, holes, d=0.0):
+    F.plate(M[mat], sbox(s0, z0, s1, z1).difference(unary_union(holes)) if holes else sbox(s0, z0, s1, z1), d=d)
+
+
+def recess(M, F, hole, depth, mat, d=0.0, fill=None):
+    """The reveals of an opening (depth m into the wall), and its back filled with `fill`."""
+    c = hole.centroid
+    cs = list(orient(hole, 1.0).exterior.coords)
+    for (s0, z0), (s1, z1) in zip(cs[:-1], cs[1:]):
+        m = ((s0 + s1) / 2, (z0 + z1) / 2)
+        want = F.E * (c.x - m[0]) + UP * (c.y - m[1])
+        quad(M[mat], F.P(s0, z0, d), F.P(s1, z1, d), F.P(s1, z1, d - depth), F.P(s0, z0, d - depth), want)
+    if fill:
+        F.plate(M[fill], hole, d=d - depth)
+
+
+def bars(M, mat, F, shape, d, du=None, dz=None, w=0.03):
+    for step, vert in ((du, True), (dz, False)):
+        if step:
+            for (a0, b0), (a1, b1) in lines_in(shape, step, vert):
+                bar(M[mat], F.P(a0, b0, d), F.P(a1, b1, d), w=w, d=w * 0.7)
+
+
+def frame(M, mat, F, hole, width=0.13, d=0.0, t=0.05, above=None):
+    """A moulded surround (only above `above` when given: an archivolt)."""
+    g = hole.buffer(width, join_style=2).difference(hole)
+    if above is not None:
+        g = g.intersection(sbox(-1e3, above, 1e3, 1e3))
+    F.plate(M[mat], g, d=d + t, t=t)
+
+
+def shutter_pair(M, F, s, w, z0, z1, mat, slat, d=0.0, open_=True):
+    """Louvred shutters beside a window (open against the wall) or half closed over it."""
+    h = z1 - z0
+    for sg in (-1, 1):
+        sc = s + sg * (w / 2 + 0.3) if open_ else s + sg * w / 4
+        hw = 0.28 if open_ else w / 4 - 0.02
+        F.box(M[mat], sc, (z0 + z1) / 2, d + 0.05, hw, 0.025, h / 2)
+        for z in np.arange(z0 + 0.12, z1 - 0.08, 0.11):
+            bar(M[slat], F.P(sc - hw + 0.05, z, d + 0.085), F.P(sc + hw - 0.05, z, d + 0.085), w=0.012, d=0.012)
+        F.box(M[mat], sc, (z0 + z1) / 2, d + 0.085, hw, 0.012, 0.05)
+
+
+def flower_box(M, F, s, z, d, w=0.5, cols=("AD_fl_pink", "AD_fl_pur")):
+    F.box(M["AD_timberd"], s, z + 0.1, d, w / 2, 0.11, 0.1)
+    for k, u in enumerate(np.linspace(-w / 2 + 0.1, w / 2 - 0.1, 3)):
+        sphere(M["AD_leaf"], F.P(s + u, z + 0.25, d + 0.02), 0.14, n=6, m=3, sc=(1, 1, 0.8))
+        sphere(M[cols[k % len(cols)]], F.P(s + u + 0.05, z + 0.33, d + 0.08), 0.08, n=6, m=3)
+    sphere(M["AD_leaf"], F.P(s, z - 0.05, d + 0.12), 0.12, n=6, m=3, sc=(1, 1, 1.6))       # trailing leaves
+
+
+def lace_rail(M, mat, F, s0, s1, z, d, h=0.95, boxes=None, posts=True):
+    """A cast-iron lace railing on the plane d out of F, from s0 to s1, standing on z."""
+    bar(M[mat], F.P(s0, z + h, d), F.P(s1, z + h, d), w=0.045, d=0.05)
+    bar(M[mat], F.P(s0, z + 0.07, d), F.P(s1, z + 0.07, d), w=0.03, d=0.03)
+    if posts:
+        for s in (s0, s1):
+            bar(M[mat], F.P(s, z, d), F.P(s, z + h, d), w=0.05, d=0.05)
+    F.plate(M[mat], lace_geom(sbox(s0, z + 0.09, s1, z + h - 0.03), 0.16), d=d)
+    if boxes:
+        for s in np.arange(s0 + 0.45, s1 - 0.3, 1.1):
+            flower_box(M, F, s, z + h, d + 0.12, cols=boxes)
+
+
+def gallery(M, F, s0, s1, floors, zroof, dep, iron, cols=None, lace=None, zground=None, bays=3, boxes=None,
+            roof="AD_slated", cresting=False, spandrel=0.9):
+    """A cast-iron gallery: slender columns (from the pavement, or brackets under the lowest floor), thin floors with
+    lace railings, under every ceiling lace spandrels round arches from column to column (front and ends), a fascia,
+    a roof sloping out from the wall, optional cresting."""
+    cols, lace = cols or iron, lace or iron
+    xs = np.linspace(s0, s1, bays + 1)
+    dc = dep - 0.08
+    zlo = zground if zground is not None else floors[0]
+    for s in xs:
+        frustum(M[cols], F.P(s, zlo, dc), F.P(s, zroof, dc), 0.055, 0.055, n=6)
+        if zground is not None:
+            frustum(M[cols], F.P(s, zground, dc), F.P(s, zground + 0.55, dc), 0.11, 0.075, n=6)
+        else:
+            bar(M[iron], F.P(s, floors[0] - 1.0, 0.05), F.P(s, floors[0] - 0.1, dc), w=0.03, d=0.03)
+        for z in list(floors[1:]) + [zroof]:
+            F.box(M[cols], s, z - 0.12, dc, 0.09, 0.09, 0.08)                              # capitals
+    for z in floors:
+        F.box(M[iron], (s0 + s1) / 2, z - 0.06, dep / 2, (s1 - s0) / 2 + 0.05, dep / 2, 0.06)
+        lace_rail(M, lace, F, s0, s1, z, dc, boxes=boxes, posts=False)
+        for left in (True, False):
+            Fs = F.side(s0 if left else s1, dc, left)
+            lace_rail(M, lace, Fs, 0.05, Fs.L, z, 0.0, posts=False)
+    ceilings = list(floors[1:]) + [zroof] + ([floors[0] - 0.12] if zground is not None else [])
+    for zc in ceilings:
+        geo = []
+        for u0, u1 in zip(xs[:-1], xs[1:]):
+            arch = ellipse((u0 + u1) / 2, zc - spandrel, (u1 - u0) / 2 - 0.07, spandrel - 0.2)
+            geo.append(sbox(u0, zc - spandrel, u1, zc).difference(arch))
+        F.plate(M[lace], lace_geom(unary_union(geo), 0.2), d=dc)
+        for left in (True, False):
+            Fs = F.side(s0 if left else s1, dc, left)
+            arch = ellipse(Fs.L / 2, zc - spandrel * 0.7, Fs.L / 2 - 0.1, spandrel * 0.7 - 0.15)
+            Fs.plate(M[lace], lace_geom(sbox(0.0, zc - spandrel * 0.7, Fs.L, zc).difference(arch), 0.2))
+    F.box(M[lace], (s0 + s1) / 2, zroof + 0.13, dep, (s1 - s0) / 2 + 0.06, 0.05, 0.14)              # fascia
+    quad(M[roof], F.P(s0, zroof + 0.55), F.P(s1, zroof + 0.55), F.P(s1, zroof + 0.25, dep + 0.12), F.P(s0, zroof + 0.25, dep + 0.12), UP)
+    quad(M[roof], F.P(s0, zroof, 0), F.P(s1, zroof, 0), F.P(s1, zroof, dep), F.P(s0, zroof, dep), -UP)
+    if cresting:
+        F.plate(M[lace], lace_geom(sbox(s0, zroof + 0.28, s1, zroof + 0.62), 0.16), d=dep)
+
+
+def lamp_arms(M, x, y, z, along, top=True, h=3.3):
+    """A lamp post with two arms (and a globe on top): the teal posts in front of the Pirates gallery and Cafe Orleans."""
+    lathe(M["AD_lamp"], (x, y, z), [(0.17, 0.0), (0.17, 0.45), (0.1, 0.6), (0.065, 0.8), (0.055, h), (0.0, h + 0.02)], n=8)
+    a = np.r_[np.asarray(along, float)[:2], 0.0]
+    c = np.array([x, y, z + h - 0.35])
+    for sg in (-1, 1):
+        q = c + a * sg * 0.42
+        bar(M["AD_lamp"], c, q + UP * 0.12, w=0.025, d=0.025)
+        sphere(M["AD_globe"], q + UP * 0.38, 0.19, n=8, m=5)
+    if top:
+        sphere(M["AD_globe"], (x, y, z + h + 0.22), 0.2, n=8, m=5)
+
+
+def flag(M, F, s, z, d, mat, side=1, L=1.7, drop=1.9, emblem=None):
+    """A flag hanging from a pole leaning out of the gallery and to one side."""
+    p0 = F.P(s, z, d)
+    p1 = p0 + F.N * 0.9 + F.E * side * 1.0 + UP * 1.6
+    bar(M["AD_lamp"], p0, p1, w=0.025, d=0.025)
+    ax = (p1 - p0) / np.linalg.norm(p1 - p0)
+    q = p1 - ax * L
+    quad(M[mat], p1, q, q - UP * drop, p1 - UP * drop * 0.85, F.N)
+    if emblem:
+        m = (p1 + q) / 2 - UP * drop * 0.45 + F.N * 0.02
+        sphere(M[emblem], m, 0.2, n=6, m=3, sc=(1, 0.2, 1))
+
+
+def us_flag(M, base, along, w=1.9, h=1.0):
+    """A small Stars and Stripes on top of a pole at `base` (the pole's top), flying along `along`."""
+    a = np.r_[np.asarray(along, float)[:2], 0.0]
+    n = np.cross(UP, a)
+    for i in range(7):
+        z0, z1 = -h + h * i / 7, -h + h * (i + 1) / 7
+        quad(M["AD_flag1" if i % 2 == 0 else "AD_umb_w"], base + UP * z0, base + a * w + UP * z0, base + a * w + UP * z1, base + UP * z1, n)
+    quad(M["AD_navy"], base + UP * (-h * 0.47) + n * 0.01, base + a * 0.8 + UP * (-h * 0.47) + n * 0.01,
+         base + a * 0.8 + n * 0.01, base + n * 0.01, n)
+
+
+def cornice(M, F, s0, s1, z, out=0.55, mat="AD_trim"):
+    """A cornice on modillions: a frieze moulding, brackets every 0.45 m, the corona and a cyma on top (z = top)."""
+    F.box(M[mat], (s0 + s1) / 2, z - 0.72, 0.1, (s1 - s0) / 2, 0.1, 0.05)
+    F.box(M[mat], (s0 + s1) / 2, z - 0.5, 0.14, (s1 - s0) / 2 + 0.05, 0.14, 0.07)
+    for s in np.arange(s0 + 0.2, s1 - 0.1, 0.45):
+        F.box(M[mat], s, z - 0.33, out * 0.45, 0.06, out * 0.45, 0.09)
+    F.box(M[mat], (s0 + s1) / 2, z - 0.17, out / 2, (s1 - s0) / 2 + 0.1, out / 2, 0.08)
+    F.box(M[mat], (s0 + s1) / 2, z - 0.04, out / 2 + 0.04, (s1 - s0) / 2 + 0.13, out / 2 + 0.04, 0.05)
+
+
+def pilaster(M, F, s, z0, z1, mat, cap="AD_trim", w=0.28, out=0.12):
+    F.box(M[mat], s, (z0 + z1) / 2, out / 2, w, out / 2, (z1 - z0) / 2)
+    F.box(M[cap], s, z1 - 0.1, out / 2 + 0.03, w + 0.05, out / 2 + 0.03, 0.1)
+    F.box(M[cap], s, z0 + 0.15, out / 2 + 0.02, w + 0.04, out / 2 + 0.02, 0.15)
+
+
+def finial(M, F, s, z, d=0.25):
+    F.box(M["AD_trim"], s, z + 0.28, d, 0.2, 0.2, 0.28)
+    F.box(M["AD_trim"], s, z + 0.6, d, 0.24, 0.24, 0.04)
+    sphere(M["AD_trim"], F.P(s, z + 0.86, d), 0.2, n=8, m=5)
+
+
+def window_full(M, F, hole, glass="AD_glass", frame_m="AD_trim", reveal="AD_trim", depth=0.3, du=0.36, dz=0.42, curtains=False, sill=True,
+                hood=False, d=0.0):
+    """A glazed opening: reveals, the glass at the back with glazing bars, a moulded surround, a sill, an optional hood."""
+    recess(M, F, hole, depth, reveal, d=d, fill=glass)
+    bars(M, frame_m, F, hole, d - depth + 0.03, du=du, dz=dz, w=0.03)
+    frame(M, frame_m, F, hole, 0.12, d=d)
+    x0, y0, x1, y1 = hole.bounds
+    if curtains:
+        F.plate(M["AD_curtain"], sbox(x0, y0 + 0.2, x0 + (x1 - x0) * 0.28, y1).intersection(hole), d=d - depth + 0.015)
+        F.plate(M["AD_curtain"], sbox(x1 - (x1 - x0) * 0.28, y0 + 0.2, x1, y1).intersection(hole), d=d - depth + 0.015)
+    if sill:
+        F.box(M[frame_m], (x0 + x1) / 2, y0 - 0.1, d + 0.08, (x1 - x0) / 2 + 0.2, 0.08, 0.06)
+    if hood:
+        F.box(M[frame_m], (x0 + x1) / 2, y1 + 0.28, d + 0.14, (x1 - x0) / 2 + 0.3, 0.14, 0.07)
+        F.box(M[frame_m], (x0 + x1) / 2, y1 + 0.18, d + 0.08, (x1 - x0) / 2 + 0.2, 0.08, 0.05)
+
+
+
+def balcony(M, F, s0, s1, z, dep, iron="AD_iron", slab="AD_trim", boxes=("AD_fl_pink", "AD_fl_pur")):
+    """A balcony: a moulded slab on scrolled brackets, a lace railing on three sides with flower boxes."""
+    F.box(M[slab], (s0 + s1) / 2, z - 0.09, dep / 2, (s1 - s0) / 2, dep / 2, 0.09)
+    F.box(M[slab], (s0 + s1) / 2, z - 0.2, dep / 2 - 0.05, (s1 - s0) / 2 - 0.05, dep / 2 - 0.05, 0.03)
+    for s in np.linspace(s0 + 0.25, s1 - 0.25, max(2, int((s1 - s0) / 1.2) + 1)):
+        Fb = F.side(s, dep - 0.1, True)
+        Fb.plate(M[slab], Polygon([(0.0, z - 0.2), (Fb.L, z - 0.2), (0.0, z - 0.85)]).difference(
+            Point(Fb.L * 0.95, z - 0.95).buffer(0.55, 8)), d=-0.06, t=0.12)
+    lace_rail(M, iron, F, s0 + 0.05, s1 - 0.05, z, dep - 0.06, boxes=boxes)
+    for left in (True, False):
+        Fs = F.side(s0 + 0.05 if left else s1 - 0.05, dep - 0.06, left)
+        lace_rail(M, iron, Fs, 0.02, Fs.L, z, 0.0)
+
+
+def dormer(M, F, s, zb, w=1.9, h=2.3, mat="AD_trim", glass="AD_glass"):
+    """A pedimented dormer standing on the cornice line (pc4): pilasters, an arched window, a triangular pediment,
+    balls on its corners and apex."""
+    F.box(M[mat], s, zb + h / 2, -0.95, w / 2, 0.95, h / 2)
+    hole = opening(s, 0.8, zb + 0.35, zb + 1.35, 0.4)
+    F.plate(M[glass], hole, d=0.015)
+    bars(M, mat, F, hole, 0.03, du=0.4, dz=0.45, w=0.03)
+    frame(M, mat, F, hole, 0.1, d=0.0)
+    for sg in (-1, 1):
+        pilaster(M, F, s + sg * (w / 2 - 0.12), zb, zb + h - 0.15, mat, w=0.12, out=0.08)
+    F.box(M[mat], s, zb + h - 0.06, -0.85, w / 2 + 0.12, 1.0, 0.07)
+    tri_ = Polygon([(s - w / 2 - 0.15, zb + h), (s + w / 2 + 0.15, zb + h), (s, zb + h + 0.8)])
+    F.plate(M[mat], tri_, d=0.12, t=2.05)
+    F.plate(M["AD_slated"], tri_.buffer(-0.12, join_style=2), d=0.14)
+    for u, z in ((-w / 2 - 0.05, zb + h + 0.08), (w / 2 + 0.05, zb + h + 0.08), (0.0, zb + h + 0.85)):
+        sphere(M[mat], F.P(s + u, z + 0.12, 0.05), 0.14, n=8, m=5)
+
+
+# ---- the Pirates of the Caribbean group (pc1-3 + seven more photos seen in the conversation, video v2 0:07:40-0:07:56)
+# Read off the photos: the Pirates house is ~14 m wide, 2 storeys + attic (ground floor 4.2 m, cornice at 8.7 m),
+# three masses on OSM's jogs: the LEFT part (two window bays) projects 1.3 m, the GALLERY bay behind it carries the
+# cast-iron gallery, the narrow RIGHT bay; the rusticated stone runs under the gallery and the right bay. West of it a
+# low house behind two palms; east of it the TAN house angles back behind a veranda.
+def pc_R():
+    """The east end of the Pirates' right bay: 2.6 m along OSM's edge 66 -> 65 (the rest belongs to the tan house)."""
+    a, b = osm_pt(66), osm_pt(65)
+    return a + (b - a) / np.linalg.norm(b - a) * 2.6
+
+
+def extrude(a, b, D=PC_D):
+    F = Face(a, b)
+    return Polygon([F.a, F.b, F.p(F.L, -D), F.p(0, -D)])
+
+
+def pc_masses(rest):
+    P, R = osm_pt, pc_R()
+    spec = [
+        dict(name="west", fronts=[(P(74), P(72), west_house)], h=7.2, mat="AD_cream", roof="hip"),
+        dict(name="left", fronts=[(P(71), P(70), pc_left)], h=8.7, mat="AD_pink", roof="flat"),
+        dict(name="gallery", fronts=[(P(69), P(66), pc_centre)], h=8.7, mat="AD_pink", roof="flat"),
+        dict(name="right", fronts=[(P(66), R, pc_right)], h=8.7, mat="AD_pink", roof="flat"),
+        dict(name="tan", fronts=[(R, P(65), tan_gable), (P(65), P(64), tan_plain), (P(64), P(63), tan_plain),
+                                 (P(63), P(62), tan_main)], h=7.0, mat="AD_tan", roof="flat"),
+    ]
+    taken, out = Polygon(), []
+    for m in spec:
+        g = unary_union([extrude(a, b) for a, b, _ in m["fronts"]]).intersection(rest).difference(taken.buffer(0.01))
+        ps = [p for p in G._polys(g) if p.area > 3]
+        if ps:
+            m["poly"] = max(ps, key=lambda p: p.area)
+            taken = taken.union(m["poly"])
+            out.append(m)
+    return out
+
+
+def draw_mass(ctx, m, masses, zb, zf):
+    """One mass: its photographed fronts, plain walls with a cornice on the other visible sides (none where a mass at
+    least as tall stands against it), its roof."""
+    M = ctx.M
+    poly, ztop = m["poly"], zf + m["h"]
+    done = set()
+    for a, b, nrm in ring_edges(poly):
+        k = next((i for i, (p0, p1, fn) in enumerate(m["fronts"])
+                  if LineString([p0, p1]).distance(Point(*a)) < 0.15 and LineString([p0, p1]).distance(Point(*b)) < 0.15), None)
+        if k is not None:
+            if k not in done:
+                done.add(k)
+                p0, p1, fn = m["fronts"][k]
+                fn(ctx, Face(p0, p1), zb, zf, ztop)
+            continue
+        q = Point(*((a + b) / 2 + nrm * 0.3))
+        if any(o is not m and o["h"] >= m["h"] and o["poly"].buffer(0.05).contains(q) for o in masses):
+            continue
+        quad(M[m["mat"]], P3(a, zb), P3(b, zb), P3(b, ztop), P3(a, ztop), np.r_[nrm, 0.0])
+        if ctx.is_front(a, b, nrm, reach=1.0) or ctx.pv.contains(q):
+            Fs = Face(a, b)
+            cornice(M, Fs, 0.0, Fs.L, ztop, out=0.4)
+            Fs.box(M["AD_trim"], Fs.L / 2, zf + 4.15, 0.08, Fs.L / 2, 0.08, 0.1)
+    if m["roof"] == "hip":
+        cap(M["AD_slated"], poly, ztop - 0.05)
+        hip_strip(M["AD_slate"], M["AD_slated"], poly, ztop - 0.05, 2.2, 2.0, out=0.35)
+    else:
+        cap(M["AD_showroof"], poly, ztop - 0.35)
+
+
+def stone_ground(M, F, s0, s1, zb, ztop_stone, holes):
+    """Rusticated tan stone, block by block (0.95 x 0.43 m, staggered), proud of dark joints."""
+    zone = sbox(s0, zb, s1, ztop_stone).difference(unary_union(holes).buffer(0.2, join_style=2)) if holes else sbox(s0, zb, s1, ztop_stone)
+    F.plate(M["AD_mortar"], zone, d=0.01)
+    blocks = []
+    for j, z in enumerate(np.arange(zb, ztop_stone, 0.48)):
+        off = 0.48 if j % 2 else 0.0
+        for u in np.arange(s0 - 1.0 + off, s1, 0.96):
+            blocks.append(sbox(u + 0.025, z + 0.025, u + 0.935, min(z + 0.455, ztop_stone - 0.02)))
+    F.plate(M["AD_ashlar"], unary_union(blocks).intersection(zone), d=0.08, t=0.07)
+
+
+def oval_panel(M, F, s, zat, rx, rz, wall):
+    """An attic oval: a grey-green panel with a cream frame, the oval recessed with radial bars and four keystones."""
+    h = ellipse(s, zat, rx, rz)
+    pan = sbox(s - rx - 0.33, zat - rz - 0.14, s + rx + 0.33, zat + rz + 0.14)
+    F.plate(M["AD_ppanel"], pan.difference(h.buffer(0.14)), d=0.015)
+    frame(M, "AD_trim", F, pan, 0.08, d=0.0)
+    recess(M, F, h, 0.25, wall, fill="AD_glass")
+    frame(M, "AD_trim", F, h, 0.13, d=0.0)
+    for i in range(8):
+        t = 2 * math.pi * i / 8
+        bar(M["AD_trim"], F.P(s, zat, -0.22), F.P(s + rx * math.cos(t), zat + rz * math.sin(t), -0.22), w=0.02, d=0.02)
+    for t in (0, math.pi / 2, math.pi, 3 * math.pi / 2):
+        F.box(M["AD_trim"], s + (rx + 0.1) * math.cos(t), zat + (rz + 0.1) * math.sin(t), 0.1, 0.08, 0.1, 0.09)
+
+
+def french_window(M, F, s, z1, wall, w=1.3, top=2.5, rise=0.0, balc=True, shut="AD_pshut", flowers=("AD_fl_pink", "AD_fl_pur", "AD_fl_red")):
+    """A first-floor French window: recessed, glazing bars, curtains, louvred shutters, a hood, a balcony."""
+    h = opening(s, w, z1 + 0.18, z1 + top, rise)
+    window_full(M, F, h, frame_m="AD_trim", reveal=wall, depth=0.3, du=w / 2, dz=0.45, curtains=True, hood=rise == 0)
+    shutter_pair(M, F, s, w, z1 + 0.18, z1 + top, shut, "AD_shutter")
+    if balc:
+        balcony(M, F, s - w / 2 - 0.5, s + w / 2 + 0.5, z1 + 0.02, 0.72, iron="AD_iron", boxes=flowers)
+    return h
+
+
+def downpipe(M, F, s, z0, z1, d=0.12):
+    frustum(M["AD_lamp"], F.P(s, z0, d), F.P(s, z1, d), 0.055, 0.055, n=6)
+    F.box(M["AD_lamp"], s, z1 + 0.15, d + 0.02, 0.12, 0.1, 0.15)
+
+
+def pc_left(ctx, F, zb, zf, ztop):
+    """The projecting left part: two bays, each an arched ground-floor window, a French window with shutters on its
+    own balcony, an attic oval; quoin pilasters, the cornice with balls, a dormer, a downpipe."""
+    M = ctx.M; L = F.L
+    z1, zat = zf + 4.2, zf + 7.38
+    ss = (L * 0.25, L * 0.75)
+    gw = [opening(s, 1.35, zf + 0.85, zf + 2.55, 0.68) for s in ss]
+    uw = [opening(s, 1.3, z1 + 0.18, z1 + 2.5) for s in ss]
+    ov = [ellipse(s, zat, 0.62, 0.32) for s in ss]
+    wall_with(M, F, "AD_pink", 0.0, L, zb, ztop, gw + uw + ov)
+    for s, h in zip(ss, gw):
+        window_full(M, F, h, frame_m="AD_tealdoor", reveal="AD_pink", depth=0.35, du=0.34, dz=0.5)
+        frame(M, "AD_trim", F, h, 0.16, d=0.0, above=zf + 2.45)
+        F.box(M["AD_trim"], s, zf + 3.33, 0.16, 0.14, 0.1, 0.2)
+        french_window(M, F, s, z1, "AD_pink")
+        oval_panel(M, F, s, zat, 0.62, 0.32, "AD_pink")
+    F.box(M["AD_trim"], L / 2, z1 - 0.05, 0.12, L / 2 + 0.05, 0.12, 0.13)
+    F.box(M["AD_trim"], L / 2, z1 + 2.74, 0.07, L / 2, 0.07, 0.05)
+    F.box(M["AD_pink"], L / 2, zb + 0.35, 0.06, L / 2, 0.06, 0.4)                    # plinth
+    for s in (0.22, L / 2, L - 0.22):
+        pilaster(M, F, s, zb, ztop - 0.8, "AD_pink", w=0.24 if s == L / 2 else 0.3, out=0.16)
+    cornice(M, F, -0.1, L + 0.1, ztop)
+    F.box(M["AD_pink"], L / 2, ztop + 0.3, -0.1, L / 2, 0.1, 0.3)                      # parapet
+    for s in (0.22, L - 0.22):
+        finial(M, F, s, ztop)
+    dormer(M, F, L * 0.7, ztop - 0.05)
+    downpipe(M, F, L - 0.05, zb, ztop - 0.85)
+
+
+def pc_right(ctx, F, zb, zf, ztop):
+    """The narrow right bay: the rusticated stone with a recessed arched teal door, a French window on a balcony, the
+    attic oval, the cornice with a ball, a dormer."""
+    M = ctx.M; L = F.L
+    z1, zat = zf + 4.2, zf + 7.38
+    s = L / 2
+    door = opening(s, 1.35, zf, zf + 2.5, 0.68)
+    uw = opening(s, 1.2, z1 + 0.18, z1 + 2.5)
+    ov = ellipse(s, zat, 0.55, 0.3)
+    wall_with(M, F, "AD_pink", 0.0, L, zb, ztop, [door, uw, ov])
+    stone_ground(M, F, 0.0, L, zb, z1 - 0.38, [door])
+    recess(M, F, door, 0.4, "AD_ashlar")
+    F.plate(M["AD_tealdoor"], door.intersection(sbox(0, zb, L, zf + 2.5)), d=-0.4)
+    for u in (s - 0.33, s + 0.33):
+        for zc in (zf + 0.6, zf + 1.75):
+            F.box(M["AD_tealdoor"], u, zc, -0.37, 0.24, 0.02, 0.45)
+    F.plate(M["AD_glass"], door.intersection(sbox(0, zf + 2.55, L, ztop)), d=-0.38)
+    for i in range(1, 6):
+        t = math.pi * i / 6
+        c = F.P(s, zf + 2.5, -0.35)
+        bar(M["AD_trim"], c, c + F.E * 0.66 * math.cos(t) + UP * 0.66 * math.sin(t), w=0.025, d=0.02)
+    frame(M, "AD_trim", F, door, 0.18, d=0.08, above=zf + 2.45)
+    F.box(M["AD_trim"], s, zf + 3.25, 0.18, 0.14, 0.1, 0.22)
+    french_window(M, F, s, z1, "AD_pink", w=1.2)
+    oval_panel(M, F, s, zat, 0.55, 0.3, "AD_pink")
+    F.box(M["AD_trim"], L / 2, z1 - 0.05, 0.12, L / 2, 0.12, 0.13)
+    F.box(M["AD_trim"], L / 2, z1 + 2.74, 0.07, L / 2, 0.07, 0.05)
+    pilaster(M, F, L - 0.22, z1, ztop - 0.8, "AD_pink", w=0.25, out=0.16)
+    cornice(M, F, -0.1, L + 0.1, ztop)
+    F.box(M["AD_pink"], L / 2, ztop + 0.3, -0.1, L / 2, 0.1, 0.3)
+    finial(M, F, L - 0.22, ztop)
+    dormer(M, F, s, ztop - 0.05, w=1.7)
+    downpipe(M, F, L - 0.05, zb, ztop - 0.85)
+
+
+def pc_centre(ctx, F, zb, zf, ztop):
+    """The gallery bay: the rusticated stone ground floor with three recessed segmental-arched entrances (barred
+    transoms, cream archivolts with keystones, teal leaves folded back), oval posters on the piers; French windows
+    behind the gallery; the cornice; the cast-iron gallery (a thick cream floor on wooden brackets, one tall cage with
+    arched lace screens, a cornice, a segmental pediment with louvres between two triangular ones, lanterns), the sign
+    with the skull, the flags, the lamps with three globes, the cupola with the flag."""
+    M = ctx.M; L = F.L
+    z1 = zf + 4.2
+    sm = L / 2
+    ds = (sm - 2.25, sm, sm + 2.25)
+    doors = [opening(s, 1.65, zf, zf + 2.7, 0.36) for s in ds]
+    up = [opening(s, 1.15, z1 + 0.18, z1 + 2.3, 0.58 if s == sm else 0.0) for s in ds]
+    wall_with(M, F, "AD_pink", 0.0, L, zb, ztop, doors + up)
+    stone_ground(M, F, 0.0, L, zb, z1 - 0.38, doors)
+    for h in doors:
+        x0, y0, x1, y1 = h.bounds
+        recess(M, F, h, 0.5, "AD_ashlar")
+        zt = zf + 2.4
+        F.plate(M["AD_glass"], h.intersection(sbox(x0, y0, x1, zt)), d=-0.5)
+        for sg in (-1, 1):                                                    # leaves folded back into the reveal
+            Fr = F.side(x0 if sg < 0 else x1, -0.5, sg < 0)
+            quad(M["AD_tealdoor"], F.P(x0 + 0.05 if sg < 0 else x1 - 0.05, zf, -0.08), F.P(x0 + 0.05 if sg < 0 else x1 - 0.05, zf, -0.48),
+                 F.P(x0 + 0.05 if sg < 0 else x1 - 0.05, zt - 0.05, -0.48), F.P(x0 + 0.05 if sg < 0 else x1 - 0.05, zt - 0.05, -0.08), F.E * -sg)
+        tr = h.intersection(sbox(x0, zt + 0.08, x1, y1 + 1))
+        F.plate(M["AD_glass"], tr, d=-0.42)
+        bars(M, "AD_trim", F, tr, -0.39, du=0.17, w=0.022)
+        F.box(M["AD_trim"], (x0 + x1) / 2, zt + 0.04, -0.4, (x1 - x0) / 2, 0.06, 0.05)
+        frame(M, "AD_trim", F, h, 0.2, d=0.08, above=zf + 2.6)
+        F.box(M["AD_trim"], (x0 + x1) / 2, y1 + 0.1, 0.18, 0.15, 0.1, 0.22)
+    for s in (sm - 1.125, sm + 1.125):                                        # posters on the piers
+        F.plate(M["AD_signg"], ellipse(s, zf + 1.65, 0.27, 0.36), d=0.17, t=0.04)
+        F.plate(M["AD_sign"], ellipse(s, zf + 1.65, 0.21, 0.3), d=0.18)
+        F.plate(M["AD_tealdoor"], ellipse(s, zf + 1.55, 0.12, 0.08), d=0.185)
+    for h in up:
+        x0, y0, x1, y1 = h.bounds
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_pink", depth=0.3, du=(x1 - x0) / 2, dz=0.45, curtains=True)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0, min(y1, z1 + 2.3), "AD_pshut", "AD_shutter")
+    F.box(M["AD_trim"], L / 2, z1 + 2.74, 0.07, L / 2, 0.07, 0.05)
+    for s in (0.2, L - 0.2):
+        pilaster(M, F, s, z1, ztop - 0.8, "AD_pink", w=0.22, out=0.12)
+    cornice(M, F, -0.1, L + 0.1, ztop)
+    F.box(M["AD_pink"], L / 2, ztop + 0.3, -0.1, L / 2, 0.1, 0.3)
+    for s in (0.2, L - 0.2):
+        finial(M, F, s, ztop)
+    # -- the gallery
+    zg = ztop - 0.15
+    dep = 2.05
+    g0, g1 = 0.5, L - 0.5
+    F.box(M["AD_trim"], sm, z1 - 0.2, dep / 2, (g1 - g0) / 2 + 0.1, dep / 2, 0.2)          # the thick floor
+    F.box(M["AD_trim"], sm, z1 - 0.43, dep - 0.04, (g1 - g0) / 2 + 0.12, 0.06, 0.05)
+    for s in np.linspace(g0 + 0.2, g1 - 0.2, 8):                                       # wooden brackets
+        Fb = F.side(s, dep - 0.15, True)
+        Fb.plate(M["AD_timberd"], Polygon([(0.0, z1 - 0.4), (Fb.L, z1 - 0.4), (Fb.L - 0.1, z1 - 0.62), (0.0, z1 - 1.35)]), d=-0.07, t=0.14)
+    xs = [g0, g0 + 1.85, g1 - 1.85, g1]
+    for s in xs:
+        F.box(M["AD_iron"], s, (z1 + zg) / 2, dep - 0.08, 0.07, 0.07, (zg - z1) / 2)
+        F.box(M["AD_iron"], s, zg - 0.6, dep - 0.08, 0.11, 0.11, 0.06)
+    lace_rail(M, "AD_iron", F, g0, g1, z1, dep - 0.08, h=1.0, boxes=("AD_fl_pink", "AD_fl_pur", "AD_fl_red"), posts=False)
+    screens = []
+    for (u0, u1), (sp, rise) in zip(zip(xs[:-1], xs[1:]), ((z1 + 2.95, 0.55), (z1 + 2.5, 1.3), (z1 + 2.95, 0.55))):
+        arch = opening((u0 + u1) / 2, u1 - u0 - 0.45, z1 + 1.0, sp, rise)
+        screens.append(sbox(u0, z1 + 1.0, u1, zg).difference(arch))
+        F.plate(M["AD_iron"], arch.boundary.buffer(0.06).intersection(sbox(u0, z1 + 1.0, u1, zg)), d=dep - 0.06, t=0.04)
+    F.plate(M["AD_iron"], lace_geom(unary_union(screens), 0.24), d=dep - 0.08)
+    for left in (True, False):
+        Fs = F.side(g0 if left else g1, dep - 0.08, left)
+        lace_rail(M, "AD_iron", Fs, 0.05, Fs.L, z1, 0.0, h=1.0, posts=False)
+        arch = opening(Fs.L / 2, Fs.L - 0.45, z1 + 1.0, z1 + 2.9, 0.6)
+        Fs.plate(M["AD_iron"], lace_geom(sbox(0.0, z1 + 1.0, Fs.L, zg).difference(arch), 0.24))
+        Fs.plate(M["AD_iron"], arch.boundary.buffer(0.06).intersection(sbox(0.0, z1 + 1.0, Fs.L, zg)), d=0.03, t=0.04)
+    F.box(M["AD_iron"], sm, zg + 0.15, dep / 2 + 0.05, (g1 - g0) / 2 + 0.2, dep / 2 + 0.1, 0.15)        # its cornice
+    F.box(M["AD_iron"], sm, zg + 0.36, dep / 2 + 0.08, (g1 - g0) / 2 + 0.28, dep / 2 + 0.14, 0.06)
+    quad(M["AD_slated"], F.P(g0 - 0.2, zg + 0.42, dep + 0.2), F.P(g1 + 0.2, zg + 0.42, dep + 0.2), F.P(g1 + 0.2, zg + 1.2), F.P(g0 - 0.2, zg + 1.2), UP)
+    for s in (g0 + 0.95, g1 - 0.95):                                                    # small triangular pediments
+        t_ = Polygon([(s - 0.95, zg + 0.42), (s + 0.95, zg + 0.42), (s, zg + 1.04)])
+        F.plate(M["AD_iron"], t_.difference(t_.buffer(-0.1, join_style=2)), d=dep + 0.2, t=0.12)
+        F.plate(M["AD_slated"], t_.buffer(-0.1, join_style=2), d=dep + 0.12)
+    ped = ellipse(sm, zg + 0.42, 1.9, 1.2, 24).intersection(sbox(sm - 3, zg + 0.42, sm + 3, zg + 3))
+    inner = ellipse(sm, zg + 0.42, 1.62, 0.95, 24).intersection(sbox(sm - 3, zg + 0.42, sm + 3, zg + 3))
+    F.plate(M["AD_iron"], ped.difference(inner), d=dep + 0.24, t=0.2)
+    F.plate(M["AD_text"], inner, d=dep + 0.06)
+    bars(M, "AD_iron", F, inner, dep + 0.1, dz=0.13, w=0.035)
+    F.box(M["AD_iron"], sm, zg + 0.47, dep + 0.12, 1.95, 0.14, 0.05)
+    loft_rect(M["AD_slated"], F.P(sm, zg + 0.42, dep / 2), F.e, F.n, [(1.9, dep / 2 + 0.1, 0.0), (0.3, 0.3, 1.25)])
+    for s in (g0 + 1.85, g1 - 1.85):                                                   # lanterns inside
+        bar(M["AD_iron"], F.P(s, zg, 1.0), F.P(s, zg - 0.7, 1.0), w=0.015, d=0.015)
+        F.box(M["AD_black"], s, zg - 0.95, 1.0, 0.13, 0.13, 0.25)
+        F.box(M["AD_globe"], s, zg - 0.95, 1.0, 0.1, 0.14, 0.18)
+    for s in (g0 + 0.9, g1 - 0.9):                                                     # ferns hanging inside
+        sphere(M["AD_leaf"], F.P(s, zg - 1.0, 0.9), 0.35, n=7, m=4, sc=(1, 1, 1.3))
+    # -- the sign: a gilt cartouche, the skull in a tricorn, crossed swords
+    c = z1 + 0.55
+    cart = ellipse(sm, c, 1.35, 0.68, 24).union(sbox(sm - 1.45, c - 0.2, sm + 1.45, c + 0.2)).union(ellipse(sm, c + 0.55, 0.45, 0.3))
+    F.plate(M["AD_signg"], cart, d=dep + 0.12, t=0.1)
+    F.plate(M["AD_signbr"], cart.buffer(-0.1), d=dep + 0.14)
+    F.plate(M["AD_sign"], shapely.affinity.translate(text_poly("Pirates", 0.34, "georgiaz.ttf"), sm, c + 0.12), d=dep + 0.16)
+    F.plate(M["AD_sign"], shapely.affinity.translate(text_poly("of the Caribbean", 0.17, "georgiaz.ttf"), sm, c - 0.34), d=dep + 0.16)
+    sphere(M["AD_trim"], F.P(sm, c + 1.05, dep + 0.15), 0.24, n=8, m=5)
+    sphere(M["AD_flagblk"], F.P(sm, c + 1.27, dep + 0.12), 0.36, n=8, m=4, sc=(1, 0.6, 0.35))
+    for sg in (-1, 1):
+        bar(M["AD_trim"], F.P(sm - 0.55 * sg, c + 0.62, dep + 0.2), F.P(sm + 0.55 * sg, c + 1.35, dep + 0.2), w=0.04, d=0.03)
+    flag(M, F, g0 + 1.3, z1 + 1.05, dep - 0.05, "AD_flag1", side=-1, L=1.1, drop=1.45, emblem="AD_signg")
+    flag(M, F, g1 - 1.5, z1 + 1.05, dep - 0.05, "AD_flagblk", side=1, L=1.0, drop=1.4, emblem="AD_umb_w")
+    flag(M, F, g1 - 0.65, z1 + 1.05, dep - 0.05, "AD_flagblk", side=1, L=1.0, drop=1.4, emblem="AD_umb_w")
+    # -- the cupola: a square white base with a pink balustrade, an octagonal drum with arched windows, a grey dome,
+    # a lantern, the flag
+    q = F.p(sm, -3.6)
+    zr = ztop - 0.3
+    loft_rect(M["AD_trim"], P3(q, zr), F.e, F.n, [(1.5, 1.5, 0), (1.5, 1.5, 1.9), (1.65, 1.65, 1.9), (1.65, 1.65, 2.1)])
+    for k in range(4):
+        a = math.atan2(F.e[1], F.e[0]) + k * math.pi / 2
+        n2 = np.array([math.cos(a), math.sin(a)]); e2 = np.array([-n2[1], n2[0]])
+        arched_window(M["AD_glass"], q + n2 * 1.52 - e2 * 0.35, q + n2 * 1.52 + e2 * 0.35, n2, zr + 0.4, zr + 1.3, off=0.01)
+    for sg in (-1, 1):
+        for vec, ax in ((F.n, F.e), (F.e, F.n)):
+            for t in np.arange(-1.4, 1.45, 0.28):
+                p = q + vec * sg * 1.5 + ax * t
+                lathe(M["AD_pink"], (p[0], p[1], zr + 2.1), [(0.06, 0), (0.09, 0.2), (0.05, 0.4), (0.07, 0.48), (0, 0.48)], n=6)
+    loft_rect(M["AD_pink"], P3(q, zr + 2.58), F.e, F.n, [(1.58, 1.58, 0), (1.58, 1.58, 0.08)])
+    zc = zr + 2.1
+    lathe(M["AD_trim"], (q[0], q[1], zc), [(1.05, 0.0), (1.05, 2.1), (1.3, 2.1), (1.3, 2.32), (0.0, 2.32)], n=8)
+    a0 = math.atan2(F.e[1], F.e[0])
+    for k in range(8):
+        a = a0 + k * math.pi / 4
+        box(M["AD_trim"], P3(q + np.array([math.cos(a), math.sin(a)]) * 1.07, zc + 1.05), (0.08, 0.08, 1.05))
+    for k in range(8):
+        a = a0 + math.pi / 8 + k * math.pi / 4
+        n2 = np.array([math.cos(a), math.sin(a)]); e2 = np.array([-n2[1], n2[0]])
+        arched_window(M["AD_glass"], q + n2 * 0.99 - e2 * 0.24, q + n2 * 0.99 + e2 * 0.24, n2, zc + 0.35, zc + 1.4, off=0.02)
+    lathe(M["AD_dome"], (q[0], q[1], zc + 2.32), [(1.2, 0), (1.15, 0.4), (0.92, 0.95), (0.55, 1.35), (0.18, 1.58), (0.0, 1.62)], n=8)
+    lathe(M["AD_trim"], (q[0], q[1], zc + 3.85), [(0.22, 0), (0.22, 0.32), (0.28, 0.36), (0.0, 0.52)], n=8)
+    sphere(M["AD_signg"], (q[0], q[1], zc + 4.45), 0.12, n=6, m=4)
+    top = P3(q, zc + 4.5)
+    frustum(M["AD_trim"], top, top + UP * 3.6, 0.04, 0.03, n=6)
+    us_flag(M, top + UP * 3.5, F.e, w=1.7, h=0.9)
+    # -- the lamps with three globes in front of the piers
+    for s in (sm - 1.125, sm + 1.125):
+        x, y = F.p(s, dep + 0.35)
+        lamp_arms(M, x, y, ctx.gr.z(x, y), F.e, top=True, h=3.0)
+        ctx.fixed_lamps.append((x, y))
+
+
+def west_house(ctx, F, zb, zf, ztop):
+    """The low house west of the Pirates (behind the palms in v2 0:07:48): cream stucco, 2 storeys, arched ground-floor
+    windows, shuttered windows above, a slate hip roof; two palms in front."""
+    M = ctx.M; L = F.L
+    z1 = zf + 3.8
+    ss = (L * 0.28, L * 0.72)
+    gw = [opening(s, 1.2, zf + 0.8, zf + 2.4, 0.6) for s in ss]
+    uw = [opening(s, 1.0, z1 + 0.4, z1 + 2.2) for s in ss]
+    wall_with(M, F, "AD_cream", 0.0, L, zb, ztop, gw + uw)
+    for h in gw:
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_cream", depth=0.3, du=0.3, dz=0.45)
+    for h in uw:
+        x0, y0, x1, y1 = h.bounds
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_cream", depth=0.3, du=0.5, dz=0.45, hood=True)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0, y1, "AD_shutter", "AD_odoor")
+    F.box(M["AD_trim"], L / 2, z1 - 0.05, 0.1, L / 2, 0.1, 0.1)
+    cornice(M, F, 0.0, L, ztop, out=0.35)
+    rng = np.random.default_rng(7)
+    for s, d, h in ((1.4, 3.6, 7.5), (3.9, 6.2, 8.6)):
+        x, y = F.p(s, d)
+        palm_tree(M, x, y, ctx.gr.z(x, y), h, math.atan2(F.n[1], F.n[0]) + rng.uniform(-0.6, 0.6), rng)
+
+
+def palm_tree(M, x, y, z, h, lean, rng):
+    """A palm: a ringed, gently curving trunk, a crown of drooping V-section fronds, a cluster of nuts."""
+    ax, ay = math.cos(lean), math.sin(lean)
+    bend = rng.uniform(0.5, 1.2)
+    P = lambda t: np.array([x + ax * bend * t * t, y + ay * bend * t * t, z + h * t])
+    n = 10
+    for k in range(n):
+        a, b = P(k / n), P((k + 1) / n)
+        r0, r1 = 0.21 - 0.07 * k / n, 0.21 - 0.07 * (k + 1) / n
+        frustum(M["AD_palmt"], a, b, r0, r1, n=7)
+        frustum(M["AD_palmt"], a, a + (b - a) * 0.12, r0 * 1.12, r0 * 1.12, n=7)
+    top = P(1.0)
+    for f in range(12):
+        az = 2 * math.pi * f / 12 + rng.uniform(-0.2, 0.2)
+        Lf = rng.uniform(2.4, 3.3); up = rng.uniform(0.3, 0.8)
+        u = np.array([math.cos(az), math.sin(az), 0.0]); side = np.array([-u[1], u[0], 0.0])
+        pts = [top + u * (Lf * s) + UP * (up * Lf * s - 0.8 * Lf * s * s) for s in (0, 0.25, 0.5, 0.75, 1.0)]
+        wid = (0.05, 0.42, 0.5, 0.36, 0.03)
+        for (p0, w0), (p1, w1) in zip(zip(pts[:-1], wid[:-1]), zip(pts[1:], wid[1:])):
+            for sg in (-1, 1):
+                quad(M["AD_palml"], p0 - UP * 0.1 * w0, p1 - UP * 0.1 * w1, p1 + side * sg * w1, p0 + side * sg * w0, UP)
+    sphere(M["AD_palmt"], top - UP * 0.15, 0.3, n=8, m=4)
+
+
+def tan_plain(ctx, F, zb, zf, ztop):
+    """A short face of the tan house: plain tan stucco under its cornice (v2 0:07:48), a glazed arch under the veranda."""
+    M = ctx.M; L = F.L
+    holes = [opening(L / 2, 1.3, zf, zf + 2.5, 0.65)] if L > 2.3 else []
+    wall_with(M, F, "AD_tan", 0.0, L, zb, ztop, holes)
+    for h in holes:
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_tan", depth=0.3, du=0.33, dz=0.5)
+    cornice(M, F, 0.0, L, ztop, out=0.4)
+
+
+def tan_gable(ctx, F, zb, zf, ztop):
+    """The tan house's face next to the Pirates' right bay: its round gable with the sunburst lunette (pc4-6, v2
+    0:07:48: right beside the Pirates' cornice), plain stucco, a glazed arch under the veranda."""
+    M = ctx.M; L = F.L
+    tan_plain(ctx, F, zb, zf, ztop)
+    sg = L / 2
+    gab = sbox(0.0, ztop - 0.05, L, ztop + 0.3).union(ellipse(sg, ztop + 0.3, L / 2 - 0.1, 1.35, 24).intersection(sbox(0, ztop + 0.3, L, ztop + 3)))
+    F.plate(M["AD_tan"], gab, d=0.0, t=0.4)
+    F.plate(M["AD_trim"], gab.difference(gab.buffer(-0.13, join_style=2)).difference(sbox(-1, ztop - 1, L + 1, ztop + 0.31)), d=0.07, t=0.07)
+    niche = ellipse(sg, ztop + 0.35, L / 2 - 0.55, 0.98, 24).intersection(sbox(0, ztop + 0.35, L, ztop + 3))
+    recess(M, F, niche, 0.12, "AD_tan", fill="AD_tan2")
+    c = F.P(sg, ztop + 0.37, -0.08)
+    for i in range(13):                                                  # the sunburst
+        t = math.pi * (i + 0.5) / 13
+        r = F.E * math.cos(t) * (L / 2 - 0.65) + UP * math.sin(t) * 0.88; t2 = F.E * -math.sin(t) + UP * math.cos(t)
+        tri(M["AD_signg" if i % 2 else "AD_orange"], c + r * 0.4 + t2 * 0.08, c + r * 0.4 - t2 * 0.08, c + r, F.N)
+    sphere(M["AD_signg"], c, 0.28, n=10, m=5, sc=(1, 0.25, 1))
+    F.box(M["AD_brick"], L - 0.3, ztop + 0.9, -1.2, 0.35, 0.5, 1.1)                 # the chimney behind (v2 0:07:48)
+    F.box(M["AD_trim"], L - 0.3, ztop + 2.05, -1.2, 0.42, 0.57, 0.06)
+
+
+def tan_main(ctx, F, zb, zf, ztop):
+    """The tan house's main face, angling back (pc4-6 right, v2 0:07:48): plain tan stucco with the teal ship plaque,
+    glazed arches under the veranda, the cornice; the veranda in front of the whole tan front (white posts, a lattice
+    valance with a scalloped edge, a sloping pinkish metal roof with standing seams) and its hanging oval sign."""
+    M = ctx.M; L = F.L
+    gw = [opening(s, 1.45, zf, zf + 2.5, 0.72) for s in (1.6, L - 1.6)]
+    wall_with(M, F, "AD_tan", 0.0, L, zb, ztop, gw)
+    for h in gw:
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_tan", depth=0.3, du=0.36, dz=0.5)
+    cornice(M, F, 0.0, L, ztop, out=0.4)
+    ship = unary_union([Polygon([(-0.75, -0.2), (0.75, -0.2), (0.55, -0.45), (-0.55, -0.45)]),
+                        Polygon([(-0.1, -0.15), (-0.1, 0.55), (-0.6, -0.12)]), Polygon([(0.05, -0.15), (0.05, 0.45), (0.5, -0.12)])])
+    F.plate(M["AD_tealdoor"], shapely.affinity.translate(ship, L * 0.55, zf + 5.3), d=0.04, t=0.04)
+    R = pc_R()
+    for a, b in ((R, osm_pt(65)), (osm_pt(65), osm_pt(63)), (osm_pt(63), osm_pt(62))):
+        veranda(M, Face(a, b), zf, ctx)
+    Fv = Face(R, osm_pt(65))
+    Fv.plate(M["AD_sign"], ellipse(Fv.L / 2, zf + 2.55, 0.5, 0.3), d=2.55)
+    Fv.plate(M["AD_trim"], ellipse(Fv.L / 2, zf + 2.55, 0.56, 0.36).difference(ellipse(Fv.L / 2, zf + 2.55, 0.5, 0.3)), d=2.55)
+
+
+def veranda(M, F, zf, ctx, dep=2.6):
+    zv = zf + 3.1
+    L = F.L
+    ps = np.linspace(0.15, L - 0.15, max(2, int(L / 2.4) + 1))
+    for s in ps:
+        frustum(M["AD_trim"], F.P(s, zf, dep), F.P(s, zv + 0.5, dep), 0.075, 0.075, n=8)
+        frustum(M["AD_trim"], F.P(s, zf, dep), F.P(s, zf + 0.4, dep), 0.13, 0.1, n=8)
+        F.box(M["AD_trim"], s, zv + 0.45, dep, 0.12, 0.12, 0.08)
+    val = sbox(0.0, zv, L, zv + 0.55)
+    F.plate(M["AD_trim"], lattice_geom(val), d=dep + 0.02)
+    F.plate(M["AD_trim"], unary_union([ellipse(s, zv, 0.16, 0.13, 8).intersection(sbox(s - 1, zv - 1, s + 1, zv)) for s in np.arange(0.17, L, 0.34)]), d=dep + 0.02)
+    quad(M["AD_vroof"], F.P(-0.05, zv + 1.4), F.P(L + 0.05, zv + 1.4), F.P(L + 0.05, zv + 0.6, dep + 0.25), F.P(-0.05, zv + 0.6, dep + 0.25), UP)
+    quad(M["AD_trim"], F.P(0.0, zv + 0.58), F.P(L, zv + 0.58), F.P(L, zv + 0.58, dep), F.P(0.0, zv + 0.58, dep), -UP)
+    for s in np.arange(0.3, L, 0.5):
+        bar(M["AD_vroof"], F.P(s, zv + 1.42), F.P(s, zv + 0.62, dep + 0.25), w=0.02, d=0.03)
+    F.box(M["AD_trim"], L / 2, zv + 0.63, dep + 0.22, L / 2 + 0.05, 0.05, 0.05)
+
+
+def pc_umbrella_spots():
+    """In front of the veranda (pc2, pc6): blue / white umbrellas with a white fringe."""
+    out = []
+    for a, b, ss in ((pc_R(), osm_pt(65), (1.4,)), (osm_pt(63), osm_pt(62), (1.4, 4.6))):
+        F = Face(a, b)
+        out += [F.p(s, 4.6) for s in ss]
+    return out
+
+
+# ---- Cafe Orleans
+def co_blue(ctx, zb, zf, ztop):
+    """Cafe Orleans row, left (co2, co3): the grey-blue house; recessed arched dark-wood doors, arched French windows
+    with curtains, a two-storey grey cast-iron gallery from the pavement with lace arches, hanging baskets, cresting."""
+    M = ctx.M
+    F = Face(*co_line("blue")); L = F.L
+    z1, z2 = zf + 4.0, zf + 7.4
+    ss = (L / 6, L / 2, 5 * L / 6)
+    gd = [opening(s, 1.35, zf, zf + 2.55, 0.68) for s in ss]
+    up = [opening(s, 1.05, z + 0.25, z + 2.25, 0.52) for z in (z1, z2) for s in ss]
+    wall_with(M, F, "AD_oblue", 0.0, L, zb, ztop, gd + up)
+    for h in gd:
+        x0, y0, x1, y1 = h.bounds
+        recess(M, F, h, 0.35, "AD_oblue", fill="AD_door")
+        F.plate(M["AD_glass"], h.intersection(sbox(x0, zf + 1.2, x1, y1 + 1)).buffer(-0.12), d=-0.33)
+        bars(M, "AD_door", F, h.intersection(sbox(x0, zf + 1.2, x1, y1 + 1)), -0.32, du=0.34, dz=0.36, w=0.035)
+        frame(M, "AD_trim", F, h, 0.12, d=0.0)
+    for h in up:
+        window_full(M, F, h, frame_m="AD_trim", reveal="AD_oblue", depth=0.3, du=0.52, dz=0.45, curtains=True)
+    cornice(M, F, 0.0, L, ztop, out=0.35)
+    gallery(M, F, 0.1, L - 0.1, [z1, z2], ztop - 0.75, 2.0, "AD_giron", zground=zf, bays=3, boxes=("AD_fl_red",),
+            cresting=True, spandrel=0.95)
+    for sa, sb in zip(np.linspace(0.1, L - 0.1, 4)[:-1], np.linspace(0.1, L - 0.1, 4)[1:]):    # hanging baskets
+        for zc in (z2, ztop - 0.75):
+            p = F.P((sa + sb) / 2, zc - 1.35, 1.6)
+            bar(M["AD_rope"], p, p + UP * 1.2, w=0.01, d=0.01)
+            sphere(M["AD_leaf"], p, 0.3, n=7, m=4)
+            sphere(M["AD_leaf"], p - UP * 0.3, 0.18, n=6, m=3, sc=(1, 1, 1.5))
+            sphere(M["AD_fl_red"], p + UP * 0.15 + F.N * 0.18, 0.13, n=6, m=3)
+
+
+def co_cream(ctx, zb, zf, ztop):
+    """Cafe Orleans itself (co1-3): cream stucco; a curved gable with an oculus and a chimney at each end; louvred vents;
+    shuttered top-floor windows on little balconies; arched first-floor windows, a balcony across with the sign;
+    white small-paned French doors behind a red scalloped awning."""
+    M = ctx.M
+    F = Face(*co_line("cream")); W = F.L
+    z1, z2 = zf + 4.0, zf + 7.4
+    sm = W / 2
+    s2 = (W * 0.28, W * 0.72)
+    shop = sbox(0.35, zf, W - 0.35, zf + 2.9)
+    win1 = [opening(s, 1.05, z1 + 0.3, z1 + 2.05, 0.52) for s in s2]
+    win2 = [opening(s, 0.95, z2 + 0.35, z2 + 2.15) for s in s2]
+    vents = [sbox(s - 0.35, ztop - 1.4, s + 0.35, ztop - 1.0) for s in s2]
+    wall_with(M, F, "AD_cream", 0.0, W, zb, ztop, [shop] + win1 + win2 + vents)
+    # the shop front: French doors with small panes between white mullions
+    recess(M, F, shop, 0.25, "AD_trim", fill="AD_glass")
+    for s in np.linspace(0.35, W - 0.35, 5):
+        F.box(M["AD_trim"], s, zf + 1.45, -0.2, 0.07, 0.05, 1.45)
+    bars(M, "AD_trim", F, shop, -0.22, du=0.29, dz=0.42, w=0.025)
+    F.box(M["AD_trim"], sm, zf + 0.25, -0.2, W / 2 - 0.35, 0.05, 0.25)
+    for h in win1:
+        x0, y0, x1, y1 = h.bounds
+        window_full(M, F, h, reveal="AD_cream", depth=0.3, du=0.52, dz=0.4, curtains=True, sill=False)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0, y1 - 0.2, "AD_louver", "AD_louverd")
+    for h in win2:
+        x0, y0, x1, y1 = h.bounds
+        window_full(M, F, h, reveal="AD_cream", depth=0.3, du=0.48, dz=0.45, sill=False)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0 + 0.9, y1, "AD_louver", "AD_louverd", open_=False)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0, y1, "AD_louver", "AD_louverd")
+        balcony(M, F, (x0 + x1) / 2 - 0.85, (x0 + x1) / 2 + 0.85, y0 - 0.05, 0.55, iron="AD_black", slab="AD_black", boxes=("AD_fl_red",))
+    for h in vents:
+        recess(M, F, h, 0.15, "AD_trim", fill="AD_text")
+        bars(M, "AD_louver", F, h, -0.08, dz=0.07, w=0.03)
+        frame(M, "AD_trim", F, h, 0.08)
+    balcony(M, F, 0.25, W - 0.25, z1 + 0.05, 0.75, iron="AD_black", slab="AD_black", boxes=("AD_fl_red", "AD_fl_pur"))
+    F.box(M["AD_trim"], sm, z2 - 0.05, 0.08, W / 2, 0.08, 0.08)
+    cornice(M, F, 0.0, W, ztop, out=0.35)
+    # the gable: concave shoulders, a round top, the oculus; chimneys
+    pts = [(sm - W / 2, ztop)]
+    pts += [(sm - 2.2 + math.sin(t), ztop + 1.5 - math.cos(t)) for t in np.linspace(0, math.pi / 2, 7)]
+    pts += [(sm - 1.2 * math.cos(t), ztop + 1.5 + 1.2 * math.sin(t)) for t in np.linspace(0, math.pi, 13)[1:-1]]
+    pts += [(sm + 2.2 - math.sin(t), ztop + 1.5 - math.cos(t)) for t in np.linspace(math.pi / 2, 0, 7)]
+    pts += [(sm + W / 2, ztop)]
+    gab = Polygon(pts).buffer(0)
+    ocu = Point(sm, ztop + 1.55).buffer(0.4, 16)
+    F.plate(M["AD_cream"], gab.difference(ocu), d=0.0, t=0.35)
+    F.plate(M["AD_trim"], gab.difference(gab.buffer(-0.14, join_style=2)).difference(sbox(-1, ztop - 1, W + 1, ztop + 0.05)), d=0.07, t=0.07)
+    recess(M, F, ocu, 0.3, "AD_cream", fill="AD_glass")
+    frame(M, "AD_trim", F, ocu, 0.12)
+    for s in (0.45, W - 0.45):
+        F.box(M["AD_brick"], s, ztop + 1.0, -0.55, 0.32, 0.42, 1.25)
+        F.box(M["AD_trim"], s, ztop + 2.3, -0.55, 0.4, 0.5, 0.07)
+    # the sign on the balcony
+    F.box(M["AD_black"], sm, z1 + 1.35, 0.92, 1.32, 0.06, 0.36)
+    F.box(M["AD_sign"], sm, z1 + 1.35, 0.97, 1.2, 0.03, 0.28)
+    loft_rect(M["AD_black"], F.P(sm, z1 + 1.7, 0.92), F.e, F.n, [(1.38, 0.13, 0.0), (1.2, 0.04, 0.16)])
+    F.plate(M["AD_signr"], shapely.affinity.translate(text_poly("CAFE ORLÉANS", 0.2, "georgiab.ttf"), sm, z1 + 1.35), d=1.01)
+    # the awning
+    aw = 1.7
+    quad(M["AD_awning"], F.P(0, z1 - 0.2, 0.05), F.P(W, z1 - 0.2, 0.05), F.P(W, z1 - 0.95, aw), F.P(0, z1 - 0.95, aw), UP + F.N)
+    F.plate(M["AD_awning"], sbox(0.0, z1 - 1.3, W, z1 - 0.95).union(unary_union(
+        [ellipse(s, z1 - 1.3, 0.2, 0.14, 8).intersection(sbox(s - 1, z1 - 2, s + 1, z1 - 1.3)) for s in np.arange(0.2, W, 0.4)])), d=aw)
+    for s in (0, W):
+        tri(M["AD_awning"], F.P(s, z1 - 0.2, 0.05), F.P(s, z1 - 0.95, aw), F.P(s, z1 - 1.3, aw), F.E)
+    F.plate(M["AD_umb_w"], shapely.affinity.translate(text_poly("CAFE ORLÉANS", 0.16, "georgiab.ttf"), sm, z1 - 1.13), d=aw + 0.02)
+    for s in (0.0, W):
+        x, y = F.p(s, 3.0)
+        lamp_arms(M, x, y, ctx.gr.z(x, y), F.e, top=False, h=3.2)
+        ctx.fixed_lamps.append((x, y))
+
+
+def co_salmon(ctx, zb, zf, ztop):
+    """Cafe Orleans row, right (co2, co3): the salmon house, 2 storeys under the slate roof with a dormer; recessed green
+    arched French doors with fanlights, tall green-shuttered windows, a white lace gallery on green posts."""
+    M = ctx.M
+    F = Face(*co_line("salmon")); s0, s1 = 0.0, F.L
+    z1 = zf + 4.0
+    xs = np.linspace(s0, s1, 4)
+    ss = (xs[:-1] + xs[1:]) / 2
+    gd = [opening(s, 1.45, zf, zf + 2.5, 0.72) for s in ss]
+    up = [opening(s, 1.1, z1 + 0.25, z1 + 2.75) for s in ss]
+    wall_with(M, F, "AD_osalmon", s0, s1, zb, ztop, gd + up)
+    for h in gd:
+        x0, y0, x1, y1 = h.bounds
+        recess(M, F, h, 0.35, "AD_osalmon")
+        F.plate(M["AD_odoor"], h.intersection(sbox(x0, y0, x1, zf + 2.5)), d=-0.35)
+        F.plate(M["AD_glass"], h.intersection(sbox(x0, zf + 2.55, x1, y1 + 1)), d=-0.34)
+        for s in ((x0 + x1) / 2 - 0.36, (x0 + x1) / 2 + 0.36):
+            F.box(M["AD_glass"], s, zf + 1.55, -0.32, 0.24, 0.01, 0.75)
+            bars(M, "AD_odoor", F, sbox(s - 0.24, zf + 0.8, s + 0.24, zf + 2.3), -0.3, du=0.24, dz=0.3, w=0.03)
+        for i in range(1, 6):
+            t = math.pi * i / 6
+            c = F.P((x0 + x1) / 2, zf + 2.5, -0.3)
+            bar(M["AD_trim"], c, c + F.E * 0.72 * math.cos(t) + UP * 0.72 * math.sin(t), w=0.025, d=0.02)
+        frame(M, "AD_trim", F, h, 0.12)
+    for h in up:
+        x0, y0, x1, y1 = h.bounds
+        window_full(M, F, h, reveal="AD_osalmon", depth=0.3, du=0.55, dz=0.45, curtains=True)
+        shutter_pair(M, F, (x0 + x1) / 2, x1 - x0, y0, y1, "AD_shutter", "AD_odoor")
+    cornice(M, F, s0, s1, ztop, out=0.35)
+    gallery(M, F, s0 + 0.1, s1 - 0.1, [z1], zf + 7.3, 2.2, "AD_trim", cols="AD_shutter", lace="AD_trim", zground=zf,
+            bays=4, boxes=("AD_fl_org", "AD_fl_yel", "AD_fl_red"), spandrel=0.85)
+    p = F.p((s0 + s1) / 2, -1.3)                                         # the dormer
+    box(M["AD_osalmon"], P3(p, ztop + 0.8), (0.7, 0.6, 0.8), F.B)
+    quad(M["AD_glass"], P3(p + F.e * -0.35 + F.n * 0.62, ztop + 0.3), P3(p + F.e * 0.35 + F.n * 0.62, ztop + 0.3),
+         P3(p + F.e * 0.35 + F.n * 0.62, ztop + 1.3), P3(p + F.e * -0.35 + F.n * 0.62, ztop + 1.3), F.N)
+    bar(M["AD_trim"], P3(p + F.n * 0.64, ztop + 0.3), P3(p + F.n * 0.64, ztop + 1.3), w=0.03, d=0.02)
+    loft_rect(M["AD_slate"], P3(p, ztop + 1.6), F.e, F.n, [(0.85, 0.75, 0.0), (0.05, 0.75, 0.6)])
 
 
 # ---------------------------------------------------------------- buildings: other styles
@@ -822,13 +1769,21 @@ def boat_stack(M, q, z):
     lathe(M["AD_iron"], (q[0], q[1], z + 5.4), [(0.7, 0), (0.7, 0.2), (0.4, 0.5), (0, 0.55)], n=10)
 
 
-def umbrella(M, x, y, z, r=1.4, h=2.4, mats=("AD_umb_o",), table=True):
+def umbrella(M, x, y, z, r=1.4, h=2.4, mats=("AD_umb_o",), table=True, fringe=None):
     frustum(M["AD_iron"], (x, y, z), (x, y, z + h + 0.3), 0.03, 0.03, n=4)
     n = 8
     for k in range(n):
         a0, a1 = 2 * math.pi * k / n, 2 * math.pi * (k + 1) / n
         tri(M[mats[k % len(mats)]], (x, y, z + h + 0.45), (x + r * math.cos(a0), y + r * math.sin(a0), z + h),
             (x + r * math.cos(a1), y + r * math.sin(a1), z + h), UP)
+        if fringe:                                       # a scalloped valance round the rim (Cafe Orleans)
+            p0 = np.array([x + r * math.cos(a0), y + r * math.sin(a0), z + h])
+            p1 = np.array([x + r * math.cos(a1), y + r * math.sin(a1), z + h])
+            o = np.array([math.cos((a0 + a1) / 2), math.sin((a0 + a1) / 2), 0.0])
+            quad(M[fringe], p0, p1, p1 - UP * 0.16, p0 - UP * 0.16, o)
+            for t in (0.25, 0.75):
+                m = p0 + (p1 - p0) * t
+                tri(M[fringe], m - (p1 - p0) * 0.25 - UP * 0.16, m + (p1 - p0) * 0.25 - UP * 0.16, m - UP * 0.3, o)
     if table:
         frustum(M["AD_table"], (x, y, z + 0.7), (x, y, z + 0.75), 0.45, 0.45, n=8)
         for k in range(3):
@@ -1021,7 +1976,7 @@ def build():
                 trestle(ctx, poly); styles[oid] = "trestle"
             elif oid in SHOW:
                 zb, zf = floor_of(ctx, poly)
-                h = 14.0 if poly.area > 1000 else 5.0
+                h = 6.0 if poly.area > 1000 else 5.0       # show buildings stay under the sight line over the facades (v2 0:07:48)
                 sides(M["AD_show"], poly, zb, zf + h); cap(M["AD_showroof"], poly, zf + h); styles[oid] = "show"
             elif oid in (BAZAAR, CHINA):
                 styles[oid] = ("stucco", stucco_block(ctx, poly, n=2, tower=True))
@@ -1088,16 +2043,30 @@ def build():
     for x in np.arange(-369.0, -346.0, 3.4):
         for y in np.arange(817.0, 833.0, 3.4):
             if free(x, y):
-                umbrella(M, x, y, gr.z(x, y), r=1.3, mats=("AD_umb_r", "AD_umb_w")); n_umb += 1
+                umbrella(M, x, y, gr.z(x, y), r=1.3, mats=("AD_umb_r",), fringe="AD_umb_w"); n_umb += 1   # co1-3
     for x, y in ((-262, 776), (-257, 769), (-267, 768), (-262, 761), (-270, 780)):
         if free(x, y):
             umbrella(M, x, y, gr.z(x, y), r=1.9, h=2.6, mats=("AD_umb_o",)); n_umb += 1
-    for x, y in ((-386, 829), (-378, 827), (-370, 824)):
+    for x, y in pc_umbrella_spots():                      # blue / white umbrellas in front of the veranda (pc2, pc6)
         if free(x, y):
-            umbrella(M, x, y, gr.z(x, y), r=1.5, mats=("AD_umb_t", "AD_umb_w"), table=False); n_umb += 1
+            umbrella(M, x, y, gr.z(x, y), r=1.5, mats=("AD_umb_t", "AD_umb_w"), fringe="AD_umb_w"); n_umb += 1
     info["umbrellas"] = n_umb
-    # lamps (along the facades, and along the beds elsewhere)
-    lamps = []
+    # the terrace's entrance before Cafe Orleans (co3): brick piers with white cherubs
+    Fc = Face(*co_line("cream"))
+    for sg in (-1, 1):
+        x, y = Fc.p(Fc.L / 2 + sg * 1.7, 13.0)
+        if free(x, y) or pv.buffer(1.0).contains(Point(x, y)):
+            z = gr.z(x, y)
+            box(M["AD_brick"], (x, y, z + 0.5), (0.32, 0.32, 0.5))
+            box(M["AD_trim"], (x, y, z + 1.04), (0.38, 0.38, 0.05))
+            lathe(M["AD_trim"], (x, y, z + 1.09), [(0.18, 0), (0.2, 0.25), (0.13, 0.55), (0.0, 0.6)], n=8)
+            sphere(M["AD_trim"], (x, y, z + 1.75), 0.13, n=8, m=5)
+            for w in (-1, 1):
+                q = np.array([x, y, z + 1.5]) + np.r_[Fc.e, 0] * w * 0.12
+                tri(M["AD_trim"], q, q + np.r_[Fc.e, 0] * w * 0.28 + UP * 0.25, q + UP * 0.3 - np.r_[Fc.n, 0] * 0.1, np.r_[Fc.n, 0])
+    # lamps (along the facades, and along the beds elsewhere; the photographed facades placed their own)
+    lamps = list(ctx.fixed_lamps)
+    n_fixed = len(lamps)
     for q in ctx.lamp_spots:
         if free(*q) and all(np.hypot(q[0] - a, q[1] - b) > 6 for a, b in lamps):
             lamps.append((q[0], q[1]))
@@ -1123,7 +2092,7 @@ def build():
                     benches.append((s.x, s.y, nrm))
             elif all(np.hypot(s.x - a, s.y - b) > 12 for a, b in lamps) and q.area > 6:
                 lamps.append((s.x, s.y))
-    for x, y in lamps:
+    for x, y in lamps[n_fixed:]:
         lamp(M, x, y, gr.z(x, y))
     for k, (x, y, nrm) in enumerate(benches):
         bench(M, x, y, gr.z(x, y), nrm)
