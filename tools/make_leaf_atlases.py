@@ -6,10 +6,15 @@ The CC0 leaf sheets in output/disneysea/tex/plants/ (ambientCG, LICENSES.md) hol
 needs a spray: leaves along a branched twig. This draws them with Pillow from the WebP sheets (full 8-bit alpha; the PNG
 copies are 256-colour and their edges are rough) and writes:
 
-  cluster_<kind>_near.webp   1024 x 1024, 2 x 2 sprays (a card of ~0.8 m: twig with side twigs and ~35 leaves)
-  cluster_<kind>_far.webp     512 x 512, 2 x 2 clumps (a card of ~2.2 m: many sprays heaped into a rounded clump, shaded
-                              darker underneath) for the far copies of the same trees
-  palm_frond.webp             256 x 1024, one pinnate frond (rachis up the middle, leaflets either side; base at the bottom)
+  leaves_near.webp   2048 x 2048, 4 x 4 sprays: one row per kind (broadleaf, deciduous, pine, conifer), 4 sprays each
+                     (a card of ~1 m: twig with side twigs and ~35 leaves / pine shoots with needle brushes / fir sprigs)
+  leaves_far.webp    1024 x 1024, 4 x 4 clumps, rows as above (a card of ~2-3 m: many sprays heaped into a rounded clump,
+                     shaded darker underneath) for the mid and far copies of the same trees
+  bark_atlas_color.webp / _normal.webp   1024 x 512: grey broadleaf bark | red pine bark side by side (one material for
+                     every tree kind; the page wraps the u inside each half)
+  palm_frond.webp    256 x 1024, one pinnate frond (rachis up the middle, leaflets either side; base at the bottom)
+All the kinds share one atlas so a block of mixed trees is one leaf mesh (one draw). (Phase 2, 2026-10-05; phase 1 wrote
+one 2 x 2 atlas per kind, cluster_<kind>_near/far.webp.)
 
 The colour of transparent pixels is filled from the nearest leaf (dilation) so mipmaps do not fringe dark or white.
 Deterministic (fixed seeds): running it again gives the same files.
@@ -27,15 +32,52 @@ SHEETS = {   # sheet -> (columns, rows) of single leaves, tip up, stalk down
     "leaf_evergreen_round": (3, 3),
     "leaf_deciduous_light": (3, 2),
     "leaf_narrow_palm": (6, 1),
+    "conifer_sprig": (1, 3),
 }
 KINDS = {   # cluster kind -> leaf sheet, leaf size range in px on the 512 px spray, twig colour
     "broadleaf": ("leaf_evergreen_oval", (64, 96), (88, 74, 52)),
     "deciduous": ("leaf_deciduous_light", (56, 84), (96, 84, 64)),
 }
+ROWS = ["broadleaf", "deciduous", "pine", "conifer"]   # the atlas rows, top to bottom (plants.js: KROW)
 
 
-def leaves(sheet):
-    """The single leaves of a sheet: RGBA crops trimmed to their alpha."""
+def blobs(sheet, rotate, min_px=900):
+    """Sheets whose items are not on a grid (pine needle bundles): connected blobs of the alpha (on a 1/4 grid), each
+    cropped and turned so its base is at the bottom (`rotate` degrees counter-clockwise)."""
+    im = Image.open(TEX / f"{sheet}.webp").convert("RGBA")
+    a = np.asarray(im.getchannel("A").resize((im.width // 4, im.height // 4), Image.BOX)) > 10
+    lab = np.zeros(a.shape, np.int32); n = 0; out = []
+    for y0, x0 in zip(*np.nonzero(a)):
+        if lab[y0, x0]:
+            continue
+        n += 1; st = [(y0, x0)]; lab[y0, x0] = n; ys = []; xs = []
+        while st:
+            y, x = st.pop(); ys.append(y); xs.append(x)
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < a.shape[0] and 0 <= xx < a.shape[1] and a[yy, xx] and not lab[yy, xx]:
+                        lab[yy, xx] = n; st.append((yy, xx))
+        if len(ys) * 16 < min_px:
+            continue
+        box = (max(0, min(xs) * 4 - 4), max(0, min(ys) * 4 - 4), min(im.width, max(xs) * 4 + 8), min(im.height, max(ys) * 4 + 8))
+        out.append(im.crop(box).rotate(rotate, expand=True, resample=Image.BICUBIC))
+    return out
+
+
+def tint(img, rgb, keep=0.2):
+    """Recolour an RGBA image: its luminance times a colour (the pine needles are brown on the sheet), a little of the
+    original kept."""
+    a = np.asarray(img).astype(np.float32)
+    lum = (a[..., 0] * 0.3 + a[..., 1] * 0.59 + a[..., 2] * 0.11) / 140.0
+    for i in range(3):
+        a[..., i] = a[..., i] * keep + (1 - keep) * lum * rgb[i]
+    a[..., :3] = a[..., :3].clip(0, 255)
+    return Image.fromarray(a.astype(np.uint8), "RGBA")
+
+
+def leaves(sheet, rotate=0):
+    """The single leaves of a sheet: RGBA crops trimmed to their alpha (turned `rotate` degrees so the stalk is down)."""
     im = Image.open(TEX / f"{sheet}.webp").convert("RGBA")
     cols, rows = SHEETS[sheet]
     w, h = im.width // cols, im.height // rows
@@ -45,7 +87,8 @@ def leaves(sheet):
             cell = im.crop((c * w, r * h, (c + 1) * w, (r + 1) * h))
             box = cell.getchannel("A").point(lambda a: 255 if a > 24 else 0).getbbox()
             if box:
-                out.append(cell.crop(box))
+                c = cell.crop(box)
+                out.append(c.rotate(rotate, expand=True, resample=Image.BICUBIC) if rotate else c)
     return out
 
 
@@ -148,6 +191,90 @@ def frond(rng, lv, W=256, H=1024):
     return img
 
 
+def pine_spray(rng, needles, S=512):
+    """Black pine: a forked twig whose shoots end in brushes of needles (bundles radiating up and out from each shoot tip,
+    the older needles lower down the shoot pointing out sideways)."""
+    img = Image.new("RGBA", (S, S)); stems = Image.new("RGBA", (S, S)); d = ImageDraw.Draw(stems)
+    col = (92, 70, 50)
+    tufts = []
+
+    def shoot(x, y, ang, L, depth):
+        n = 6; pts = [(x, y)]
+        for i in range(n):
+            ang += rng.uniform(-0.1, 0.1)
+            x += math.sin(ang) * L / n; y -= math.cos(ang) * L / n; pts.append((x, y))
+        twig(d, pts, 7 - depth * 2.5, 2.5, col)
+        tufts.append((x, y, ang, 1.0))
+        for i in (3, 4, 5):
+            tufts.append((pts[i][0], pts[i][1], ang, 0.55 + 0.1 * i / 5))
+        if depth < 2:
+            for side in (-1, 1):
+                if rng.random() < (0.9 if depth == 0 else 0.6):
+                    i = rng.randint(2, 4)
+                    shoot(pts[i][0], pts[i][1], ang + side * rng.uniform(0.45, 0.85), L * rng.uniform(0.5, 0.7), depth + 1)
+    shoot(S / 2 + rng.uniform(-10, 10), S - 8, rng.uniform(-0.1, 0.1), S * 0.42, 0)
+    items = []
+    for x, y, ang, w in tufts:
+        for k in range(int(40 * w)):
+            a = ang + rng.gauss(0, 0.75 if w == 1.0 else 1.0)
+            ln = rng.uniform(70, 120) * (0.6 + 0.4 * w)
+            items.append(((x, y), a, ln, rng.uniform(1.0, 1.4), rng.uniform(0.62, 1.08)))
+    img.alpha_composite(stems)
+    items.sort(key=lambda p: p[4])
+    for at, a, ln, sq, k in items:
+        paste_leaf(img, rng.choice(needles), at, a, ln, sq, k)
+    return img
+
+
+def conifer_spray(rng, sprigs, S=512):
+    """Fir / cypress: a short twig fanning into flat sprigs (the long one on the axis, shorter ones either side)."""
+    img = Image.new("RGBA", (S, S))
+    base = (S / 2 + rng.uniform(-10, 10), S - 6)
+    items = []
+    for j in range(rng.randint(5, 7)):
+        side = 0 if j == 0 else (1 if j % 2 else -1)
+        a = side * rng.uniform(0.25, 0.75) * (1 + 0.25 * (j // 2)) + rng.uniform(-0.08, 0.08)
+        a *= 0.7
+        ln = S * (0.72 if j == 0 else rng.uniform(0.4, 0.55))
+        off = rng.uniform(0.05, 0.3) * S if j else 0
+        at = (base[0] + math.sin(a * 0.3) * off, base[1] - off)
+        items.append((at, a, ln, rng.uniform(0.75, 1.0), rng.uniform(0.7, 1.05) if j else 1.05))
+    items.sort(key=lambda p: p[4])
+    for at, a, ln, sq, k in items:
+        paste_leaf(img, rng.choice(sprigs), at, a, ln, sq, k)
+    return img
+
+
+def clump_of(rng, sprays, S=256, flat=1.0):
+    """A far clump made of whole sprays heaped into a rounded (flat < 1: a wider, flatter pad) mass, darker inside and
+    underneath, drawn at 2x and reduced. Each spray is centred on its point (not hung from it) so the middle is full."""
+    B = S * 2
+    img = Image.new("RGBA", (B, B))
+    lobes = [(B / 2 + rng.uniform(-0.14, 0.14) * B, B * 0.5 + rng.uniform(-0.1, 0.1) * B * flat, rng.uniform(0.15, 0.22) * B) for _ in range(6)]
+    items = []
+    for i in range(170):
+        cx, cy, R = rng.choice(lobes)
+        a = rng.uniform(0, 2 * math.pi); r = R * rng.random() ** 0.5
+        x, y = cx + math.cos(a) * r, cy + math.sin(a) * r * flat
+        rim = r / R
+        k = (0.5 + 0.32 * rim) * (0.8 + 0.4 * (1 - y / B)) * rng.uniform(0.88, 1.1)
+        ang = rng.uniform(-1.9, 1.9); ln = B * rng.uniform(0.16, 0.22)
+        items.append((k, (x - math.sin(ang) * ln * 0.5, y + math.cos(ang) * ln * 0.5), ang, ln))
+    items.sort(key=lambda t: t[0])
+    for k, at, a, ln in items:
+        paste_leaf(img, rng.choice(sprays), at, a, ln, 1.0, k)
+    return img.resize((S, S), Image.LANCZOS)
+
+
+def bark_atlas():
+    """Grey broadleaf bark | red pine bark, 512 px each, for the one bark material of every tree."""
+    for part in ("color", "normal"):
+        out = Image.new("RGB", (1024, 512))
+        for i, name in enumerate(("bark_grey", "bark_pine_red")):
+            out.paste(Image.open(TEX / f"{name}_{part}.webp").convert("RGB").resize((512, 512), Image.LANCZOS), (i * 512, 0))
+        out.save(TEX / f"bark_atlas_{part}.webp", quality=86, method=6)
+
+
 def dilate(img, steps=24):
     """Fill the colour of transparent pixels from their neighbours (alpha untouched) so mipmaps keep leaf colours."""
     a = np.asarray(img).astype(np.float32)
@@ -170,22 +297,37 @@ def dilate(img, steps=24):
     return Image.fromarray(out, "RGBA")
 
 
-def grid(tiles, S):
-    out = Image.new("RGBA", (S * 2, S * 2))
+def grid(tiles, S, cols=2):
+    out = Image.new("RGBA", (S * cols, S * ((len(tiles) + cols - 1) // cols)))
     for i, t in enumerate(tiles):
-        out.alpha_composite(t, ((i % 2) * S, (i // 2) * S))
+        out.alpha_composite(t, ((i % cols) * S, (i // cols) * S))
     return out
 
 
 def main():
-    for kind, (sheet, size_rng, col) in KINDS.items():
+    near, far = [], []
+    for kind in ROWS:
         rng = random.Random(f"cluster-{kind}")
-        lv = leaves(sheet)
-        near = [spray(rng, lv, size_rng, col) for _ in range(4)]
-        dilate(grid(near, 512)).save(TEX / f"cluster_{kind}_near.webp", quality=88, method=6)
-        far = [clump(rng, lv, size_rng) for _ in range(4)]
-        dilate(grid(far, 256)).save(TEX / f"cluster_{kind}_far.webp", quality=88, method=6)
+        if kind in KINDS:
+            sheet, size_rng, col = KINDS[kind]
+            lv = leaves(sheet)
+            near += [spray(rng, lv, size_rng, col) for _ in range(4)]
+            far += [clump(rng, lv, size_rng) for _ in range(4)]
+        elif kind == "pine":
+            nd = [tint(n, (58, 92, 50)) for n in blobs("pine_needles", 90)]
+            sp = [pine_spray(rng, nd) for _ in range(4)]
+            near += sp
+            far += [clump_of(rng, sp, flat=0.62) for _ in range(4)]
+        else:
+            sg = leaves("conifer_sprig", -90)
+            sp = [conifer_spray(rng, sg) for _ in range(4)]
+            near += sp
+            far += [clump_of(rng, sp, flat=0.85) for _ in range(4)]
         print(kind, "ok")
+    dilate(grid(near, 512, 4)).save(TEX / "leaves_near.webp", quality=86, method=6)
+    dilate(grid(far, 256, 4)).save(TEX / "leaves_far.webp", quality=86, method=6)
+    bark_atlas()
+    print("leaves_near / leaves_far / bark_atlas ok")
     rng = random.Random("palm-frond")
     dilate(frond(rng, leaves("leaf_narrow_palm")[:4])).save(TEX / "palm_frond.webp", quality=88, method=6)
     print("palm_frond ok")

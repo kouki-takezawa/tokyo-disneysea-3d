@@ -3408,10 +3408,10 @@ async function init3D() {
     const sc_ = sun.shadow.camera; sc_.left = -size; sc_.right = size; sc_.top = size; sc_.bottom = -size; sc_.updateProjectionMatrix();
     renderer.shadowMap.needsUpdate = true;
   };
-  // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground
+  // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground.
+  // With plants.js these only stand in until the block round each tree is grown (three.hideOldTrees), instance i = tree i.
   three.buildTrees = () => {
     if (three.trees3d || !((D.trees3d || []).length || (D.shrubs3d || []).length)) return;
-    const covered = three.plants ? three.plants.covers : () => false;   // grown by plants.js (the phase-1 trial round the entrance)
     const n = D.trees3d.length / 3;
     const trunkG = new T.CylinderGeometry(0.1, 0.16, 1, 6); trunkG.translate(0, 0.5, 0);
     const crownG = new T.IcosahedronGeometry(1, 1);
@@ -3426,7 +3426,6 @@ async function init3D() {
       const x = D.trees3d[i * 3], y = D.trees3d[i * 3 + 1], h = D.trees3d[i * 3 + 2] || (5 + rand() * 5);
       const g = heightAt(x, y) ?? 0, r = h * (0.24 + rand() * 0.08);
       const c0 = Math.floor(rand() * greens.length), a0 = rand() * 6.28, j0 = rand(), j1 = rand();
-      if (covered(x, y)) continue;
       m.compose(p.set(x, g, -y), q.identity(), s.set(1 + h * 0.03, h * 0.45, 1 + h * 0.03)); trunk.setMatrixAt(k, m);
       col.setHex(greens[c0]);
       m.compose(p.set(x, g + h * 0.62, -y), q.setFromAxisAngle(new T.Vector3(0, 1, 0), a0), s.set(r, r * 1.05, r)); crown.setMatrixAt(k * 2, m); crown.setColorAt(k * 2, col);
@@ -3451,6 +3450,25 @@ async function init3D() {
     trunk.frustumCulled = crown.frustumCulled = false;
     root.add(grp); three.trees3d = grp; three.shadowDirty = true;
     grp.visible = mdl.trees3d !== false;
+    // plants.js grew these: their stand-ins go. The rest are packed to the front (count = what is left, so neither the
+    // GPU nor the stats see the gone ones); none left: not drawn at all
+    const gone = new Uint8Array(k), tM = trunk.instanceMatrix.array.slice(), cM = crown.instanceMatrix.array.slice(), cC = crown.instanceColor.array.slice();
+    three.hideOldTrees = idx => {
+      for (const i of idx) if (i < k) gone[i] = 1;
+      let j = 0;
+      for (let i = 0; i < k; i++) {
+        if (gone[i]) continue;
+        trunk.instanceMatrix.array.set(tM.subarray(i * 16, i * 16 + 16), j * 16);
+        crown.instanceMatrix.array.set(cM.subarray(i * 32, i * 32 + 32), j * 32);
+        crown.instanceColor.array.set(cC.subarray(i * 6, i * 6 + 6), j * 6);
+        j++;
+      }
+      trunk.count = j; crown.count = j * 2;
+      trunk.instanceMatrix.needsUpdate = crown.instanceMatrix.needsUpdate = crown.instanceColor.needsUpdate = true;
+      trunk.visible = crown.visible = j > 0;
+      three.dirty = true; three.shadowDirty = true;
+    };
+    if (three.plants?.oldHidden?.length) three.hideOldTrees(three.plants.oldHidden);
   };
   three.focus = (x, y, z, dist = 60, az = 0.8, el = 0.45) => {
     stopFollow();
@@ -4369,8 +4387,10 @@ async function init3D() {
   // trees, palms and grass grown in the page (plants.js, docs/plants/plan.md); without it, every tree is the instanced one
   (async () => {
     try {
-      if (!window.TDS_PLANTS) await loadScript("plants.js?v=1");
+      if (!window.TDS_PLANTS) await loadScript("plants.js?v=2");
       three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], eye: () => cam.position,
+        areas: { tdl: DL && DL.park, lands: DL && DL.labels, tds: D.park },
+        hideOld: idx => three.hideOldTrees?.(idx),
         changed: sh => { three.dirty = true; if (sh) three.shadowDirty = true; } });
       three.plants.group.visible = mdl.trees3d !== false;
     } catch (e) { console.error("plants:", e); three.plants = null; }

@@ -28,8 +28,8 @@
 
 | ファイル | 元 | 内容 |
 |---|---|---|
-| cluster_broadleaf_near.webp / _far.webp | LeafSet022(leaf_evergreen_oval) | 葉1枚を小枝に沿って並べた房 2×2(近距離用、約 0.8〜1.5 m の板)/ 葉を丸く積んだ塊 2×2(遠距離用) |
-| cluster_deciduous_near.webp / _far.webp | LeafSet014(leaf_deciduous_light) | 同上(落葉広葉、フェーズ2用) |
+| leaves_near.webp(2048²)/ leaves_far.webp(1024²) | 行ごとに LeafSet022(常緑広葉)・LeafSet014(落葉広葉)・PineNeedles001(マツ、緑に染めた針葉の束)・LeafSet019(針葉樹の小枝) | 4×4 のアトラス(1 行 = 1 種類 × 4 枚)。近: 小枝に葉を並べた房 / マツは枝先の針葉のブラシ / モミ・ヒノキは扇に開いた小枝。遠(中景・遠景用): 房を丸く(マツは平たく)積んだ塊。フェーズ2(2026-10-05)で、フェーズ1の種類別 2×2(cluster_*.webp)を置き換え |
+| bark_atlas_color.webp / _normal.webp | Bark001 / Bark014 | 1024×512: 灰色の樹皮(広葉樹)と赤茶の樹皮(マツ・針葉樹)を左右に並べた(全種類で 1 つの材質にするため) |
 | palm_frond.webp | LeafSet013(leaf_narrow_palm) | 小葉を中軸の両側に並べた羽状のヤシの葉 1 枚(下が付け根) |
 
 透明部分の色は近くの葉の色で埋めてある(ミップマップで縁が黒・白にならないように)。
