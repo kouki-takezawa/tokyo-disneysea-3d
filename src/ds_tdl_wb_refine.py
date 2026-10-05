@@ -59,6 +59,10 @@ def materials(M):
     M["fs_navy"] = P("st_wbz_fs_navy", (0.012, 0.023, 0.091), 0.9)       #    the navy one (#1D2A55)
     M["cart_white"] = P("st_wbz_cart_white", (0.855, 0.83, 0.77), 0.7)   # wb3 C1: the hand carts' white covers (#EEEBE3)
     M["cart_wheel"] = P("st_wbz_cart_wheel", (0.69, 0.60, 0.25), 0.5)    #    and their pale yellow spoked wheels (#D8CC8A)
+    # Eastside Cafe (user photos images/eastside_cafe/ec1..3 and the pale blue end-corner photos, 2026-10-05)
+    M["es_grey"] = P("st_wbz_es_grey", (0.485, 0.597, 0.552), 0.8)       # the Center Street face: painted brick (#B9CBC4)
+    M["es_blue"] = P("st_wbz_es_blue", (0.474, 0.546, 0.768), 0.7)       # the arm-end face: pale periwinkle (#B7C3E3)
+    M["es_box"] = P("st_wbz_es_box", (0.27, 0.40, 0.62), 0.7)            # its planters' blue panels (#8FA9CF)
     return M
 
 
@@ -798,3 +802,110 @@ def fashion_island(bmk, x, y, r, top):
             f0, f1 = j / 5, (j + 1) / 5
             q0 = (xa + (xb - xa) * f0, ya + (yb - ya) * f0); q1 = (xa + (xb - xa) * f1, ya + (yb - ya) * f1)
             bm.faces.new((bm.verts.new((*q0, zc0)), bm.verts.new((*q1, zc0)), bm.verts.new(((q0[0] + q1[0]) / 2, (q0[1] + q1[1]) / 2, zc0 - 0.18))))
+
+
+# ================================================================ 7. Eastside Cafe: two faces (user photos, 2026-10-05)
+EASTSIDE_END = dict(p0=(56.5, -60.3), p1=(57.6, -56.1))     # the arm hall's end wall north of the covered way (EXT_E): faces west
+
+
+def _fan(P, x0, x1, zs, rise):
+    """A fanlight in a round-arched head: the dark opening, a cream band round it, radial bars from the centre."""
+    m = (x0 + x1) / 2; r = (x1 - x0) / 2
+    bm_prism(P["display"], arch_opening(x0 + 0.1, x1 - 0.1, zs - 0.55, zs, rise - 0.1, 12), 0.0, 0.05, "xz")
+    bm_prism(P["t_cream"], arch_band(x0, x1, zs, rise, 0.12, 12, leg=0.55), 0.0, 0.08, "xz")
+    for k in range(1, 8):                               # the fan's bars, from a point at the springing line
+        a = math.pi * k / 8
+        tx, tz = m + (r - 0.12) * math.cos(a), zs + (rise - 0.12) * math.sin(a)
+        d = (tx - m, tz - zs); L = math.hypot(*d); nx, nz = -d[1] / L * 0.012, d[0] / L * 0.012
+        bm_prism(P["t_cream"], [(m - nx, zs - nz), (tx - nx, tz - nz), (tx + nx, tz + nz), (m + nx, zs + nz)], 0.05, 0.075, "xz")
+
+
+def eastside_front(name, w):
+    """The Center Street face (user photos ec1 .. ec3): painted pale grey-green brick over a cream ground floor -- on the
+    left the porch with two white posts, the glass door and the gold "EASTSIDE CAFE"; right of it two display windows
+    with white bars; a fanlight in a round-arched cream head over the porch and over the windows; above, two cream bay
+    windows with a cornice, and a cream cornice and a white parapet. In the current shop frame (x 0..w, street on +y);
+    ANE's end shop (6.2 m). Solid behind (the room is not walked into)."""
+    P = Parts(); H = 8.5
+    bm_box(P["t_cream"], 0.0, w, -3.0, 0.0, 0.0, 3.1)
+    bm_box(P["es_grey"], 0.0, w, -3.0, 0.0, 3.1, H)
+    bm_box(P["t_cream"], 0.0, w, -0.05, 0.12, 0.0, 0.5)                              # plinth
+    bm_box(P["t_cream"], -0.04, w + 0.04, 0.0, 0.14, 2.9, 3.2)                       # the sign band
+    m1, m2 = 1.5, 4.6
+    for x in (0.4, 2.6):                                                             # the porch: two posts and a roof
+        bm_lathe(P["t_white"], [(0, 0), (0.13, 0), (0.1, 0.3), (0.08, 0.5), (0.08, 2.6), (0.12, 2.7), (0, 2.7)], 8, T(x, 0.95, 0.0))
+    bm_box(P["t_white"], 0.25, 2.75, 0.0, 1.1, 2.7, 2.9)
+    bm_box(P["display"], 0.6, 2.4, 0.0, 0.05, 0.0, 2.55)                             # the door and its glass
+    bm_box(P["shopglass"], 0.75, 1.3, 0.05, 0.08, 0.5, 2.4); bm_box(P["shopglass"], 1.7, 2.25, 0.05, 0.08, 0.5, 2.4)
+    for x0 in (3.3, 4.65):                                                           # two display windows
+        bm_box(P["t_cream"], x0 - 0.1, x0 + 1.4, 0.0, 0.1, 0.5, 2.8)
+        bm_box(P["shopglass"], x0, x0 + 1.3, 0.1, 0.13, 0.7, 2.7)
+        for k in (1, 2):
+            bm_box(P["t_white"], x0 + k * 0.43 - 0.015, x0 + k * 0.43 + 0.015, 0.13, 0.16, 0.7, 2.7)
+        for z in (1.4, 2.05):
+            bm_box(P["t_white"], x0, x0 + 1.3, 0.13, 0.16, z - 0.015, z + 0.015)
+    text(f"ST_WBZ_eastside_{name}_sign", "EASTSIDE CAFE", 0.2, (1.5, 0.16, 3.0), (math.pi / 2, 0, math.pi), "brass", 0.015)
+    _fan(P, 0.2, 2.8, 3.9, 0.8)                                                      # the fanlights over the porch and the windows
+    _fan(P, 3.3, 5.9, 3.9, 0.8)
+    for m in (m1, m2):                                                               # the bay windows
+        bay = [(m - 0.95, 0.0), (m + 0.95, 0.0), (m + 0.6, 0.75), (m - 0.6, 0.75)]
+        bm_prism(P["t_cream"], bay, 5.0, 7.3, "xy")
+        bm_prism(P["t_white"], [(m - 1.02, -0.02), (m + 1.02, -0.02), (m + 0.66, 0.82), (m - 0.66, 0.82)], 4.85, 5.0, "xy")
+        bm_prism(P["t_white"], [(m - 1.02, -0.02), (m + 1.02, -0.02), (m + 0.66, 0.82), (m - 0.66, 0.82)], 7.3, 7.5, "xy")
+        bm_box(P["shopglass"], m - 0.42, m + 0.42, 0.74, 0.77, 5.35, 7.0)
+        bm_box(P["t_white"], m - 0.015, m + 0.015, 0.77, 0.8, 5.35, 7.0)
+        for sx in (-1, 1):
+            bm_box(P["shopglass"], m + sx * 0.8 - 0.02, m + sx * 0.8 + 0.02, 0.2, 0.55, 5.35, 7.0)
+        for sx in (-0.45, 0.45):                                                     # the X panels under the sill
+            bm_box(P["t_white"], m + sx - 0.22, m + sx + 0.22, 0.2, 0.22, 5.1, 5.3)
+    bm_box(P["t_cream"], -0.05, w + 0.05, -0.1, 0.3, H - 0.45, H - 0.1)              # cornice and parapet
+    bm_box(P["t_white"], 0.0, w, -0.1, 0.1, H - 0.1, H + 0.5)
+    P.flush(f"eastside_{name}", smooth=("lamp", "topiary"))
+
+
+def eastside_end():
+    """The arm-end face (user photos, the pale blue corner): periwinkle weatherboard over a white ground floor with two
+    tall lattice windows, a white balcony with a turned-post balustrade over it, upstairs two pairs of a tall window under a
+    round one, a cream cornice, blue planter boxes with shrubs in front. Faces west into the arm hall; 4.3 m wide."""
+    (ax, ay), (bx_, by) = EASTSIDE_END["p0"], EASTSIDE_END["p1"]
+    L = math.hypot(bx_ - ax, by - ay); H = 8.2
+    with frame("WBZ_eastside_end", ax, ay, math.degrees(math.atan2(by - ay, bx_ - ax))):
+        P = Parts()
+        bm_box(P["t_white"], 0.0, L, -2.5, 0.0, 0.0, 3.5)
+        bm_box(P["es_blue"], 0.0, L, -2.5, 0.0, 3.5, H)
+        bm_box(P["es_blue"], 0.0, L, -0.02, 0.06, 0.0, 0.6)                          # the blue panelled base
+        for x0 in (0.35, 2.2):                                                       # the two tall lattice windows
+            bm_box(P["shopglass"], x0, x0 + 1.75, 0.06, 0.09, 0.7, 3.2)
+            for k in range(1, 4):
+                bm_box(P["t_white"], x0 + k * 0.4375 - 0.015, x0 + k * 0.4375 + 0.015, 0.09, 0.12, 0.7, 3.2)
+            for z in (1.3, 1.9, 2.5):
+                bm_box(P["t_white"], x0, x0 + 1.75, 0.09, 0.12, z - 0.015, z + 0.015)
+        for x in (0.0, 2.1, L - 0.2):                                                # white pilasters
+            bm_box(P["t_white"], x, x + 0.2, 0.0, 0.15, 0.0, 3.5)
+        bm_box(P["t_white"], -0.05, L + 0.05, 0.0, 1.0, 3.45, 3.7)                   # the balcony slab
+        for k in range(int(L / 0.3) + 1):                                            # the balustrade
+            x = 0.08 + k * 0.3
+            if x < L - 0.04:
+                bm_lathe(P["t_white"], [(0, 0), (0.04, 0), (0.025, 0.2), (0.04, 0.5), (0.045, 0.75), (0, 0.75)], 6, T(x, 0.9, 3.7))
+        bm_box(P["t_white"], -0.04, L + 0.04, 0.82, 0.98, 4.43, 4.52)
+        for sx in (0.0, L - 0.1):
+            bm_box(P["t_white"], sx, sx + 0.1, 0.0, 1.0, 3.7, 4.43)                  # the side returns
+        for cx in (1.1, 3.2):                                                        # the window pairs upstairs
+            bm_box(P["t_white"], cx - 0.5, cx + 0.5, 0.0, 0.09, 4.2, 5.85)
+            bm_box(P["shopglass"], cx - 0.4, cx + 0.4, 0.09, 0.11, 4.3, 5.75)
+            bm_box(P["t_white"], cx - 0.015, cx + 0.015, 0.11, 0.14, 4.3, 5.75)
+            bm_box(P["t_white"], cx - 0.4, cx + 0.4, 0.11, 0.14, 5.0 - 0.015, 5.0 + 0.015)
+            ring = [(cx + 0.5 * math.cos(2 * math.pi * k / 16), 6.55 + 0.5 * math.sin(2 * math.pi * k / 16)) for k in range(16)]
+            gl = [(cx + 0.38 * math.cos(2 * math.pi * k / 16), 6.55 + 0.38 * math.sin(2 * math.pi * k / 16)) for k in range(16)]
+            bm_prism(P["t_white"], ring, 0.0, 0.08, "xz")                            # the round window and its frame
+            bm_prism(P["shopglass"], gl, 0.08, 0.1, "xz")
+        bm_box(P["t_cream"], -0.06, L + 0.06, -0.1, 0.3, H - 0.55, H - 0.2)          # the cornice with dentils
+        x = 0.0
+        while x < L:
+            bm_box(P["t_cream"], x, min(x + 0.1, L), 0.0, 0.34, H - 0.75, H - 0.55); x += 0.22
+        bm_box(P["t_white"], 0.0, L, -0.1, 0.1, H - 0.2, H + 0.4)
+        for x0 in (0.3, 2.35):                                                       # the blue planter boxes and their shrubs
+            bm_box(P["es_box"], x0, x0 + 1.6, 1.15, 1.75, 0.0, 0.5)
+            bm_box(P["t_white"], x0 - 0.03, x0 + 1.63, 1.12, 1.78, 0.48, 0.55)
+            globe_lamp_bm(P["topiary"], x0 + 0.8, 1.45, 0.85, 0.42)
+        P.flush("eastside_end", smooth=("lamp", "topiary"))

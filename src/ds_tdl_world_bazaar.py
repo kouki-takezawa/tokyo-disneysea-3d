@@ -1396,8 +1396,9 @@ SHOP_STYLE = {
     # (Toy Station: its own fronts from the user's photos, ds_tdl_toy_station -- SPECIAL[("ASW", 0)])
     # (R2 E18, v2 5:46 .. 5:50: the building at the arm's end on the left is mint with a yellow band, a teal iron
     #  balcony and maroon-and-cream awnings; was cream with a mansard)
-    "EASTSIDE CAFE": dict(wall="mint", trim="cream", floors=2, roof="parapet", win="arch",
-                          awning=("aw_maroon", "aw_white"), win_awn=False, balcony=True, oriel=False, pilasters=True, quoins=False),
+    # (user photos images/eastside_cafe/ec1..3, 2026-10-05: painted grey-green brick, two cream bays, fanlights; its own
+    #  front, ds_tdl_wb_refine.eastside_front)
+    "EASTSIDE CAFE": dict(custom="eastside", wall="eastside", trim="cream", floors=2, roof="parapet", win="arch"),
     # (R2-11, B-1 W7, v2 1:14:20 .. 1:14:46: apricot, the round-arched entrance, maroon-and-cream striped window awnings;
     #  was sage with paired windows)
     "TOWN CENTER FASHIONS": dict(wall="apricot", trim="cream", floors=3, roof="parapet", win="arch", portal=True, quoins=True, oriel=False,
@@ -1487,6 +1488,9 @@ def build_shops(seed=7):
                     elif st.get("custom") == "club33":    # Club 33 between the Magic Shop and the bank (web sources)
                         import ds_tdl_wb_refine as WR
                         WR.club33_front(f"{fid}_{i}", wd)
+                    elif st.get("custom") == "eastside":  # Eastside Cafe's Center Street face (user photos ec1..ec3)
+                        import ds_tdl_wb_refine as WR
+                        WR.eastside_front(f"{fid}_{i}", wd)
                     else:
                         shop(f"{fid}_{i}", wd, st, room)
                 if room and st.get("interior") == "penny":
@@ -1496,6 +1500,7 @@ def build_shops(seed=7):
     import ds_tdl_wb_refine as WR                         # WB re-refinement 5 (wb2 BK1), placed by web sources: the bank past
     WR.sumitomo_bank(shop)                                # the east arm's end, facing its covered way, with its ATM corner
     WR.bank_atm(shop)                                     # next to Club 33 (Club 33 is ASE's last slot, above)
+    WR.eastside_end()                                     # Eastside Cafe's pale blue face at the arm hall's end (user photos)
 
 
 # ---------------------------------------------------------------- the blocks' outer walls (seen from the plaza and the park)
