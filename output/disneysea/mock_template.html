@@ -1421,7 +1421,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_sign_red: { color: 0x8e1937, roughness: 0.5 }, ST_letters: { color: 0xf0c040, roughness: 0.4, metalness: 0.4 }, ST_booth: { color: 0xe3d7ba, roughness: 0.7 },
   ST_green_sign: { color: 0x14705e, roughness: 0.6 }, ST_bulb: { color: 0xfff1d6, emissive: 0xffd88a, emissiveIntensity: 1.2 },
   ST_flower_purple: { color: 0x6a3f9e, roughness: 1 }, ST_flower_white: { color: 0xeeeee6, roughness: 1 }, ST_flowers_red: { color: 0xc23350, roughness: 1 },
-  ST_hedge: { color: 0x2d5a26, roughness: 1 }, ST_grass: { color: 0x4f7d3a, roughness: 1 }, ST_win_dark: { color: 0x1a2229, roughness: 0.2 },
+  ST_hedge: { color: 0x2d5a26, roughness: 1 }, ST_grass: { color: 0x4f7d3a, roughness: 1 }, ST_win_dark: { color: 0x56656f, roughness: 0.3 },
   ST_rail_blue: { color: 0x234f52, roughness: 0.5, metalness: 0.4 }, ST_blue_disc: { color: 0x3350a0, roughness: 0.5 }, ST_screen: { color: 0x14304a, emissive: 0x3a7ab8, emissiveIntensity: 0.6, roughness: 0.2 },
   // ワールドバザール (ds_tdl_entrance.py 1 節 + ds_tdl_world_bazaar.py): EN_* / WZ_* meshes
   ST_mauve: { color: 0x642228, roughness: 0.7 }, ST_hall_iron: { color: 0x34635e, roughness: 0.5, metalness: 0.3 },
@@ -1504,7 +1504,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_wbz_trim_white: { color: 0xf1ede1, roughness: 0.7 }, ST_wbz_trim_cream: { color: 0xece0c3, roughness: 0.7 }, ST_wbz_trim_teal: { color: 0x5a9f9b, roughness: 0.7 },
   ST_wbz_trim_dkgreen: { color: 0x2c5048, roughness: 0.7 }, ST_wbz_trim_maroon: { color: 0x7a2f33, roughness: 0.7 }, ST_wbz_trim_blue: { color: 0x4a5f7a, roughness: 0.7 },
   ST_wbz_display: { color: 0xead8b4, emissive: 0x6b5330, emissiveIntensity: 0.6, roughness: 0.3 }, ST_wbz_door: { color: 0x4a2a18, roughness: 0.6 },
-  ST_wbz_road: { color: 0x6f8580, roughness: 0.9 }, ST_wbz_walk: { color: 0x9e5446, roughness: 0.9 }, ST_wbz_edging: { color: 0xbdb8ae, roughness: 0.85 },
+  ST_wbz_road: { color: 0x76787c, roughness: 0.9 }, ST_wbz_walk: { color: 0x9e5446, roughness: 0.9 }, ST_wbz_edging: { color: 0xbdb8ae, roughness: 0.85 },
   ST_wbz_awning_green: { color: 0x245c4a, roughness: 0.9 }, ST_wbz_awning_red: { color: 0xa8303a, roughness: 0.9 },
   ST_wbz_awning_white: { color: 0xefece4, roughness: 0.9 }, ST_wbz_awning_blue: { color: 0x3d5a8a, roughness: 0.9 },
   ST_wbz_shingle: { color: 0x59626e, roughness: 0.8 }, ST_wbz_clock: { color: 0xf6f3ea, emissive: 0x77736a, emissiveIntensity: 0.4 },
@@ -1540,7 +1540,7 @@ const MODEL_MAT = {  // mesh-name prefix -> material (the GLBs carry geometry; p
   ST_pb_trunk: { color: 0x6b5c47, roughness: 0.9, flatShading: true }, ST_pb_leaf: { color: 0x2f5a1f, roughness: 0.85, flatShading: true }, ST_pb_hedge: { color: 0x274a18, roughness: 1 },
   ST_pb_dome: { color: 0xc8e2ea, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }, ST_pb_iron: { color: 0x1d2323, roughness: 0.5, metalness: 0.4 },
   // エントランス広場の地面 (ds_tdl_ground.py): meshes TG_<part>
-  TG_paving: { color: 0xc98d86, roughness: 0.9 }, TG_slate: { color: 0xc98d86, roughness: 0.9 }, TG_paving2: { color: 0xc4867f, roughness: 0.9 }, TG_slate2: { color: 0xc4867f, roughness: 0.9 }, TG_band: { color: 0xeee2cc, roughness: 0.8 },   // the park map: pink panels, cream lines, inside and outside the gates
+  TG_paving: { color: 0xbe9a9f, roughness: 0.9 }, TG_slate: { color: 0xbe9a9f, roughness: 0.9 }, TG_paving2: { color: 0xb8949a, roughness: 0.9 }, TG_slate2: { color: 0xb8949a, roughness: 0.9 }, TG_band: { color: 0xeee2cc, roughness: 0.8 },   // the park map: pink panels, cream lines, inside and outside the gates
   TG_gate: { color: 0xa39e90, roughness: 0.85 },   // the pale stone floor under the gate canopy
   TG_asphalt: { color: 0x4b4d52, roughness: 0.95 }, TG_brickband: { color: 0x8f4a38, roughness: 0.9 }, TG_yellow: { color: 0xe0b52e, roughness: 0.8 },
   TG_curb: { color: 0xc9bb9f, roughness: 0.8 }, TG_soil: { color: 0x4d6b38, roughness: 1 }, TG_edge: { color: 0x7a746b, roughness: 0.9 },
