@@ -3378,6 +3378,7 @@ async function init3D() {
     }
     for (const t of three.trains || []) { t.grp.visible = trainsSolid(); t.wire.group.visible = trainsWire(); }
     if (three.trees3d) three.trees3d.visible = mdl.trees3d !== false;
+    if (three.plants) three.plants.group.visible = mdl.trees3d !== false;
     three.shadowDirty = true;
     for (const [id, m] of Object.entries(three.models)) {
       m.obj.visible = shown(m);
@@ -3410,6 +3411,7 @@ async function init3D() {
   // trees: one low-poly tree per OSM tree point, instanced (a trunk and a two-lobed crown), on the DEM ground
   three.buildTrees = () => {
     if (three.trees3d || !((D.trees3d || []).length || (D.shrubs3d || []).length)) return;
+    const covered = three.plants ? three.plants.covers : () => false;   // grown by plants.js (the phase-1 trial round the entrance)
     const n = D.trees3d.length / 3;
     const trunkG = new T.CylinderGeometry(0.1, 0.16, 1, 6); trunkG.translate(0, 0.5, 0);
     const crownG = new T.IcosahedronGeometry(1, 1);
@@ -3419,14 +3421,19 @@ async function init3D() {
     const m = new T.Matrix4(), q = new T.Quaternion(), s = new T.Vector3(), p = new T.Vector3(), col = new T.Color();
     const greens = [0x3f6a2c, 0x4d7a33, 0x355e28, 0x587f3a, 0x2f5423];
     let rnd = 12345; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
+    let k = 0;
     for (let i = 0; i < n; i++) {
       const x = D.trees3d[i * 3], y = D.trees3d[i * 3 + 1], h = D.trees3d[i * 3 + 2] || (5 + rand() * 5);
       const g = heightAt(x, y) ?? 0, r = h * (0.24 + rand() * 0.08);
-      m.compose(p.set(x, g, -y), q.identity(), s.set(1 + h * 0.03, h * 0.45, 1 + h * 0.03)); trunk.setMatrixAt(i, m);
-      col.setHex(greens[Math.floor(rand() * greens.length)]);
-      m.compose(p.set(x, g + h * 0.62, -y), q.setFromAxisAngle(new T.Vector3(0, 1, 0), rand() * 6.28), s.set(r, r * 1.05, r)); crown.setMatrixAt(i * 2, m); crown.setColorAt(i * 2, col);
-      m.compose(p.set(x + (rand() - 0.5) * r * 0.8, g + h * 0.8, -y + (rand() - 0.5) * r * 0.8), q, s.set(r * 0.7, r * 0.75, r * 0.7)); crown.setMatrixAt(i * 2 + 1, m); crown.setColorAt(i * 2 + 1, col.multiplyScalar(1.12));
+      const c0 = Math.floor(rand() * greens.length), a0 = rand() * 6.28, j0 = rand(), j1 = rand();
+      if (covered(x, y)) continue;
+      m.compose(p.set(x, g, -y), q.identity(), s.set(1 + h * 0.03, h * 0.45, 1 + h * 0.03)); trunk.setMatrixAt(k, m);
+      col.setHex(greens[c0]);
+      m.compose(p.set(x, g + h * 0.62, -y), q.setFromAxisAngle(new T.Vector3(0, 1, 0), a0), s.set(r, r * 1.05, r)); crown.setMatrixAt(k * 2, m); crown.setColorAt(k * 2, col);
+      m.compose(p.set(x + (j0 - 0.5) * r * 0.8, g + h * 0.8, -y + (j1 - 0.5) * r * 0.8), q, s.set(r * 0.7, r * 0.75, r * 0.7)); crown.setMatrixAt(k * 2 + 1, m); crown.setColorAt(k * 2 + 1, col.multiplyScalar(1.12));
+      k++;
     }
+    trunk.count = k; crown.count = k * 2;
     const grp = new T.Group(); grp.add(trunk, crown);
     // clipped round shrubs in the plaza's and the hotel's beds
     const sh = D.shrubs3d || [], ns = sh.length / 3;
@@ -4338,6 +4345,7 @@ async function init3D() {
     let moved = false;
     if (intro) stepIntro(now); else if (three.anim) stepAnim(now); else if (three.walking) three.walkTick(dt); else if (fol.tr) followTick(now); else moved = ctl.update();
     if (now - lodLast > 500) { lodLast = now; lodTick(); }
+    three.plants?.tick(now);
     if (three.walking) three.woodyTick?.(Math.min(dt, 0.1));
     FX_TIME.value = now / 1000;
     try { three.moverTick?.(); } catch (e) { three.moverTick = null; console.error("movers:", e); toast(`乗り物の3Dを動かせませんでした(${e && e.message || e})`, 8000); }
@@ -4358,7 +4366,16 @@ async function init3D() {
     if (now - mmLast > 120) { mmLast = now; mmDraw(); }
   })();
   three.ready = true;
-  try { three.buildTrees(); } catch (e) { console.error("trees:", e); }
+  // trees, palms and grass grown in the page (plants.js, docs/plants/plan.md); without it, every tree is the instanced one
+  (async () => {
+    try {
+      if (!window.TDS_PLANTS) await loadScript("plants.js?v=1");
+      three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], eye: () => cam.position,
+        changed: sh => { three.dirty = true; if (sh) three.shadowDirty = true; } });
+      three.plants.group.visible = mdl.trees3d !== false;
+    } catch (e) { console.error("plants:", e); three.plants = null; }
+    try { three.buildTrees(); } catch (e) { console.error("trees:", e); }
+  })();
   return true;
 }
 

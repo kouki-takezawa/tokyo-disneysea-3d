@@ -21,3 +21,15 @@
 | meadow_rough_color/normal | https://ambientcg.com/a/Grass004 | Grass004 | CC0 | 512px、NormalGL | 荒れた草地(ウエスタンランド・クリッターカントリー) |
 
 形式: 透過のものは .png(256色)と .webp、不透明のものは .jpg と .webp。法線は OpenGL 規約(Three.js の normalMap はそのまま)。
+
+## 派生ファイル(フェーズ1、2026-10-05)
+
+`tools/make_leaf_atlases.py`(Pillow)が上の CC0 の WebP(8bit の透過。256 色 PNG は使わない)から作る。ライセンスは元と同じ CC0。
+
+| ファイル | 元 | 内容 |
+|---|---|---|
+| cluster_broadleaf_near.webp / _far.webp | LeafSet022(leaf_evergreen_oval) | 葉1枚を小枝に沿って並べた房 2×2(近距離用、約 0.8〜1.5 m の板)/ 葉を丸く積んだ塊 2×2(遠距離用) |
+| cluster_deciduous_near.webp / _far.webp | LeafSet014(leaf_deciduous_light) | 同上(落葉広葉、フェーズ2用) |
+| palm_frond.webp | LeafSet013(leaf_narrow_palm) | 小葉を中軸の両側に並べた羽状のヤシの葉 1 枚(下が付け根) |
+
+透明部分の色は近くの葉の色で埋めてある(ミップマップで縁が黒・白にならないように)。
