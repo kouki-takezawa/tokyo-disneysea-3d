@@ -12,7 +12,11 @@ copies are 256-colour and their edges are rough) and writes:
                      shaded darker underneath) for the mid and far copies of the same trees
   bark_atlas_color.webp / _normal.webp   1024 x 512: grey broadleaf bark | red pine bark side by side (one material for
                      every tree kind; the page wraps the u inside each half)
-  palm_frond.webp    256 x 1024, one pinnate frond (rachis up the middle, leaflets either side; base at the bottom)
+  palm_atlas.webp    1024 x 1024, tiles of 256 x 512 (base at the bottom of each), top row: pinnate frond (canary palm) |
+                     the same dead (tan, leaflets folded and missing) | washingtonia fan (u = round the fan, v = out from
+                     the petiole: segments joined near the base, split and pointed further out) | the fan dead (straw);
+                     bottom row: two bamboo sprays (hanging twigs of narrow leaves) | a second frond | a second fan
+                     (phase 3, 2026-10-05; phase 1 wrote one frond, palm_frond.webp)
 All the kinds share one atlas so a block of mixed trees is one leaf mesh (one draw). (Phase 2, 2026-10-05; phase 1 wrote
 one 2 x 2 atlas per kind, cluster_<kind>_near/far.webp.)
 
@@ -191,6 +195,106 @@ def frond(rng, lv, W=256, H=1024):
     return img
 
 
+def frond_tile(rng, lv, dead=False, W=256, H=512):
+    """frond() at the atlas tile's size; a dead one has fewer leaflets, folded towards the rachis, straw-brown."""
+    img = Image.new("RGBA", (W, H)); d = ImageDraw.Draw(img)
+    cx = W / 2
+    items = []
+    y = H - 14
+    while y > 8:
+        t = 1 - y / H
+        prof = math.sin(math.pi * min(1.0, 0.10 + t * 0.95)) ** 0.7
+        L = (W * 0.50) * (0.12 + 0.88 * prof)
+        for side in (-1, 1):
+            if dead and rng.random() < 0.3:
+                continue
+            a = side * (math.radians(rng.uniform(18, 30) if dead else rng.uniform(38, 55)) + 0.25 * t)
+            items.append(((cx + side * 2, y), a, L * rng.uniform(0.9, 1.05) * (0.85 if dead else 1), rng.uniform(0.32, 0.45),
+                          rng.uniform(0.62, 0.95)))
+        y -= rng.uniform(3.5, 5)
+    items.sort(key=lambda p: p[4])
+    for at, a, ln, sq, k in items:
+        paste_leaf(img, rng.choice(lv), at, a, ln, sq, k)
+    for i in range(H - 2, 5, -2):
+        t = 1 - i / H
+        d.line([(cx, i), (cx, i - 2)], fill=(150, 130, 80, 255) if dead else (120, 118, 70, 255), width=max(1, int(round(5 * (1 - t) + 4))))
+    return img
+
+
+def fan_tile(rng, dead=False, W=256, H=512):
+    """A washingtonia fan unrolled: u = round the fan, v = out from the petiole (bottom). ~34 segments, joined up to
+    40-55 % of the radius with darker folds between them, then each splits off, narrows to a point (some droop
+    shorter, a few with the thread-like fibres of the species between them)."""
+    a = np.zeros((H, W, 4), np.float32)
+    n = 34; sw = W / n
+    base = np.array([0.36, 0.47, 0.25]) if not dead else np.array([0.66, 0.56, 0.38])
+    yy = np.arange(H)[:, None] / H                       # 0 tip (top) .. 1 base
+    r = 1 - yy                                            # 0 at the petiole .. 1 at the fan's edge
+    for k in range(n):
+        x0 = k * sw; c = x0 + sw / 2
+        split = rng.uniform(0.38, 0.55)
+        tip = rng.uniform(0.86, 0.99) if rng.random() > 0.15 else rng.uniform(0.7, 0.85)
+        kk = rng.uniform(0.85, 1.12) * (1.0 if not dead else rng.uniform(0.8, 1.15))
+        xs = np.arange(W)[None, :]
+        # the half-width of the segment along r: the full slot up to the split, then narrowing to the tip
+        hw = np.where(r < split, sw / 2 + 0.6, (sw / 2) * np.clip((tip - r) / (tip - split), 0, 1) ** 0.8)
+        dx = np.abs(xs + 0.5 - c)
+        cover = np.clip(hw - dx + 0.5, 0, 1) * (r < tip) * (r > 0.015)
+        fold = 0.78 + 0.22 * np.cos(np.clip(dx / (sw / 2), 0, 1) * math.pi / 2)   # darker in the folds
+        light = (0.82 + 0.25 * r) * kk * fold
+        for i in range(3):
+            a[..., i] = np.where(cover > a[..., 3], base[i] * 255 * light, a[..., i])
+        a[..., 3] = np.maximum(a[..., 3], cover * 255)
+    if not dead:                                          # fibres: thin pale threads hanging from the splits
+        d_img = Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA"); d = ImageDraw.Draw(d_img)
+        for k in range(1, n):
+            if rng.random() < 0.35:
+                x = k * sw; y0 = H * (1 - rng.uniform(0.45, 0.6)); y1 = y0 - H * rng.uniform(0.1, 0.25)
+                d.line([(x, y0), (x + rng.uniform(-3, 3), y1)], fill=(200, 196, 170, 200), width=1)
+        return d_img
+    return Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA")
+
+
+def bamboo_tile(rng, lv, W=256, H=512):
+    """A bamboo spray: a thin culm branch from the bottom, side twigs, narrow leaves hanging in fans of 3-6 from each node."""
+    img = Image.new("RGBA", (W, H)); stems = Image.new("RGBA", (W, H)); d = ImageDraw.Draw(stems)
+    lv = [tint(l, (150, 175, 70), keep=0.35) for l in lv]
+    placed = []
+
+    def grow(x, y, ang, L, depth):
+        n = 7; pts = [(x, y)]
+        for i in range(n):
+            ang += rng.uniform(-0.08, 0.08)
+            x += math.sin(ang) * L / n; y -= math.cos(ang) * L / n; pts.append((x, y))
+        twig(d, pts, 3 - depth, 1.0, (130, 140, 70))
+        for i in range(2, len(pts)):
+            for _ in range(rng.randint(3, 6)):
+                a = math.pi + rng.uniform(-1.3, 1.3)       # hanging down and out from the node
+                placed.append((pts[i], a, rng.uniform(60, 95), rng.uniform(0.5, 0.8), rng.uniform(0.62, 1.08)))
+            if depth == 0 and rng.random() < 0.7:
+                side = 1 if i % 2 else -1
+                grow(pts[i][0], pts[i][1], ang + side * rng.uniform(0.5, 0.9), L * rng.uniform(0.3, 0.45), 1)
+    grow(W / 2, H - 4, rng.uniform(-0.1, 0.1), H * 0.8, 0)
+    img.alpha_composite(stems)
+    placed.sort(key=lambda p: p[4])
+    for at, a, ln, sq, k in placed:
+        paste_leaf(img, rng.choice(lv), at, a, ln, sq, k)
+    return img
+
+
+def palm_atlas():
+    lv = leaves("leaf_narrow_palm")
+    rng = random.Random("palm-atlas")
+    dead_lv = [tint(l, (175, 150, 95), keep=0.1) for l in lv[:4]]
+    tiles = [frond_tile(rng, lv[:4]), frond_tile(rng, dead_lv, dead=True), fan_tile(rng), fan_tile(rng, dead=True),
+             bamboo_tile(rng, lv), bamboo_tile(rng, lv), frond_tile(rng, lv[:4]), fan_tile(rng)]
+    out = Image.new("RGBA", (1024, 1024))
+    for i, t in enumerate(tiles):
+        out.alpha_composite(t, ((i % 4) * 256, (i // 4) * 512))
+    dilate(out).save(TEX / "palm_atlas.webp", quality=88, method=6)
+    print("palm_atlas ok")
+
+
 def pine_spray(rng, needles, S=512):
     """Black pine: a forked twig whose shoots end in brushes of needles (bundles radiating up and out from each shoot tip,
     the older needles lower down the shoot pointing out sideways)."""
@@ -328,10 +432,9 @@ def main():
     dilate(grid(far, 256, 4)).save(TEX / "leaves_far.webp", quality=86, method=6)
     bark_atlas()
     print("leaves_near / leaves_far / bark_atlas ok")
-    rng = random.Random("palm-frond")
-    dilate(frond(rng, leaves("leaf_narrow_palm")[:4])).save(TEX / "palm_frond.webp", quality=88, method=6)
-    print("palm_frond ok")
+    palm_atlas()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    palm_atlas() if sys.argv[1:] == ["palm"] else main()

@@ -1235,28 +1235,17 @@ def west_house(ctx, F, zb, zf, ztop):
         palm_tree(M, x, y, ctx.gr.z(x, y), h, math.atan2(F.n[1], F.n[0]) + rng.uniform(-0.6, 0.6), rng)
 
 
-def palm_tree(M, x, y, z, h, lean, rng):
-    """A palm: a ringed, gently curving trunk, a crown of drooping V-section fronds, a cluster of nuts."""
+def palm_tree(M, x, y, z, h, lean, rng, kind="canary"):
+    """A palm's spec (plants phase 3, 2026-10-05): the page grows it (plants.js). Only a marker triangle goes in AD_palmt
+    (src/palm_specs.py reads it back out of the model): the base, the crown (the trunk bending towards `lean`), the kind.
+    The old mesh's random draws are kept so the caller's sequence is unchanged."""
+    import palm_specs
     ax, ay = math.cos(lean), math.sin(lean)
     bend = rng.uniform(0.5, 1.2)
-    P = lambda t: np.array([x + ax * bend * t * t, y + ay * bend * t * t, z + h * t])
-    n = 10
-    for k in range(n):
-        a, b = P(k / n), P((k + 1) / n)
-        r0, r1 = 0.21 - 0.07 * k / n, 0.21 - 0.07 * (k + 1) / n
-        frustum(M["AD_palmt"], a, b, r0, r1, n=7)
-        frustum(M["AD_palmt"], a, a + (b - a) * 0.12, r0 * 1.12, r0 * 1.12, n=7)
-    top = P(1.0)
     for f in range(12):
-        az = 2 * math.pi * f / 12 + rng.uniform(-0.2, 0.2)
-        Lf = rng.uniform(2.4, 3.3); up = rng.uniform(0.3, 0.8)
-        u = np.array([math.cos(az), math.sin(az), 0.0]); side = np.array([-u[1], u[0], 0.0])
-        pts = [top + u * (Lf * s) + UP * (up * Lf * s - 0.8 * Lf * s * s) for s in (0, 0.25, 0.5, 0.75, 1.0)]
-        wid = (0.05, 0.42, 0.5, 0.36, 0.03)
-        for (p0, w0), (p1, w1) in zip(zip(pts[:-1], wid[:-1]), zip(pts[1:], wid[1:])):
-            for sg in (-1, 1):
-                quad(M["AD_palml"], p0 - UP * 0.1 * w0, p1 - UP * 0.1 * w1, p1 + side * sg * w1, p0 + side * sg * w0, UP)
-    sphere(M["AD_palmt"], top - UP * 0.15, 0.3, n=8, m=4)
+        rng.uniform(-0.2, 0.2); rng.uniform(2.4, 3.3); rng.uniform(0.3, 0.8)
+    t = palm_specs.marker(x, y, z, h, ax * bend, ay * bend, kind)
+    M["AD_palmt"].add(t, [UP, UP, UP])
 
 
 def tan_plain(ctx, F, zb, zf, ztop):

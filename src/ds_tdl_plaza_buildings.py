@@ -369,29 +369,17 @@ def mi_pole_sign(name, x, y, deg):
         text(f"PB_{name}_t3", "Panasonic", 0.22, (0, 0.14, 4.25), (math.pi / 2, 0, math.pi), "pb_blue", 0.02)
 
 
-def palm(bm_t, bm_l, x, y, h, lean, rng):
-    """A palm (photos: tall and slender in the beds before the front): a ringed, gently curving trunk, a crown of
-    drooping fronds."""
+def palm(bm_t, bm_l, x, y, h, lean, rng, kind="washi"):
+    """A palm's spec (plants phase 3, 2026-10-05): the page grows it (plants.js). This leaves only a marker triangle in
+    bm_t (src/palm_specs.py reads it back out of the exported model) at the base, the crown (the trunk leaning towards
+    `lean` by `bend`) and the kind; bm_l stays empty. The random draws of the old mesh are kept so the rest of the
+    caller's sequence is unchanged."""
+    import palm_specs
     ax, ay = math.cos(lean), math.sin(lean); bend = rng.uniform(0.6, 1.4)
-    P = lambda t: Vector((x + ax * bend * t * t, y + ay * bend * t * t, h * t))
-    n = 10
-    for k in range(n):
-        a, b = P(k / n), P((k + 1) / n); d = b - a
-        r0, r1 = 0.2 - 0.07 * k / n, 0.2 - 0.07 * (k + 1) / n
-        M_ = Matrix.Translation(a) @ d.to_track_quat("Z", "Y").to_matrix().to_4x4()
-        bm_lathe(bm_t, [(0, 0), (r0 * 1.12, 0), (r0, 0.12), (r1, d.length), (0, d.length)], 7, M_)
-    top = P(1.0)
-    for f in range(11):                                                                   # the fronds
-        az = 2 * math.pi * f / 11 + rng.uniform(-0.2, 0.2); L = rng.uniform(2.4, 3.2); up = rng.uniform(0.35, 0.8)
-        u = Vector((math.cos(az), math.sin(az), 0)); side = Vector((-u.y, u.x, 0))
-        pts = [top + u * (L * s) + Vector((0, 0, up * L * s - 1.6 * L * s * s * 0.5)) for s in (0, 0.25, 0.5, 0.75, 1.0)]
-        wid = (0.05, 0.42, 0.5, 0.36, 0.03)
-        vs = [(bm_l.verts.new(p - side * w), bm_l.verts.new(p - Vector((0, 0, 0.12 * w))), bm_l.verts.new(p + side * w))
-              for p, w in zip(pts, wid)]
-        for s in range(4):
-            bm_l.faces.new((vs[s][0], vs[s + 1][0], vs[s + 1][1], vs[s][1]))
-            bm_l.faces.new((vs[s][1], vs[s + 1][1], vs[s + 1][2], vs[s][2]))
-    bm_lathe(bm_t, [(0, -0.3), (0.3, -0.2), (0.25, 0.1), (0, 0.2)], 8, T(top.x, top.y, top.z))
+    for f in range(11):
+        rng.uniform(-0.2, 0.2); rng.uniform(2.4, 3.2); rng.uniform(0.35, 0.8)
+    vs = [bm_t.verts.new(p) for p in palm_specs.marker(x, y, 0.0, h, ax * bend, ay * bend, kind)]
+    bm_t.faces.new(vs)
 
 
 def mi_front(bid, i, L):
@@ -470,11 +458,11 @@ def monsters(bid, pts, H):
         bm_box(bmh, bx - 1.4, bx + 1.4, by - bl / 2 + 0.2, by + bl / 2 - 0.2, 0.45, 1.05)
         for k in range(3 if bl > 8 else 2):                                               # the photos' palms (trees back, 2026-10-04)
             yy = by - bl / 2 + bl * (k + 0.5) / (3 if bl > 8 else 2)
-            palm(bmt, bml, bx + rng.uniform(-0.4, 0.4), yy, rng.uniform(7.0, 9.5), rng.uniform(0, 2 * math.pi), rng)
+            palm(bmt, bml, bx + rng.uniform(-0.4, 0.4), yy, rng.uniform(7.0, 9.5) * 1.5, rng.uniform(0, 2 * math.pi), rng)   # washingtonias, 10.5-14 m, well over the roof (v2 1:10:04 .. 1:10:28)
     for (lx, ly) in ((-576.0, 800.5), (-576.0, 782.0), (-576.0, 769.0)):                  # the lamps
         bm_lathe(bmpost, [(0, 0), (0.2, 0), (0.2, 0.5), (0.1, 0.7), (0.07, 3.8), (0.12, 3.9), (0.12, 4.0), (0, 4.0)], 10, T(lx, ly, 0))
         bm_lathe(bmlamp, [(0, 0), (0.22, 0.1), (0.25, 0.55), (0.12, 0.75), (0, 0.8)], 10, T(lx, ly, 4.0))
-    obj_bm(f"PB_{bid}_palmtrunk", bmt, "pb_trunk"); obj_bm(f"PB_{bid}_palmleaf", bml, "pb_leaf")
+    obj_bm(f"PB_{bid}_palmtrunk", bmt, "pb_trunk", recalc=False); bml.free()   # the palms' markers (palm_specs)
     obj_bm(f"PB_{bid}_hedge", bmh, "pb_hedge"); obj_bm(f"PB_{bid}_bedcurb", bmc, "pb_tan3")
     obj_bm(f"PB_{bid}_lamppost", bmpost, "pb_white"); obj_bm(f"PB_{bid}_lamp", bmlamp, "pb_display")
     mi_tower(bid, H)

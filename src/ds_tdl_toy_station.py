@@ -324,7 +324,7 @@ def big_front(name, L, H, a, b):
         import random
         rng = random.Random(72216845)
         for px in (0.6, max(0.8, x1p - 0.4)):
-            PB.palm(P["palm_trunk"], P["palm_leaf"], px, 2.4, rng.uniform(5.0, 6.0), rng.uniform(0, 2 * math.pi), rng)
+            PB.palm(P["palm_trunk"], P["palm_leaf"], px, 2.4, rng.uniform(5.0, 6.0), rng.uniform(0, 2 * math.pi), rng, kind="canary")   # the page grows them (plants.js; ts1: drooping feathery fronds)
     # the terracotta walk before it
     bm_box(P["walk"], 0, L, 0.0, 3.0, 0.0, 0.035)
     P.flush(name)

@@ -15,6 +15,9 @@
    vertex shader (one smooth field per tree, so twigs and their leaves move together).
    Phase 1 (2026-10-05): the generator, the trial round the entrance (one broadleaf kind, one palm, a lawn patch).
    Phase 2 (2026-10-05): every kind of species.md, every tree, the mid and far levels lighter and merged per block.
+   Phase 3 (2026-10-05): palms and bamboo. The models' palms are specs now (src/palm_specs.py: mock_data's palms3d, the
+   position, ground, height, lean and kind); they and the palms / bamboo of MIX are grown here: canary palms, washingtonias
+   with their skirts, bamboo clumps (the palm atlas, palm_atlas.webp).
    The plants are in a group named "plants": the water's refraction pass (renderBufferDirect patch) leaves them out. */
 (function () {
 "use strict";
@@ -45,7 +48,6 @@ function inEntrance(x, y) {
   const [u, v] = toWB(x, y);
   return u > 55 && u < 110 && v > -125 && v < -60;                      // outside the east exit: the big spreading trees
 }
-const TRIAL_PALMS = [fromWB(72, -106)];                                 // one palm by the beds of the east exit (GLB palms stay; phase 3)
 const TRIAL_LAWN = { x: -518, y: 925, r: 46 };                          // the lawns inside the entrance plaza's arc
 const LANDS = ["wb", "adventureland", "westernland", "critter", "fantasyland", "toontown", "tomorrowland"];   // DL.labels[].p
 const ZONES = [   // places inside a land with their own planting (video v2 times in species.md)
@@ -53,9 +55,9 @@ const ZONES = [   // places inside a land with their own planting (video v2 time
   { n: "snow", x: -334, y: 600, r: 45 },     // north-west of the castle: pines and firs with light deciduous trees
   { n: "belle", x: -622, y: 497, r: 80 },    // Belle's village: dense firs, a few light deciduous trees
 ];
-const MIX = {   // kind -> share, per area (palms and bamboo: phase 3)
+const MIX = {   // kind -> share, per area (palm = canary palm, washi = washingtonia, take = bamboo clump: phase 3)
   wb:            { kusu: 1 },
-  adventureland: { kusu: 0.75, keyaki: 0.25 },
+  adventureland: { kusu: 0.425, keyaki: 0.13, washi: 0.22, palm: 0.18, take: 0.045 },   // v2 0:09:20 .. 0:13:30
   westernland:   { matsu: 0.6, kusu: 0.4 },
   critter:       { katsura: 0.55, matsu: 0.25, kusu: 0.2 },
   fantasyland:   { kusu: 0.5, katsura: 0.25, momi: 0.25 },
@@ -64,7 +66,7 @@ const MIX = {   // kind -> share, per area (palms and bamboo: phase 3)
   plaza:         { keyaki: 0.6, kusu: 0.4 },
   toontown:      { keyaki: 0.35, matsu: 0.3, momi: 0.35 },
   tomorrowland:  { sakura: 0.45, itosugi: 0.35, kusu: 0.2 },
-  tds:           { kusu: 0.35, kasamatsu: 0.3, itosugi: 0.2, keyaki: 0.15 },   // not seen on video: a guess (species.md)
+  tds:           { kusu: 0.3, kasamatsu: 0.25, itosugi: 0.15, keyaki: 0.12, palm: 0.12, washi: 0.06 },   // not seen on video: a guess (species.md)
   outside:       { kusu: 0.4, keyaki: 0.25, matsu: 0.25, sakura: 0.1 },        // Maihama's streets, the hotels, the car parks
 };
 function pip(x, y, poly) {
@@ -107,7 +109,7 @@ function GEN() {
     keyaki:  { form: "crown", row: 1, barkK: 0, plain: GREY, h: [10, 16], crownBase: [0.12, 0.2], width: [0.85, 1.1], trunkR: 0.024, lean: [0.0, 0.03],
                lobes: [6, 9], lobeR: [0.34, 0.52], lobeY: 0.62, shell: 0.3, env: "obo", pts: 430, up: 0.34, droop: 0.0,
                card: [1.0, 1.3], slots: [4, 2, 1, 1], under: 0, midKeep: 0.26, tint: [0.86, 0.94, 0.66], bark: [1.0, 0.98, 0.95] },
-    katsura: { form: "crown", row: 1, barkK: 0, plain: GREY, h: [10, 14], crownBase: [0.22, 0.32], width: [0.5, 0.68], trunkR: 0.022, lean: [0.0, 0.025],
+    katsura: { form: "crown", row: 1, barkK: 0, plain: GREY, h: [10, 14], crownBase: [0.13, 0.2], width: [0.55, 0.72], trunkR: 0.024, lean: [0.0, 0.01],
                lobes: [5, 7], lobeR: [0.4, 0.6], lobeY: 0.7, shell: 0.2, env: "ell", pts: 440, up: 0.26, droop: 0.0,
                card: [0.95, 1.25], slots: [4, 3, 1, 1], under: 1, midKeep: 0.28, tint: [0.9, 0.95, 0.62], bark: [1.18, 1.14, 1.06] },
     sakura:  { form: "crown", row: 1, barkK: 0, plain: GREY, h: [6, 9], crownBase: [0.25, 0.35], width: [1.2, 1.45], trunkR: 0.036, lean: [0.02, 0.07],
@@ -119,9 +121,12 @@ function GEN() {
     kasamatsu: { form: "umbrella", row: 2, barkK: 1, plain: PINE, h: [10, 15], crownBase: [0.6, 0.72], width: [1.0, 1.3], trunkR: 0.028, lean: [0.02, 0.07],
                lobes: [5, 7], lobeR: [0.3, 0.42], flat: 0.42, shell: 0.22, pts: 420, up: 0.3, droop: 0.0,
                card: [0.9, 1.2], slots: [4, 2, 1, 1], under: 1, midKeep: 0.32, tint: [0.82, 0.9, 0.76], bark: [1.05, 1.0, 0.95] },
-    momi:    { form: "cone", row: 3, barkK: 1, plain: PINE, h: [9, 14], crownBase: [0.04, 0.12], width: [0.34, 0.44], trunkR: 0.022, lean: [0.0, 0.015],
-               whorl: [0.5, 0.68], perWhorl: [4, 6], elev: [-0.3, -0.02], tipUp: 0.35, taper: 0.95,
-               card: [0.75, 1.0], slots: [2, 1, 1], under: 0, midKeep: 0.22, tint: [0.6, 0.74, 0.66], bark: [0.9, 0.85, 0.82] },
+    momi:    { form: "cone", row: 3, barkK: 1, plain: PINE, h: [11, 17], crownBase: [0.03, 0.08], width: [0.36, 0.46], trunkR: 0.022, lean: [0.0, 0.012],
+               whorl: [0.38, 0.52], perWhorl: [5, 7], elev: [-0.3, -0.02], tipUp: 0.35, taper: 0.95,
+               card: [0.85, 1.1], slots: [2, 1, 1], under: 0, midKeep: 0.22, tint: [0.6, 0.74, 0.66], bark: [0.9, 0.85, 0.82] },
+    palm:    { form: "palm", h: [5, 9] },    // canary palm   (heights for the trees of MIX; the shapes: canary(), washi(), take())
+    washi:   { form: "palm", h: [9, 14] },   // washingtonia
+    take:    { form: "palm", h: [6, 9] },    // bamboo clump
     itosugi: { form: "cone", row: 3, barkK: 1, plain: PINE, h: [5, 9], crownBase: [0.03, 0.08], width: [0.17, 0.24], trunkR: 0.024, lean: [0.0, 0.01],
                whorl: [0.3, 0.42], perWhorl: [4, 6], elev: [0.95, 1.2], tipUp: 0.1, taper: 0.55,
                card: [0.6, 0.85], slots: [2, 1, 1], under: 0, midKeep: 0.3, tint: [0.66, 0.8, 0.58], bark: [0.9, 0.85, 0.82] },
@@ -481,79 +486,215 @@ function GEN() {
     leaves(S, lod, LB, t.g, wx, wz, t.cell, cards, farScale);
   }
 
-  /* a canary palm: a thick ringed trunk with a knobbly head, a crown of arching pinnate fronds (V-folded strips with
-     the frond texture), the oldest hanging dead and brown */
-  function palm(t, lod, parts) {
-    const R = mkRand(t.seed);
-    const H = t.h, r0 = 0.27 + R() * 0.08, la = R() * 6.283, bend = (0.02 + R() * 0.05) * H;
-    const ax = Math.cos(la), az = Math.sin(la), ph = R() * 6.283;
-    const wx = t.x, wz = -t.y, g = t.g;
-    const at = f => [ax * bend * f * f, H * f, az * bend * f * f];
-    const B = parts.palmBark || (parts.palmBark = new Buf());
-    const sides = [12, 8, 5][lod], segs = [Math.round(H / 0.22), Math.round(H / 0.5), 4][lod];
-    const ringW = f => 0.2 * f * f;   // the trunk sways a little at the top; the fronds start from the same weight
-    const rings = [];
+  /* ---------- palms and bamboo (phase 3): every one from its own seed; trunk, fronds, fans and culms ----------
+     The palm atlas (palm_atlas.webp) is 4 x 2 tiles of 256 x 512, base at the bottom of each: row 0 frond | dead frond |
+     fan | dead fan, row 1 bamboo | bamboo | frond | fan. Near: the trunk is its own textured mesh (palmBark); mid and far:
+     the trunk goes plain into the frond mesh (u = 2), so a block with palms costs one draw more, not two. */
+  const tile = (c, r, lu, lv) => [(c + 0.006 + lu * 0.988) * 0.25, (r ? 0 : 0.5) + (0.004 + lv * 0.992) * 0.5];
+  const UPV = [0, 1, 0];
+  // rings along a curve P(f) (tree space: x east, y up, z = -north), radius rr(f, k), colour cf(f, k), sway weight w(f)
+  function tube(B, t, P, rr, cf, wf, sides, segs, plain, ph) {
+    const wx = t.x, wz = -t.y, g = t.g, rings = [];
     let Nv = null;
-    for (let k = 0; k <= segs + 2; k++) {
-      const head = k > segs, f = head ? 1 + (k - segs) * 0.06 : k / segs;
-      const p = at(Math.min(f, 1)); if (head) p[1] = H + (k - segs) * 0.35;
-      const T = norm([2 * ax * bend * Math.min(f, 1) / H, 1, 2 * az * bend * Math.min(f, 1) / H]);
+    for (let k = 0; k <= segs; k++) {
+      const f = k / segs, p = P(f), a = P(Math.max(0, f - 0.01)), b = P(Math.min(1, f + 0.01));
+      const T = norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
       if (!Nv) Nv = norm(cross(T, [1, 0, 0])); else { const d = dot(Nv, T); Nv = norm([Nv[0] - T[0] * d, Nv[1] - T[1] * d, Nv[2] - T[2] * d]); }
-      const Bv = cross(T, Nv);
-      const knob = lod < 2 ? 1 + 0.045 * Math.cos(k * Math.PI) : 1;   // the leaf-scar rings
-      const rr = head ? r0 * (k === segs + 1 ? 1.45 : 0.9) : r0 * (1.18 - 0.22 * f + (f < 0.06 ? 0.25 * (1 - f / 0.06) : 0)) * knob;
+      const Bv = cross(T, Nv), r = rr(f, k), c = cf(f, k), w = wf(f);
       rings.push(B.v);
       for (let s = 0; s <= sides; s++) {
-        const an = 2 * Math.PI * s / sides, d = [Nv[0] * Math.cos(an) + Bv[0] * Math.sin(an), Nv[1] * Math.cos(an) + Bv[1] * Math.sin(an), Nv[2] * Math.cos(an) + Bv[2] * Math.sin(an)];
-        const c = head ? [0.62, 0.6, 0.42] : [0.95, 0.9, 0.85];
-        B.vert(wx + p[0] + d[0] * rr, g + p[1] + d[1] * rr, wz + p[2] + d[2] * rr, d[0], d[1], d[2], s / sides * 3, p[1] / 0.9,
-               c[0], c[1], c[2], ringW(Math.min(f, 1)), ph, t.cell);
+        const an = 2 * Math.PI * s / sides, ca = Math.cos(an), sa = Math.sin(an);
+        const d = [Nv[0] * ca + Bv[0] * sa, Nv[1] * ca + Bv[1] * sa, Nv[2] * ca + Bv[2] * sa];
+        B.vert(wx + p[0] + d[0] * r, g + p[1] + d[1] * r, wz + p[2] + d[2] * r, d[0], d[1], d[2],
+               plain ? 2 : s / sides * Math.max(1, Math.round(r * 9)), plain ? 0 : p[1] / 0.9, c[0], c[1], c[2], w, ph, t.cell);
       }
     }
     for (let k = 0; k + 1 < rings.length; k++)
       for (let s = 0; s < sides; s++) { const a = rings[k], b = rings[k + 1]; B.tri(a + s, b + s, b + s + 1); B.tri(a + s, b + s + 1, a + s + 1); }
-    // fronds
-    const F = parts.frond || (parts.frond = new Buf());
-    const top = [at(1)[0], H + 0.25, at(1)[2]], n = 40, segF = [8, 5, 3][lod];
-    const C = [top[0], top[1] - 0.6, top[2]];
-    for (let f = 0; f < n; f++) {
-      const dead = f >= n - 6, q = f / n;
-      const az0 = f * 2.39996 + (R() - 0.5) * 0.3, el = dead ? -1.25 - R() * 0.25 : 1.2 - q * 1.6 + (R() - 0.5) * 0.25;
-      const L = dead ? 2.6 + R() * 0.8 : 3.4 + R() * 1.1, droop = dead ? 0.15 : 0.6 + R() * 0.5 + q * 0.4, twist = (R() - 0.5) * 0.6;
-      const k = dead ? 1 : 0.85 + R() * 0.3;
-      const col = dead ? [0.62 * k, 0.48 * k, 0.28 * k] : [0.55 * k, 0.72 * k, 0.40 * k];
-      if (lod === 2 && f % 2) continue;   // far: every other frond, a little wider
-      const hor = [Math.cos(az0), 0, Math.sin(az0)], sideH = [-hor[2], 0, hor[0]];
-      let p = [top[0] + hor[0] * 0.15, top[1] - (dead ? 0.3 : 0), top[2] + hor[2] * 0.15], ang = el, s = 0;
-      const i0 = F.v;
-      for (let j = 0; j <= segF; j++) {
-        const sj = j / segF;
-        const wid = L * 0.125 * Math.sin(Math.PI * Math.min(1, 0.06 + sj * 0.98)) * (lod === 2 ? 1.25 : 1) + 0.03;
-        const roll = twist * sj, fold = wid * (dead ? 0.1 : 0.32);
-        const side = [sideH[0] * Math.cos(roll), Math.sin(roll), sideH[2] * Math.cos(roll)];
-        const up = [-hor[0] * Math.sin(ang) * 0.3, 1, -hor[2] * Math.sin(ang) * 0.3];
-        const w = 0.2 + 0.8 * Math.pow(sj, 1.3);
-        for (const [a, u] of [[-1, 0], [0, 0.5], [1, 1]]) {
-          const x = p[0] + side[0] * a * wid + (a ? up[0] * fold : 0), y = p[1] + side[1] * a * wid + (a ? up[1] * fold : 0), z = p[2] + side[2] * a * wid + (a ? up[2] * fold : 0);
-          const sn = norm([x - C[0], (y - C[1]) * 1.5, z - C[2]]), nn = norm([sn[0] * 0.55, sn[1] * 0.55 + 0.45, sn[2] * 0.55]);
-          const ao = 0.7 + 0.3 * sj;
-          F.vert(wx + x, g + y, wz + z, nn[0], nn[1], nn[2], u, sj, col[0] * ao, col[1] * ao, col[2] * ao, w, ph, t.cell);
-        }
-        const step = L / segF;
-        p = [p[0] + hor[0] * Math.cos(ang) * step, p[1] + Math.sin(ang) * step, p[2] + hor[2] * Math.cos(ang) * step];
-        ang -= droop * (0.6 + sj) / segF * 2.2; s += step;
+  }
+  // the crown's normal: bent out from its centre C, up a little (soft light over the whole crown, as the trees' cards)
+  const crownN = (x, y, z, C, sq) => { const s = norm([x - C[0], (y - C[1]) * sq, z - C[2]]); return norm([s[0] * 0.6, s[1] * 0.6 + 0.4, s[2] * 0.6]); };
+  const leanOf = (t, R, amt) => t.lean ? [t.lean[0], -t.lean[1]] : (() => { const a = R() * 6.283, m = amt * t.h; return [Math.cos(a) * m, Math.sin(a) * m]; })();
+
+  /* a pinnate frond: a strip V-folded along the rachis, arching out and down from the crown, twisting a little */
+  function frond(F, t, top, C, az0, el, L, droop, twist, lod, tl, col, ph, w0) {
+    const segF = [8, 5, 3][lod], wx = t.x, wz = -t.y, g = t.g;
+    const hor = [Math.cos(az0), 0, Math.sin(az0)], sideH = [-hor[2], 0, hor[0]];
+    let p = [top[0] + hor[0] * 0.15, top[1], top[2] + hor[2] * 0.15], ang = el;
+    const i0 = F.v, dead = tl[0] === 1;
+    for (let j = 0; j <= segF; j++) {
+      const sj = j / segF;
+      const wid = L * 0.125 * Math.sin(Math.PI * Math.min(1, 0.06 + sj * 0.98)) * (lod === 2 ? 1.25 : 1) + 0.03;
+      const roll = twist * sj, fold = wid * (dead ? 0.12 : 0.32);
+      const side = [sideH[0] * Math.cos(roll), Math.sin(roll), sideH[2] * Math.cos(roll)];
+      const up = [-hor[0] * Math.sin(ang) * 0.3, 1, -hor[2] * Math.sin(ang) * 0.3];
+      const w = w0 + (1 - w0) * Math.pow(sj, 1.3);
+      for (const [a, u] of [[-1, 0], [0, 0.5], [1, 1]]) {
+        const x = p[0] + side[0] * a * wid + (a ? up[0] * fold : 0), y = p[1] + side[1] * a * wid + (a ? up[1] * fold : 0), z = p[2] + side[2] * a * wid + (a ? up[2] * fold : 0);
+        const nn = crownN(x, y, z, C, 1.5), ao = 0.68 + 0.32 * sj, uv = tile(tl[0], tl[1], u, sj);
+        F.vert(wx + x, g + y, wz + z, nn[0], nn[1], nn[2], uv[0], uv[1], col[0] * ao, col[1] * ao, col[2] * ao, w, ph, t.cell);
       }
-      for (let j = 0; j < segF; j++) {
+      const step = L / segF;
+      p = [p[0] + hor[0] * Math.cos(ang) * step, p[1] + Math.sin(ang) * step, p[2] + hor[2] * Math.cos(ang) * step];
+      ang -= droop * (0.6 + sj) / segF * 2.2;
+    }
+    for (let j = 0; j < segF; j++) {
+      const a = i0 + j * 3, b = a + 3;
+      F.tri(a, b, b + 1); F.tri(a, b + 1, a + 1); F.tri(a + 1, b + 1, b + 2); F.tri(a + 1, b + 2, a + 2);
+    }
+  }
+
+  /* canary palm (Phoenix): a thick trunk with the rings of old leaf bases, a knobbly head, 30-50 arching pinnate fronds,
+     the oldest hanging dead and brown, now and then one broken short */
+  function canary(t, lod, parts) {
+    const R = mkRand(t.seed), H = t.h, r0 = 0.27 + R() * 0.09, [lx, lz] = leanOf(t, R, 0.07), ph = R() * 6.283;
+    const P = f => [lx * f * f, H * f, lz * f * f];
+    const F = parts.frond || (parts.frond = new Buf());
+    const B = lod === 0 ? parts.palmBark || (parts.palmBark = new Buf()) : F;
+    const segs = [Math.round(H / 0.2), Math.round(H / 0.6), 3][lod], tone = 0.85 + R() * 0.2;
+    tube(B, t, P, (f, k) => r0 * (1.15 - 0.2 * f + (f < 0.05 ? 0.3 * (1 - f / 0.05) : 0)) * (lod === 0 ? 1 + 0.05 * Math.cos(k * Math.PI) : 1),
+         f => lod ? [0.42 * tone, 0.36 * tone, 0.28 * tone] : [0.95 * tone, 0.9 * tone, 0.85 * tone], f => 0.2 * f * f,
+         [12, 7, 5][lod], segs, lod > 0, ph);
+    const tp = P(1);
+    // the head: a swollen knob of leaf bases, greenish
+    tube(B, t, f => [tp[0], H + f * 0.9 - 0.15, tp[2]], f => r0 * (1.2 + 0.35 * Math.sin(Math.PI * Math.min(1, f * 1.1))) * (1 - 0.55 * f * f),
+         f => lod ? [0.4, 0.4, 0.26] : [0.72, 0.7, 0.5], () => 0.2, [12, 7, 5][lod], [4, 3, 2][lod], lod > 0, ph);
+    const top = [tp[0], H + 0.45, tp[2]], C = [top[0], top[1] - 0.6, top[2]];
+    const n = 30 + Math.floor(R() * 20), nDead = 3 + Math.floor(R() * 6);
+    for (let f = 0; f < n + nDead; f++) {
+      const dead = f >= n, q = f / n;
+      const az0 = f * 2.39996 + (R() - 0.5) * 0.35;
+      const el = dead ? -1.2 - R() * 0.3 : 1.25 - q * 1.7 + (R() - 0.5) * 0.3;
+      let L = dead ? 2.4 + R() * 0.9 : 3.2 + R() * 1.2;
+      if (!dead && R() < 0.06) L *= 0.55;   // a broken one
+      const droop = dead ? 0.12 : 0.55 + R() * 0.5 + q * 0.45, twist = (R() - 0.5) * 0.7, k = 0.85 + R() * 0.3;
+      const alt = R() < 0.5;
+      if (lod === 2 && f % 2) continue;
+      if (lod === 1 && f % 3 === 2) continue;
+      const tl = dead ? [1, 0] : alt ? [2, 1] : [0, 0];
+      const col = dead ? [0.95 * k, 0.88 * k, 0.8 * k] : [0.55 * k, 0.72 * k, 0.42 * k];
+      frond(F, t, [top[0], top[1] - (dead ? 0.45 : q * 0.25), top[2]], C, az0, el, L * (lod === 2 ? 1.05 : 1), droop, twist, lod, tl, col, ph, 0.2);
+    }
+  }
+
+  /* washingtonia: a slender tall trunk flared at the foot, a skirt of dead fans hanging under the crown (often trimmed
+     short in the park), a ball of 22-32 fan leaves on long petioles, the lowest drooping and dry */
+  function washi(t, lod, parts) {
+    const R = mkRand(t.seed), H = t.h, r0 = 0.17 + R() * 0.05, [lx, lz] = leanOf(t, R, 0.05), ph = R() * 6.283;
+    const P = f => [lx * f * f, H * f, lz * f * f];
+    const F = parts.frond || (parts.frond = new Buf());
+    const B = lod === 0 ? parts.palmBark || (parts.palmBark = new Buf()) : F;
+    const tone = 0.8 + R() * 0.2, wx = t.x, wz = -t.y, g = t.g;
+    tube(B, t, P, (f, k) => r0 * (1.05 - 0.15 * f + (f < 0.04 ? 0.6 * (1 - f / 0.04) ** 2 : 0)) * (lod === 0 ? 1 + 0.03 * Math.cos(k * Math.PI) : 1),
+         () => lod ? [0.45 * tone, 0.41 * tone, 0.36 * tone] : [0.86 * tone, 0.84 * tone, 0.8 * tone], f => 0.25 * f * f,
+         [10, 6, 4][lod], [Math.round(H / 0.25), Math.round(H / 0.8), 3][lod], lod > 0, ph);
+    const tp = P(1), top = [tp[0], H + 0.15, tp[2]], C = [top[0], top[1] + 0.2, top[2]];
+    // the skirt: hanging dead fans pressed round the trunk, wider at the top
+    const skirt = R() < 0.6 ? 0.25 + R() * 0.45 : 1.2 + R() * 2.2;   // most are trimmed in the park (v2 1:10:04)
+    const nS = Math.round([22, 12, 6][lod] * (skirt > 1 ? 1 : 0.7)), rows = [3, 2, 1][lod];
+    for (let s = 0; s < nS; s++) {
+      const az = (s + R() * 0.6) / nS * 6.283, half = 0.42 + R() * 0.2, len = skirt * (0.75 + R() * 0.4), k = 0.8 + R() * 0.3;
+      const i0 = F.v;
+      for (let j = 0; j <= rows; j++) {
+        const sj = j / rows, y = H - 0.1 - sj * len, rr = r0 + 0.12 + (1 - sj) * 0.28 + R() * 0.03, fp = P(Math.max(0, y / H));
+        for (const [a, u] of [[-1, 0], [0, 0.5], [1, 1]]) {
+          const an = az + a * half, x = fp[0] + Math.cos(an) * rr, z = fp[2] + Math.sin(an) * rr;
+          const uv = tile(3, 0, u, 1 - sj * 0.95);
+          F.vert(wx + x, g + y, wz + z, Math.cos(an), 0.25, Math.sin(an), uv[0], uv[1], 0.74 * k, 0.68 * k, 0.6 * k, 0.25 * (y / H) ** 2, ph, t.cell);
+        }
+      }
+      for (let j = 0; j < rows; j++) {
         const a = i0 + j * 3, b = a + 3;
         F.tri(a, b, b + 1); F.tri(a, b + 1, a + 1); F.tri(a + 1, b + 1, b + 2); F.tri(a + 1, b + 2, a + 2);
       }
     }
+    // the fans
+    const n = 30 + Math.floor(R() * 13), nDry = 2 + Math.floor(R() * 4);
+    const na = [10, 6, 3][lod], nr = [3, 2, 1][lod];
+    for (let f = 0; f < n + nDry; f++) {
+      if (lod === 2 && f % 2) continue;
+      if (lod === 1 && f % 4 === 3) continue;
+      const dry = f >= n, q = f / n;
+      const az = f * 2.39996 + (R() - 0.5) * 0.4;
+      const el = dry ? -0.9 - R() * 0.4 : 1.35 - q * 1.55 + (R() - 0.5) * 0.3;
+      const pl = (dry ? 0.9 : 1.1 + R() * 0.7), Rf = 1.0 + R() * 0.4, spread = 2.2 + R() * 0.6, k = 0.85 + R() * 0.3;
+      const hor = [Math.cos(az), 0, Math.sin(az)], side = [-hor[2], 0, hor[0]];
+      const dir = norm([hor[0] * Math.cos(el), Math.sin(el), hor[2] * Math.cos(el)]);
+      const base = [top[0] + hor[0] * 0.1, top[1] - (dry ? 0.3 : 0), top[2] + hor[2] * 0.1];
+      const tip = [base[0] + dir[0] * pl, base[1] + dir[1] * pl - 0.08 * pl, base[2] + dir[2] * pl];
+      // the petiole: a thin plain strip
+      if (lod < 2) {
+        const i0 = F.v, pc = dry ? [0.55, 0.45, 0.32] : [0.36, 0.4, 0.22];
+        for (const [p, w] of [[base, 0.2], [tip, 0.45]])
+          for (const a of [-1, 1]) F.vert(wx + p[0] + side[0] * a * 0.04, g + p[1], wz + p[2] + side[2] * a * 0.04, 0, 1, 0, 2, 0, pc[0], pc[1], pc[2], w, ph, t.cell);
+        F.tri(i0, i0 + 2, i0 + 3); F.tri(i0, i0 + 3, i0 + 1);
+      }
+      // the blade: a fan round the petiole's end, its middle along the petiole bent down, the plane tilted up (palmate,
+      // a shallow V along the costa), the segment tips drooping
+      const mid = norm([dir[0], dir[1] - 0.35, dir[2]]), nrm = norm(cross(mid, side));
+      const tl = dry ? [3, 0] : R() < 0.5 ? [2, 0] : [3, 1];
+      const col = dry ? [0.95 * k, 0.9 * k, 0.82 * k] : [0.86 * k, 0.92 * k, 0.8 * k], hang = dry ? 0.7 : 0.25 + R() * 0.25;
+      const i0 = F.v;
+      for (let j = 0; j <= nr; j++) {
+        const rho = j / nr;
+        for (let i = 0; i <= na; i++) {
+          const a = (i / na - 0.5) * spread, ca = Math.cos(a), sa = Math.sin(a);
+          const r = Rf * rho, vee = 0.22 * r * Math.abs(sa);
+          const x = tip[0] + (mid[0] * ca + side[0] * sa) * r + nrm[0] * vee, y = tip[1] + (mid[1] * ca + side[1] * sa) * r + nrm[1] * vee - hang * r * rho,
+                z = tip[2] + (mid[2] * ca + side[2] * sa) * r + nrm[2] * vee;
+          const nn = crownN(x, y, z, C, 1.2), uv = tile(tl[0], tl[1], i / na, rho), ao = 0.7 + 0.3 * rho;
+          F.vert(wx + x, g + y, wz + z, nn[0], nn[1], nn[2], uv[0], uv[1], col[0] * ao, col[1] * ao, col[2] * ao, 0.45 + 0.55 * rho, ph, t.cell);
+        }
+      }
+      for (let j = 0; j < nr; j++)
+        for (let i = 0; i < na; i++) {
+          const a = i0 + j * (na + 1) + i, b = a + na + 1;
+          F.tri(a, b, b + 1); F.tri(a, b + 1, a + 1);
+        }
+    }
   }
+
+  /* a clump of bamboo (moso type): 8-18 culms from a patch of 1-2.4 m, leaning out and arching at the top, nodes every
+     ~35 cm, sprays of narrow leaves hanging from the upper half */
+  function take(t, lod, parts) {
+    const R = mkRand(t.seed), H = t.h, ph = R() * 6.283, wx = t.x, wz = -t.y, g = t.g;
+    const F = parts.frond || (parts.frond = new Buf());
+    const n = 8 + Math.floor(R() * 11), patch = 0.5 + R() * 0.7, C = [0, H * 0.7, 0];
+    for (let c = 0; c < n; c++) {
+      const a = R() * 6.283, d = patch * Math.sqrt(R()), bx = Math.cos(a) * d, bz = Math.sin(a) * d;
+      const Hc = H * (0.6 + R() * 0.4), rc = 0.02 + R() * 0.025 * (Hc / H), out = a + (R() - 0.5) * 0.8;
+      const ox = Math.cos(out), oz = Math.sin(out), lean = 0.04 + R() * 0.14, arch = 0.2 + R() * 0.3, cph = ph + R();
+      const P = f => [bx + ox * (lean * Hc * f + arch * Hc * f * f * f), Hc * f * (1 - 0.3 * arch * f * f), bz + oz * (lean * Hc * f + arch * Hc * f * f * f)];
+      if (lod === 2 && c % 2) continue;
+      const nodes = [Math.round(Hc / 0.35), 5, 2][lod], k = 0.85 + R() * 0.25;
+      if (lod < 2 || c % 2 === 0)
+        tube(F, t, P, (f, i) => rc * (1 - 0.5 * f) * (lod === 0 && i % 2 === 0 ? 1.15 : 1),   // even rings: the nodes
+             (f, i) => lod === 0 && i % 2 === 0 ? [0.62 * k, 0.62 * k, 0.4 * k] : [0.42 * k, 0.55 * k, 0.24 * k], f => f * f,
+             [5, 3, 3][lod], lod === 0 ? nodes * 2 : nodes, true, cph);
+      // leaf sprays from the upper half: cards hanging from the culm, turned every way
+      const nS = Math.round([20, 9, 4][lod] * (Hc / 8));
+      for (let s = 0; s < nS; s++) {
+        const f = 0.35 + 0.67 * Math.pow((s + R()) / nS, 0.8), p = P(Math.min(1, f)), yaw = R() * 6.283, cw = (lod === 2 ? 1.5 : lod ? 1.25 : 1) * (0.7 + R() * 0.35), ch = cw * 1.9;
+        const hx = Math.cos(yaw), hz = Math.sin(yaw), tl = R() < 0.5 ? [0, 1] : [1, 1], kk = 0.8 + R() * 0.3;
+        const i0 = F.v;
+        for (let j = 0; j <= 2; j++) {
+          const sj = j / 2, y = p[1] - ch * (1 - sj) * 0.85, o = 0.35 * cw * (1 - sj) * (1 - sj);
+          for (const [u, a] of [[0, -0.5], [1, 0.5]]) {   // the bottom swings out, away from the clump
+            const x = p[0] + hx * a * cw + ox * o, z = p[2] + hz * a * cw + oz * o;
+            const nn = crownN(x, y, z, C, 0.8), uv = tile(tl[0], tl[1], u, sj);
+            F.vert(wx + x, g + y, wz + z, nn[0], nn[1], nn[2], uv[0], uv[1], 0.92 * kk, 0.98 * kk, 0.8 * kk, f * f * (0.6 + 0.4 * sj), cph, t.cell);
+          }
+        }
+        for (let j = 0; j < 2; j++) { const a = i0 + j * 2, b = a + 2; F.tri(a, b, b + 1); F.tri(a, b + 1, a + 1); }
+      }
+    }
+  }
+  const PALM = { palm: canary, washi, take };
 
   function run(job) {
     const parts = {}, transfer = [];
     for (const t of job.trees) {
-      if (t.sp === "palm") palm(t, job.lod, parts); else tree(t, job.lod, parts, job.cards, job.farScale);
+      if (PALM[t.sp]) PALM[t.sp](t, job.lod, parts); else tree(t, job.lod, parts, job.cards, job.farScale);
     }
     const out = {};
     for (const [k, b] of Object.entries(parts)) { const o = b.out(transfer); if (o) out[k] = o; }
@@ -653,7 +794,7 @@ function init(ctx) {
     return mat;
   };
   const T_ = {
-    leafN: tex("leaves_near.webp"), leafF: tex("leaves_far.webp"), frond: tex("palm_frond.webp"),
+    leafN: tex("leaves_near.webp"), leafF: tex("leaves_far.webp"), frond: tex("palm_atlas.webp"),
     bark: tex("bark_atlas_color.webp", true), barkN: tex("bark_atlas_normal.webp", true),
     palm: tex("bark_palm_brown_color.webp", true), palmN: tex("bark_palm_brown_normal.webp", true),
   };
@@ -712,13 +853,19 @@ function init(ctx) {
     kinds[sp] = (kinds[sp] || 0) + 1;
   }
   function lerpH(r, f) { return r[0] + (r[1] - r[0]) * f; }
-  for (const [x, y] of TRIAL_PALMS) { const s = hashSeed(x, y); trees.push({ x, y, h: 6.0 + (s % 1000) / 1000 * 1.5, seed: s, sp: "palm", i: -1 }); }
+  // the models' palms (specs: [x, y, ground, height, crown dx, dy, kind], src/palm_specs.py)
+  const PS = ctx.palms || [];
+  for (let i = 0; i < PS.length; i++) {
+    const [x, y, g, h, dx, dy, k] = PS[i], sp = k === 1 ? "washi" : "palm";
+    trees.push({ x, y, g, h, lean: [dx, dy], seed: hashSeed(x, y), sp, i: -1 });
+    kinds[sp] = (kinds[sp] || 0) + 1;
+  }
 
   // cells (near), mid blocks, far blocks
   const cells = new Map(), mids = new Map(), blocks = new Map();
   const newBox = () => [1e9, 1e9, -1e9, -1e9];
   for (const t of trees) {
-    t.g = ctx.heightAt(t.x, t.y) ?? 0;
+    if (t.g == null) t.g = ctx.heightAt(t.x, t.y) ?? 0;
     const cx = Math.floor(t.x / CELL), cy = Math.floor(t.y / CELL);
     const mx = Math.floor(cx / MPER), my = Math.floor(cy / MPER), bx = Math.floor(cx / FPER), by = Math.floor(cy / FPER);
     let b = blocks.get(bx + "," + by);
@@ -757,7 +904,7 @@ function init(ctx) {
     job.id = ++jobId; w.job = job; job.target.pending = true; job.sent = performance.now();
     const ci = cellOf[job.lod];
     const msg = { id: job.id, lod: job.lod, cards: q.cards, farScale: q.farScale,
-                  trees: job.target.trees.map(t => ({ x: t.x, y: t.y, g: t.g, h: t.h, seed: t.seed, sp: t.sp, cell: ci(t) })) };
+                  trees: job.target.trees.map(t => ({ x: t.x, y: t.y, g: t.g, h: t.h, seed: t.seed, sp: t.sp, lean: t.lean, cell: ci(t) })) };
     if (w.worker) w.worker.postMessage(msg);
     else setTimeout(() => done(w, gen.run(msg)), 0);
   };

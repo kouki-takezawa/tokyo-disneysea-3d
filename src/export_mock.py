@@ -258,6 +258,8 @@ def main():
               ("cinderella", "disneyland", []),
               ("tdl_water", "disneyland", ["dlwater"])]                     # ds_tdl_water.py + tdl_water_blender.py: ランドの水面 (replaces the Land's water outlines)                              # ds_tdl_cinderella.py: シンデレラ城                               # ds_tdl_bb_castle.py: 美女と野獣の城                      # ds_tracks.py: Resort Line beam + Keiyo Line viaduct
     mdir = ROOT / "output" / "disneysea" / "models"
+    import palm_specs                                       # the palms' markers out of the models, into models/palms.json (plants phase 3)
+    palms = palm_specs.collect([i for i, _, _ in MODELS])
     import compress_models                                  # Draco copies for the page (models/web/); the plain files stay for the scripts
     web = compress_models.run([i for i, _, _ in MODELS])
     out["models"] = [{"id": i, "layer": lay, "src": web.get(i, f"models/{i}.json"), "hides": hides}   # glTF JSON (the host serves .json, not .glb)
@@ -354,6 +356,7 @@ def main():
     except Exception as e:
         print("[mock] tree/building filter skipped:", e)
     out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...] (trees back, the user 2026-10-04)
+    out["palms3d"] = [p for v in palms.values() for p in v]   # [x, y, ground, height, crown dx, dy, kind 0 canary / 1 washingtonia]: plants.js grows them
     out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"

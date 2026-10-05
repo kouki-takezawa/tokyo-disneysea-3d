@@ -4387,8 +4387,8 @@ async function init3D() {
   // trees, palms and grass grown in the page (plants.js, docs/plants/plan.md); without it, every tree is the instanced one
   (async () => {
     try {
-      if (!window.TDS_PLANTS) await loadScript("plants.js?v=2");
-      three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], eye: () => cam.position,
+      if (!window.TDS_PLANTS) await loadScript("plants.js?v=3");
+      three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], palms: D.palms3d || [], eye: () => cam.position,
         areas: { tdl: DL && DL.park, lands: DL && DL.labels, tds: D.park },
         hideOld: idx => three.hideOldTrees?.(idx),
         changed: sh => { three.dirty = true; if (sh) three.shadowDirty = true; } });

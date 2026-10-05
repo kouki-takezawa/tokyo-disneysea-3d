@@ -87,7 +87,7 @@ def topiary_box(P, x, y):
 
 def palm(P, x, y, h, rng):
     import ds_tdl_plaza_buildings as PB
-    PB.palm(P["palm_trunk"], P["palm_leaf"], x, y, h, rng.uniform(0, 2 * math.pi), rng)
+    PB.palm(P["palm_trunk"], P["palm_leaf"], x, y, h, rng.uniform(0, 2 * math.pi), rng, kind="canary")   # a spec marker: the page grows a canary palm (v2 6:36 .. 7:18)
 
 
 def street_extras(ARMS, EXT_E):
