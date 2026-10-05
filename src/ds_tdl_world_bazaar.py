@@ -809,6 +809,10 @@ def shop(name, w, st, room=None):
                 bm_box(P["trim"], x - ww / 2 - 0.25, x + ww / 2 + 0.25, 0.0, 0.26, z1 + 0.1, z1 + 0.3)
                 if st["win"] == "pair":
                     bm_box(P["trim"], x - 0.05, x + 0.05, 0.08, 0.12, z0, z1)
+            zc_top = z1 - (ww / 2 + 0.05 if st["win"] == "arch" else 0.12)             # (photos: white curtains drawn at the upper windows)
+            for sx_ in (-1, 1):
+                bm_box(P["dia"], x + (0.025 if sx_ > 0 else -ww / 2 + 0.04), x + (ww / 2 - 0.04 if sx_ > 0 else -0.025), 0.1, 0.115,
+                       z0 + (zc_top - z0) * 0.25, zc_top)
             bm_box(P["trim"], x - 0.02, x + 0.02, 0.1, 0.12, z0, z1 - 0.1)
             bm_box(P["trim"], x - ww / 2, x + ww / 2, 0.1, 0.12, z0 + 1.15, z0 + 1.19)
             bm_box(P["trim"], x - ww / 2 - 0.2, x + ww / 2 + 0.2, 0.0, 0.2, z0 - 0.22, z0 - 0.1)
