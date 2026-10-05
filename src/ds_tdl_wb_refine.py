@@ -28,7 +28,7 @@ except ImportError:
     bmesh = None
 
 from ds_tdl_station import bm_box, bm_lathe, bm_prism, obj_bm, T, R, globe_lamp_bm, text, _principled, arch_band, arch_opening, seg_arc, column_bm
-from ds_tdl_entrance import frame
+from ds_tdl_entrance import frame, hexa
 
 
 def materials(M):
@@ -46,6 +46,9 @@ def materials(M):
     M["pa_wall"] = P("st_wbz_pa_wall", (0.75, 0.49, 0.22), 0.7)          #    gold walls
     M["hs_navy"] = P("st_wbz_hs_navy", (0.014, 0.042, 0.15), 0.45)       # 4: Home Store's navy board (wb1 X5, #1F3A6B)
     M["hs_plum"] = P("st_wbz_hs_plum", (0.14, 0.02, 0.05), 0.45)         # 4: and the maroon-purple one (wb2 HS1, #6A2A3E)
+    M["hs_rose"] = P("st_wbz_hs_rose", (0.58, 0.35, 0.35), 0.7)          # 4 (user photos): the rose relief panels (#C9A0A0)
+    M["hs_lblue"] = P("st_wbz_hs_lblue", (0.40, 0.55, 0.77), 0.6)        #    the blue "1890" shop's light blue trim (#A9C3E3)
+    M["hs_bronze"] = P("st_wbz_hs_bronze", (0.155, 0.07, 0.045), 0.4, Metallic=0.3)   # its bronze half dome (#6E4A3C)
     # stage B, large 5 .. 7 and the hand carts (refine_WB.md)
     M["ge_aqua"] = P("st_wbz_ge_aqua", (0.46, 0.69, 0.69), 0.6)          # 6: Grand Emporium's drum band (wb3 G1, #B5D8D8)
     M["ge_red"] = P("st_wbz_ge_red", (0.55, 0.023, 0.084), 0.4)          # 6: its curved red sign (#C42A52)
@@ -313,31 +316,37 @@ def penny_corridor(name, door_x, sx0, sx1):
 
 
 # ================================================================ 4. Home Store and its neighbours (block 196943265)
-HS_EDGES = {"bluegrey": (50.9, -100.45), "hs": (49.95, -107.75), "hs2": (40.65, -112.8), "cobalt": (32.4, -111.45)}
+# Rebuilt from the user's six photos (2026-10-05; seen in the conversation only): the corner from the plaza twice and
+# close up, the blue "1890" shop beside it, the brick front with the cast-iron veranda and its ground floor with the
+# benches. The faces, by the OSM edges' mid points (WB), from the Waffle Company round the corner to the Refreshment
+# Corner: brick (R2-28, outer_run) -- hs_brick (the iron veranda, the "HOME STORE" oval, "FINEST WARES" / "QUALITY GOODS")
+# -- sage (grey-green, "FROM MARCELINE TO YOU") -- Home Store's cream: hs (east), the chamfer (the porch on two columns,
+# the corner bay, the oval sign, the dormer with the gold rose and the clock, the maroon-and-white dome, the flag), hs2
+# (north) -- blue1890 -- the Refreshment Corner's brick side. Sizes from the photos with people (~1.65 m) and the
+# OSM edge lengths for scale: ESTIMATES.
+HS_EDGES = {"hs_brick": (54.3, -93.35), "brick_jog": (52.3, -97.9), "sage": (50.9, -100.45), "sage_jog": (50.65, -103.4),
+            "hs": (49.95, -107.75), "hs2": (40.65, -112.8), "blue1890": (32.4, -111.45),
+            "rc_side": (29.05, -111.95), "rc_side2": (27.5, -114.05)}
 HS_CORNER = (47.4, -113.9)
+HS_CHAMFER = ((48.7, -111.9), (45.5, -114.2))   # the corner's chamfer: OSM's rounded points 19 .. 21 are the bay and porch in front of it
+HS_Z = dict(gf=3.25, belt=4.6, top=7.75, cor=8.1, cor1=8.55, par=9.25)
+# the block's roof (ds_tdl_world_bazaar.GAZEBO_CUT, OSM order: clockwise): off the chamfer's bulge, and back 5.4 m behind the
+# blue shop, which is lower than its neighbours (photo: sky over its cornice)
+HS_ROOF_CUTS = [(lambda p: p[1] < -112.8 and 45.6 < p[0] < 49.0, []),
+                (lambda p: -111.7 < p[1] < -111.2 and 28.8 < p[0] < 36.0, [(35.8, -111.4), (35.8, -106.0), (29.0, -106.0)])]
 
 
 def home_store_kind(mid, L):
-    """Which of the block's outer edges this is (by its mid point, WB): the R2-28 brick faces south of y -98.5, then
-    (wb2 HS2, from the Waffle Company north) the blue-grey panelled front, Home Store's cream round the corner, and
-    beside the Refreshment Corner (wb2 BL1) the cobalt shop."""
-    if mid[0] > 45.0 and -98.5 < mid[1] < -77.0 and L > 4.0:
-        return "brick"
+    """Which of the block's outer edges this is (by its mid point, WB): the faces above, then the R2-28 brick face south
+    of them, and the chamfer's small OSM edges (built by home_store_corner)."""
     for k, p in HS_EDGES.items():
         if math.hypot(mid[0] - p[0], mid[1] - p[1]) < 1.0:
             return k
+    if mid[0] > 45.0 and -98.5 < mid[1] < -77.0 and L > 4.0:
+        return "brick"
     if L < 2.0 and math.hypot(mid[0] - HS_CORNER[0], mid[1] - HS_CORNER[1]) < 2.2:
         return "corner"
     return None
-
-
-def scallop_hood(P, a, b, z, d=0.6):
-    """A maroon hood over a window, sloping out d m from z+0.4 to z, with a white scalloped edge (wb1 X5, wb2 HS1)."""
-    bm_prism(P["aw_maroon"], [(0.0, z + 0.4), (d, z), (d, z - 0.1), (0.0, z + 0.3)], a, b, "yz")
-    n = max(2, round((b - a) / 0.28))
-    for k in range(n):
-        xa, xb = a + (b - a) * k / n, a + (b - a) * (k + 1) / n
-        bm_prism(P["aw_white"], [(xa + (xb - xa) * (1 - j / 6), z - 0.1 - 0.1 * math.sin(math.pi * j / 6)) for j in range(7)], d - 0.03, d, "xz")
 
 
 def oval_board(P, mat, rim, x, y, z, a, b):
@@ -349,62 +358,6 @@ def oval_board(P, mat, rim, x, y, z, a, b):
 def _diag(a, b):
     from mathutils import Matrix
     return Matrix.Diagonal((a, 1.0, b, 1.0))
-
-
-def home_store_face(name, L, H, kind, outer_run, rng):
-    """One outer edge of the block (x 0 .. L, +y out): outer_run's wall in the face's colour, then its extras --
-    hs / hs2: Home Store's cream (wb1 #E8DCC0) with rose panels under the upper windows, white medallions, maroon
-    scalloped hoods over them; on hs (by the OSM point) the navy oval board with a gold rim and letters (wb1 X5), on hs2
-    the maroon-purple one with cream letters "HOME STORE / FROM MARCELINE'S TO YOU" (wb2 HS1). bluegrey: a small navy
-    HOME STORE plaque (wb1 X5). cobalt: the bay window with curved glass and the door under a blue-grey half dome
-    (wb2 BL1)."""
-    wall = {"bluegrey": "w_bluegrey", "cobalt": "w_cobalt"}.get(kind, "w_hs_cream")
-    outer_run(name, L, H, wall, "t_white", rng)
-    P = Parts()
-    nb = max(1, round(L / 4.0)) if L >= 2.5 else 0
-    bays = [(L * k / nb, L * (k + 1) / nb) for k in range(nb)]
-    ms = [(a + b) / 2 for a, b in bays if b - a > 2.2]
-    if kind in ("hs", "hs2"):
-        for m in ms:
-            scallop_hood(P, m - 0.72, m + 0.72, 6.85)
-            bm_box(P["w_pink"], m - 0.55, m + 0.55, 0.0, 0.04, 4.02, 4.4)
-        for a, b in bays[1:]:
-            bm_lathe(P["t_white"], [(0, 0), (0.26, 0), (0.26, 0.05), (0, 0.05)], 16, T(a, 0.0, 7.25) @ R(-math.pi / 2, "X"))
-    if kind == "hs":
-        sx = L - 2.4
-        oval_board(P, "hs_navy", "brass", sx, 0.3, 3.4, 1.75, 0.5)
-        text(f"ST_WBZ_{name}_homestore", "HOME STORE", 0.36, (sx, 0.4, 3.4), (math.pi / 2, 0, math.pi), "brass", 0.02)
-    if kind == "hs2" and ms:
-        sx = (bays[0][1] if len(bays) > 1 else L / 2)
-        oval_board(P, "hs_plum", "t_cream", sx, 0.05, 5.55, 0.95, 0.55)
-        text(f"ST_WBZ_{name}_homestore2", "HOME STORE", 0.24, (sx, 0.15, 5.65), (math.pi / 2, 0, math.pi), "t_cream", 0.015)
-        text(f"ST_WBZ_{name}_marceline", "FROM MARCELINE'S TO YOU", 0.075, (sx, 0.15, 5.33), (math.pi / 2, 0, math.pi), "t_cream", 0.01)
-    if kind == "bluegrey":
-        bm_box(P["hs_navy"], L / 2 - 0.65, L / 2 + 0.65, 0.12, 0.17, 3.2, 3.6)
-        bm_box(P["brass"], L / 2 - 0.7, L / 2 + 0.7, 0.1, 0.15, 3.16, 3.64)
-        text(f"ST_WBZ_{name}_homestore3", "HOME STORE", 0.14, (L / 2, 0.19, 3.4), (math.pi / 2, 0, math.pi), "brass", 0.01)
-        for a, b in bays:                                 # the panelled front: raised white frames between the windows
-            for x0 in (a + 0.45, b - 0.75):
-                if b - a > 2.2:
-                    bm_box(P["t_white"], x0, x0 + 0.3, 0.0, 0.05, 4.4, 6.6)
-    if kind == "cobalt" and len(ms) >= 2:
-        m = ms[0]                                         # the bay window, its glass curving round the corners
-        ring = lambda rx, ry: [(m + rx * math.cos(math.pi * j / 10), ry * math.sin(math.pi * j / 10)) for j in range(11)][::-1]
-        bm_prism(P["w_cobalt"], ring(1.45, 0.8), 0.0, 0.55, "xy")
-        bm_prism(P["win_dark"], ring(1.38, 0.72), 0.55, 2.85, "xy")
-        bm_prism(P["w_cobalt"], ring(1.5, 0.85), 2.85, 3.15, "xy")
-        bm_prism(P["t_white"], ring(1.55, 0.9), 3.15, 3.22, "xy")
-        for j in range(1, 10, 2):
-            a = math.pi * j / 10
-            x, y = m + 1.41 * math.cos(a), 0.75 * math.sin(a)
-            bm_box(P["t_white"], x - 0.03, x + 0.03, y - 0.03, y + 0.03, 0.55, 2.85)
-        m = ms[1]                                         # the door, its blue-grey half dome
-        bm_box(P["door"], m - 0.65, m + 0.65, 0.12, 0.18, 0.06, 2.6)
-        for x0, x1 in ((m - 0.8, m - 0.65), (m + 0.65, m + 0.8)):
-            bm_box(P["w_cobalt"], x0, x1, 0.1, 0.22, 0.0, 2.75)
-        bm_box(P["w_cobalt"], m - 0.8, m + 0.8, 0.1, 0.22, 2.6, 2.75)
-        half_dome(P["w_bluegrey"], m, 0.0, 2.95, 0.95, 0.7)
-    P.flush(name + "_hs", smooth=("lamp", "w_bluegrey"))
 
 
 def half_dome(bm, x, y, z, r, h, n=10, m=5):
@@ -426,35 +379,720 @@ def half_dome(bm, x, y, z, r, h, n=10, m=5):
     bm.faces.new(rim[::-1])                               # the flat underside
 
 
+# ---- facets: a plan segment of a face frame (origin, unit direction); (u along, v out = left of u, z)
+def _fmap(f):
+    (ox, oy), (ux, uy) = f
+    return lambda u, v, z: (ox + ux * u - uy * v, oy + uy * u + ux * v, z)
+
+
+def fbox(bm, f, u0, u1, v0, v1, z0, z1):
+    P_ = _fmap(f)
+    hexa(bm, [P_(u0, v0, z0), P_(u1, v0, z0), P_(u1, v1, z0), P_(u0, v1, z0),
+              P_(u0, v0, z1), P_(u1, v0, z1), P_(u1, v1, z1), P_(u0, v1, z1)])
+
+
+def fprism(bm, f, pts, a0, a1, plane="uz"):
+    """pts in (u, z) extruded along v (plane uz), or in (v, z) extruded along u (plane vz)."""
+    P_ = _fmap(f)
+    m = (lambda p, a: P_(p[0], a, p[1])) if plane == "uz" else (lambda p, a: P_(a, p[0], p[1]))
+    v0 = [bm.verts.new(m(p, a0)) for p in pts]; v1 = [bm.verts.new(m(p, a1)) for p in pts]
+    bm.faces.new(v0[::-1]); bm.faces.new(v1)
+    for i in range(len(pts)):
+        j = (i + 1) % len(pts)
+        bm.faces.new((v0[i], v0[j], v1[j], v1[i]))
+
+
+def oriel_plan(xc, wf, d):
+    """A three-sided bay on the wall y = 0 of a face frame: its plan (4 points, 45 degree sides) and its facets."""
+    a, b = xc - wf / 2, xc + wf / 2
+    pts = [(a - d, 0.0), (a, d), (b, d), (b + d, 0.0)]
+    fs = []
+    for p, q in zip(pts[:-1], pts[1:]):
+        L = math.hypot(q[0] - p[0], q[1] - p[1])
+        fs.append(((p, ((q[0] - p[0]) / L, (q[1] - p[1]) / L)), L))
+    return pts, fs
+
+
+def grow(pts, g):
+    """A bay's plan pushed out by g (front and sides), kept on the wall line."""
+    (x0, _), (x1, y1), (x2, _), (x3, _) = pts
+    k = g * (1 + math.sqrt(2))
+    return [(x0 - k, 0.0), (x1 - g * math.tan(math.pi / 8), y1 + g), (x2 + g * math.tan(math.pi / 8), y1 + g), (x3 + k, 0.0)]
+
+
+def bonnet(P, f, L, z, d=0.5, h=0.42, mat="aw_maroon", edge="aw_white"):
+    """A round-bellied maroon awning over a window of a facet (u 0 .. L), its lip at z, d out, with a white scalloped
+    valance (photos: three over each bay)."""
+    prof = [(d * math.sin(math.pi / 2 * k / 7), z + h * math.cos(math.pi / 2 * k / 7)) for k in range(8)] + [(0.0, z + h - 0.1)]
+    fprism(P[mat], f, prof, 0.03, L - 0.03, "vz")
+    n = max(2, round((L - 0.06) / 0.24)); s = (L - 0.06) / n
+    for k in range(n):
+        ua = 0.03 + k * s
+        fprism(P[edge], f, [(ua + s, z + 0.03), (ua, z + 0.03)] + [(ua + s * j / 6, z - 0.08 * math.sin(math.pi * j / 6)) for j in range(7)],
+               d - 0.02, d + 0.01, "uz")
+
+
+def curtains(P, f, u0, u1, z0, z1, v, glass="win_dark", sheer=0.36):
+    """A window on a facet: dark glass, two white drapes tied back and a valance (photos: every upper window)."""
+    fbox(P[glass], f, u0, u1, v - 0.02, v, z0, z1)
+    w = u1 - u0
+    for a, b in ((u0, u0 + w * sheer), (u1 - w * sheer, u1)):
+        fbox(P["t_white"], f, a, b, v, v + 0.025, z0 + 0.1, z1 - 0.05)
+    fbox(P["t_white"], f, u0, u1, v, v + 0.035, z1 - 0.3, z1)
+
+
+def oriel(P, xc, wf, d, z0, z1, trim="t_white", awn=True):
+    """A bay window on the upper floor (face frame): a stepped corbel, the ribbed apron, a window on each facet between
+    slim posts (curtains), a round maroon awning over each, the entablature merging with the frieze over it."""
+    pts, fs = oriel_plan(xc, wf, d)
+    za, zw0, zw1 = z0 + 0.7, z0 + 0.82, z1 - 0.38
+    for g, z_a, z_b in ((-0.3, z0 - 0.45, z0 - 0.22), (-0.12, z0 - 0.22, z0)):     # the corbel
+        q = grow(pts, g)
+        bm_prism(P[trim], [(x, max(0.0, y)) for x, y in q], z_a, z_b, "xy")
+    bm_prism(P[trim], pts, z0, za, "xy")                                              # the apron
+    for f, L in fs:
+        for z in (z0 + 0.12, z0 + 0.32, z0 + 0.52):
+            fbox(P[trim], f, 0.04, L - 0.04, 0.0, 0.035, z, z + 0.06)
+        fbox(P[trim], f, 0.08, L - 0.08, 0.0, 0.02, z0 + 0.08, za - 0.08)
+    bm_prism(P[trim], grow(pts, 0.05), za, zw0, "xy")                                 # the sill
+    for f, L in fs:
+        curtains(P, f, 0.07, L - 0.07, zw0, zw1, -0.06)
+        if L > 1.2:
+            fbox(P[trim], f, L / 2 - 0.03, L / 2 + 0.03, -0.06, 0.0, zw0, zw1)
+    for x, y in pts:                                                                   # the posts
+        bm_box(P[trim], x - 0.07, x + 0.07, max(-0.05, y - 0.08), y + 0.02, zw0, zw1)
+    bm_prism(P[trim], grow(pts, 0.02), zw1, z1 - 0.15, "xy")                           # the entablature
+    bm_prism(P[trim], grow(pts, 0.1), z1 - 0.15, z1, "xy")
+    if awn:
+        for f, L in fs:
+            bonnet(P, f, L, zw1 - 0.34, d=0.52, h=0.5)
+
+
+def rose_panel(P, m, w, z0, z1, wall_y=0.0):
+    """The rose relief panel in the belt between the floors (photos: one over each display window): a white moulded
+    frame, the rose field, a raised oval cartouche with a scroll either side."""
+    y = wall_y
+    bm_box(P["t_white"], m - w / 2, m + w / 2, y, y + 0.04, z0, z1)
+    bm_box(P["hs_rose"], m - w / 2 + 0.07, m + w / 2 - 0.07, y + 0.04, y + 0.06, z0 + 0.07, z1 - 0.07)
+    zc = (z0 + z1) / 2
+    bm_lathe(P["hs_rose"], [(0, 0), (1.0, 0), (0.85, 0.035), (0.5, 0.06), (0, 0.07)], 12, T(m, y + 0.06, zc) @ _diag(0.2, 0.15) @ R(-math.pi / 2, "X"))
+    for sx in (-1, 1):
+        bm_lathe(P["hs_rose"], [(0, 0), (1.0, 0), (0.6, 0.04), (0, 0.05)], 8, T(m + sx * 0.36, y + 0.06, zc) @ _diag(0.17, 0.06) @ R(-math.pi / 2, "X"))
+        bm_lathe(P["t_white"], [(0, 0), (1.0, 0), (0, 0.03)], 6, T(m + sx * 0.56, y + 0.06, zc + 0.03) @ _diag(0.05, 0.05) @ R(-math.pi / 2, "X"))
+
+
+def display_window(P, m, hw, z0, z1, rng=None):
+    """A recessed ground-floor display window (0.27 m deep) with a white architrave, a transom bar, a lit display with
+    shelves of goods behind the glass."""
+    bm_box(P["display"], m - hw, m + hw, -0.3, -0.27, z0, z1)
+    bm_box(P["shopglass"], m - hw, m + hw, -0.13, -0.12, z0, z1)
+    bm_box(P["t_white"], m - hw, m + hw, -0.15, -0.09, z1 - 0.5, z1 - 0.44)
+    for z in (z0 + 0.55, z0 + 1.35):
+        bm_box(P["in_wood"], m - hw + 0.05, m + hw - 0.05, -0.27, -0.16, z - 0.03, z)
+        for k in range(3):
+            x = m - hw + 0.2 + (2 * hw - 0.4) * k / 2
+            mat = ("brass", "flowers_pink", "aw_maroon", "t_cream")[(k + int(z * 10)) % 4]
+            bm_box(P[mat], x - 0.09, x + 0.09, -0.25, -0.17, z, z + 0.16 + 0.06 * (k % 2))
+    for x0, x1, za, zb in ((m - hw - 0.1, m - hw, z0 - 0.05, z1 + 0.1), (m + hw, m + hw + 0.1, z0 - 0.05, z1 + 0.1), (m - hw - 0.1, m + hw + 0.1, z1, z1 + 0.1)):
+        bm_box(P["t_white"], x0, x1, 0.0, 0.05, za, zb)
+    bm_box(P["t_white"], m - hw - 0.12, m + hw + 0.12, 0.0, 0.09, z0 - 0.1, z0)        # the sill
+
+
+def hband(bm, L, e0, e1, y0, y1, z0, z1):
+    """A horizontal member along the face projecting to y1, mitred round convex corners (e = tan of half the turn)."""
+    bm_box(bm, -y1 * e0, L + y1 * e1, y0, y1, z0, z1)
+
+
+def hs_face(name, L, e0=0.0, e1=0.0, bays=None, wf=1.3, porch=False):
+    """Home Store's cream face (x 0 .. L, +y out; photos): ground-floor display windows recessed between white
+    pilasters, the white cornice over them, the belt with a rose relief panel over each window, the upper floor's
+    three-sided bays (white, curtained, a round maroon awning over each window) between panelled pilasters, the frieze,
+    the cornice on modillions, the panelled parapet. porch: the chamfer's ground floor instead (home_store_corner)."""
+    Z = HS_Z; P = Parts(); W, Tm = "w_hs_cream", "t_white"
+    bays = bays if bays is not None else [L * 0.28, L * 0.72]
+    if porch:
+        hs_porch(P, L)
+    else:
+        nw = max(2, round(L / 1.75)); pitch = L / nw
+        wins = [pitch * (k + 0.5) for k in range(nw)]
+        hw = min(0.62, pitch / 2 - 0.3)
+        xs = [0.0] + [v for m in wins for v in (m - hw, m + hw)] + [L]
+        for a, b in zip(xs[0::2], xs[1::2]):                                         # the piers and their pilasters
+            bm_box(P[W], a, b, -0.3, 0.0, 0.0, Z["gf"])
+            c = (a + b) / 2; pw_ = max(0.1, min(0.2, (b - a) / 2 - 0.12))
+            bm_box(P[Tm], c - pw_ - 0.04, c + pw_ + 0.04, 0.0, 0.1, 0.0, 0.45)
+            bm_box(P[Tm], c - pw_, c + pw_, 0.0, 0.07, 0.45, Z["gf"] - 0.3)
+            bm_box(P[W], c - pw_ + 0.06, c + pw_ - 0.06, 0.07, 0.08, 0.7, Z["gf"] - 0.55)   # its sunk panel's field
+            bm_box(P[Tm], c - pw_ - 0.05, c + pw_ + 0.05, 0.0, 0.11, Z["gf"] - 0.3, Z["gf"] - 0.12)
+        for m in wins:
+            bm_box(P[W], m - hw, m + hw, -0.3, 0.0, 0.0, 0.55)                       # the bulkhead, panelled
+            bm_box(P[Tm], m - hw + 0.08, m + hw - 0.08, 0.0, 0.03, 0.1, 0.42)
+            bm_box(P[W], m - hw, m + hw, -0.3, 0.0, 3.05, Z["gf"])
+            display_window(P, m, hw, 0.55, 3.05)
+        for m in wins:
+            rose_panel(P, m, 2 * hw + 0.1, Z["gf"] + 0.48, Z["belt"] - 0.3)
+    hband(P[Tm], L, e0, e1, -0.3, 0.2, Z["gf"] - 0.12, Z["gf"] + 0.12)                 # the cornice over the ground floor
+    hband(P[Tm], L, e0, e1, -0.3, 0.28, Z["gf"] + 0.12, Z["gf"] + 0.24)
+    bm_box(P[W], 0.0, L, -0.3, 0.0, Z["gf"], Z["top"])                                 # the walls up to the frieze
+    hband(P[Tm], L, e0, e1, -0.3, 0.06, Z["belt"] - 0.12, Z["belt"])                   # the sill course
+    edges = sorted([(xc - wf / 2 - 0.58, xc + wf / 2 + 0.58) for xc in bays])
+    gaps = [(0.0, edges[0][0])] + [(edges[i][1], edges[i + 1][0]) for i in range(len(edges) - 1)] + [(edges[-1][1], L)]
+    for a, b in gaps:                                                                  # the upper pilasters, panelled
+        for c in ([a + 0.22, b - 0.22] if b - a > 1.3 else [(a + b) / 2]) if b - a > 0.45 else []:
+            bm_box(P[Tm], c - 0.18, c + 0.18, 0.0, 0.07, Z["belt"], Z["top"])
+            for z0_ in (Z["belt"] + 0.3, Z["top"] - 0.85):
+                bm_box(P[W], c - 0.1, c + 0.1, 0.07, 0.09, z0_, z0_ + 0.55)
+                bm_box(P["hs_rose"], c - 0.06, c + 0.06, 0.09, 0.1, z0_ + 0.2, z0_ + 0.35)
+    for xc in bays:
+        oriel(P, xc, wf, 0.58 if not porch else 0.6, Z["belt"], Z["top"])
+    # the frieze, the cornice on modillions, the parapet
+    bm_box(P[W], 0.0, L, -0.3, 0.02, Z["top"], Z["cor"])
+    hband(P[Tm], L, e0, e1, -0.3, 0.1, Z["top"], Z["top"] + 0.1)
+    hband(P[Tm], L, e0, e1, -0.3, 0.16, Z["cor"], Z["cor"] + 0.1)
+    hband(P[Tm], L, e0, e1, -0.3, 0.22, Z["cor"] + 0.1, Z["cor"] + 0.18)
+    hband(P[Tm], L, e0, e1, -0.3, 0.55, Z["cor1"] - 0.17, Z["cor1"])
+    n = max(2, round(L / 0.42))
+    for k in range(n):
+        x = L * (k + 0.5) / n
+        bm_box(P[Tm], x - 0.05, x + 0.05, 0.0, 0.48, Z["cor"] + 0.18, Z["cor1"] - 0.17)
+        bm_box(P[Tm], x - 0.04, x + 0.04, 0.0, 0.18, Z["cor"] + 0.02, Z["cor"] + 0.1)
+    bm_box(P[W], 0.0, L, -0.3, 0.0, Z["cor1"], Z["par"])
+    hband(P[Tm], L, e0, e1, -0.35, 0.08, Z["par"] - 0.1, Z["par"])
+    hband(P[Tm], L, e0, e1, -0.3, 0.05, Z["cor1"], Z["cor1"] + 0.08)
+    np_ = max(1, round(L / 1.6))
+    for k in range(np_):
+        a, b = L * k / np_ + 0.18, L * (k + 1) / np_ - 0.18
+        bm_box(P[Tm], a, b, 0.0, 0.025, Z["cor1"] + 0.18, Z["par"] - 0.18)
+        bm_box(P[W], a + 0.06, b - 0.06, 0.025, 0.035, Z["cor1"] + 0.24, Z["par"] - 0.24)
+        bm_box(P[Tm], L * k / np_ - 0.1, L * k / np_ + 0.1, 0.0, 0.08, Z["cor1"], Z["par"] + 0.12)
+    bm_box(P[Tm], L - 0.1, L + 0.0, 0.0, 0.08, Z["cor1"], Z["par"] + 0.12)
+    P.flush(name + "_hs", smooth=("lamp",))
+
+
+def hs_porch(P, L):
+    """The chamfer's ground floor (photos): the entrance recessed 1.1 m behind two white columns on pedestals, a round
+    arch between them with a lantern hanging in it, the soffit carrying the corner bay, glazed doors folded back into
+    the dark shop, a flower pot either side."""
+    W, Tm, D = "w_hs_cream", "t_white", 1.1; gf = HS_Z["gf"]; m = L / 2
+    bm_box(P[W], m - 0.8, m + 0.8, -D - 0.3, -D, 2.75, gf)                            # the back wall: over the door,
+    for x0, x1 in ((0.0, 0.32), (L - 0.32, L)):                                        # the returns,
+        bm_box(P[W], x0, x1, -D - 0.3, 0.0, 0.0, gf)
+    for x0, x1 in ((0.32, m - 0.8), (m + 0.8, L - 0.32)):                              # glazed sidelights beside the door
+        bm_box(P[W], x0, x1, -D - 0.3, -D, 0.0, 0.42); bm_box(P[W], x0, x1, -D - 0.3, -D, 2.68, gf)
+        bm_box(P["display"], x0, x1, -D - 0.32, -D - 0.3, 0.42, 2.68)
+        for z0, z1 in ((0.36, 0.46), (2.62, 2.72)):
+            bm_box(P[Tm], x0, x1, -D - 0.05, -D + 0.04, z0, z1)
+        bm_box(P[Tm], (x0 + x1) / 2 - 0.03, (x0 + x1) / 2 + 0.03, -D - 0.05, -D + 0.02, 0.46, 2.62)
+    bm_box(P["win_dark"], m - 0.8, m + 0.8, -D - 0.33, -D - 0.3, 0.0, 2.75)             # the dark shop inside the door
+    bm_box(P[Tm], m - 0.85, m + 0.85, -D, -D + 0.06, 2.62, 2.75)
+    for sx in (-1, 1):                                                                  # the glazed leaves folded back
+        x = m + sx * 0.76
+        bm_box(P["door"], x - 0.03, x + 0.03, -D - 0.25 + 0.05, -D + 0.45, 0.02, 2.55)
+        bm_box(P["shopglass"], x - 0.035, x + 0.035, -D - 0.12, -D + 0.33, 0.9, 2.4)
+    bm_box(P["t_cream"], 0.0, L, -D - 0.3, 0.75, -0.05, 0.05)                           # the floor and the step
+    bm_box(P[Tm], 0.0, L, -D - 0.3, 0.65, gf - 0.1, gf)                                 # the soffit
+    for x in (0.55, L - 0.55):                                                          # the columns
+        bm_box(P[Tm], x - 0.27, x + 0.27, 0.3 - 0.27, 0.3 + 0.27, 0.05, 0.5)
+        bm_box(P[Tm], x - 0.3, x + 0.3, 0.0, 0.6, 0.05, 0.12)
+        column_bm(P[Tm], x, 0.3, 0.5, gf - 0.65, 0.17, 12)
+        bm_box(P[Tm], x - 0.3, x + 0.3, 0.0, 0.6, gf - 0.18, gf - 0.1)
+    x0, x1 = 0.75, L - 0.75                                                             # the arch, its spandrels
+    bm_prism(P[Tm], arch_band(x0, x1, 2.55, 0.45, 0.12, 14), 0.24, 0.38, "xz")
+    pts, _ = seg_arc((x0 + x1) / 2, 2.55, x1 - x0, 0.45, 14)
+    bm_prism(P[W], [(x0 - 0.2, gf - 0.18), (x1 + 0.2, gf - 0.18), (x1 + 0.2, 2.55)] + pts + [(x0 - 0.2, 2.55)], 0.26, 0.36, "xz")
+    bm_box(P["brass"], m - 0.012, m + 0.012, 0.29, 0.31, 2.6, 3.0)                       # the lantern
+    bm_lathe(P["brass"], [(0, 0), (0.12, 0), (0.16, 0.06), (0.05, 0.12), (0, 0.12)], 8, T(m, 0.3, 2.62))
+    globe_lamp_bm(P["lamp"], m, 0.3, 2.45, 0.15)
+    for x in (0.0, L):                                                                  # flower pots by the columns
+        xx = x + (0.35 if x == 0.0 else -0.35)
+        bm_lathe(P["brick"], [(0, 0), (0.18, 0), (0.25, 0.42), (0.27, 0.46), (0, 0.46)], 10, T(xx, 0.95, 0.0))
+        globe_lamp_bm(P["leaf"], xx, 0.95, 0.62, 0.26)
+        for dx, dy in ((-0.1, 0.05), (0.1, 0.0), (0.0, 0.12)):
+            globe_lamp_bm(P["flowers_pink"], xx + dx, 0.95 + dy, 0.8, 0.09)
+
+
 def home_store_corner():
-    """wb1 X5 (0:08:22 .. 0:08:34), wb2 HS1 (0:02:00 .. 0:02:14), R2-28 (v2 7:12 .. 7:16): Home Store's round corner
-    porch -- four white round columns (0.35 m) on a fan of steps, an entablature and flat roof, globe lamps over the
-    middle columns -- and the small clock turret on the roof over the corner. WB frame."""
-    P = Parts()
-    cx, cy, Rc = 46.5, -112.0, 4.0
-    angs = [-20.0, -48.0, -76.0, -104.0]
-    fan = lambda r: [(cx, cy)] + [(cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a))) for a in
-                                  [-14.0 - 96.0 * k / 12 for k in range(13)]]
-    bm_prism(P["t_cream"], fan(Rc + 0.45), 0.0, 0.1, "xy")                          # the step
-    for a in angs:
-        x, y = cx + Rc * math.cos(math.radians(a)), cy + Rc * math.sin(math.radians(a))
-        bm_box(P["t_white"], x - 0.28, x + 0.28, y - 0.28, y + 0.28, 0.1, 0.6)
-        column_bm(P["t_white"], x, y, 0.6, 2.95, 0.175, 12)
-    bm_prism(P["t_white"], fan(Rc + 0.35), 3.55, 3.85, "xy")                        # entablature and roof
-    bm_prism(P["t_cream"], fan(Rc + 0.5), 3.85, 3.97, "xy")
-    for a in angs[1:3]:
-        x, y = cx + (Rc + 0.1) * math.cos(math.radians(a)), cy + (Rc + 0.1) * math.sin(math.radians(a))
-        bm_lathe(P["brass"], [(0, 0), (0.08, 0), (0.05, 0.3), (0.1, 0.38), (0, 0.4)], 8, T(x, y, 3.97))
-        globe_lamp_bm(P["lamp"], x, y, 4.55, 0.2)
-    tx, ty, z0 = 46.0, -112.3, 8.5                        # the clock turret (wb2 HS1)
-    bm_box(P["t_white"], tx - 0.7, tx + 0.7, ty - 0.7, ty + 0.7, z0, z0 + 2.1)
-    bm_box(P["t_cream"], tx - 0.8, tx + 0.8, ty - 0.8, ty + 0.8, z0 + 2.1, z0 + 2.25)
-    for M_ in (T(tx + 0.7, ty, z0 + 1.35) @ R(math.pi / 2, "Y"), T(tx, ty - 0.7, z0 + 1.35) @ R(math.pi / 2, "X")):
-        bm_lathe(P["brass"], [(0, -0.03), (0.47, -0.03), (0.47, 0.03), (0, 0.03)], 20, M_)
-        bm_lathe(P["clock"], [(0, -0.05), (0.4, -0.05), (0.4, 0.05), (0, 0.05)], 20, M_)
-    bm_lathe(P["shingle"], [(0, 0), (0.78, 0), (0.72, 0.3), (0.5, 0.62), (0.22, 0.82), (0, 0.88)], 12, T(tx, ty, z0 + 2.25))
-    bm_lathe(P["brass"], [(0, 0), (0.06, 0), (0.03, 0.5), (0, 0.55)], 6, T(tx, ty, z0 + 3.1))
-    P.flush("hs_corner", smooth=("lamp",))
+    """The chamfer between the east and north faces (WB frame in, its own frame for the face): Home Store's porch and
+    corner bay (hs_face(porch=True)), the oval sign on the belt, and over the cornice the dormer (the gold rose
+    window, an arched top with a round clock) in front of the dome -- a cream drum, maroon gores with white ribs and a
+    white band, a lantern with gilt cresting, the flagpole and the flag (photos)."""
+    (ax, ay), (bx, by) = HS_CHAMFER
+    L = math.hypot(bx - ax, by - ay); Z = HS_Z; m = L / 2
+    with frame("HS_corner", ax, ay, math.degrees(math.atan2(by - ay, bx - ax))):
+        hs_face("hs_chamfer", L, 0.335, 0.499, [m], wf=1.6, porch=True)
+        P = Parts()
+        # the sign: a plum oval with a gilt rim and crest, blue ribbons either side, two bell lamps over it
+        ys, zs = 0.66, 4.12
+        oval_board(P, "hs_plum", "brass", m, ys, zs, 1.2, 0.46)
+        for sx in (-1, 1):
+            xa, xb = m + sx * 1.05, m + sx * 1.75
+            bm_prism(P["w_cobalt"], [(xa, zs - 0.16), (xb, zs - 0.2), (xb - sx * 0.14, zs + 0.0), (xb, zs + 0.2), (xa, zs + 0.16)], ys + 0.0, ys + 0.04, "xz")
+            bm_lathe(P["brass"], [(0, 0), (0.05, 0), (0.18, 0.2), (0.2, 0.26), (0, 0.3)], 10, T(m + sx * 0.75, ys + 0.1, zs + 0.5) @ R(math.pi, "X"))
+            globe_lamp_bm(P["lamp"], m + sx * 0.75, ys + 0.1, zs + 0.18, 0.07)
+        bm_lathe(P["brass"], [(0, 0), (1.0, 0), (1.0, 0.06), (0, 0.06)], 16, T(m, ys + 0.02, zs + 0.62) @ _diag(0.3, 0.22) @ R(-math.pi / 2, "X"))
+        for dx in (-0.16, 0.0, 0.16):
+            bm_box(P["brass"], m + dx - 0.035, m + dx + 0.035, ys, ys + 0.07, zs + 0.78, zs + 0.95 - abs(dx) * 0.5)
+        P.flush("hs_sign", smooth=("lamp",))
+        text("ST_WBZ_hs_sign_the", "The", 0.13, (m, ys + 0.1, zs + 0.27), (math.pi / 2, 0, math.pi), "t_cream", 0.01)
+        text("ST_WBZ_hs_sign_name", "HOME STORE", 0.34, (m, ys + 0.1, zs + 0.0), (math.pi / 2, 0, math.pi), "t_cream", 0.02)
+        text("ST_WBZ_hs_sign_from", "FROM MARCELINE TO YOU", 0.075, (m, ys + 0.1, zs - 0.27), (math.pi / 2, 0, math.pi), "t_cream", 0.008)
+        # the dormer over the cornice
+        P = Parts(); W, Tm = "w_hs_cream", "t_white"; zp = Z["par"]
+        zk = zp + 1.45
+        bm_box(P[W], m - 0.95, m + 0.95, -0.7, 0.0, Z["cor1"], zk)
+        for sx in (-1, 1):
+            bm_box(P[Tm], m + sx * 0.95 - 0.13, m + sx * 0.95 + 0.13, -0.7, 0.07, Z["cor1"], zk)
+            bm_lathe(P[Tm], [(0, 0), (0.1, 0), (0.1, 0.1), (0.05, 0.25), (0, 0.3)], 8, T(m + sx * 0.95, -0.03, zk + 0.16))
+        zr = zp + 0.72                                                                  # the gold rose: a ring, four lobes, a boss
+        bm_lathe(P["win_dark"], [(0, 0), (0.55, 0), (0.55, 0.02), (0, 0.02)], 20, T(m, 0.0, zr) @ R(-math.pi / 2, "X"))
+        for r_, x_, z_ in [(0.6, m, zr)] + [(0.26, m + 0.24 * math.cos(a), zr + 0.24 * math.sin(a)) for a in (0, math.pi / 2, math.pi, 1.5 * math.pi)] + [(0.13, m, zr)]:
+            bm_lathe(P["brass"], [(r_ - 0.05, 0.0), (r_, 0.0), (r_, 0.06), (r_ - 0.05, 0.06), (r_ - 0.05, 0.0)], 20, T(x_, 0.0, z_) @ R(-math.pi / 2, "X"))
+        bm_box(P[Tm], m - 1.1, m + 1.1, -0.7, 0.14, zk, zk + 0.16)
+        za = zk + 0.16; ra = 0.62                                                       # the arched top on the dome, the clock in it
+        bm_box(P[W], m - ra, m + ra, -0.9, 0.0, za, za + 0.3)
+        bm_prism(P[W], [(x, za + 0.3 + y) for x, y in half_disc(ra, m, 14)], -0.9, 0.0, "xz")
+        bm_prism(P[Tm], arch_band(m - ra, m + ra, za + 0.3, ra, 0.1, 14, leg=0.3), 0.0, 0.08, "xz")
+        bm_lathe(P["brass"], [(0, 0), (0.3, 0), (0.3, 0.05), (0, 0.05)], 16, T(m, 0.0, za + 0.42) @ R(-math.pi / 2, "X"))
+        bm_lathe(P["clock"], [(0, 0), (0.25, 0), (0.25, 0.08), (0, 0.08)], 16, T(m, 0.0, za + 0.42) @ R(-math.pi / 2, "X"))
+        bm_lathe(P["brass"], [(0, 0), (0.07, 0), (0.03, 0.35), (0, 0.4)], 6, T(m, -0.2, za + 0.3 + ra + 0.05))
+        # the dome
+        cx, cy, zd = m, -2.15, zp + 0.95
+        bm_lathe(P[W], [(0, Z["cor1"]), (2.15, Z["cor1"]), (2.15, zd), (0, zd)], 24, T(cx, cy, 0.0))               # the drum
+        bm_lathe(P[Tm], [(2.05, zd - 0.15), (2.3, zd - 0.15), (2.3, zd), (2.05, zd), (2.05, zd - 0.15)], 24, T(cx, cy, 0.0))
+        prof = [(2.18, 0.0), (2.16, 0.25), (2.09, 0.68), (1.94, 1.18), (1.64, 1.68), (1.2, 2.12), (0.71, 2.43), (0.36, 2.57)]
+        bm_lathe(P["aw_maroon"], [(0, 0)] + prof + [(0, prof[-1][1])], 32, T(cx, cy, zd))
+        nr = 16
+        for k in range(nr):                                                            # the white ribs
+            a = 2 * math.pi * k / nr; ca, sa = math.cos(a), math.sin(a)
+            for (r0, z0), (r1, z1) in zip(prof[:-1], prof[1:]):
+                pts3 = []
+                for (r, z) in ((r0, z0), (r1, z1)):
+                    for dr in (0.0, 0.05):
+                        for t in (-0.06, 0.06):
+                            pts3.append((cx + (r + dr) * ca - t * sa, cy + (r + dr) * sa + t * ca, zd + z))
+                # bottom loop (profile point 0): inner -t, inner +t, outer +t, outer -t; top loop the same at point 1
+                b = [pts3[0], pts3[1], pts3[3], pts3[2]]; t_ = [pts3[4], pts3[5], pts3[7], pts3[6]]
+                hexa(P[Tm], b + t_)
+        bm_lathe(P[Tm], [(2.13, 0.55), (2.17, 0.55), (2.13, 0.75), (2.09, 0.75), (2.13, 0.55)], 32, T(cx, cy, zd))  # the white band
+        zl = zd + prof[-1][1]                                                                 # the lantern, its gilt cresting
+        bm_lathe(P[W], [(0, 0), (0.36, 0), (0.36, 0.42), (0, 0.42)], 12, T(cx, cy, zl))
+        bm_lathe(P[Tm], [(0, 0), (0.44, 0), (0.44, 0.08), (0.2, 0.2), (0, 0.22)], 12, T(cx, cy, zl + 0.42))
+        for k in range(12):
+            a = 2 * math.pi * k / 12
+            bm_lathe(P["brass"], [(0, 0), (0.025, 0), (0, 0.22)], 4, T(cx + 0.4 * math.cos(a), cy + 0.4 * math.sin(a), zl + 0.5))
+        for k in range(4):
+            a = math.pi / 4 + math.pi / 2 * k
+            bm_box(P["win_dark"], cx + 0.33 * math.cos(a) - 0.06, cx + 0.33 * math.cos(a) + 0.06, cy + 0.33 * math.sin(a) - 0.06,
+                   cy + 0.33 * math.sin(a) + 0.06, zl + 0.1, zl + 0.34)
+        zf = zl + 0.64                                                                 # the flagpole and the flag
+        bm_lathe(P[Tm], [(0, 0), (0.05, 0), (0.03, 3.0), (0, 3.0)], 8, T(cx, cy, zf))
+        globe_lamp_bm(P["brass"], cx, cy, zf + 3.05, 0.07)
+        fx0, fz1 = cx + 0.04, zf + 2.95
+        for k in range(7):
+            bm_box(P["aw_red" if k % 2 == 0 else Tm], fx0, fx0 + 1.3, cy - 0.015, cy + 0.015, fz1 - 0.1 * (k + 1), fz1 - 0.1 * k)
+        bm_box(P["hs_navy"], fx0, fx0 + 0.55, cy - 0.02, cy + 0.02, fz1 - 0.4, fz1)
+        P.flush("hs_dome", smooth=("lamp", "aw_maroon"))
+
+
+def blue_1890(name, L):
+    """The blue shop between Home Store and the Refreshment Corner (photo; x 0 .. L, +y out): blue piers with light blue
+    sunk panels; on the ground floor two curtained bay windows either side of the door under a bronze half dome with a
+    lantern and the plum "HOME STORE" oval over it; a cornice, a band of light blue balusters with two bell lamps; six
+    round-headed curtained windows between slim colonnettes; over them two half sunbursts and four small arches; the
+    cornice on brackets; the segmental crown with the "1890" plaque, an urn on a pedestal at each end. Lower than its
+    neighbours: its own roof, with walls up to theirs."""
+    P = Parts(); Bm, Lb = "w_cobalt", "hs_lblue"; pw = 0.45; m = L / 2
+    zg, zb, zw, zs, zh, zc, zt = 3.2, 3.55, 4.3, 5.5, 6.0, 7.05, 7.4
+    for x0 in (0.0, L - pw):                                                           # the piers
+        bm_box(P[Bm], x0, x0 + pw, -0.3, 0.12, 0.0, zt)
+        for z0, z1 in ((0.45, zg - 0.2), (zb + 0.1, zw - 0.1), (zw + 0.15, zh - 0.1), (zh + 0.25, zc - 0.1)):
+            bm_box(P[Lb], x0 + 0.08, x0 + pw - 0.08, 0.12, 0.15, z0, z1)
+            bm_box(P[Bm], x0 + 0.13, x0 + pw - 0.13, 0.15, 0.165, z0 + 0.05, z1 - 0.05)
+    # ground floor: the wall round the door, the door, the two bays
+    for x0, x1 in ((pw, m - 0.55), (m + 0.55, L - pw)):
+        bm_box(P[Bm], x0, x1, -0.3, 0.0, 0.0, zg)
+    bm_box(P[Bm], m - 0.55, m + 0.55, -0.3, 0.0, 2.6, zg)
+    bm_box(P[Lb], m - 0.62, m + 0.62, 0.0, 0.07, 2.55, 2.68)
+    for sx in (-1, 1):
+        bm_box(P[Lb], m + sx * 0.585 - 0.06, m + sx * 0.585 + 0.06, 0.0, 0.07, 0.0, 2.6)
+    bm_box(P["in_floor"], m - 0.55, m + 0.55, -1.6, 0.3, -0.05, 0.05)                   # the shop seen through the door
+    bm_box(P["display"], m - 0.6, m + 0.6, -1.65, -1.6, 0.05, 2.6)
+    for sx in (-1, 1):
+        bm_box(P["in_wall"], m + sx * 0.55 - 0.03, m + sx * 0.55 + 0.03, -1.6, -0.3, 0.05, 2.6)
+    bm_box(P["door"], m - 0.55, m - 0.5, -0.3, 0.35, 0.05, 2.5)                          # one leaf open
+    half_dome(P["hs_bronze"], m, 0.0, 2.68, 0.78, 0.5, 12, 6)                           # the half dome, ribbed, its lantern
+    for k in range(1, 6):
+        a = math.pi * k / 6
+        bm_box(P["brass"], m + 0.79 * math.cos(a) - 0.02, m + 0.79 * math.cos(a) + 0.02, 0.79 * math.sin(a) - 0.02, 0.79 * math.sin(a) + 0.02, 2.62, 2.7)
+    bm_lathe(P["brass"], [(0, 0), (0.06, 0), (0.02, 0.25), (0, 0.3)], 6, T(m, 0.05, 3.15))
+    bm_box(P["brass"], m - 0.01, m + 0.01, 0.3, 0.32, 2.3, 2.68)
+    globe_lamp_bm(P["lamp"], m, 0.31, 2.2, 0.12)
+    for c in (pw + 1.15, L - pw - 1.15):                                                 # the bays
+        pts, fs = oriel_plan(c, 1.3, 0.5)
+        bm_prism(P[Bm], pts, 0.0, 0.72, "xy")
+        for f, Lf in fs:
+            fbox(P[Lb], f, 0.06, Lf - 0.06, 0.0, 0.03, 0.15, 0.6)
+            fbox(P[Bm], f, 0.11, Lf - 0.11, 0.03, 0.04, 0.2, 0.55)
+            fbox(P["display"], f, 0.06, Lf - 0.06, -0.08, -0.06, 0.78, 2.5)
+            fbox(P["shopglass"], f, 0.06, Lf - 0.06, -0.02, 0.0, 0.78, 2.5)
+            fbox(P["t_white"], f, 0.06, Lf - 0.06, -0.06, -0.02, 2.22, 2.5)              # the curtain valance
+            for u in (0.06, Lf - 0.24):
+                fbox(P["t_white"], f, u, u + 0.18, -0.06, -0.03, 1.2, 2.45)
+        bm_prism(P[Lb], grow(pts, 0.03), 0.72, 0.8, "xy")
+        for x, y in pts:
+            bm_box(P[Lb], x - 0.06, x + 0.06, max(-0.05, y - 0.07), y + 0.03, 0.78, 2.5)
+        bm_prism(P[Bm], grow(pts, 0.02), 2.5, 2.88, "xy")
+        bm_prism(P[Lb], grow(pts, 0.1), 2.88, 3.0, "xy")
+        for f, Lf in fs[1:2]:
+            for u in (Lf * 0.25, Lf * 0.75):                                            # the rings on the bay's frieze
+                Pm = _fmap(f)(u, 0.03, 2.69)
+                bm_lathe(P[Lb], [(0.07, 0), (0.11, 0), (0.11, 0.03), (0.07, 0.03), (0.07, 0)], 12, T(*Pm) @ R(-math.pi / 2, "X"))
+    # the cornice over the ground floor, the band of balusters, the bell lamps
+    bm_box(P[Lb], pw - 0.05, L - pw + 0.05, 0.0, 0.3, zg, zg + 0.12)
+    bm_box(P[Bm], pw, L - pw, -0.3, 0.0, zg, zw)
+    bm_box(P[Lb], pw - 0.05, L - pw + 0.05, -0.3, 0.38, zb - 0.12, zb)
+    for k in range(int((L - 2 * pw) / 0.16)):
+        x = pw + 0.08 + k * 0.16
+        bm_box(P[Lb], x - 0.025, x + 0.025, 0.0, 0.05, zg + 0.14, zb - 0.14)
+    bm_box(P[Lb], pw, L - pw, 0.0, 0.08, zb + 0.06, zb + 0.13)
+    for k in range(int((L - 2 * pw - 0.2) / 0.22)):
+        x = pw + 0.2 + k * 0.22
+        bm_lathe(P[Lb], [(0, 0), (0.04, 0), (0.025, 0.15), (0.045, 0.4), (0.025, 0.55), (0.04, 0.6), (0, 0.6)], 6, T(x, 0.06, zb + 0.13))
+    bm_box(P[Lb], pw, L - pw, -0.3, 0.14, zw - 0.1, zw)
+    for sx in (-1, 1):
+        x = m + sx * 1.6
+        bm_box(P["iron"], x - 0.015, x + 0.015, 0.0, 0.42, zb + 0.15, zb + 0.18)
+        bm_box(P["iron"], x - 0.01, x + 0.01, 0.4, 0.42, zb - 0.15, zb + 0.18)
+        bm_lathe(P["brass"], [(0, 0), (0.04, 0), (0.17, 0.2), (0.19, 0.26), (0, 0.28)], 10, T(x, 0.41, zb - 0.1) @ R(math.pi, "X"))
+        globe_lamp_bm(P["lamp"], x, 0.41, zb - 0.38, 0.06)
+    # the sign over the door
+    oval_board(P, "hs_plum", "brass", m, 0.42, zg + 0.22, 0.82, 0.3)
+    bm_lathe(P["brass"], [(0, 0), (1.0, 0), (1.0, 0.05), (0, 0.05)], 14, T(m, 0.44, zg + 0.62) @ _diag(0.18, 0.14) @ R(-math.pi / 2, "X"))
+    # the upper floor: six round-headed windows, colonnettes
+    n = 6; pitch = (L - 2 * pw - 0.5) / n; ww = 0.62; x0w = pw + 0.25
+    xs = [x0w + pitch * (k + 0.5) for k in range(n)]
+    cuts = [x0w] + [v for c in xs for v in (c - ww / 2, c + ww / 2)] + [L - pw - 0.25]
+    bm_box(P[Bm], pw, x0w, -0.3, 0.0, zw, zh); bm_box(P[Bm], L - pw - 0.25, L - pw, -0.3, 0.0, zw, zh)
+    for a, b in zip(cuts[0::2], cuts[1::2]):
+        bm_box(P[Bm], a, b, -0.3, 0.0, zw, zs)
+    for c in xs:
+        a, b = c - ww / 2, c + ww / 2
+        bm_box(P[Bm], a, b, -0.3, 0.0, zw, zw + 0.15)
+        pts, _ = seg_arc(c, zs, ww, ww / 2, 10)
+        bm_prism(P[Bm], [(a - 0.001, zh), (b + 0.001, zh), (b, zs)] + pts + [(a, zs)], -0.3, 0.0, "xz")
+        bm_prism(P["win_dark"], arch_opening(a, b, zw + 0.15, zs, ww / 2, 10), -0.18, -0.16, "xz")
+        bm_prism(P["t_white"], arch_opening(a + 0.05, b - 0.05, zw + 0.25, zs, ww / 2 - 0.05, 10), -0.16, -0.13, "xz")   # the curtains
+        bm_box(P["win_dark"], c - 0.07, c + 0.07, -0.135, -0.125, zw + 0.25, zs - 0.15)
+        bm_prism(P["t_cream"], arch_band(a, b, zs, ww / 2, 0.06, 10, leg=zs - zw - 0.15), 0.0, 0.04, "xz")
+        bm_box(P[Lb], a - 0.06, b + 0.06, 0.0, 0.1, zw + 0.05, zw + 0.15)
+    for c in [(xs[k] + xs[k + 1]) / 2 for k in range(n - 1)]:
+        column_bm(P[Lb], c, 0.08, zw + 0.15, zs - zw - 0.15, 0.055, 8)
+    bm_box(P[Lb], pw, L - pw, 0.0, 0.12, zh - 0.02, zh + 0.22)                           # the entablature
+    # the lunettes: two half sunbursts and four small arches
+    bm_box(P[Bm], pw, L - pw, -0.3, 0.0, zh, zc)
+    for cx_ in (pw + 0.95, L - pw - 0.95):
+        bm_prism(P[Lb], [(cx_ + x, zh + 0.22 + z) for x, z in ring_sector2(0.6, 0.72, 15)], 0.0, 0.06, "xz")
+        bm_prism(P[Lb], [(cx_ + x, zh + 0.22 + z) for x, z in half_disc(0.16, 0.0, 8)], 0.0, 0.06, "xz")
+        for k in range(1, 9):
+            a = math.pi * k / 9; ca, sa = math.cos(a), math.sin(a)
+            bm_prism(P[Lb], [(cx_ + 0.16 * ca - 0.018 * sa, zh + 0.22 + 0.16 * sa + 0.018 * ca), (cx_ + 0.16 * ca + 0.018 * sa, zh + 0.22 + 0.16 * sa - 0.018 * ca),
+                             (cx_ + 0.6 * ca + 0.03 * sa, zh + 0.22 + 0.6 * sa - 0.03 * ca), (cx_ + 0.6 * ca - 0.03 * sa, zh + 0.22 + 0.6 * sa + 0.03 * ca)], 0.0, 0.045, "xz")
+    a0, a1 = pw + 2.0, L - pw - 2.0
+    for k in range(4):
+        xa, xb = a0 + (a1 - a0) * k / 4 + 0.05, a0 + (a1 - a0) * (k + 1) / 4 - 0.05
+        bm_prism(P[Lb], arch_band(xa, xb, zh + 0.5, (xb - xa) / 2, 0.05, 8, leg=0.25), 0.0, 0.05, "xz")
+    # the cornice, the crown with "1890", the urns
+    bm_box(P[Lb], -0.05, L + 0.05, -0.3, 0.2, zc, zc + 0.12)
+    for k in range(int(L / 0.45)):
+        x = 0.25 + k * 0.45
+        bm_box(P[Bm], x - 0.05, x + 0.05, 0.0, 0.32, zc + 0.12, zt - 0.12)
+    bm_box(P[Lb], -0.1, L + 0.1, -0.3, 0.4, zt - 0.12, zt)
+    bm_prism(P[Bm], arch_opening(m - 1.4, m + 1.4, zt, zt + 0.15, 0.75, 14), -0.3, 0.05, "xz")
+    bm_prism(P[Lb], arch_band(m - 1.4, m + 1.4, zt + 0.15, 0.75, 0.12, 14), -0.3, 0.12, "xz")
+    oval_board(P, Bm, "t_white", m, 0.05, zt + 0.45, 0.42, 0.2)
+    bm_lathe(P["brass"], [(0, 0), (0.08, 0), (0.05, 0.12), (0.1, 0.2), (0, 0.45)], 8, T(m, -0.1, zt + 0.98))
+    for x0 in (0.0, L - pw):
+        bm_box(P[Bm], x0, x0 + pw, -0.3, 0.15, zt, zt + 0.45)
+        bm_box(P[Lb], x0 - 0.03, x0 + pw + 0.03, -0.33, 0.18, zt + 0.45, zt + 0.53)
+        bm_lathe(P[Bm], [(0, 0), (0.1, 0), (0.06, 0.08), (0.17, 0.25), (0.06, 0.42), (0.04, 0.5), (0, 0.7)], 10, T(x0 + pw / 2, -0.07, zt + 0.53))
+    # its own roof; walls up to the neighbours' roof behind and beside it
+    bm_box(P["shingle"], 0.0, L, -5.4, -0.3, zt - 0.2, zt - 0.1)
+    bm_box(P["w_hs_cream"], 0.0, L, -5.5, -5.4, zt - 0.2, 8.5)
+    bm_box(P["w_hs_cream"], 0.0, 0.3, -5.5, -0.3, zt - 0.2, HS_Z["par"])
+    bm_box(P["brick"], L - 0.3, L, -5.5, -0.3, zt - 0.2, 9.2)
+    P.flush(name + "_1890", smooth=("lamp", "hs_bronze"))
+    text(f"ST_WBZ_{name}_1890", "1890", 0.22, (m, 0.16, zt + 0.45), (math.pi / 2, 0, math.pi), "t_white", 0.01)
+    text(f"ST_WBZ_{name}_hs1890", "HOME STORE", 0.17, (m, 0.53, zg + 0.22), (math.pi / 2, 0, math.pi), "t_cream", 0.01)
+
+
+def ring_sector2(r0, r1, n):
+    """An upper half ring (x, z) round the origin."""
+    out = [(r1 * math.cos(math.pi * k / n), r1 * math.sin(math.pi * k / n)) for k in range(n + 1)]
+    inn = [(r0 * math.cos(math.pi * k / n), r0 * math.sin(math.pi * k / n)) for k in range(n + 1)]
+    return out + inn[::-1]
+
+
+def sage_front(name, L, H):
+    """The grey-green front between the brick one and Home Store (photos: "FROM MARCELINE TO YOU" on its fascia; x 0 ..
+    L, +y out): a glazed white door and a display window with round heads, the fascia with navy letters between white
+    mouldings, two tall round-headed upper windows in cream architraves with keystones and curtains, the cornice on
+    brackets, the parapet."""
+    P = Parts(); W, Tm = "w_bluegrey", "t_white"
+    dx, wx = L * 0.3, L * 0.7
+    ops = sorted([(dx - 0.6, dx + 0.6, 2.5, 0.6), (wx - 0.8, wx + 0.8, 2.4, 0.5)])
+    cuts = [0.0] + [v for a, b, _, _ in ops for v in (a, b)] + [L]
+    for a, b in zip(cuts[0::2], cuts[1::2]):
+        bm_box(P[W], a, b, -0.3, 0.0, 0.0, 3.35)
+    for a, b, zs, r in ops:
+        pts, _ = seg_arc((a + b) / 2, zs, b - a, r, 12)
+        bm_prism(P[W], [(a, 3.35), (b, 3.35), (b, zs)] + pts + [(a, zs)], -0.3, 0.0, "xz")
+        bm_prism(P[Tm], arch_band(a, b, zs, r, 0.1, 12, leg=zs), 0.0, 0.06, "xz")
+        bm_lathe(P[Tm], [(0, 0), (1, 0), (1, 0.08), (0, 0.08)], 4, T((a + b) / 2, 0.0, zs + r + 0.05) @ _diag(0.1, 0.14) @ R(-math.pi / 2, "X"))
+    a, b, zs, r = next(o for o in ops if abs((o[0] + o[1]) / 2 - dx) < 0.01)            # the door: glazed white leaves, fanlight
+    bm_prism(P["display"], arch_opening(a, b, 0.0, zs, r, 12), -0.32, -0.3, "xz")
+    for x0, x1 in ((a + 0.04, (a + b) / 2 - 0.01), ((a + b) / 2 + 0.01, b - 0.04)):
+        bm_box(P[Tm], x0, x1, -0.2, -0.15, 0.02, zs - 0.08)
+        bm_box(P["shopglass"], x0 + 0.08, x1 - 0.08, -0.15, -0.14, 0.9, zs - 0.2)
+        bm_box(P["in_wall"], x0 + 0.08, x1 - 0.08, -0.2, -0.19, 0.9, zs - 0.2)
+    bm_box(P["t_cream"], a, b, -0.3, 0.3, -0.05, 0.05)
+    a, b, zs, r = next(o for o in ops if abs((o[0] + o[1]) / 2 - wx) < 0.01)            # the window
+    bm_box(P[W], a, b, -0.3, 0.0, 0.0, 0.6)
+    bm_box(P[Tm], a - 0.05, b + 0.05, 0.0, 0.1, 0.52, 0.62)
+    bm_prism(P["display"], arch_opening(a, b, 0.6, zs, r, 12), -0.3, -0.28, "xz")
+    bm_prism(P["shopglass"], arch_opening(a, b, 0.6, zs, r, 12), -0.14, -0.13, "xz")
+    bm_box(P[Tm], (a + b) / 2 - 0.03, (a + b) / 2 + 0.03, -0.15, -0.1, 0.6, zs)
+    bm_box(P[Tm], a, b, -0.15, -0.1, zs - 0.05, zs)
+    # the fascia and its letters
+    bm_box(P[Tm], -0.02, L + 0.02, -0.3, 0.16, 3.35, 3.45)
+    bm_box(P[W], 0.0, L, -0.3, 0.06, 3.45, 3.95)
+    bm_box(P[Tm], -0.02, L + 0.02, -0.3, 0.2, 3.95, 4.08)
+    # the upper floor
+    zu0, zus, zu1 = 4.6, 6.6, 7.05
+    ups = [(L * 0.28 - 0.5, L * 0.28 + 0.5), (L * 0.72 - 0.5, L * 0.72 + 0.5)]
+    cuts = [0.0] + [v for a, b in ups for v in (a, b)] + [L]
+    bm_box(P[W], 0.0, L, -0.3, 0.0, 4.08, zu0)
+    for a, b in zip(cuts[0::2], cuts[1::2]):
+        bm_box(P[W], a, b, -0.3, 0.0, zu0, H - 0.45)
+    for a, b in ups:
+        c = (a + b) / 2
+        pts, _ = seg_arc(c, zus, b - a, 0.45, 12)
+        bm_prism(P[W], [(a, H - 0.45), (b, H - 0.45), (b, zus)] + pts + [(a, zus)], -0.3, 0.0, "xz")
+        bm_prism(P["win_dark"], arch_opening(a, b, zu0, zus, 0.45, 12), -0.22, -0.2, "xz")
+        bm_prism(P[Tm], arch_opening(a + 0.06, b - 0.06, zu0 + 0.1, zus, 0.4, 12), -0.2, -0.18, "xz")
+        bm_box(P["win_dark"], c - 0.12, c + 0.12, -0.18, -0.17, zu0 + 0.2, zus - 0.1)
+        bm_box(P["t_cream"], c - 0.02, c + 0.02, -0.17, -0.14, zu0 + 0.1, zus + 0.4)
+        bm_prism(P["t_cream"], arch_band(a, b, zus, 0.45, 0.12, 12, leg=zus - zu0), 0.0, 0.07, "xz")
+        bm_prism(P["t_cream"], [(c - 0.1, zus + 0.42), (c + 0.1, zus + 0.42), (c + 0.14, zus + 0.75), (c - 0.14, zus + 0.75)], 0.0, 0.12, "xz")
+        bm_box(P["t_cream"], a - 0.12, b + 0.12, 0.0, 0.14, zu0 - 0.1, zu0)
+        for sx in (-1, 1):
+            bm_box(P["t_cream"], c + sx * 0.4 - 0.05, c + sx * 0.4 + 0.05, 0.0, 0.12, zu0 - 0.3, zu0 - 0.1)
+    for x0 in (0.0, L - 0.3):                                                          # the end pilasters
+        bm_box(P[Tm], x0, x0 + 0.3, 0.0, 0.08, 4.08, H - 0.45)
+    bm_box(P[Tm], -0.03, L + 0.03, -0.3, 0.14, H - 0.45, H - 0.35)                       # the cornice, brackets, parapet
+    for k in range(max(2, round(L / 0.7))):
+        x = L * (k + 0.5) / max(2, round(L / 0.7))
+        bm_box(P[Tm], x - 0.05, x + 0.05, 0.0, 0.38, H - 0.35, H - 0.1)
+    bm_box(P[Tm], -0.05, L + 0.05, -0.3, 0.45, H - 0.1, H + 0.02)
+    bm_box(P[W], 0.0, L, -0.3, 0.0, H + 0.02, H + 0.7)
+    bm_box(P[Tm], -0.05, L + 0.05, -0.35, 0.06, H + 0.7, H + 0.8)
+    P.flush(name + "_sage", smooth=())
+    text(f"ST_WBZ_{name}_marceline", "FROM MARCELINE TO YOU", 0.23, (L / 2, 0.08, 3.7), (math.pi / 2, 0, math.pi), "hs_navy", 0.015)
+
+
+def lace_rings(bm, x0, x1, z0, z1, y, cell=0.2, keep=None, t=0.014):
+    """Cast-iron lace as a pierced pattern: touching rings in a grid, a small diamond between each four (keep(x, z, r)
+    drops the rings outside a shape)."""
+    nx = max(1, round((x1 - x0) / cell)); nz = max(1, round((z1 - z0) / cell))
+    sx, sz = (x1 - x0) / nx, (z1 - z0) / nz; r = min(sx, sz) / 2; bw = r * 0.26
+    prof = [(r - bw, -t), (r, -t), (r, t), (r - bw, t), (r - bw, -t)]
+    for i in range(nx):
+        for j in range(nz):
+            x, z = x0 + sx * (i + 0.5), z0 + sz * (j + 0.5)
+            if keep and not keep(x, z, r):
+                continue
+            bm_lathe(bm, prof, 8, T(x, y, z) @ R(math.pi / 2, "X"))
+            if i < nx - 1 and j < nz - 1 and (not keep or keep(x + sx / 2, z + sz / 2, r * 0.3)):
+                d = r * 0.28
+                xc, zc = x + sx / 2, z + sz / 2
+                bm_prism(bm, [(xc, zc - d), (xc + d, zc), (xc, zc + d), (xc - d, zc)], y - t, y + t, "xz")
+
+
+def lattice_arcs(bm, a, b, z0, z1, y0, y1, n=3, w=0.025):
+    """A transom's tracery of intersecting arcs (photos: the brick front's windows), between z0 and z1."""
+    s = (b - a) / n
+    for k in range(-1, n):
+        xa, xb = a + s * k, a + s * (k + 2)
+        if xa >= a - 1e-6 and xb <= b + 1e-6:
+            bm_prism(bm, arch_band(xa, xb, z0, min((z1 - z0) * 0.9, (xb - xa) / 2), w, 10), y0, y1, "xz")
+    bm_box(bm, a, b, y0, y1, z0 - w, z0)
+
+
+def bench(P, x, y, L_=1.6):
+    """A green slatted bench with iron ends, its back to the wall (photos)."""
+    for k in range(4):
+        yy = y + 0.12 + k * 0.11
+        bm_box(P["bench_green"], x - L_ / 2, x + L_ / 2, yy, yy + 0.08, 0.42, 0.46)
+    for k in range(3):
+        zz = 0.55 + k * 0.13
+        yy = y + 0.06 - (zz - 0.5) * 0.15
+        bm_box(P["bench_green"], x - L_ / 2, x + L_ / 2, yy, yy + 0.03, zz, zz + 0.09)
+    for sx in (-1, 1):
+        xe = x + sx * (L_ / 2 - 0.08)
+        for y0, y1, z0, z1 in ((0.04, 0.09, 0.0, 0.9), (0.5, 0.55, 0.0, 0.42), (0.04, 0.58, 0.62, 0.66), (0.52, 0.57, 0.42, 0.66),
+                               (0.08, 0.54, 0.38, 0.42)):
+            bm_box(P["iron"], xe - 0.03, xe + 0.03, y + y0, y + y1, z0, z1)
+
+
+def wall_lantern(P, x, z):
+    """A black wall lantern on a bracket (photos: either side of the brick front's sign)."""
+    bm_box(P["iron"], x - 0.07, x + 0.07, 0.0, 0.03, z + 0.15, z + 0.55)
+    bm_box(P["iron"], x - 0.015, x + 0.015, 0.0, 0.3, z + 0.42, z + 0.46)
+    bm_lathe(P["iron"], [(0, 0), (0.08, 0), (0.1, 0.05), (0, 0.06)], 6, T(x, 0.3, z - 0.06))
+    bm_lathe(P["lamp"], [(0, 0), (0.08, 0), (0.11, 0.32), (0, 0.32)], 6, T(x, 0.3, z))
+    bm_lathe(P["iron"], [(0, 0), (0.15, 0), (0.0, 0.16)], 6, T(x, 0.3, z + 0.32))
+
+
+def brick_front(name, L, H):
+    """The brick front south of the grey-green one (photos; x 0 .. L, +y out): four tall windows recessed in the brick
+    with teal frames, glazing bars and transoms of intersecting arcs, the glazed white doors folded open in the middle,
+    the plum "HOME STORE" oval with the light blue plates "FINEST WARES" / "QUALITY GOODS" and a lantern either side;
+    the cast-iron veranda along the upper floor (posts, a lace railing with flower boxes, lace spandrels under arches,
+    hanging baskets) in front of four curtained windows; the cream cornice and parapet with a raised middle; two green
+    benches against the wall."""
+    P = Parts(); Wb, Tf = "brick", "t_dkgreen"; m = L / 2
+    zg, D = 4.3, 1.25
+    gx = [m - 3.85, m - 2.0, m + 2.0, m + 3.85]
+    ops = sorted([(x - 0.62, x + 0.62) for x in gx] + [(m - 0.85, m + 0.85)])
+    cuts = [0.0] + [v for a, b in ops for v in (a, b)] + [L]
+    for a, b in zip(cuts[0::2], cuts[1::2]):
+        bm_box(P[Wb], a, b, -0.3, 0.0, 0.0, zg)
+    for a, b in ops:
+        bm_box(P[Wb], a, b, -0.3, 0.0, 3.3, zg)
+        bm_box(P[Wb], a - 0.06, b + 0.06, 0.0, 0.03, 3.3, 3.48)                         # a brick soldier course over it
+    for x in gx:                                                                        # the windows
+        a, b = x - 0.62, x + 0.62
+        bm_box(P[Wb], a, b, -0.3, 0.0, 0.0, 0.45)
+        bm_box(P[Tf], a + 0.04, b - 0.04, 0.0, 0.03, 0.08, 0.38)
+        bm_box(P["t_cream"], a - 0.05, b + 0.05, 0.0, 0.08, 0.4, 0.48)
+        bm_box(P["display"], a, b, -0.3, -0.28, 0.45, 3.3)
+        bm_box(P["shopglass"], a, b, -0.2, -0.19, 0.45, 3.3)
+        for x0, x1, z0, z1 in ((a, a + 0.09, 0.45, 3.3), (b - 0.09, b, 0.45, 3.3), (a, b, 0.45, 0.55), (a, b, 3.2, 3.3), (a, b, 2.55, 2.65)):
+            bm_box(P[Tf], x0, x1, -0.22, -0.12, z0, z1)
+        for k in range(1, 3):
+            xx = a + (b - a) * k / 3
+            bm_box(P[Tf], xx - 0.02, xx + 0.02, -0.19, -0.15, 0.55, 2.55)
+        for z in (1.25, 1.9):
+            bm_box(P[Tf], a + 0.09, b - 0.09, -0.19, -0.15, z - 0.02, z + 0.02)
+        lattice_arcs(P[Tf], a + 0.09, b - 0.09, 2.65, 3.2, -0.19, -0.15)
+    a, b = m - 0.85, m + 0.85                                                           # the door, the shop behind it
+    bm_box(P["in_floor"], a, b, -2.2, 0.3, -0.05, 0.05)
+    bm_box(P["display"], a - 0.4, b + 0.4, -2.25, -2.2, 0.05, 3.0)
+    for x0 in (a - 0.4, b + 0.34):
+        bm_box(P["in_wall"], x0, x0 + 0.06, -2.2, -0.3, 0.05, 3.0)
+    bm_box(P["in_ceiling"], a - 0.4, b + 0.4, -2.2, -0.3, 3.0, 3.05)
+    bm_box(P["in_wood"], a + 0.1, b - 0.1, -2.15, -1.7, 0.05, 1.9)
+    for x0, x1, z0, z1 in ((a, a + 0.08, 0.0, 3.3), (b - 0.08, b, 0.0, 3.3), (a, b, 2.85, 2.95), (a, b, 3.22, 3.3)):
+        bm_box(P[Tf], x0, x1, -0.2, -0.05, z0, z1)
+    lattice_arcs(P[Tf], a + 0.08, b - 0.08, 2.95, 3.22, -0.16, -0.12, n=4)
+    for sx in (-1, 1):                                                                  # the folding leaves, open
+        x = m + sx * 0.82
+        for k, (y0, y1) in enumerate(((0.0, 0.4), (0.4, 0.8))):
+            bm_box(P["t_white"], x - 0.025, x + 0.025, y0, y1, 0.02, 2.82)
+            bm_box(P["shopglass"], x - 0.03, x + 0.03, y0 + 0.07, y1 - 0.07, 1.0, 2.7)
+            for z in (1.45, 1.9, 2.3):
+                bm_box(P["t_white"], x - 0.03, x + 0.03, y0, y1, z - 0.015, z + 0.015)
+    # the sign, its plates, the lanterns
+    oval_board(P, "hs_plum", "brass", m, 0.04, 3.82, 1.15, 0.36)
+    bm_lathe(P["brass"], [(0, 0), (1.0, 0), (1.0, 0.05), (0, 0.05)], 14, T(m, 0.06, 4.28) @ _diag(0.2, 0.14) @ R(-math.pi / 2, "X"))
+    for sx in (-1, 1):
+        x = m + sx * 2.15
+        bm_box(P["brass"], x - 0.62, x + 0.62, 0.0, 0.04, 3.68, 3.96)
+        bm_box(P["hs_lblue"], x - 0.58, x + 0.58, 0.04, 0.06, 3.71, 3.93)
+        wall_lantern(P, m + sx * 1.38, 3.55)
+    # the veranda: floor, posts, lace
+    bm_box(P["t_cream"], -0.05, L + 0.05, 0.0, D + 0.05, zg + 0.05, zg + 0.22)
+    bm_box(P["t_white"], -0.05, L + 0.05, D - 0.05, D + 0.08, zg - 0.08, zg + 0.3)
+    zt = 7.45
+    posts = [0.12 + (L - 0.24) * k / 5 for k in range(6)]
+    for x in posts:
+        bm_box(P["hall_iron"], x - 0.05, x + 0.05, D - 0.18, D - 0.08, zg + 0.22, zt)
+        bm_box(P["hall_iron"], x - 0.09, x + 0.09, D - 0.22, D - 0.04, zg + 0.22, zg + 0.4)
+        bm_box(P["hall_iron"], x - 0.08, x + 0.08, D - 0.21, D - 0.05, zt - 0.95, zt - 0.85)
+    yl = D - 0.13
+    bm_box(P["hall_iron"], 0.0, L, yl - 0.03, yl + 0.03, zg + 1.15, zg + 1.2)
+    bm_box(P["hall_iron"], 0.0, L, yl - 0.02, yl + 0.02, zg + 0.28, zg + 0.31)
+    for a, b in zip(posts[:-1], posts[1:]):
+        lace_rings(P["hall_iron"], a + 0.05, b - 0.05, zg + 0.31, zg + 1.15, yl, 0.21)
+        sp, rise = zt - 1.0, 0.55                                                       # an arch from post to post, lace above it
+        pts, (zc, Rr, half) = seg_arc((a + b) / 2, sp, b - a - 0.1, rise, 14)
+        bm_prism(P["hall_iron"], arch_band(a + 0.05, b - 0.05, sp, rise, 0.05, 14), yl - 0.015, yl + 0.015, "xz")
+        cxm = (a + b) / 2
+        keep = lambda x, z, r, cxm=cxm, zc=zc, Rr=Rr: math.hypot(x - cxm, z - zc) > Rr + 0.05 + r and z < zt - 0.1
+        lace_rings(P["hall_iron"], a + 0.05, b - 0.05, sp - 0.3, zt - 0.08, yl, 0.18, keep)
+        bm_box(P["hall_iron"], a, b, yl - 0.02, yl + 0.02, zt - 0.1, zt - 0.06)
+        x = (a + b) / 2                                                                 # the hanging basket
+        bm_box(P["iron"], x - 0.006, x + 0.006, yl - 0.25, yl - 0.24, zt - 1.0, zt - 0.1)
+        bm_lathe(P["wood"], [(0, 0), (0.18, 0.05), (0.2, 0.2), (0, 0.2)], 8, T(x, yl - 0.25, zt - 1.3))
+        globe_lamp_bm(P["leaf"], x, yl - 0.25, zt - 1.12, 0.24)
+        for dz in (-0.25, -0.38):
+            globe_lamp_bm(P["leaf"], x + 0.1, yl - 0.2, zt - 1.12 + dz, 0.08)
+        bm_box(P["t_dkgreen"], x - 0.4, x + 0.4, yl - 0.1, yl + 0.1, zg + 1.2, zg + 1.38)   # the flower box on the rail
+        for k in range(4):
+            globe_lamp_bm(P["flowers_red" if k % 2 else "flowers_pink"], x - 0.3 + 0.2 * k, yl, zg + 1.45, 0.1)
+    bm_box(P["hall_iron"], -0.05, L + 0.05, 0.0, D + 0.02, zt, zt + 0.08)                 # its roof, a fascia
+    bm_box(P["t_white"], -0.05, L + 0.05, D - 0.02, D + 0.04, zt - 0.05, zt + 0.12)
+    # the upper floor: four curtained windows with arched-lattice top lights
+    zu0, zu1 = zg + 0.5, zg + 2.65
+    cuts = [0.0] + [v for x in gx for v in (x - 0.5, x + 0.5)] + [L]
+    for a, b in zip(cuts[0::2], cuts[1::2]):
+        bm_box(P[Wb], a, b, -0.3, 0.0, zg, H - 0.6)
+    for x in gx:
+        a, b = x - 0.5, x + 0.5
+        bm_box(P[Wb], a, b, -0.3, 0.0, zg, zu0); bm_box(P[Wb], a, b, -0.3, 0.0, zu1, H - 0.6)
+        bm_box(P["win_dark"], a, b, -0.22, -0.2, zu0, zu1)
+        for x0, x1, z0, z1 in ((a, a + 0.08, zu0, zu1), (b - 0.08, b, zu0, zu1), (a, b, zu0, zu0 + 0.08), (a, b, zu1 - 0.08, zu1), (a, b, zu1 - 0.6, zu1 - 0.53)):
+            bm_box(P[Tf], x0, x1, -0.2, -0.1, z0, z1)
+        for x0, x1 in ((a + 0.1, a + 0.4), (b - 0.4, b - 0.1)):
+            bm_box(P["t_white"], x0, x1, -0.2, -0.17, zu0 + 0.1, zu1 - 0.62)
+        bm_box(P[Tf], x - 0.02, x + 0.02, -0.17, -0.13, zu0 + 0.08, zu1 - 0.6)
+        lattice_arcs(P[Tf], a + 0.08, b - 0.08, zu1 - 0.53, zu1 - 0.08, -0.18, -0.14)
+        bm_box(P["t_cream"], a - 0.06, b + 0.06, 0.0, 0.06, zu1, zu1 + 0.1)
+    # the cornice and the parapet with its raised middle
+    bm_box(P["t_cream"], -0.05, L + 0.05, -0.3, 0.12, H - 0.6, H - 0.45)
+    for k in range(max(2, round(L / 0.55))):
+        x = L * (k + 0.5) / max(2, round(L / 0.55))
+        bm_box(P["t_cream"], x - 0.05, x + 0.05, 0.0, 0.32, H - 0.45, H - 0.22)
+    bm_box(P["t_cream"], -0.08, L + 0.08, -0.3, 0.4, H - 0.22, H - 0.1)
+    bm_box(P["t_cream"], 0.0, L, -0.3, 0.0, H - 0.1, H + 0.5)
+    for k in range(4):
+        a, b = L * k / 4 + 0.2, L * (k + 1) / 4 - 0.2
+        bm_box(P["t_white"], a, b, 0.0, 0.03, H + 0.02, H + 0.4)
+        bm_box(P["t_cream"], a + 0.05, b - 0.05, 0.03, 0.04, H + 0.07, H + 0.35)
+    bm_box(P["t_cream"], -0.05, L + 0.05, -0.35, 0.06, H + 0.5, H + 0.6)
+    bm_box(P["t_cream"], m - 1.5, m + 1.5, -0.3, 0.04, H + 0.6, H + 0.95)
+    bm_box(P["t_cream"], m - 1.6, m + 1.6, -0.35, 0.1, H + 0.95, H + 1.05)
+    for sx in (-1, 1):
+        bench(P, m + sx * 2.9, 0.05)
+    P.flush(name + "_brick", smooth=("lamp", "leaf", "flowers_red", "flowers_pink"))
+    text(f"ST_WBZ_{name}_hsb", "HOME STORE", 0.3, (m, 0.15, 3.84), (math.pi / 2, 0, math.pi), "t_cream", 0.015)
+    for sx, body in ((-1, "FINEST WARES"), (1, "QUALITY GOODS")):
+        text(f"ST_WBZ_{name}_plate{sx}", body, 0.11, (m + sx * 2.15, 0.07, 3.82), (math.pi / 2, 0, math.pi), "hs_navy", 0.006)
+
+
+def home_store_face(name, L, H, kind, outer_run, rng):
+    """One outer edge of the block in its frame (x 0 .. L, +y out), by kind (home_store_kind)."""
+    if kind in ("hs", "hs2"):
+        hs_face(name, L, *((0.0, 0.335) if kind == "hs" else (0.499, 0.0)))
+    elif kind == "blue1890":
+        blue_1890(name, L)
+    elif kind == "sage":
+        sage_front(name, L, H)
+    elif kind == "hs_brick":
+        brick_front(name, L, H)
+    elif kind == "sage_jog":
+        outer_run(name, L, H, "w_bluegrey", "t_white", rng)
+    else:                                                 # brick_jog, the Refreshment Corner's brick sides
+        outer_run(name, L, H, "brick", "t_cream" if kind.startswith("rc") else "t_aqua", rng)
 
 
 # ================================================================ stage B, large 5 .. 7 (refine_WB.md): signs, porches, the bank

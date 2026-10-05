@@ -93,7 +93,7 @@ VIDEO_PALETTE = {"plum": (0.36, 0.16, 0.24), "mustard": (0.68, 0.38, 0.03),  # (
                  "ivory": (0.87, 0.78, 0.55), "beige": (0.75, 0.61, 0.31), "cream2": (0.85, 0.70, 0.45), "palegreen": (0.40, 0.68, 0.51),
                  # WB re-refinement 4 (refine_WB.md; wb1 X5, wb2 BL1 / HS1 / HS2): Home Store's cream, the blue-grey panelled
                  # front beside it (#5C7A94)
-                 "hs_cream": (0.81, 0.72, 0.53), "bluegrey": (0.11, 0.20, 0.30),
+                 "hs_cream": (0.81, 0.72, 0.53), "bluegrey": (0.254, 0.341, 0.296),   # (user photos: grey-green, #8A9E95)
                  # WB re-refinement 5 .. 7 (refine_WB.md): Grand Emporium's pale aqua (wb3 G1 #A9CFC8), Bibbidi's salmon
                  # (wb2 BB1 #DDA89A), the Magic Shop's grey lavender and the pale rose upstairs (wb1 A8 #B8B0B8, wb2 MG1
                  # #E7C3BE), the bank's ivory (wb2 BK1 #E6E2C8), the blue weatherboarded shop beside the Magic Shop
@@ -1617,9 +1617,10 @@ def build_block_walls():
             pts = pts[::-1]                               # clockwise: each wall's +y is outside
         H = float(str(w["tags"].get("height", "8.5")).replace("m", ""))
         roof = pts
-        if bid in GAZEBO_CUT:                             # the roof stops short of the corner gazebos (they have their own)
-            roof = [to_wb(p) for p in w["pts"][:-1]]
-            for cut, new in GAZEBO_CUT[bid]:
+        cuts = GAZEBO_CUT.get(bid, []) + (WR.HS_ROOF_CUTS if bid == 196943265 else [])
+        if cuts:                                          # the roof stops short of the corner gazebos (they have their own),
+            roof = [to_wb(p) for p in w["pts"][:-1]]      # Home Store's chamfer and the low blue shop beside it
+            for cut, new in cuts:
                 k0 = next(i for i, p in enumerate(roof) if cut(p))
                 roof = [p for p in roof if not cut(p)]
                 roof = roof[:k0] + new + roof[k0:]
@@ -1659,10 +1660,14 @@ def build_block_walls():
                     outer_run(f"block{bid}_{i}", L, H, "brick", "t_aqua", rng)
                     east_face_extras(f"block{bid}_{i}", L, H, True, False)
                 continue
+            if kind == "corner":
+                continue                                  # Home Store's chamfer (ds_tdl_wb_refine.home_store_corner)
             if kind:
                 # WB re-refinement 4 (wb1 X5 0:08:22 .. 0:08:34, wb2 BL1 / HS1 / HS2 0:01:48 .. 0:02:14, 0:03:26 .. 0:03:36):
                 # then the blue-grey panelled front, Home Store's cream round the corner (OSM point (46.5, -111.0)) and,
                 # beside the Refreshment Corner, the cobalt shop with the bay window (ds_tdl_wb_refine.home_store_face)
+                # (rebuilt from the user's photos, 2026-10-05: the brick front with the iron veranda, the grey-green
+                #  one, Home Store's cream faces, the blue "1890" shop, the Refreshment Corner's brick sides)
                 with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                     WR.home_store_face(f"block{bid}_{i}", L, H, kind, outer_run, rng)
                 continue
