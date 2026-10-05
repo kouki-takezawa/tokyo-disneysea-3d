@@ -104,9 +104,9 @@ VIDEO_PALETTE = {"plum": (0.36, 0.16, 0.24), "mustard": (0.68, 0.38, 0.03),  # (
 # (towards the crossing). Only the shops with no real-shop style (SHOP_STYLE) take them; the photo-based corner shops
 # (SPECIAL) keep theirs. East: brick with cream trim, pale blue with red panels between the floors (S4), mint, mustard.
 # West: cream with green awnings, sand with arched windows, plum, pink.
-VIDEO_WALLS = {"ME1": [dict(wall="brick", trim="cream"), dict(wall="blue", trim="white", bands=True), dict(wall="mint", trim="white"),
-                       dict(wall="mustard", trim="white")],
-               "MW1": [dict(wall="cream", trim="dkgreen", awning=("aw_green", None)), dict(wall="sand", trim="dkgreen", win="arch"),
+VIDEO_WALLS = {"ME1": [dict(wall="brick", trim="cream"), dict(wall="blue", trim="white", bands=True), dict(wall="mint", trim="white", oriel=True, balcony=False, floors=3),   # (photo wb_compare: a bay window up the middle)
+                       dict(wall="mustard", trim="white", balcony=True, oriel=False, floors=3)],
+               "MW1": [dict(wall="cream", trim="dkgreen", awning=("aw_green", None)), dict(wall="sand", trim="dkgreen", win="arch", oriel=True, balcony=False, floors=3),
                        dict(wall="plum", trim="cream", interior="emporium", theme="plush"), dict(wall="pink", trim="white")]}
 # (R2-31: MW1's third shop is the neighbour of Grand Emporium on the corner; inside it is the Emporium's second hall)
 # R2 (refine_R2.md): Main Street's second half, Center Street's straight parts and its arms, in the order of the shops
