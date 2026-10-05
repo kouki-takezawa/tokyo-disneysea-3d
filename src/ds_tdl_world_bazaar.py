@@ -121,9 +121,10 @@ VIDEO_WALLS.update({
     # Penny Arcade -- right across the street -- in its door glass; it replaces R2-3's cobalt narrow shop here), the
     # butter shop with the mint-striped awning beside House of Greetings (R2-5)
     "ME2": [dict(wall="rose", trim="cream", floors=3, roof="parapet", win="rect", oriel=True, balcony=False, awning=None,
-                 win_awn=False, skip_real=True), {}, {},
+                 win_awn=False, skip_real=True), {},
+            dict(wall="butter", trim="white", win="arch", awning=("aw_green", "aw_white"), skip_real=True),
             dict(real="BIBBIDI BOBBIDI BOUTIQUE"),
-            dict(wall="butter", trim="white", win="arch", awning=("aw_green", "aw_white"))],
+            dict(real="SILHOUETTE STUDIO")],   # (Silhouette Studio moved to the 5th slot, beside House of Greetings: castel, ja.wikipedia, OSM point)
     # MW2 from the crossing (its corner shop is SPECIAL, so this starts at the second): Harrington's, Penny Arcade, Pastry
     # House (real; the corner itself takes Town Center Fashions), then the pale green shop with
     # white-striped awnings and the maroon one (B-1 W10, v2 2:44, 3:00)
