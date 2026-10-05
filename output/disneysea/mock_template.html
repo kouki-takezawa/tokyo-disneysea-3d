@@ -2248,6 +2248,29 @@ async function init3D() {
   const T = window.THREE;
   const renderer = new T.WebGLRenderer({ antialias: true }); three.renderer = renderer;
   renderer.setPixelRatio(PIXEL_RATIO);
+  /* Refraction (transmission): while a water mesh is in view three.js first draws every opaque object into a texture that only the
+     water samples (a few pixels around each water pixel: the bed, the quays, the shore, the sky), then draws the scene again for
+     real. That first pass was the whole park, buildings and trees included: half of each frame. Here it keeps only what the water
+     can show (WATER_SEES and the sky); the real pass is untouched. The pass is the one drawing into a render
+     target with a scene (the shadow pass has none, the real pass draws to the screen). */
+  {
+    // the water models, every ground model (river and lake beds: the Land's water samples them too), the volcano (the crater lake's banks)
+    const WATER_SEES = /^model-(water|tdl_water|volcano|\w*ground)$/;
+    const draw = renderer.renderBufferDirect, seen = new WeakMap();
+    const seenByWater = o => {
+      let k = seen.get(o);
+      if (k === undefined) {
+        k = o === three.skyDome?.mesh;
+        for (let p = o; p && !k; p = p.parent) k = WATER_SEES.test(p.name);
+        seen.set(o, k);
+      }
+      return k;
+    };
+    renderer.renderBufferDirect = function (camera, scn, geometry, material, object, group) {
+      if (scn && this.getRenderTarget() && !seenByWater(object)) return;
+      return draw.call(this, camera, scn, geometry, material, object, group);
+    };
+  }
   host.appendChild(renderer.domElement);
   // the GPU can drop the page's 3D (phones out of memory): wait for it to come back, then redraw with fewer full models;
   // if it does not come back, offer to reload
