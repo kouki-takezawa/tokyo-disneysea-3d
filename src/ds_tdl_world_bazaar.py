@@ -99,7 +99,7 @@ VIDEO_PALETTE = {"plum": (0.36, 0.16, 0.24), "mustard": (0.68, 0.38, 0.03),  # (
                  # #E7C3BE), the bank's ivory (wb2 BK1 #E6E2C8), the blue weatherboarded shop beside the Magic Shop
                  # (wb1 A7 #7C9CC4)
                  "aqua_mint": (0.40, 0.62, 0.58), "salmon_pink": (0.72, 0.39, 0.32), "lav_grey": (0.48, 0.43, 0.48),
-                 "rose2": (0.80, 0.55, 0.52), "bank_ivory": (0.79, 0.76, 0.58), "blue_clap": (0.20, 0.33, 0.55)}
+                 "ge_cream": (0.85, 0.78, 0.58), "rose2": (0.80, 0.55, 0.52), "bank_ivory": (0.79, 0.76, 0.58), "blue_clap": (0.20, 0.33, 0.55)}
 # R1 S3 (v2 1:36 .. 3:10): the colours of the unnamed shops on Main Street's first half, from the entrance building north
 # (towards the crossing). Only the shops with no real-shop style (SHOP_STYLE) take them; the photo-based corner shops
 # (SPECIAL) keep theirs. East: brick with cream trim, pale blue with red panels between the floors (S4), mint, mustard.
@@ -132,7 +132,7 @@ VIDEO_WALLS.update({
             dict(wall="plum", trim="cream")],
     # the corners' side faces carry on their Main Street fronts: Grand Emporium (lemon, aqua frames) on CNW, House of
     # Greetings (beige, green) on CSE
-    "CNW": [dict(wall="aqua_mint", trim="cream", frame_trim="aqua", fat_frame=True, awning=("aw_green", None), deco=False, roof="parapet")],
+    "CNW": [dict(wall="ge_cream", trim="cream", frame_trim="ge_frame", floors=1, ge_upper=True, cresting=False, fat_frame=True, awning=None, deco=False, roof="parapet")],
     "CSE": [dict(wall="beige", trim="dkgreen", win="arch", awning=("aw_green", "aw_white"), deco=False, roof="pediment")],
     # ANW from the crossing (R2-9): lemon with the broad aqua frames and the panels, the Coffeehouse (real), red brick
     "ANW": [dict(wall="lemon", trim="cream", frame_trim="aqua", win="rect", fat_frame=True), {}, dict(wall="brick", trim="white", floors=3)],
@@ -157,7 +157,7 @@ VIDEO_FROM_END = {"ME1": True, "MW1": False, "ANE": True}   # ME1 runs from the 
 TRIMS = {"white": (0.93, 0.91, 0.85), "cream": (0.90, 0.84, 0.68), "teal": (0.30, 0.60, 0.58), "dkgreen": (0.12, 0.28, 0.22),
          "maroon": (0.42, 0.11, 0.13), "blue": (0.20, 0.30, 0.45),
          "aqua": (0.16, 0.35, 0.43), "mint": (0.10, 0.40, 0.26),          # (R2: Grand Emporium's aqua frames, the Confectionery's mint)
-         "mauve": (0.235, 0.195, 0.223), "bankteal": (0.11, 0.34, 0.30)}  # (WB re-refinement: Bibbidi's mauve grey #857A82, the bank's teal)
+         "mauve": (0.235, 0.195, 0.223), "bankteal": (0.11, 0.34, 0.30), "ge_frame": (0.33, 0.47, 0.58)}  # (WB re-refinement: Bibbidi's mauve grey #857A82, the bank's teal)
 
 
 MERCH_COLORS = {"m_red": (0.75, 0.08, 0.10), "m_blue": (0.12, 0.30, 0.70), "m_yellow": (0.95, 0.75, 0.10),
@@ -911,6 +911,9 @@ def shop(name, w, st, room=None):
             P["roof"].faces.new(v)
         bm_lathe(P["trim"], [(0.32, 0), (0.45, 0), (0.45, 0.08), (0.32, 0.08)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
         bm_lathe(P["glass"], [(0, 0), (0.33, 0), (0.33, 0.02), (0, 0.02)], 20, T(w / 2, 0.0, H + gh * 0.42) @ R(-math.pi / 2, "X"))
+    if st.get("ge_upper"):                                # Grand Emporium's floors (user photos): ds_tdl_wb_refine.ge_upper
+        import ds_tdl_wb_refine as WR
+        WR.ge_upper(name, w, H + 0.87, st.get("ge_ped", False))
     if st.get("cresting", rf in ("mansard", "parapet") and not st.get("deco")):  # iron cresting along the top, gilt finials at the ends
         zc_, yc_ = (H + 2.0, -1.2) if rf == "mansard" else (H + 0.87, -0.17) if rf == "parapet" else (None, None)
         if zc_ is not None:
@@ -1331,7 +1334,7 @@ SPECIAL = {
     #  a pale aqua lettered band and the curved red sign with gold letters (ds_tdl_wb_refine.ge_porch). The OSM points
     #  were checked: Grand Emporium (-20.1, -35.6) is this corner's, 6.4 m from CNW's middle and 7.8 m from this front's;
     #  the shop beside it on MW1 has no point of its own (the R2 B-0 swap stands))
-    ("MW1", -1): dict(wall="aqua_mint", trim="cream", frame_trim="aqua", floors=3, roof="parapet", win="arch", balcony=False, oriel=False, awning=None,
+    ("MW1", -1): dict(wall="ge_cream", trim="cream", frame_trim="ge_frame", floors=1, ge_upper=True, ge_ped=True, cresting=False, roof="parapet", win="arch", balcony=False, oriel=False, awning=None,
                       win_awn=False, door="mid", signmat="aw_red", round_porch=True, fascia_text=False, planters=True,
                       fat_frame=True, sign="GRAND EMPORIUM", theme="apparel", interior="emporium", own=True, w=10.0),
     ("ME2", -1): dict(wall="beige", trim="dkgreen", floors=3, roof="pediment", win="arch", balcony=False, oriel=False,

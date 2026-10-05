@@ -66,6 +66,7 @@ def materials(M):
     M["es_box"] = P("st_wbz_es_box", (0.27, 0.40, 0.62), 0.7)            # its planters' blue panels (#8FA9CF)
     _cf_materials(M)
     _rc_materials(M)
+    _ge_materials(M)
     return M
 
 
@@ -1145,3 +1146,65 @@ def refreshment_room(L, m, D=7.0):
         bm_lathe(P["rc_cola_red"], [(0.55, 3.4), (0.55, 3.72), (0.5, 3.72), (0.5, 3.4)], 14, T(lx, ly, 0.0))
         bm_lathe(P["rc_cola_green"], [(0.55, 3.72), (0.55, 3.8), (0, 3.8)], 14, T(lx, ly, 0.0))
     P.flush("refreshment_room", smooth=("lamp",))
+
+
+# ================================================================ 10. Grand Emporium's upper floors (user photos images/grand_emporium/ge1..4)
+def _ge_materials(M):
+    P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
+    M["ge_cream"] = P("st_wbz_ge_cream2", (0.85, 0.78, 0.58), 0.75)       # the cream upper wall (#EEE7C9)
+    M["ge_blue"] = P("st_wbz_ge_blue", (0.46, 0.55, 0.66), 0.75)          # the pale blue-grey top wall and pediment (#B4C4D4)
+    M["ge_frame"] = P("st_wbz_ge_frame", (0.33, 0.47, 0.58), 0.6)         # the pale blue window frames (#9CB6C9)
+    M["ge_lead"] = P("st_wbz_ge_lead", (0.25, 0.34, 0.40), 0.4, Metallic=0.2)   # the leaded glass of the tall upper windows
+    return M
+
+
+def ge_upper(name, w, z0, pediment=False):
+    """Grand Emporium's floors over the ground floor (photos ge1 .. ge4): a cream storey with one row of tall round-
+    headed windows (pale blue frames, leaded glass, carved brackets between them under the cornice), a band of red
+    dashes at its foot, the pale blue-grey top wall with cream-framed recessed panels, a cream cornice on corbels; with
+    pediment=True (the Main Street face) a round-arched pediment over the middle with two small arched windows.
+    Shop frame: the front on y = 0, +y the street; z0 = where the ground floor's parapet ends."""
+    P = Parts(); zt = 8.45; H = 9.65
+    bm_box(P["ge_cream"], 0.0, w, -0.35, 0.0, z0, zt)
+    bm_box(P["ge_blue"], 0.0, w, -0.35, 0.0, zt, H)
+    bm_box(P["t_cream"], -0.05, w + 0.05, -0.35, 0.08, zt - 0.08, zt + 0.1)                 # the string course
+    x = 0.3
+    while x < w - 0.5:                                                                      # the red dashes
+        L_ = 1.1 if int(x / 1.4) % 2 == 0 else 0.3
+        bm_box(P["ge_red"], x, min(x + L_, w - 0.3), 0.0, 0.05, z0 + 0.2, z0 + 0.38)
+        x += L_ + 0.35
+    n = max(2, int((w - 0.8) / 2.0)); ww = 0.95
+    for k in range(n):                                                                      # the tall windows
+        cx = 0.4 + (w - 0.8) * (k + 0.5) / n
+        zb, zs = z0 + 0.7, zt - 1.35
+        bm_prism(P["ge_frame"], arch_opening(cx - ww / 2 - 0.12, cx + ww / 2 + 0.12, zb - 0.1, zs, ww / 2 + 0.12, 12), 0.0, 0.09, "xz")
+        bm_prism(P["ge_lead"], arch_opening(cx - ww / 2, cx + ww / 2, zb, zs, ww / 2, 12), 0.09, 0.11, "xz")
+        bm_box(P["ge_frame"], cx - 0.015, cx + 0.015, 0.11, 0.14, zb, zs + ww / 2 - 0.05)   # the mullion and a transom bar
+        bm_box(P["ge_frame"], cx - ww / 2, cx + ww / 2, 0.11, 0.14, zs - 0.015, zs + 0.015)
+        bm_box(P["t_cream"], cx - ww / 2 - 0.2, cx + ww / 2 + 0.2, 0.0, 0.2, zb - 0.22, zb - 0.1)   # the sill
+        if k:                                                                               # a bracket and a raised panel between windows
+            bx = 0.4 + (w - 0.8) * k / n
+            bm_box(P["t_cream"], bx - 0.14, bx + 0.14, 0.0, 0.28, zt - 0.75, zt - 0.1)
+            bm_box(P["t_cream"], bx - 0.3, bx + 0.3, 0.0, 0.05, zb + 0.2, zs - 0.4)
+    nb = max(1, int((w - 0.6) / 1.7))
+    for k in range(nb):                                                                     # the top wall's recessed panels
+        px = 0.3 + (w - 0.6) * (k + 0.5) / nb; pw_ = (w - 0.6) / nb - 0.3
+        for a_, b_, c0, c1 in ((px - pw_ / 2, px + pw_ / 2, zt + 0.25, zt + 0.33), (px - pw_ / 2, px + pw_ / 2, H - 0.58, H - 0.5)):
+            bm_box(P["t_cream"], a_, b_, 0.0, 0.04, c0, c1)
+        for xe in (px - pw_ / 2, px + pw_ / 2 - 0.08):
+            bm_box(P["t_cream"], xe, xe + 0.08, 0.0, 0.04, zt + 0.25, H - 0.5)
+    bm_box(P["t_cream"], -0.08, w + 0.08, -0.35, 0.4, H - 0.4, H)                          # the cornice and its corbels
+    x = 0.4
+    while x < w - 0.3:
+        bm_box(P["t_cream"], x - 0.08, x + 0.08, 0.0, 0.34, H - 0.85, H - 0.4); x += 0.8
+    bm_box(P["t_cream"], -0.05, w + 0.05, -0.35, 0.1, H, H + 0.25)
+    if pediment:
+        pw2 = min(w - 1.0, 4.6); mx = w / 2
+        pts, _ = seg_arc(mx, H + 0.25, pw2, 1.2, 20)
+        bm_prism(P["ge_blue"], [(mx - pw2 / 2, H + 0.25), (mx + pw2 / 2, H + 0.25)] + pts, -0.35, 0.0, "xz")
+        bm_prism(P["t_cream"], arch_band(mx - pw2 / 2, mx + pw2 / 2, H + 0.25, 1.2, 0.2, 20), -0.35, 0.12, "xz")
+        for s_ in (-1, 1):
+            cx = mx + s_ * 0.55
+            bm_prism(P["ge_frame"], arch_opening(cx - 0.4, cx + 0.4, H + 0.35, H + 0.75, 0.4, 10), 0.0, 0.08, "xz")
+            bm_prism(P["ge_lead"], arch_opening(cx - 0.3, cx + 0.3, H + 0.45, H + 0.75, 0.3, 10), 0.08, 0.1, "xz")
+    P.flush(f"ge_upper_{name}", smooth=())
