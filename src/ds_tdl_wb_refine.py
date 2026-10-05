@@ -20,6 +20,7 @@ colours of wb3 are evening-warm: only its shapes are used). ESTIMATES: every siz
 clearance, the house on it, the arch's rise; the corridor's width 4.5 m, length 25 m and its fittings; the porch's radius).
 """
 import math
+import random
 
 try:
     import bmesh
@@ -63,6 +64,7 @@ def materials(M):
     M["es_grey"] = P("st_wbz_es_grey", (0.485, 0.597, 0.552), 0.8)       # the Center Street face: painted brick (#B9CBC4)
     M["es_blue"] = P("st_wbz_es_blue", (0.474, 0.546, 0.768), 0.7)       # the arm-end face: pale periwinkle (#B7C3E3)
     M["es_box"] = P("st_wbz_es_box", (0.27, 0.40, 0.62), 0.7)            # its planters' blue panels (#8FA9CF)
+    _cf_materials(M)
     return M
 
 
@@ -909,3 +911,164 @@ def eastside_end():
             bm_box(P["t_white"], x0 - 0.03, x0 + 1.63, 1.12, 1.78, 0.48, 0.55)
             globe_lamp_bm(P["topiary"], x0 + 0.8, 1.45, 0.85, 0.42)
         P.flush("eastside_end", smooth=("lamp", "topiary"))
+
+
+# ================================================================ 8. Center Street Coffeehouse (user photos + wb3 3:52 .. 4:00)
+def _cf_materials(M):
+    P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
+    M["cf_brick"] = P("st_wbz_cf_brick", (0.48, 0.14, 0.105), 0.85)        # the upper wall: salmon-red brick (#B8695B)
+    M["cf_pier"] = P("st_wbz_cf_pier", (0.35, 0.08, 0.05), 0.8)            # the banded red-brown piers (#A0503F)
+    M["cf_ivory"] = P("st_wbz_cf_ivory", (0.80, 0.76, 0.64), 0.7)          # the ground floor's pale wall (#E8E2D2)
+    M["cf_teal"] = P("st_wbz_cf_teal", (0.08, 0.43, 0.43), 0.5)            # the crown's teal border, the frieze (#4FB0B0)
+    M["cf_door"] = P("st_wbz_cf_door", (0.14, 0.02, 0.02), 0.5)            # the maroon doors, the letters (#4A1E1E)
+    M["cf_signface"] = P("st_wbz_cf_signface", (0.72, 0.70, 0.66), 0.35, Metallic=0.6)   # the stainless sign slab
+    M["cf_wall"] = P("st_wbz_cf_wall", (0.46, 0.58, 0.57), 0.7)            # inside: pale blue-grey walls
+    M["cf_col"] = P("st_wbz_cf_col", (0.48, 0.62, 0.60), 0.45)             # the round columns (#B9D1CE)
+    M["cf_ceiling"] = P("st_wbz_cf_ceiling", (0.80, 0.72, 0.55), 0.8)      # the cream ceiling
+    M["cf_seat"] = P("st_wbz_cf_seat", (0.40, 0.08, 0.05), 0.6)            # the chairs' red-brown seats
+    M["cf_black"] = P("st_wbz_cf_black", (0.02, 0.02, 0.02), 0.4)          # the foyer's black tiles
+    M["cf_car_a"] = P("st_wbz_cf_car_a", (0.55, 0.12, 0.05), 0.9)          # the dining room's carpet: red-orange,
+    M["cf_car_b"] = P("st_wbz_cf_car_b", (0.04, 0.30, 0.30), 0.9)          # teal,
+    M["cf_car_c"] = P("st_wbz_cf_car_c", (0.75, 0.62, 0.42), 0.9)          # cream
+    return M
+
+
+def coffeehouse(name, w):
+    """The whole shop in the current shop frame (x 0..w, the front on y = 0, the street on +y, the room behind it).
+    Outside (the user's photos): two banded red-brown piers, between them the ivory ground floor with two big oval chrome
+    windows (the X of chrome bars across them) either side of the maroon double doors, the stainless sign slab with
+    "COFFEEHOUSE" in maroon letters and two orange neon lines, the teal-edged Art Deco crown ("center" | "street" either
+    side of a cream fluted fin), small windows with green awnings, a cream band with the "1892" plaque and a curved cap.
+    Inside (wb3 3:52 .. 4:00 and the photos): a black-and-white chequered foyer with a reception stand, the dining room
+    with a patterned carpet, chrome-and-red tables and chairs, two round pale columns, a stepped cream cove, amber cove
+    lights along the walls."""
+    from mathutils import Matrix
+    P = Parts(); gf = 4.2; D = 7.0
+    dx = w / 2; pw = min(0.7, w * 0.09)
+    xa, xb = pw, w - pw
+    gl, gr = (xa, dx - 0.78), (dx + 0.78, xb)             # the wall's two stretches either side of the doors
+    for x0, x1 in ((0.0, pw), (w - pw, w)):               # piers (banded)
+        bm_box(P["cf_pier"], x0, x1, -0.3, 0.22, 0.0, 9.8)
+        z = 0.5
+        while z < 9.4:
+            bm_box(P["cf_pier"], x0 - 0.02, x1 + 0.02, 0.22, 0.27, z, z + 0.2); z += 0.4
+        bm_box(P["cf_pier"], x0 - 0.1, x1 + 0.1, -0.3, 0.4, 9.4, 9.8)
+        bm_box(P["t_cream"], x0 - 0.1, x1 + 0.1, 0.0, 0.3, 0.0, 0.45)
+    zc = 1.95                                             # the ground floor: ivory wall with the oval holes, and the ovals
+    for a, b_ in (gl, gr):
+        m_ = (a + b_) / 2; rx = min(1.2, (b_ - a) / 2 - 0.12); rz = min(1.0, rx * 0.83)
+        if rx < 0.7:
+            bm_box(P["cf_ivory"], a, b_, -0.3, 0.0, 0.0, gf)
+            continue
+        bm_box(P["cf_ivory"], a, m_ - rx, -0.3, 0.0, 0.0, gf); bm_box(P["cf_ivory"], m_ + rx, b_, -0.3, 0.0, 0.0, gf)
+        n = max(6, int(2 * rx / 0.12)); sw = 2 * rx / n
+        for k in range(n):
+            xm = m_ - rx + sw * (k + 0.5); h = rz * math.sqrt(max(0.0, 1 - ((xm - m_) / rx) ** 2))
+            bm_box(P["cf_ivory"], xm - sw / 2, xm + sw / 2, -0.3, 0.0, 0.0, zc - h)
+            bm_box(P["cf_ivory"], xm - sw / 2, xm + sw / 2, -0.3, 0.0, zc + h, gf)
+        sc = Matrix.Diagonal((rx + 0.06, 1.0, rz + 0.06, 1.0))
+        bm_lathe(P["chrome"], [(0.86, 0), (1.0, 0), (1.0, 0.12), (0.86, 0.12)], 28, T(m_, 0.04, zc) @ sc @ R(-math.pi / 2, "X"))
+        pts = [(m_ + (rx - 0.02) * math.cos(2 * math.pi * k / 28), zc + (rz - 0.02) * math.sin(2 * math.pi * k / 28)) for k in range(28)]
+        bm_prism(P["shopglass"], pts, -0.12, -0.1, "xz")
+        for dz in (-0.5, 0.0, 0.5):                       # the chrome bars: three horizontals, the upright, two diagonals
+            hw_ = rx * math.sqrt(max(0.0, 1 - (dz / rz) ** 2)) * 0.97
+            bm_box(P["chrome"], m_ - hw_, m_ + hw_, 0.0, 0.05, zc + dz - 0.02, zc + dz + 0.02)
+        bm_box(P["chrome"], m_ - 0.02, m_ + 0.02, 0.0, 0.05, zc - rz * 0.97, zc + rz * 0.97)
+        for s_ in (-1, 1):
+            bm_prism(P["chrome"], [(m_ - s_ * rx * 0.6, zc - rz * 0.8), (m_ + s_ * rx * 0.6, zc + rz * 0.8),
+                                   (m_ + s_ * rx * 0.6 + 0.04, zc + rz * 0.8), (m_ - s_ * rx * 0.6 + 0.04, zc - rz * 0.8)], 0.0, 0.05, "xz")
+    bm_box(P["cf_ivory"], dx - 0.78, dx + 0.78, -0.3, 0.0, 3.0, gf)             # above the doorway; the maroon leaves swung in
+    for sx in (-1, 1):
+        hx = dx + sx * 0.78
+        bm_box(P["cf_door"], hx - 0.04, hx + 0.04, -1.2, -0.3, 0.0, 2.95)
+        bm_box(P["brass"], hx - sx * 0.08, hx - sx * 0.06, -1.15, -1.1, 1.0, 1.3)
+    bm_box(P["chrome"], dx - 0.78, dx + 0.78, -0.3, 0.0, 0.0, 0.03)
+    sx0, sx1 = pw + 0.25, w - pw - 0.25                  # the stainless sign slab and its neon
+    bm_box(P["cf_signface"], sx0, sx1, 0.0, 0.5, 3.05, 3.95)
+    bm_box(P["chrome"], sx0 - 0.06, sx1 + 0.06, -0.02, 0.56, 3.95, 4.05)
+    bm_box(P["chrome"], sx0 - 0.06, sx1 + 0.06, -0.02, 0.56, 2.98, 3.05)
+    for z in (3.2, 3.8):
+        bm_box(P["neon_red"], sx0 + 0.3, sx1 - 0.3, 0.5, 0.53, z, z + 0.03)
+    sz = min(0.42, (sx1 - sx0 - 0.8) / 8.5)
+    text(f"ST_WBZ_cf_{name}_sign", "COFFEEHOUSE", sz, (dx, 0.54, 3.38), (math.pi / 2, 0, math.pi), "cf_door", 0.02)
+    bm_box(P["neon_red"], dx - 0.35, dx + 0.35, 0.5, 0.56, 3.12, 3.3)                   # the small red "UCC" tag
+    for s_ in (-1, 1):                                    # the crown: teal-edged arched panels either side of a cream fin
+        a0 = dx + s_ * 0.3; a1 = dx + s_ * 2.0
+        lo, hi = (a0, a1) if s_ > 0 else (a1, a0)
+        pts, _ = seg_arc((lo + hi) / 2, 4.5, hi - lo, 0.6, 12)
+        bm_prism(P["cf_teal"], [(lo, 4.0), (hi, 4.0)] + pts, 0.0, 0.1, "xz")
+        bm_prism(P["t_cream"], [(lo + 0.08, 4.1), (hi - 0.08, 4.1)] + [(x, z - 0.08) for x, z in pts], 0.1, 0.13, "xz")
+        text(f"ST_WBZ_cf_{name}_crown{s_}", "center" if s_ < 0 else "street", 0.17, ((lo + hi) / 2, 0.14, 4.2), (math.pi / 2, 0, math.pi), "cf_door", 0.01)
+    bm_box(P["t_cream"], dx - 0.28, dx + 0.28, 0.0, 0.2, 3.95, 5.9)
+    for k in range(-2, 3):                                # the fluting
+        bm_box(P["cf_ivory"], dx + k * 0.1 - 0.02, dx + k * 0.1 + 0.02, 0.2, 0.24, 4.0, 5.8)
+    bm_box(P["t_cream"], dx - 0.2, dx + 0.2, 0.0, 0.16, 5.9, 6.2)
+    bm_box(P["cf_brick"], pw, w - pw, -0.3, 0.0, gf, 8.5)  # the upper wall: brick and windows with green awnings
+    nwin = 3 if w >= 6.0 else 2
+    for k in range(nwin):
+        x = pw + (w - 2 * pw) * (k + 0.5) / nwin; ww = 0.95
+        bm_box(P["t_cream"], x - ww / 2 - 0.1, x + ww / 2 + 0.1, 0.0, 0.08, 6.0, 7.9)
+        bm_box(P["glass"], x - ww / 2, x + ww / 2, 0.08, 0.1, 6.1, 7.7)
+        bm_box(P["t_white"], x - ww / 2 + 0.05, x + ww / 2 - 0.05, 0.1, 0.12, 6.1, 7.2)            # the curtain
+        bm_box(P["t_cream"], x - 0.02, x + 0.02, 0.1, 0.13, 6.1, 7.7)
+        bm_box(P["t_cream"], x - ww / 2 - 0.2, x + ww / 2 + 0.2, 0.0, 0.2, 5.8, 6.0)              # the sill
+        bm_box(P["t_cream"], x - ww / 2 - 0.15, x + ww / 2 + 0.15, 0.0, 0.14, 7.9, 8.1)           # the lintel
+        for j in range(5):                                                                         # the arch's stones
+            bm_box(P["t_cream"], x - ww / 2 - 0.1 + j * (ww + 0.2) / 5 + 0.02, x - ww / 2 - 0.1 + (j + 1) * (ww + 0.2) / 5 - 0.02, 0.0, 0.06, 8.1, 8.35)
+        for j in range(8):                                                                         # the green awning
+            xa_ = x - ww / 2 - 0.1 + j * (ww + 0.2) / 8
+            bm_prism(P["aw_green" if j % 2 == 0 else "aw_white"], [(0.05, 7.85), (0.6, 7.2), (0.6, 7.05), (0.05, 7.7)], xa_, xa_ + (ww + 0.2) / 8, "yz")
+    bm_box(P["t_cream"], pw - 0.05, w - pw + 0.05, -0.1, 0.3, 8.5, 8.8)                            # cornice, the band, plaque, cap
+    bm_box(P["t_cream"], pw, w - pw, -0.1, 0.1, 8.8, 9.7)
+    bm_box(P["t_white"], dx - 0.9, dx + 0.9, 0.1, 0.16, 8.95, 9.5)
+    text(f"ST_WBZ_cf_{name}_year", "1892", 0.34, (dx, 0.18, 9.12), (math.pi / 2, 0, math.pi), "cf_door", 0.012)
+    pts, _ = seg_arc(dx, 9.7, w - 2 * pw, 0.8, 18)
+    bm_prism(P["cf_pier"], [(pw, 9.7), (w - pw, 9.7)] + pts, -0.1, 0.2, "xz")
+    # ---- the inside
+    x0, x1 = 0.0, w; top = 4.0
+    bm_box(P["cf_black"], x0, x1, -2.0, -0.3, 0.0, 0.05)                                           # the foyer: black and white
+    for i in range(int((x1 - x0) / 0.5) + 1):
+        for j in range(4):
+            if (i + j) % 2 == 0 and x0 + i * 0.5 < x1:
+                bm_box(P["t_white"], x0 + i * 0.5, min(x0 + (i + 1) * 0.5, x1), -2.0 + j * 0.425, -2.0 + (j + 1) * 0.425, 0.0, 0.052)
+    rng = random.Random(1892)
+    ncx = max(1, int((x1 - x0) / 0.8)); ncy = int((D - 2.0) / 0.8)
+    for i in range(ncx):                                                                            # the carpet
+        for j in range(ncy):
+            k = ("cf_car_a", "cf_car_b", "cf_car_c", "cf_car_a")[(i * 3 + j * 5 + rng.randrange(2)) % 4]
+            bm_box(P[k], x0 + (x1 - x0) * i / ncx, x0 + (x1 - x0) * (i + 1) / ncx, -2.0 - (D - 2.0) * (j + 1) / ncy, -2.0 - (D - 2.0) * j / ncy, 0.0, 0.05)
+    for a, b_, c0, c1 in ((x0, x0 + 0.15, -D, -0.3), (x1 - 0.15, x1, -D, -0.3), (x0, x1, -D - 0.15, -D)):
+        bm_box(P["cf_wall"], a, b_, c0, c1, 0.05, top)
+        bm_box(P["cf_teal"], a, b_, c0, c1, 3.2, 3.6)                                              # the diamond frieze
+        bm_box(P["chrome"], a, b_, c0, c1, 3.6, 3.65)
+    bm_box(P["cf_ceiling"], x0, x1, -D - 0.15, -0.3, top, top + 0.15)
+    for sxs in (x0 + 0.15, x1 - 0.35):                                                             # amber cove lights
+        bm_box(P["display"], sxs, sxs + 0.2, -D, -0.6, top - 0.1, top)
+    bm_box(P["display"], x0 + 0.15, x1 - 0.15, -D, -D + 0.2, top - 0.1, top)
+    cx, cy = dx, -D * 0.55
+    for r, z0_, z1_ in ((min(w * 0.45, 2.4), 3.85, 4.0), (min(w * 0.33, 1.8), 3.7, 3.85), (min(w * 0.22, 1.2), 3.55, 3.7)):
+        bm_lathe(P["cf_ceiling"], [(0, z0_), (r, z0_), (r, z1_), (0, z1_)], 24, T(cx, cy, 0.0))
+        bm_lathe(P["display"], [(r - 0.02, z0_ - 0.03), (r, z0_ - 0.03), (r, z0_), (r - 0.02, z0_)], 24, T(cx, cy, 0.0))
+    for fx in (w * 0.28, w * 0.72):                                                                # two round columns
+        fy = -D * 0.5
+        bm_lathe(P["cf_col"], [(0, 0.05), (0.34, 0.05), (0.32, 0.3), (0.32, 3.2), (0.4, 3.45), (0.7, 3.95), (0, 3.95)], 18, T(fx, fy, 0.0))
+        for z in (1.0, 2.0):
+            bm_lathe(P["chrome"], [(0.325, z), (0.34, z), (0.34, z + 0.04), (0.325, z + 0.04)], 18, T(fx, fy, 0.0))
+        bm_lathe(P["cf_teal"], [(0.4, 3.45), (0.42, 3.45), (0.42, 3.62), (0.4, 3.62)], 18, T(fx, fy, 0.0))
+    bm_box(P["cf_door"], x1 * 0.08, x1 * 0.08 + 1.0, -1.6, -0.9, 0.05, 1.05)                       # the reception stand
+    bm_box(P["brass"], x1 * 0.08 - 0.02, x1 * 0.08 + 1.02, -1.62, -0.88, 1.05, 1.1)
+    for row, ty in enumerate((-3.2, -4.8, -6.2)):                                                  # tables and chairs
+        xs = [0.9 + 1.9 * k for k in range(int((w - 1.0) / 1.9) + 1) if 0.9 + 1.9 * k < w - 0.8]
+        for tx in xs:
+            if abs(tx - dx) < 0.9 and row == 0:
+                continue
+            if any(math.hypot(tx - fx, ty + D * 0.5) < 1.0 for fx in (w * 0.28, w * 0.72)):
+                continue
+            bm_lathe(P["chrome"], [(0, 0.05), (0.2, 0.05), (0.04, 0.12), (0.04, 0.72), (0.48, 0.72), (0.48, 0.77), (0, 0.77)], 14, T(tx, ty, 0.0))
+            for sx_ in (-0.62, 0.62):
+                cxx, cyy = tx + sx_, ty
+                bm_box(P["cf_seat"], cxx - 0.22, cxx + 0.22, cyy - 0.22, cyy + 0.22, 0.44, 0.5)
+                bm_box(P["chrome"], cxx + (0.19 if sx_ < 0 else -0.23), cxx + (0.23 if sx_ < 0 else -0.19), cyy - 0.2, cyy + 0.2, 0.5, 0.95)
+                for lx, ly in ((-0.2, -0.2), (0.2, -0.2), (-0.2, 0.2), (0.2, 0.2)):
+                    bm_box(P["chrome"], cxx + lx - 0.015, cxx + lx + 0.015, cyy + ly - 0.015, cyy + ly + 0.015, 0.05, 0.44)
+    P.flush(f"coffeehouse_{name}", smooth=("lamp",))

@@ -1365,8 +1365,8 @@ SHOP_STYLE = {
     "CAMERA CENTER": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
                           porch_sign="CAMERA CENTER", signmat="t_dkgreen", balcony=False, oriel=False),
     # (R2-10: big oval windows in stainless frames, the steel canopy, the red neon; was arched windows under an awning)
-    "CENTER STREET COFFEEHOUSE": dict(wall="brick", trim="cream", floors=2, roof="parapet", win="rect",
-                                      awning=None, win_awn=False, signmat="iron", balcony=False, oriel=False, deco="sign", oval_front=True),
+    # (user photos 2026-10-05: its own front and room, ds_tdl_wb_refine.coffeehouse)
+    "CENTER STREET COFFEEHOUSE": dict(custom="coffeehouse", wall="brick", trim="cream", floors=3, roof="parapet", win="rect"),
     # (R2-2, E8, v2 4:18 .. 4:30: mint and cream behind a cream veranda with the green "DISNEY & CO. GIFTS" board and
     #  black lanterns; was brick with a mansard and a tower)
     "DISNEY & CO.": dict(win_awn=False, portal=False, wall="mint", trim="cream", floors=2, roof="parapet", balcony=False,
@@ -1488,6 +1488,9 @@ def build_shops(seed=7):
                     elif st.get("custom") == "club33":    # Club 33 between the Magic Shop and the bank (web sources)
                         import ds_tdl_wb_refine as WR
                         WR.club33_front(f"{fid}_{i}", wd)
+                    elif st.get("custom") == "coffeehouse":   # Center Street Coffeehouse, outside and in (user photos, wb3)
+                        import ds_tdl_wb_refine as WR
+                        WR.coffeehouse(f"{fid}_{i}", wd)
                     elif st.get("custom") == "eastside":  # Eastside Cafe's Center Street face (user photos ec1..ec3)
                         import ds_tdl_wb_refine as WR
                         WR.eastside_front(f"{fid}_{i}", wd)
