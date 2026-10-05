@@ -1380,8 +1380,9 @@ SHOP_STYLE = {
     # (WB re-refinement 3, wb1 W2 0:06:36 .. 0:06:46, wb3 P1 / P2 0:10:22 .. 0:11:26: a steep grey (#6A6E72) mansard with
     #  dormers, the cream bulb-lit marquee with the red script and the tall red neon over it; inside, the arcade hall
     #  and the corridor behind the shops, ds_tdl_wb_refine.penny_room / penny_corridor -- R2-34)
+    # (user photos 2026-10-05: no red-and-white course on the wall -- ochre with white frames and recessed panels)
     "PENNY ARCADE": dict(wall="mustard", trim="white", floors=2, roof="mansard", roofmat="wb_slate", win="arch", portal=True, red_door=True,
-                         bands="redwhite", awning=None, win_awn=False, signmat="t_maroon", door="mid", balcony=False, oriel=False,
+                         awning=None, win_awn=False, signmat="t_maroon", door="mid", balcony=False, oriel=False,
                          pilasters=True, marquee=True, fascia_text=False, interior="penny"),
     "HOME STORE": dict(win_awn=False, portal=False, wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
                        signmat="t_blue", balcony=False, oriel=False),
