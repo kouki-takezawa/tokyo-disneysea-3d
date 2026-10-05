@@ -535,14 +535,17 @@ def _diag2(a, b):
     return Matrix.Diagonal((a, b, 1.0, 1.0))
 
 
-# the Sumitomo Mitsui bank and Club 33 (wb2 BK1 / C33 0:04:42 .. 0:06:10): on the block 196943265's edges facing the east
-# arm's covered way (EXT_E, OSM 1338996034) just past the arm's end -- the bank on the edge (57.0, -69.1)-(59.9, -69.9)
-# (carried on 0.3 m west and to the corner over (61.0, -70.7)), Club 33 on the edge (53.7, -69.4)-(56.7, -70.2) that
-# carries ASE's front line on past the arm's end. OSM has no point for either: the places are by estimate, from the
-# video's order (the Waffle Company -- the covered way -- the bank -- Club 33 -- the Magic Shop) and wb2 0:05:30 (Club 33
-# right beside the bank, the Waffle Company's veranda beyond it).
+# the Sumitomo Mitsui bank and Club 33 (wb2 BK1 / C33 0:04:42 .. 0:06:10). Placed by web sources (refine_WB.md,
+# 位置修正(WEB基準)): Club 33's door is between the Magic Shop and the bank (happyell.co.jp/club33, castel.jp/p/453 --
+# "クラブ33の隣にあるマジックショップ" / "クラブ33の隣にある三井住友銀行"), on Center Street on the Adventureland side
+# (+x here: turn left at the crossing, the Magic Shop on the right -- happyell, matsunosuke.jp/club-33), at the outer end
+# (laughingplace.com: "on the outside area"). So, going out of the arm: the Magic Shop (OSM point) -- Club 33 on ASE's
+# last shop slot (5.2 m, ds_tdl_world_bazaar VIDEO_WALLS["ASE"], club33_front) -- the bank: its ATM corner on the edge
+# (53.7, -69.4)-(56.7, -70.2) that carries ASE's front line on past the arm's end (bank_atm) and the main front on the
+# edge (57.0, -69.1)-(59.9, -69.9) (carried on 0.3 m west, sumitomo_bank), both facing the covered way (EXT_E, OSM
+# 1338996034). OSM has no point for either; the bank's split into the ATM corner and the main front is an estimate.
 BANK = dict(p0=(56.71, -69.02), ang=math.degrees(math.atan2(-0.8, 2.9)), w=4.9)
-CLUB33 = dict(p0=(53.7, -69.4), p1=(56.7, -70.2))
+ATM_EDGE = dict(p0=(53.7, -69.4), p1=(56.7, -70.2))
 
 
 def bank_edge(mid):
@@ -550,60 +553,74 @@ def bank_edge(mid):
     return 56.8 < mid[0] < 61.8 and -71.8 < mid[1] < -68.8
 
 
-def sumitomo_bank(shop):
-    """wb2 BK1 (0:04:42 .. 0:05:26), wb1 A10 (0:10:34 .. 0:10:46): three storeys of ivory weatherboarding framed in teal
-    (pilasters, broad frames round the shop windows, the window heads), green-and-white striped awnings, a balcony with
-    a white balustrade, the green board with cream letters, the maroon door. A shop() front (WB frame), 3 m deep."""
+def _bank_style(**kw):
     st = dict(wall="bank_ivory", trim="bankteal", frame_trim="bankteal", fat_frame=True, floors=3, roof="parapet", win="arch",
               awning=("aw_green", "aw_white"), win_awn=False, balcony=True, ironmat="t_white", oriel=False, door="mid",
               signmat="aw_green", signtext="t_cream", sign="SUMITOMO MITSUI BANKING CORPORATION", door_mat="aw_maroon",
               pilasters=True, depth=3.0, theme="cards", deco=False, cresting=False, clapboard=0.3)
+    st.update(kw)
+    return st
+
+
+def sumitomo_bank(shop):
+    """wb2 BK1 (0:04:42 .. 0:05:26), wb1 A10 (0:10:34 .. 0:10:46): three storeys of ivory weatherboarding framed in teal
+    (pilasters, broad frames round the shop windows, the window heads), green-and-white striped awnings, a balcony with
+    a white balustrade, the green board with cream letters, the maroon door. A shop() front (WB frame), 3 m deep."""
     with frame("WBZ_bank", BANK["p0"][0], BANK["p0"][1], BANK["ang"]):
-        shop("BANK", BANK["w"], st, None)
+        shop("BANK", BANK["w"], _bank_style(), None)
 
 
-def club33_front():
+def bank_atm(shop):
+    """The bank's ATM corner (the branch has four ATMs and a counter; web sources, see above): the same front as the
+    bank's on the edge between Club 33 and the bank's main front, 1.1 m back from it, with "SMBC ATM" on the board and
+    no balcony. A shop() front (WB frame), 3 m deep."""
+    (ax, ay), (bx_, by) = ATM_EDGE["p0"], ATM_EDGE["p1"]
+    with frame("WBZ_bank_atm", ax, ay, math.degrees(math.atan2(by - ay, bx_ - ax))):
+        shop("BANK_ATM", math.hypot(bx_ - ax, by - ay), _bank_style(sign="SMBC ATM", balcony=False), None)
+
+
+def club33_front(name, w):
     """wb2 C33 (0:05:28 .. 0:06:10): Club 33's white stucco front -- a round-arched recess with the maroon double doors
     (leaded lights, an amber fanlight), a brass lantern in it, the bronze "33" plaque on the pier, potted rubber plants
-    in white boxes either side; upstairs one arched window in a red frame with a lace curtain. WB frame."""
-    (ax, ay), (bx_, by) = CLUB33["p0"], CLUB33["p1"]
-    w = math.hypot(bx_ - ax, by - ay); P = Parts(); H = 7.3
-    with frame("WBZ_club33", ax, ay, math.degrees(math.atan2(by - ay, bx_ - ax))):
-        a, b = w / 2 - 0.9, w / 2 + 0.9                   # the recess, 0.6 m deep
-        bm_box(P["t_white"], 0.0, w, -3.0, -0.6, 0.0, H)
-        for x0, x1 in ((0.0, a), (b, w)):
-            bm_box(P["t_white"], x0, x1, -0.6, 0.0, 0.0, H)
-        bm_box(P["t_white"], a, b, -0.6, 0.0, 3.1, H)
-        pts, _ = seg_arc(w / 2, 2.4, b - a, 0.7, 12)
-        bm_prism(P["t_white"], [(a, 3.1)] + pts[::-1] + [(b, 3.1)], -0.6, 0.0, "xz")   # the spandrels over the arch
-        bm_prism(P["t_cream"], arch_band(a, b, 2.4, 0.7, 0.14, 12, leg=2.4), 0.0, 0.05, "xz")
-        bm_box(P["t_cream"], 0.0, w, -0.05, 0.08, 0.0, 0.35)                           # plinth, string course, cornice
-        bm_box(P["t_cream"], -0.05, w + 0.05, 0.0, 0.12, 3.55, 3.75)
-        bm_box(P["t_cream"], -0.08, w + 0.08, 0.0, 0.3, H - 0.4, H - 0.1)
-        bm_box(P["t_white"], 0.0, w, -0.3, 0.0, H, H + 0.6)
-        bm_box(P["t_cream"], -0.05, w + 0.05, -0.35, 0.05, H + 0.6, H + 0.7)
-        for sx in (-1, 1):                                # the doors (two leaves), their leaded lights
-            x0, x1 = sorted((w / 2, w / 2 + sx * 0.72))
-            bm_box(P["aw_maroon"], x0, x1, -0.66, -0.6, 0.0, 2.35)
-            bm_box(P["shopglass"], x0 + 0.12, x1 - 0.12, -0.6, -0.58, 1.1, 2.1)
-            bm_box(P["brass"], (x0 + x1) / 2 - sx * 0.25 - 0.015, (x0 + x1) / 2 - sx * 0.25 + 0.015, -0.58, -0.54, 1.0, 1.2)
-        bm_prism(P["display"], arch_opening(w / 2 - 0.72, w / 2 + 0.72, 2.35, 2.4, 0.62, 12), -0.66, -0.62, "xz")
-        bm_box(P["iron"], w / 2 - 0.01, w / 2 + 0.01, -0.31, -0.29, 2.6, 3.0)        # the lantern
-        bm_box(P["iron"], w / 2 - 0.12, w / 2 + 0.12, -0.42, -0.18, 2.25, 2.6)
-        globe_lamp_bm(P["lamp"], w / 2, -0.3, 2.42, 0.09)
-        px = b + (w - b) / 2                              # the "33" plaque
-        bm_box(P["brass"], px - 0.24, px + 0.24, 0.0, 0.04, 2.35, 2.83)
-        text("ST_WBZ_club33_plaque", "33", 0.26, (px, 0.05, 2.59), (math.pi / 2, 0, math.pi), "door", 0.01)
-        for x in (a / 2, px):                             # the potted plants
-            bm_box(P["t_cream"], x - 0.24, x + 0.24, 0.2, 0.68, 0.0, 0.6)
-            bm_lathe(P["iron"], [(0, 0), (0.03, 0), (0.025, 1.0), (0, 1.0)], 6, T(x, 0.44, 0.6))
-            for dz, ox, r in ((1.2, 0.06, 0.32), (1.55, -0.08, 0.28), (1.85, 0.02, 0.22)):
-                globe_lamp_bm(P["topiary"], x + ox, 0.44, dz, r)
-        m = w / 2                                          # upstairs: the arched window, red frame, lace curtain
-        bm_prism(P["aw_red"], arch_opening(m - 0.65, m + 0.65, 4.2, 5.7, 0.65, 12), 0.0, 0.07, "xz")
-        bm_prism(P["t_white"], arch_opening(m - 0.55, m + 0.55, 4.3, 5.7, 0.55, 12), 0.07, 0.08, "xz")
-        bm_box(P["t_cream"], m - 0.85, m + 0.85, 0.0, 0.2, 4.05, 4.2)
-        P.flush("club33", smooth=("lamp", "topiary"))
+    in white boxes either side; upstairs an arched window in a red frame with a lace curtain. In the current shop
+    frame (x 0..w along the front, the street on +y): ASE's last slot, under the bridge (east_bridge: its girder at
+    5.2 m, so the window sits below it and the front goes up to the block's roof, 8.5 m)."""
+    P = Parts(); H = 8.0
+    a, b = w / 2 - 0.9, w / 2 + 0.9                   # the recess, 0.6 m deep
+    bm_box(P["t_white"], 0.0, w, -3.0, -0.6, 0.0, H)
+    for x0, x1 in ((0.0, a), (b, w)):
+        bm_box(P["t_white"], x0, x1, -0.6, 0.0, 0.0, H)
+    bm_box(P["t_white"], a, b, -0.6, 0.0, 3.1, H)
+    pts, _ = seg_arc(w / 2, 2.4, b - a, 0.7, 12)
+    bm_prism(P["t_white"], [(a, 3.1)] + pts[::-1] + [(b, 3.1)], -0.6, 0.0, "xz")   # the spandrels over the arch
+    bm_prism(P["t_cream"], arch_band(a, b, 2.4, 0.7, 0.14, 12, leg=2.4), 0.0, 0.05, "xz")
+    bm_box(P["t_cream"], 0.0, w, -0.05, 0.08, 0.0, 0.35)                           # plinth, string course, cornice
+    bm_box(P["t_cream"], -0.05, w + 0.05, 0.0, 0.12, 3.55, 3.75)
+    bm_box(P["t_cream"], -0.08, w + 0.08, 0.0, 0.3, H - 0.4, H - 0.1)
+    bm_box(P["t_white"], 0.0, w, -0.3, 0.0, H, H + 0.6)
+    bm_box(P["t_cream"], -0.05, w + 0.05, -0.35, 0.05, H + 0.6, H + 0.7)
+    for sx in (-1, 1):                                # the doors (two leaves), their leaded lights
+        x0, x1 = sorted((w / 2, w / 2 + sx * 0.72))
+        bm_box(P["aw_maroon"], x0, x1, -0.66, -0.6, 0.0, 2.35)
+        bm_box(P["shopglass"], x0 + 0.12, x1 - 0.12, -0.6, -0.58, 1.1, 2.1)
+        bm_box(P["brass"], (x0 + x1) / 2 - sx * 0.25 - 0.015, (x0 + x1) / 2 - sx * 0.25 + 0.015, -0.58, -0.54, 1.0, 1.2)
+    bm_prism(P["display"], arch_opening(w / 2 - 0.72, w / 2 + 0.72, 2.35, 2.4, 0.62, 12), -0.66, -0.62, "xz")
+    bm_box(P["iron"], w / 2 - 0.01, w / 2 + 0.01, -0.31, -0.29, 2.6, 3.0)        # the lantern
+    bm_box(P["iron"], w / 2 - 0.12, w / 2 + 0.12, -0.42, -0.18, 2.25, 2.6)
+    globe_lamp_bm(P["lamp"], w / 2, -0.3, 2.42, 0.09)
+    px = b + (w - b) / 2                              # the "33" plaque
+    bm_box(P["brass"], px - 0.24, px + 0.24, 0.0, 0.04, 2.35, 2.83)
+    text(f"ST_WBZ_club33_{name}_plaque", "33", 0.26, (px, 0.05, 2.59), (math.pi / 2, 0, math.pi), "door", 0.01)
+    for x in (a / 2, px):                             # the potted plants
+        bm_box(P["t_cream"], x - 0.24, x + 0.24, 0.2, 0.68, 0.0, 0.6)
+        bm_lathe(P["iron"], [(0, 0), (0.03, 0), (0.025, 1.0), (0, 1.0)], 6, T(x, 0.44, 0.6))
+        for dz, ox, r in ((1.2, 0.06, 0.32), (1.55, -0.08, 0.28), (1.85, 0.02, 0.22)):
+            globe_lamp_bm(P["topiary"], x + ox, 0.44, dz, r)
+    m = w / 2                                          # upstairs: the arched window, red frame, lace curtain (under the girder)
+    bm_prism(P["aw_red"], arch_opening(m - 0.55, m + 0.55, 3.95, 5.05, 0.55, 12), 0.0, 0.07, "xz")
+    bm_prism(P["t_white"], arch_opening(m - 0.45, m + 0.45, 4.05, 5.05, 0.45, 12), 0.07, 0.08, "xz")
+    bm_box(P["t_cream"], m - 0.75, m + 0.75, 0.0, 0.2, 3.8, 3.95)
+    P.flush(f"club33_{name}", smooth=("lamp", "topiary"))
 
 
 # ================================================================ 6. the covered way out of the west arm's end (wb3 N1, R2-15)

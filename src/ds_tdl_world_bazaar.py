@@ -116,11 +116,13 @@ VIDEO_WALLS = {"ME1": [dict(wall="brick", trim="cream"), dict(wall="blue", trim=
 ARCADE = dict(arcade=2.4, deco=False, awning=("aw_maroon", None), scallop=True, door="mid")   # (WB re-refinement 1, below)
 VIDEO_WALLS.update({
     # ME2 from the plaza end: the rose corner with bay windows (R2-1, E7), Disney & Co. (real), the ashlar Silhouette
-    # Studio (real), the cobalt narrow shop with the iron lace (R2-3, E9), the butter shop with the mint-striped awning
-    # beside House of Greetings (R2-5)
+    # Studio (real), Bibbidi Bobbidi Boutique (by web sources, refine_WB.md 位置修正(WEB基準): it took the Disney
+    # Gallery's place, whose door was on the left just past the crossing; wb2 BB1 shows it beside Silhouette Studio with
+    # Penny Arcade -- right across the street -- in its door glass; it replaces R2-3's cobalt narrow shop here), the
+    # butter shop with the mint-striped awning beside House of Greetings (R2-5)
     "ME2": [dict(wall="rose", trim="cream", floors=3, roof="parapet", win="rect", oriel=True, balcony=False, awning=None,
                  win_awn=False, skip_real=True), {}, {},
-            dict(wall="cobalt", trim="white", win="arch", portal=True, awning=None, planters=True),
+            dict(real="BIBBIDI BOBBIDI BOUTIQUE"),
             dict(wall="butter", trim="white", win="arch", awning=("aw_green", "aw_white"))],
     # MW2 from the crossing (its corner shop is SPECIAL, so this starts at the second): Harrington's, Penny Arcade, Pastry
     # House (real; the corner itself takes Town Center Fashions), then the pale green shop with
@@ -145,9 +147,11 @@ VIDEO_WALLS.update({
     # ASE from the crossing (R2-7, E16): ivory with the green-and-white awning, butter, cream; then the Magic Shop (real)
     # (WB re-refinement 7, wb2 MG1 0:06:14 .. 0:07:58, wb1 A7 0:10:14 .. 0:10:22: from the Magic Shop towards the crossing
     #  the blue weatherboarded shop with the gable and the bay, then cream; butter now only on the bridge's house)
+    # (position fix by web sources, refine_WB.md 位置修正(WEB基準): Club 33's door is between the Magic Shop and the bank,
+    #  so the last slot before the arm's end -- 5.2 m, under the bridge -- is Club 33's front, ds_tdl_wb_refine.club33_front)
     "ASE": [dict(wall="ivory", trim="dkgreen", awning=("aw_green", "aw_white")), dict(wall="cream", trim="white"),
             dict(wall="blue_clap", trim="cream", roof="gable", floors=3, clapboard=True, win="arch", oriel=True, awning=None,
-                 deco=False, win_awn=False)]})
+                 deco=False, win_awn=False), {}, dict(custom="club33", skip_real=True)]})
 VIDEO_FROM_END = {"ME1": True, "MW1": False, "ANE": True}   # ME1 runs from the crossing to the entrance building, MW1 the other way
 TRIMS = {"white": (0.93, 0.91, 0.85), "cream": (0.90, 0.84, 0.68), "teal": (0.30, 0.60, 0.58), "dkgreen": (0.12, 0.28, 0.22),
          "maroon": (0.42, 0.11, 0.13), "blue": (0.20, 0.30, 0.45),
@@ -1353,6 +1357,8 @@ REAL_SHOPS = [(-14.9, -103.0, "PASTRY HOUSE", "sweets"), (-20.1, -35.6, "GRAND E
               (17.0, -79.5, "SILHOUETTE STUDIO", "cards"), (-26.1, -8.7, "CAMERA CENTER", "cards"),
               (50.7, -81.8, "GREAT AMERICAN WAFFLE CO.", "sweets"), (-45.6, -77.5, "TOY STATION", "plush"),
               (-34.4, -111.5, "SWEETHEART CAFE", "sweets"), (-39.3, -68.8, "BIBBIDI BOBBIDI BOUTIQUE", "apparel")]
+# (Bibbidi's OSM point (-39.3, -68.8) is on ASW, but web sources put the boutique in the old Disney Gallery on ME2 (left
+#  just past the crossing): VIDEO_WALLS["ME2"] puts it there with real=..., and the greedy match skips it)
 # the real shops' fronts where a photo shows them (Commons, World Bazaar category; the rest keep a varied style)
 SHOP_STYLE = {
     "CAMERA CENTER": dict(win_awn=False, portal=False, wall="brick", trim="white", floors=2, roof="parapet", win="arch", awning=None, porch=True,
@@ -1414,8 +1420,8 @@ SHOP_STYLE = {
                        oval_sign=dict(face="ge_aqua", rim="mg_teal", text="MAGIC SHOP", textmat="mg_teal", y=2.42, z=4.55),
                        signmat="t_maroon", balcony=False, oriel=False, shutters=False, clapboard=True, interior="magic", deco=False),
     # (WB re-refinement 5, wb2 BB1 0:10:26 .. 0:10:42: salmon (#DDA89A) with the shopfront and the bay in mauve grey
-    #  (#857A82), cream double doors, the pink oval board on an iron scroll bracket; no awnings. The place stays the OSM
-    #  point (-39.3, -68.8) on ASW (refine_WB.md 判断7) although the video shows the shop beside Silhouette Studio)
+    #  (#857A82), cream double doors, the pink oval board on an iron scroll bracket; no awnings. Placed on ME2 opposite
+    #  Penny Arcade by web sources (refine_WB.md 位置修正(WEB基準)), not at the OSM point on ASW)
     "BIBBIDI BOBBIDI BOUTIQUE": dict(wall="salmon_pink", trim="mauve", floors=3, roof="pediment", turret=1, win="arch", awning=None,
                                      win_awn=False, balcony=False, oriel=True, oriel_mat="t_mauve", signmat="t_mauve", fat_frame=True,
                                      frame_trim="mauve", door_mat="t_cream", deco=False,
@@ -1428,7 +1434,8 @@ SHOP_STYLE = {
 def build_shops(seed=7):
     rng = random.Random(seed)
     owned = {v["sign"] for v in SPECIAL.values() if v.get("own")}     # (R2: the corner shops that keep their own name)
-    used = {k for k, s in enumerate(REAL_SHOPS) if s[2] in owned}
+    forced = {v["real"] for vs in VIDEO_WALLS.values() for v in vs if v.get("real")}   # (a real shop put on a given slot)
+    used = {k for k, s in enumerate(REAL_SHOPS) if s[2] in owned | forced}
     for fid, p0, p1 in FRONTS:
         d = (p1[0] - p0[0], p1[1] - p0[1]); L = math.hypot(*d); ang = math.degrees(math.atan2(d[1], d[0]))
         widths = []
@@ -1455,8 +1462,11 @@ def build_shops(seed=7):
                 if i in video:
                     st.update(video[i])
                 skip_real = st.pop("skip_real", False) or st.pop("own", False)
+                real = st.pop("real", None)
                 a_ = math.radians(ang); mx, my = p0[0] + (x + wd / 2) * math.cos(a_), p0[1] + (x + wd / 2) * math.sin(a_)
                 best = None if skip_real else min(((math.hypot(sx - mx, sy - my), k) for k, (sx, sy, _, _) in enumerate(REAL_SHOPS) if k not in used), default=None)
+                if real:
+                    best = (0.0, next(k for k, s_ in enumerate(REAL_SHOPS) if s_[2] == real))
                 if best and best[0] < 14.0:                  # the real shop on this front
                     used.add(best[1]); _, _, nm, th = REAL_SHOPS[best[1]]
                 if best and best[0] < 14.0 and nm != "GREAT AMERICAN WAFFLE CO.":   # (the Waffle Company faces out: waffle_company)
@@ -1473,15 +1483,18 @@ def build_shops(seed=7):
                     if st.get("custom") == "toy_small":   # Toy Station (the user's photos): its own front and the shop behind
                         import ds_tdl_toy_station as TS
                         TS.small_front(f"{fid}_{i}", wd, p0, ang)
+                    elif st.get("custom") == "club33":    # Club 33 between the Magic Shop and the bank (web sources)
+                        import ds_tdl_wb_refine as WR
+                        WR.club33_front(f"{fid}_{i}", wd)
                     else:
                         shop(f"{fid}_{i}", wd, st, room)
                 if room and st.get("interior") == "penny":
                     import ds_tdl_wb_refine as WR          # R2-34 / wb3 P2: the corridor behind MW2's shops (front frame)
                     WR.penny_corridor(f"{fid}_{i}", x + {"mid": wd / 2, "left": 1.4, "right": wd - 1.4}[st["door"]], x, x + wd)
                 x += wd
-    import ds_tdl_wb_refine as WR                         # WB re-refinement 5 (wb2 BK1 / C33): the bank and Club 33 past the
-    WR.sumitomo_bank(shop)                                # east arm's end, facing its covered way (positions by estimate)
-    WR.club33_front()
+    import ds_tdl_wb_refine as WR                         # WB re-refinement 5 (wb2 BK1), placed by web sources: the bank past
+    WR.sumitomo_bank(shop)                                # the east arm's end, facing its covered way, with its ATM corner
+    WR.bank_atm(shop)                                     # next to Club 33 (Club 33 is ASE's last slot, above)
 
 
 # ---------------------------------------------------------------- the blocks' outer walls (seen from the plaza and the park)
