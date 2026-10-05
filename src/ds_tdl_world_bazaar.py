@@ -128,7 +128,7 @@ VIDEO_WALLS.update({
     # MW2 from the crossing (its corner shop is SPECIAL, so this starts at the second): Harrington's, Penny Arcade, Pastry
     # House (real; the corner itself takes Town Center Fashions), then the pale green shop with
     # white-striped awnings and the maroon one (B-1 W10, v2 2:44, 3:00)
-    "MW2": [{}, {}, {}, dict(wall="palegreen", trim="white", awning=("aw_green", "aw_white"), win_awn=True),
+    "MW2": [{}, {}, {}, dict(custom="hokusai", skip_real=True, wall="palegreen", trim="white", awning=("aw_green", "aw_white"), win_awn=True),
             dict(wall="plum", trim="cream")],
     # the corners' side faces carry on their Main Street fronts: Grand Emporium (lemon, aqua frames) on CNW, House of
     # Greetings (beige, green) on CSE
@@ -1492,6 +1492,9 @@ def build_shops(seed=7):
                     elif st.get("custom") == "club33":    # Club 33 between the Magic Shop and the bank (web sources)
                         import ds_tdl_wb_refine as WR
                         WR.club33_front(f"{fid}_{i}", wd)
+                    elif st.get("custom") == "hokusai":      # Restaurant Hokusai, outside and in (user photos rh1..rh3, wb3)
+                        import ds_tdl_wb_refine as WR
+                        WR.hokusai(f"{fid}_{i}", wd)
                     elif st.get("custom") == "coffeehouse":   # Center Street Coffeehouse, outside and in (user photos, wb3)
                         import ds_tdl_wb_refine as WR
                         WR.coffeehouse(f"{fid}_{i}", wd)
@@ -3202,7 +3205,7 @@ def build_street():
             bm_box(bmp, x - 0.015, x + 0.015, y + s * 0.19 - 0.01, y + s * 0.19 + 0.01, zc_, zc_ + 0.28)
             bm_box(bmp, x - 0.015, x + 0.18, y + s * 0.19 - 0.01, y + s * 0.19 + 0.01, zc_ - 0.015, zc_ + 0.015)
         bm_lathe(bmp, [(0, 0), (0.1, 0), (0.05, 0.3), (0, 0.4)], 8, T(x, y, zc_ + 0.52))
-    for x, y in ((-10.0, -84.0), (-10.0, -97.0)):   # trees in planters (R2-23, v2 4:00 .. 4:58: none on the east side; two
+    for x, y in ((-10.0, -84.0), (-10.0, -102.2)):   # trees in planters (the second moved off Hokusai's door) (R2-23, v2 4:00 .. 4:58: none on the east side; two
         bm_box(bmw, x - 0.6, x + 0.6, y - 0.6, y + 0.6, 0.04, 0.6)   # slim ones by the west benches, 4 m)
         bm_lathe(bmt, [(0, 0), (0.08, 0), (0.06, 2.6), (0, 2.6)], 8, T(x, y, 0.6))
         for dx, dy, dz, r in ((0, 0, 3.4, 0.75), (0.3, 0.2, 3.0, 0.5), (-0.25, -0.2, 3.9, 0.45)):

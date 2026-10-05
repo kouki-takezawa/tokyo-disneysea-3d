@@ -67,6 +67,7 @@ def materials(M):
     _cf_materials(M)
     _rc_materials(M)
     _ge_materials(M)
+    _hk_materials(M)
     return M
 
 
@@ -1208,3 +1209,141 @@ def ge_upper(name, w, z0, pediment=False):
             bm_prism(P["ge_frame"], arch_opening(cx - 0.4, cx + 0.4, H + 0.35, H + 0.75, 0.4, 10), 0.0, 0.08, "xz")
             bm_prism(P["ge_lead"], arch_opening(cx - 0.3, cx + 0.3, H + 0.45, H + 0.75, 0.3, 10), 0.08, 0.1, "xz")
     P.flush(f"ge_upper_{name}", smooth=())
+
+
+# ================================================================ 11. Restaurant Hokusai (user photos images/restaurant_hokusai/rh1..3, wb3 12:02 .. 13:00)
+def _hk_materials(M):
+    P = lambda n, c, r=0.6, **kw: _principled(n, c, r, **kw)[0]
+    M["hk_pier"] = P("st_wbz_hk_pier", (0.48, 0.62, 0.57), 0.7)           # the pale grey-green piers and cornices (#B9CFC7)
+    M["hk_tile"] = P("st_wbz_hk_tile", (0.27, 0.39, 0.33), 0.8)           # the second floor's grey-green tiled wall (#8FA89B)
+    M["hk_white"] = P("st_wbz_hk_white", (0.88, 0.87, 0.82), 0.5)         # the window frames, panels, balusters
+    M["hk_teal"] = P("st_wbz_hk_teal", (0.03, 0.30, 0.30), 0.5)           # the awnings' teal stripes, the sign's rim (#2F8F8F)
+    M["hk_wall"] = P("st_wbz_hk_wall", (0.62, 0.38, 0.18), 0.8)           # inside: warm tan walls (#D6A06A)
+    M["hk_floor"] = P("st_wbz_hk_floor", (0.10, 0.045, 0.025), 0.4)       # dark wood floor
+    M["hk_gold"] = P("st_wbz_hk_gold", (0.78, 0.58, 0.20), 0.4, Metallic=0.3)   # the gold folding screens
+    M["hk_wave"] = P("st_wbz_hk_wave", (0.08, 0.20, 0.32), 0.6)           # the Great Wave painted on them
+    M["hk_red"] = P("st_wbz_hk_red", (0.70, 0.14, 0.05), 0.6)             # Red Fuji in its frame
+    return M
+
+
+def hokusai(name, w, D=7.0):
+    """The whole shop in the current shop frame (front on y = 0, the street on +y): three bays between pale grey-green
+    piers -- a window with a lattice transom, the open door under its lattice transom, a window pair -- white panels
+    over them, a tiled second floor with three windows under teal-and-white awnings, the cream-and-green parapet with
+    balusters either side of a gable with the "1897" tablet and an octagonal window, the oval "HOKUSAI" blade sign.
+    Inside (wb3 12:20 .. 12:36): warm tan walls, a dark wood floor, gold folding screens painted with the Great Wave,
+    the framed Red Fuji, low tables."""
+    P = Parts(); gf = 4.6; H = 8.4; top = 4.0
+    pw = min(0.7, w * 0.09); dw = max(1.9, min(2.4, w * 0.3)); bs = (w - 4 * pw - dw) / 2.0
+    wid = [bs, dw, bs]
+    px = [0.0, pw + bs, 2 * pw + bs + dw, 3 * pw + 2 * bs + dw]               # the four piers' left edges
+    bays = [(px[i] + pw, px[i] + pw + wid[i]) for i in range(3)]
+    for x0 in px:                                                             # the piers, the whole height, with capitals
+        bm_box(P["hk_pier"], x0, x0 + pw, -0.3, 0.12, 0.0, H + 0.9)
+        bm_box(P["hk_pier"], x0 - 0.06, x0 + pw + 0.06, 0.0, 0.2, 0.0, 0.5)
+        bm_box(P["hk_pier"], x0 - 0.06, x0 + pw + 0.06, 0.0, 0.2, H + 0.5, H + 0.9)
+    bm_box(P["hk_pier"], 0.0, w, -0.3, 0.1, gf - 0.1, gf + 0.15)               # the cornice over the ground floor
+    for i, (a, b_) in enumerate(bays):
+        m = (a + b_) / 2
+        # ground floor
+        if i == 1:                                                            # the door bay: the open doorway
+            hw = min(0.85, (b_ - a) / 2 - 0.15)
+            bm_box(P["hk_white"], a, m - hw, -0.3, 0.0, 0.0, 3.5); bm_box(P["hk_white"], m + hw, b_, -0.3, 0.0, 0.0, 3.5)
+            bm_box(P["hk_white"], a, b_, -0.3, 0.0, 3.5, gf - 0.1)
+            bm_box(P["hk_teal"], m - hw - 0.05, m + hw + 0.05, 0.0, 0.1, 3.4, 3.55)        # the door head
+            for k in range(1, 8):                                                           # the lattice transom
+                bm_box(P["hk_white"], m - hw + (2 * hw) * k / 8 - 0.012, m - hw + (2 * hw) * k / 8 + 0.012, 0.0, 0.05, 2.9, 3.4)
+            bm_box(P["shopglass"], m - hw, m + hw, -0.02, 0.0, 2.9, 3.4)
+            for sx in (-1, 1):                                                              # the dark leaves, one swung in
+                bm_box(P["cf_door"], m + sx * (hw - 0.04) - 0.04, m + sx * (hw - 0.04) + 0.04, -1.0 if sx < 0 else -0.5, -0.3, 0.0, 2.85)
+        else:
+            bm_box(P["hk_white"], a, b_, -0.3, 0.0, 0.0, 0.9)                               # the white panelled base
+            bm_box(P["hk_pier"], a, b_, 0.0, 0.04, 0.2, 0.7)
+            bm_box(P["hk_white"], a, b_, -0.3, 0.0, 3.4, gf - 0.1)
+            bm_box(P["shopglass"], a + 0.12, b_ - 0.12, -0.02, 0.02, 0.9, 3.4)
+            bm_box(P["hk_white"], a + 0.05, b_ - 0.05, 0.02, 0.07, 3.2, 3.4)
+            for k in range(1, 6):                                                           # the lattice transom
+                xx = a + 0.12 + (b_ - a - 0.24) * k / 6
+                bm_box(P["hk_white"], xx - 0.012, xx + 0.012, 0.02, 0.06, 3.0, 3.2)
+            for z in (1.9, 2.9):
+                bm_box(P["hk_white"], a + 0.1, b_ - 0.1, 0.02, 0.07, z - 0.02, z + 0.02)
+            if i == 2:
+                bm_box(P["hk_white"], m - 0.02, m + 0.02, 0.02, 0.07, 0.9, 3.0)
+        bm_box(P["hk_white"], a + 0.05, b_ - 0.05, 0.0, 0.03, gf - 0.9, gf - 0.2)           # the wide white panel over each bay
+        # second floor: tiled wall, window, awning
+        bm_box(P["hk_tile"], a, b_, -0.3, 0.0, gf + 0.15, H)
+        ww = min(1.0, (b_ - a) - 0.7)
+        bm_box(P["hk_white"], m - ww / 2 - 0.1, m + ww / 2 + 0.1, 0.0, 0.07, gf + 0.8, gf + 2.7)
+        bm_box(P["glass"], m - ww / 2, m + ww / 2, 0.07, 0.09, gf + 0.9, gf + 2.6)
+        bm_box(P["t_white"], m - ww / 2 + 0.05, m + ww / 2 - 0.05, 0.09, 0.11, gf + 0.9, gf + 2.2)    # the curtain
+        bm_box(P["hk_white"], m - 0.015, m + 0.015, 0.09, 0.12, gf + 0.9, gf + 2.6)
+        bm_prism(P["hk_white"], [(m - ww / 2 - 0.2, gf + 2.7), (m + ww / 2 + 0.2, gf + 2.7), (m, gf + 3.2)], 0.0, 0.1, "xz")   # a pedimented head
+        for j in range(8):                                                                          # the teal-and-white awning
+            xa_ = m - ww / 2 - 0.15 + j * (ww + 0.3) / 8
+            bm_prism(P["hk_teal" if j % 2 == 0 else "t_white"], [(0.05, gf + 2.65), (0.75, gf + 2.0), (0.75, gf + 1.85), (0.05, gf + 2.5)],
+                     xa_, xa_ + (ww + 0.3) / 8, "yz")
+    bm_box(P["hk_pier"], 0.0, w, -0.35, 0.3, H, H + 0.35)                       # the parapet: cornice with dentils, the balusters
+    x = 0.1
+    while x < w - 0.1:
+        bm_box(P["hk_pier"], x, x + 0.1, 0.0, 0.3, H - 0.12, H); x += 0.22
+    for xa_, xb_ in ((0.0, bays[1][0] - 0.1), (bays[1][1] + 0.1, w)):
+        bm_box(P["hk_white"], xa_, xb_, -0.3, 0.0, H + 0.35, H + 0.5)
+        n = max(2, int((xb_ - xa_) / 0.3))
+        for k in range(n):
+            bx = xa_ + (xb_ - xa_) * (k + 0.5) / n
+            bm_lathe(P["hk_white"], [(0, 0), (0.05, 0), (0.035, 0.2), (0.06, 0.5), (0.035, 0.8), (0.05, 0.9), (0, 0.9)], 6, T(bx, -0.1, H + 0.5))
+        bm_box(P["hk_white"], xa_, xb_, -0.3, 0.1, H + 1.4, H + 1.5)
+    gx0, gx1 = bays[1][0] - pw * 0.4, bays[1][1] + pw * 0.4                     # the gable over the middle
+    mx = w / 2
+    bm_prism(P["hk_pier"], [(gx0, H + 0.35), (gx1, H + 0.35), (mx, H + 2.6)], -0.35, 0.1, "xz")
+    bm_prism(P["hk_white"], [(gx0 + 0.3, H + 0.45), (gx1 - 0.3, H + 0.45), (mx, H + 2.2)], 0.1, 0.14, "xz")
+    bm_box(P["t_white"], mx - 0.45, mx + 0.45, 0.14, 0.18, H + 0.65, H + 1.1)   # the "1897" tablet
+    text(f"ST_WBZ_hk_{name}_year", "1897", 0.26, (mx, 0.2, H + 0.78), (math.pi / 2, 0, math.pi), "cf_door", 0.01)
+    pts = [(mx + 0.38 * math.cos(2 * math.pi * k / 8 + math.pi / 8), H + 1.65 + 0.38 * math.sin(2 * math.pi * k / 8 + math.pi / 8)) for k in range(8)]
+    bm_prism(P["hk_white"], pts, 0.14, 0.2, "xz")                               # the octagonal window
+    bm_prism(P["glass"], [(mx + 0.28 * math.cos(2 * math.pi * k / 8 + math.pi / 8), H + 1.65 + 0.28 * math.sin(2 * math.pi * k / 8 + math.pi / 8)) for k in range(8)], 0.2, 0.22, "xz")
+    # the oval blade sign beside the door, on a scrolled bracket
+    bx = bays[1][1] - 0.05
+    bm_box(P["iron"], bx - 0.03, bx + 0.03, 0.1, 1.1, 3.6, 3.66)
+    bm_box(P["iron"], bx - 0.015, bx + 0.015, 0.1, 0.14, 3.2, 3.66)
+    for r_, mat in ((1.0, "hk_teal"), (0.88, "t_cream")):
+        bm_lathe(P[mat], [(0, -0.03), (1.0, -0.03), (1.0, 0.03), (0, 0.03)], 20,
+                 T(bx, 0.7, 2.75) @ R(math.pi / 2, "Y") @ _diag2(0.42 * r_, 0.55 * r_))
+    text(f"ST_WBZ_hk_{name}_blade", "HOKUSAI", 0.12, (bx, 0.74, 2.75), (math.pi / 2, 0, math.pi / 2), "hk_teal", 0.01)
+    # ---- the inside
+    x0, x1 = 0.2, w - 0.2
+    bm_box(P["hk_floor"], x0, x1, -D, -0.3, 0.0, 0.05)
+    bm_box(P["hk_floor"], bays[1][0] + 0.3, bays[1][1] - 0.3, -0.35, 0.6, 0.0, 0.05)             # the doorstep (across the wall's thickness)
+    for a, b_, c0, c1 in ((x0, x0 + 0.15, -D, -0.3), (x1 - 0.15, x1, -D, -0.3), (x0, x1, -D - 0.15, -D)):
+        bm_box(P["hk_wall"], a, b_, c0, c1, 0.05, top)
+        bm_box(P["cf_door"], a, b_, c0, c1, 0.05, 0.9)                                          # the dark wainscot
+        bm_box(P["cf_door"], a, b_, c0, c1, top - 0.15, top)
+    bm_box(P["hk_wall"], x0, x1, -D - 0.15, -0.3, top, top + 0.15)
+    bm_box(P["display"], x0 + 0.5, x1 - 0.5, -D + 0.1, -0.6, top - 0.1, top)                    # a lit ceiling cove
+    # gold folding screens with the Great Wave, along the back wall and the left wall
+    def screen(xa_, xb_, y, face_y, n=4):
+        pw_ = (xb_ - xa_) / n
+        for k in range(n):
+            sx = xa_ + k * pw_
+            off = 0.0 if k % 2 == 0 else 0.12
+            bm_box(P["hk_gold"], sx + 0.02, sx + pw_ - 0.02, y + off, y + off + 0.04, 0.1, 2.0)
+            bm_box(P["cf_door"], sx, sx + pw_, y + off - 0.01, y + off + 0.05, 0.08, 0.12)
+            bm_box(P["cf_door"], sx, sx + pw_, y + off - 0.01, y + off + 0.05, 1.98, 2.02)
+        # the wave: stepped blue crest on the lower right panels
+        for k, hgt in enumerate((0.5, 0.9, 1.3, 1.1)):
+            bm_box(P["hk_wave"], xa_ + (k + 0.1) * pw_, xa_ + (k + 0.9) * pw_, y + 0.05, y + 0.07, 0.15, 0.15 + hgt)
+    screen(x0 + 1.0, x1 - 1.0, -D + 0.05, 0.0, 6)
+    bm_box(P["cf_door"], (x0 + x1) / 2 - 0.55, (x0 + x1) / 2 + 0.55, -D + 0.02, -D + 0.07, 1.45, 2.15)    # the framed Red Fuji
+    bm_box(P["hk_red"], (x0 + x1) / 2 - 0.4, (x0 + x1) / 2 + 0.4, -D + 0.07, -D + 0.08, 1.55, 2.05)
+    # low tables and cushions
+    for tx in (x0 + 1.4, (x0 + x1) / 2, x1 - 1.4):
+        for ty in (-2.6, -4.4):
+            if abs(tx - w / 2) < 0.8 and ty > -3.5:
+                continue                                                                         # (the way in from the door)
+            bm_box(P["cf_door"], tx - 0.55, tx + 0.55, ty - 0.4, ty + 0.4, 0.68, 0.75)
+            for sx_, sy_ in ((-0.5, -0.35), (0.5, -0.35), (-0.5, 0.35), (0.5, 0.35)):
+                bm_box(P["cf_door"], tx + sx_ - 0.03, tx + sx_ + 0.03, ty + sy_ - 0.03, ty + sy_ + 0.03, 0.05, 0.68)
+            for sx_ in (-0.9, 0.9):
+                bm_box(P["cf_seat"], tx + sx_ - 0.22, tx + sx_ + 0.22, ty - 0.22, ty + 0.22, 0.36, 0.5)
+                bm_box(P["cf_door"], tx + sx_ - 0.02, tx + sx_ + 0.02, ty - 0.2, ty + 0.2, 0.05, 0.36)
+    P.flush(f"hokusai_{name}", smooth=())
