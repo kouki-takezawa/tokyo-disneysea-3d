@@ -90,7 +90,10 @@ VIDEO_PALETTE = {"plum": (0.36, 0.16, 0.24), "mustard": (0.68, 0.38, 0.03),  # (
                  # R2 (refine_R2.md, the shop-front table B-1; v2 4:00 .. 7:30, 1:10:40 .. 1:16:10): the shops' own colours
                  "rose": (0.51, 0.19, 0.22), "cobalt": (0.06, 0.19, 0.46), "ashlar": (0.72, 0.55, 0.30), "butter": (0.83, 0.61, 0.16),
                  "peach2": (0.83, 0.49, 0.30), "lemon": (0.91, 0.81, 0.38), "apricot": (0.83, 0.46, 0.19), "gold": (0.75, 0.49, 0.22),
-                 "ivory": (0.87, 0.78, 0.55), "beige": (0.75, 0.61, 0.31), "cream2": (0.85, 0.70, 0.45), "palegreen": (0.40, 0.68, 0.51)}
+                 "ivory": (0.87, 0.78, 0.55), "beige": (0.75, 0.61, 0.31), "cream2": (0.85, 0.70, 0.45), "palegreen": (0.40, 0.68, 0.51),
+                 # WB re-refinement 4 (refine_WB.md; wb1 X5, wb2 BL1 / HS1 / HS2): Home Store's cream, the blue-grey panelled
+                 # front beside it (#5C7A94)
+                 "hs_cream": (0.81, 0.72, 0.53), "bluegrey": (0.11, 0.20, 0.30)}
 # R1 S3 (v2 1:36 .. 3:10): the colours of the unnamed shops on Main Street's first half, from the entrance building north
 # (towards the crossing). Only the shops with no real-shop style (SHOP_STYLE) take them; the photo-based corner shops
 # (SPECIAL) keep theirs. East: brick with cream trim, pale blue with red panels between the floors (S4), mint, mustard.
@@ -104,6 +107,7 @@ VIDEO_WALLS = {"ME1": [dict(wall="brick", trim="cream"), dict(wall="blue", trim=
 # with no corner style (SPECIAL), from p0 (or from p1 with VIDEO_FROM_END). An empty dict keeps the shop as it was (a
 # real shop's SHOP_STYLE still applies after these); skip_real=True keeps a real shop's name off this one.
 # Orientation: walking towards the castle (-y) +x is on the left (refine_R2.md 0).
+ARCADE = dict(arcade=2.4, deco=False, awning=("aw_maroon", None), scallop=True, door="mid")   # (WB re-refinement 1, below)
 VIDEO_WALLS.update({
     # ME2 from the plaza end: the rose corner with bay windows (R2-1, E7), Disney & Co. (real), the ashlar Silhouette
     # Studio (real), the cobalt narrow shop with the iron lace (R2-3, E9), the butter shop with the mint-striped awning
@@ -125,9 +129,13 @@ VIDEO_WALLS.update({
     "ANW": [dict(wall="lemon", trim="cream", frame_trim="aqua", win="rect", fat_frame=True), {}, dict(wall="brick", trim="white", floors=3)],
     # ANE from the crossing (R2-7, E13, E14): peach with green frames and the arcaded balcony, the pale green house
     # with dormers, pink and cream with a bay; the far end is Eastside Cafe (real, SHOP_STYLE, E18)
-    "ANE": [dict(wall="peach2", trim="dkgreen", win="arch", balcony=True, oriel=False),
-            dict(wall="palegreen", trim="cream", roof="mansard", floors=2, roofmat="t_dkgreen"),
-            dict(wall="pink", trim="white", oriel=True)],
+    # WB re-refinement 1 (wb1 A2, 0:05:02 .. 0:05:34): the first ~25 m from the crossing stand behind a colonnade 2.4 m
+    # deep (cream columns, the navy frieze, a flat ceiling; white sashes over a blue wainscot, maroon scalloped awnings),
+    # walled off at the crossing end and at the far end of the run (the fourth shop)
+    "ANE": [dict(wall="peach2", trim="dkgreen", win="arch", balcony=True, oriel=False, **ARCADE, arcade_close=(False, True)),
+            dict(wall="palegreen", trim="cream", roof="mansard", floors=2, roofmat="t_dkgreen", **ARCADE),
+            dict(wall="pink", trim="white", oriel=True, **ARCADE),
+            dict(**ARCADE, arcade_close=(True, False))],
     # ASE from the crossing (R2-7, E16): ivory with the green-and-white awning, butter, cream; then the Magic Shop (real)
     "ASE": [dict(wall="ivory", trim="dkgreen", awning=("aw_green", "aw_white")), dict(wall="butter", trim="white"),
             dict(wall="cream", trim="white")]})
@@ -214,8 +222,8 @@ def wbz_materials(M):
     M["bus_red"] = P("st_wbz_bus_red", (0.51, 0.01, 0.05), 0.4)
     M["palm_trunk"] = P("st_wbz_palm_trunk", (0.42, 0.36, 0.28), 0.9)              # R2-29, T2 palms
     M["palm_leaf"] = P("st_wbz_palm_leaf", (0.16, 0.32, 0.10), 0.8)
-    import ds_tdl_toy_station as TS, ds_tdl_wb_r2 as R2
-    TS.materials(M); R2.materials(M)
+    import ds_tdl_toy_station as TS, ds_tdl_wb_r2 as R2, ds_tdl_wb_refine as WR
+    TS.materials(M); R2.materials(M); WR.materials(M)
     return M
 
 
@@ -494,6 +502,43 @@ def finial_bm(bm, x, y, z, h):
                   (0.03 * s, 0.46 * s), (0.015 * s, 0.7 * s), (0, 0.72 * s)], 8, T(x, y, z))
 
 
+def bulb(bm, x, y, z, r):
+    """A small light bulb: a low-poly ball (marquee borders, strings of bulbs)."""
+    bm_lathe(bm, [(0, -r), (r, 0), (0, r)], 6, T(x, y, z))
+
+
+def arcade_front(P, w, st, arc, gf):
+    """WB re-refinement 1 (wb1 A2 / A3 / S4, 0:05:02 .. 0:05:42): the colonnade along the north side of Center Street's
+    east arm. On the OSM front line: square cream columns (0.5 m, on pedestals; the shop's corner pilasters are cased the
+    same way, so a column stands at every shop boundary and every ~4 m between), a lintel with a navy frieze of white
+    diamonds (sRGB #1F4E79), a flat cream ceiling back to the set-back shopfront, a lantern in each bay. arcade_close
+    (left, right) walls off an end of the run (the colonnade's ends)."""
+    n = max(1, round((w - 0.8) / 4.0))
+    xs = [0.2, w - 0.2] + [0.4 + (w - 0.8) * k / n for k in range(1, n)]
+    for x in xs:
+        bm_box(P["acol"], x - 0.35, x + 0.35, -0.6, 0.1, 0.0, 0.7)                  # pedestal, shaft, capital
+        bm_box(P["acol"], x - 0.25, x + 0.25, -0.5, 0.0 if 0.3 < x < w - 0.3 else 0.15, 0.7, 3.15)
+        bm_box(P["acol"], x - 0.32, x + 0.32, -0.57, 0.07 if 0.3 < x < w - 0.3 else 0.2, 3.15, 3.3)
+    bm_box(P["acol"], 0.0, w, -0.5, 0.05, 3.3, 4.15)                                  # the lintel
+    bm_box(P["navy"], 0.45, w - 0.45, 0.05, 0.08, 3.45, 3.95)                       # the navy frieze, white diamonds
+    x = 0.7
+    while x < w - 0.6:
+        bm_prism(P["dia"], [(x - 0.14, 3.7), (x, 3.53), (x + 0.14, 3.7), (x, 3.87)], 0.08, 0.095, "xz"); x += 0.5
+    bm_box(P["ceil"], 0.0, w, -arc + 0.32, -0.5, 3.98, 4.15)                        # the flat ceiling
+    bm_box(P["afloor"], 0.0, w, -arc - 0.3, 0.0, -0.02, 0.04)                       # the sidewalk carried in under it
+    sp = sorted(xs)
+    for a, b_ in zip(sp[:-1], sp[1:]):                    # a lantern hanging in each bay
+        if b_ - a > 1.5:
+            m = (a + b_) / 2; ly = -arc / 2 - 0.2
+            bm_box(P["iron"], m - 0.01, m + 0.01, ly - 0.01, ly + 0.01, 3.55, 3.98)
+            bm_lathe(P["iron"], [(0, 0), (0.08, 0), (0.12, 0.08), (0.12, 0.3), (0.05, 0.4), (0, 0.4)], 6, T(m, ly, 3.15))
+            globe_lamp_bm(P["lamp"], m, ly, 3.33, 0.09)
+    cl, cr = st.get("arcade_close", (False, False))
+    for use, x0, x1 in ((cl, 0.0, 0.4), (cr, w - 0.4, w)):
+        if use:
+            bm_box(P["wall"], x0, x1, -arc - 0.3, -0.5, 0.0, 3.3)
+
+
 def deco_front(P, w, st, H, gf, xs, dx, bx, sl):
     """Center Street's Art Deco touches (by estimate, from the Coffeehouse's streamline sign in the photo): the sign board
     with rounded gilt ends and speed lines either side; with deco=True also a marquee lined with bulbs over the door
@@ -561,18 +606,26 @@ def shop(name, w, st, room=None):
     H = gf + sum(fhs) + 0.3
     P = {k: bmesh.new() for k in ("wall", "trim", "glass", "display", "door", "iron", "roof", "sign", "flowers", "aw1", "aw2",
                                   "shopglass", "brass", "lamp", "lit", "shutter", "wa1", "wa2", "quoin", "band",
-                                  "band2", "flowers2", "chrome", "neon", "leafy", "column", "fframe")}
+                                  "band2", "flowers2", "chrome", "neon", "leafy", "column", "fframe",
+                                  "gtrim", "bulk", "acol", "navy", "dia", "ceil", "mq", "afloor")}
     rng = random.Random(name)
     if room and room[1] - room[0] < 2.8:
         room = None
     bm_box(P["wall"], 0, w, -9.0, 0.0, gf, H)                                        # upper floors
-    for a, b_ in (((0, room[0]), (room[1], w)) if room else ((0, w),)):             # ground floor: solid outside the room
-        if b_ - a > 0.01:
-            bm_box(P["wall"], a, b_, -9.0, -0.5, 0.0, gf)
     for x0, x1 in ((0.0, 0.4), (w - 0.4, w)):
         bm_box(P["trim"], x0, x1, -0.3, 0.12, 0.0, H)                              # corner pilasters: base, shaft, capital
         bm_box(P["trim"], x0 - 0.04, x1 + 0.04, -0.3, 0.18, 0.0, 0.45)
         bm_box(P["trim"], x0 - 0.05, x1 + 0.05, -0.3, 0.2, gf - 0.55, gf - 0.3)
+    # WB re-refinement 1 (wb1 A2, 0:05:02 .. 0:05:34): arcade=d -- a colonnade d deep in front of the ground floor. The
+    # shopfront is built as usual (in white, with a blue bulkhead) and then set back by d; the OSM front line keeps the
+    # columns, the lintel with the navy frieze and the flat ceiling (arcade_front)
+    arc = st.get("arcade") or 0.0
+    if arc:
+        mark = {k: len(bm_.verts) for k, bm_ in P.items()}
+        trim_bm = P["trim"]; P["trim"] = P["gtrim"]
+    for a, b_ in (((0, room[0]), (room[1], w)) if room else ((0, w),)):             # ground floor: solid outside the room
+        if b_ - a > 0.01:
+            bm_box(P["wall"], a, b_, -9.0 + arc, -0.5, 0.0, gf)
     # ground floor: bulkhead, display windows with mullions and a transom, a door, the fascia with the sign board
     dx = {"mid": w / 2, "left": 1.4, "right": w - 1.4}[st["door"]]
     if room and not (room[0] + 0.25 <= dx - 0.85 and dx + 0.85 <= room[1] - 0.25):
@@ -599,11 +652,14 @@ def shop(name, w, st, room=None):
             if b_ - a > 0.01:
                 bm_box(P["wall"], a, b_, -0.3, -0.2, 0.0, 3.2)
             continue
-        bm_box(P["trim"], a, b_, -0.3, 0.02, 0.0, 0.6)
+        bk = P["bulk"] if arc else P["trim"]              # (in the colonnade, wb1 A2: a blue wainscot under the white sashes)
+        bm_box(bk, a, b_, -0.3, 0.02, 0.0, 0.6)
         n = max(1, int((b_ - a) / 1.1))
         for k in range(n):                                # raised panels on the bulkhead
             pa = a + (b_ - a) * k / n + 0.08; pb = a + (b_ - a) * (k + 1) / n - 0.08
             bm_box(P["trim"], pa, pb, 0.02, 0.05, 0.12, 0.48)
+        if arc:
+            bm_box(bk, a, b_, -0.2, -0.17, 0.6, 1.25)
         bm_box(P["shopglass"], a, b_, -0.24, -0.2, 0.6, 3.05)
         for x_a, x_b in (((a, b_),) if not room else ((a, min(b_, room[0])), (max(a, room[1]), b_))):
             if x_b - x_a > 0.01:                          # outside the room: a lit display backdrop behind the glass
@@ -637,7 +693,7 @@ def shop(name, w, st, room=None):
             bm_lathe(P["chrome"], [(0.86, 0), (1.0, 0), (1.0, 0.12), (0.86, 0.12)], 28, T(m_, 0.05, 1.75) @ sc @ R(-math.pi / 2, "X"))
         bm_box(P["chrome"], dx - 1.3, dx + 1.3, 0.05, 1.0, 3.1, 3.2)
         bm_box(P["chrome"], dx - 1.3, dx + 1.3, 0.9, 1.0, 2.9, 3.2)
-        text(f"ST_WBZ_{name}_neon", "COFFEEHOUSE", 0.2, (dx, 1.02, 3.05), (math.pi / 2, 0, math.pi), "neon_red", 0.015)
+        text(f"ST_WBZ_{name}_neon", "COFFEEHOUSE", 0.2, (dx, 1.02 - arc, 3.05), (math.pi / 2, 0, math.pi), "neon_red", 0.015)
     if st.get("portal") and w >= 5.0:                    # an arcade front: a tall round-arched portal round the door
         pa, pb = dx - 1.35, dx + 1.35
         bm_prism(P["trim"], arch_band(pa, pb, 3.2, 1.35, 0.35, 18, leg=3.2), 0.05, 0.3, "xz")
@@ -658,14 +714,25 @@ def shop(name, w, st, room=None):
     sl = min(w - 1.4, max(2.0, len(st.get("sign") or "xxxxxxxx") * sign_sz * 0.66 + 0.5))
     bm_box(P["sign"], w / 2 - sl / 2, w / 2 + sl / 2, 0.14, 0.18, 3.32, 3.83)
     bm_box(P["trim"], -0.05, w + 0.05, -0.3, 0.32, 3.95, 4.2)
-    if st.get("sign"):
-        text(f"ST_WBZ_{name}_signtext", st["sign"], sign_sz, (w / 2, 0.2, 3.58), (math.pi / 2, 0, math.pi), "letters", 0.015)
+    if st.get("sign") and st.get("fascia_text", True):
+        text(f"ST_WBZ_{name}_signtext", st["sign"], sign_sz, (w / 2, 0.2 - arc, 3.58), (math.pi / 2, 0, math.pi), "letters", 0.015)
     if st["awning"]:                                     # a sloping awning over the shopfront (striped or plain)
-        k = 0; x = 0.5
+        k = 0; x = 0.5; ad = 1.0 if arc else 1.5          # (shallower under the colonnade)
         while x < w - 0.5:
             x1 = min(x + 0.5, w - 0.5)
-            bm_prism(P["aw1" if (k % 2 == 0 or st["awning"][1] is None) else "aw2"], [(0.2, 3.2), (1.5, 2.6), (1.5, 2.45), (0.2, 3.05)], x, x1, "yz")
+            key = "aw1" if (k % 2 == 0 or st["awning"][1] is None) else "aw2"
+            bm_prism(P[key], [(0.2, 3.2), (ad, 2.6), (ad, 2.45), (0.2, 3.05)], x, x1, "yz")
+            if st.get("scallop"):                         # (wb1 A2: a scalloped edge, one tongue per 0.5 m)
+                bm_prism(P[key], [(x + (x1 - x) * (1 - j / 6), 2.45 - 0.16 * math.sin(math.pi * j / 6)) for j in range(7)], ad - 0.03, ad, "xz")
             x = x1; k += 1
+    if arc:                                               # set the shopfront back and build the colonnade in front of it
+        P["trim"] = trim_bm
+        for k, bm_ in P.items():
+            bm_.verts.ensure_lookup_table()
+            vs = [bm_.verts[i] for i in range(mark[k], len(bm_.verts))]
+            if vs:
+                bmesh.ops.translate(bm_, vec=(0.0, -arc, 0.0), verts=vs)
+        arcade_front(P, w, st, arc, gf)
     # upper floors: windows (rectangular with caps, arched, or paired), string courses; a bay window or a balcony
     nwin = max(1, int((w - 0.8) / 1.8))
     xs = [0.4 + (w - 0.8) * (i + 0.5) / nwin for i in range(nwin)]
@@ -908,8 +975,31 @@ def shop(name, w, st, room=None):
                     globe_lamp_bm(P["leafy"], px + ox, py, dz, r_)
     if st.get("deco"):
         deco_front(P, w, st, H, gf, xs, dx, bx, sl)
+    if st.get("marquee"):                                # WB re-refinement 3 (wb1 W2 0:06:36 .. 0:06:46, wb3 P1 0:10:22 .. 0:10:42):
+        mw = min(2.8, w - 1.6); z0m, z1m = gf + 0.8, gf + 2.0     # Penny Arcade's cream marquee with red script, a bulb
+        bm_box(P["mq"], dx - mw / 2, dx + mw / 2, 0.3, 0.42, z0m, z1m)    # border, and the tall red neon over it
+        for x0_, x1_, za, zb in ((dx - mw / 2 - 0.08, dx + mw / 2 + 0.08, z0m - 0.08, z0m), (dx - mw / 2 - 0.08, dx + mw / 2 + 0.08, z1m, z1m + 0.08),
+                                 (dx - mw / 2 - 0.08, dx - mw / 2, z0m, z1m), (dx + mw / 2, dx + mw / 2 + 0.08, z0m, z1m)):
+            bm_box(P["brass"], x0_, x1_, 0.28, 0.46, za, zb)
+        nb_ = int(mw / 0.3)
+        for k in range(nb_ + 1):
+            for zz in (z0m - 0.04, z1m + 0.04):
+                bulb(P["lamp"], dx - mw / 2 + mw * k / nb_, 0.5, zz, 0.045)
+        for k in range(1, 4):
+            for xx in (dx - mw / 2 - 0.04, dx + mw / 2 + 0.04):
+                bulb(P["lamp"], xx, 0.5, z0m + (z1m - z0m) * k / 4, 0.045)
+        text(f"ST_WBZ_{name}_marquee", st.get("sign") or "PENNY ARCADE", min(0.34, mw / 7.5), (dx, 0.44, (z0m + z1m) / 2),
+             (math.pi / 2, 0, math.pi), "aw_red", 0.02)
+        zn0, zn1 = z1m + 0.15, H + 1.2                    # the neon blade: a dark board, the red tube, a brace back to the roof
+        bm_box(P["sign"], dx - 0.24, dx + 0.24, 0.46, 0.56, zn0, zn1)
+        bm_box(P["neon"], dx - 0.09, dx + 0.09, 0.56, 0.6, zn0 + 0.1, zn1 - 0.1)
+        bm_box(P["iron"], dx - 0.03, dx + 0.03, -0.6, 0.46, zn1 - 0.35, zn1 - 0.29)
     if room:
-        shop_interior(name, st, room, gf, rng)
+        if arc:                                           # (the room moves back with the shopfront)
+            with frame(f"ARC_{name}", 0.0, -arc, 0.0):
+                shop_interior(name, st, (room[0], room[1], min(room[2], 8.8 - arc)), gf, rng)
+        else:
+            shop_interior(name, st, room, gf, rng)
     mats = {"wall": wall, "trim": trim, "glass": "win_dark", "display": "display", "door": "door", "iron": "iron",
             "shopglass": "shopglass", "brass": "brass", "lamp": "lamp", "lit": "display",
             "roof": P.pop("_roofmat", None) or st.get("roofmat", "shingle"), "sign": st.get("signmat", "t_maroon"),
@@ -918,7 +1008,9 @@ def shop(name, w, st, room=None):
             "shutter": st.get("shuttermat", "t_dkgreen" if st["trim"] != "dkgreen" else "t_maroon"),
             "quoin": "t_" + ("cream" if st["wall"] == "brick" else "white" if st["trim"] != "white" else "cream"), "band": "aw_red",
             "band2": "aw_white", "flowers2": "flowers_pink", "chrome": "chrome", "neon": "neon_red", "leafy": "topiary",
-            "column": st.get("columnmat", "t_cream"), "fframe": "t_" + st.get("frame_trim", st["trim"])}
+            "column": st.get("columnmat", "t_cream"), "fframe": "t_" + st.get("frame_trim", st["trim"]),
+            "gtrim": "t_white", "bulk": "wb_bulk", "acol": "t_cream", "navy": "wb_navy", "dia": "t_white", "ceil": "t_cream",
+            "mq": "t_cream", "afloor": "walk"}
     if st.get("red_door"):                                # R2-14: Penny Arcade's red doors
         mats["door"] = "aw_red"
     wa = P.pop("_wawn", None) or ("aw_green", "aw_white")
@@ -1006,6 +1098,9 @@ def shop_interior(name, st, room, gf, rng):
     colour, a plank floor, shelving on the back wall (and a side wall when deep enough), display tables down the
     middle, a counter with the register, pendant lamps -- and the merchandise of the shop's theme on all of them."""
     x0, x1, D = room
+    if st.get("interior") == "penny":                     # WB re-refinement 3: Penny Arcade's own hall (ds_tdl_wb_refine)
+        import ds_tdl_wb_refine as WR
+        return WR.penny_room(name, x0, x1, D, gf)
     P = {}
 
     def bmk(k):
@@ -1194,9 +1289,12 @@ SHOP_STYLE = {
                                        signmat="t_cream", deco=False, theme="sweets"),
     # (R2-14, B-1 W9, v2 2:44 .. 2:56, 1:15:08 .. 1:15:16: dark mustard, white arched windows, the red-and-white course,
     #  the bulb-lined round-arched entrance with red doors)
-    "PENNY ARCADE": dict(wall="mustard", trim="white", floors=2, roof="parapet", win="arch", portal=True, red_door=True,
+    # (WB re-refinement 3, wb1 W2 0:06:36 .. 0:06:46, wb3 P1 / P2 0:10:22 .. 0:11:26: a steep grey (#6A6E72) mansard with
+    #  dormers, the cream bulb-lit marquee with the red script and the tall red neon over it; inside, the arcade hall
+    #  and the corridor behind the shops, ds_tdl_wb_refine.penny_room / penny_corridor -- R2-34)
+    "PENNY ARCADE": dict(wall="mustard", trim="white", floors=2, roof="mansard", roofmat="wb_slate", win="arch", portal=True, red_door=True,
                          bands="redwhite", awning=None, win_awn=False, signmat="t_maroon", door="mid", balcony=False, oriel=False,
-                         pilasters=True),
+                         pilasters=True, marquee=True, fascia_text=False, interior="penny"),
     "HOME STORE": dict(win_awn=False, portal=False, wall="blue", trim="white", floors=3, roof="pediment", date="1890", win="arch", awning=None,
                        signmat="t_blue", balcony=False, oriel=False),
     # (Grand Emporium's front is SPECIAL[("MW1", -1)] now, R2-12)
@@ -1272,12 +1370,17 @@ def build_shops(seed=7):
                 rx0 = max(0.0, CORNER - x); rx1 = min(wd, L - CORNER - x)
                 near_end = x < 9.2 or x + wd > L - 9.2
                 room = (rx0, rx1, 4.0 if near_end else 7.5) if rx1 - rx0 >= 2.8 else None
+                if room and st.get("interior") == "penny":   # (WB re-refinement 3: Penny Arcade's hall runs the shop's full
+                    room = (room[0], room[1], 9.0)           #  depth, through to the corridor behind)
                 with frame(f"SHOP_{fid}_{i}", x, 0.0, 0.0):
                     if st.get("custom") == "toy_small":   # Toy Station (the user's photos): its own front and the shop behind
                         import ds_tdl_toy_station as TS
                         TS.small_front(f"{fid}_{i}", wd, p0, ang)
                     else:
                         shop(f"{fid}_{i}", wd, st, room)
+                if room and st.get("interior") == "penny":
+                    import ds_tdl_wb_refine as WR          # R2-34 / wb3 P2: the corridor behind MW2's shops (front frame)
+                    WR.penny_corridor(f"{fid}_{i}", x + {"mid": wd / 2, "left": 1.4, "right": wd - 1.4}[st["door"]], x, x + wd)
                 x += wd
 
 
@@ -1331,7 +1434,7 @@ TOY_EDGE = (-56.6, -77.4)    # the middle of 72216845's west face (-58.7, -70.5)
 
 def east_face_extras(name, L, H, brick, sign):
     """R2-28 (v2 6:40 .. 7:10): on the brick part of 196943265's east face a teal iron balcony along the first floor with
-    flower boxes; on the cream part next to the HOME STORE point the pink oval board with gold letters."""
+    flower boxes. (The HOME STORE boards are ds_tdl_wb_refine.home_store_face's now; sign stays False.)"""
     P = {k: bmesh.new() for k in ("iron", "slab", "flowers", "board")}
     if brick:
         bm_box(P["slab"], 0.3, L - 0.3, 0.0, 1.0, 4.05, 4.2)
@@ -1367,6 +1470,7 @@ GAZEBO_CUT = {72216845: [(lambda p: p[1] < -110.5 and -15.0 < p[0] < -6.0, [(-9.
 def build_block_walls():
     """Every edge of the four blocks that is not a shop front on the covered street gets an outer wall, and the block a
     flat roof at the OSM height (8.5 / 8.85 m) behind the shops' own fronts."""
+    import ds_tdl_wb_refine as WR
     ways = {w["id"]: w for w in json.loads((ROOT / "plateau_data" / "disneyland_osm.json").read_text(encoding="utf-8"))["ways"]}
     rng = random.Random(5)
     walk = WALK + [WALK[0]]
@@ -1412,16 +1516,25 @@ def build_block_walls():
                 with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                     TS.big_front(f"block{bid}_{i}", L, H, a, b)
                 continue
-            if bid == 196943265 and mid[0] > 45.0 and -113.0 < mid[1] < -77.0 and L > 4.0:
+            kind = WR.home_store_kind(mid, L) if bid == 196943265 else None
+            if kind == "brick":
                 # R2-28 (v2 6:40 .. 7:10): the block's east face beyond the Waffle Company, from the south: red brick with
-                # teal frames and an iron balcony, then the cream front; the HOME STORE board by its OSM point (46.5, -111.0)
-                wall, trim = ("brick", "t_aqua") if mid[1] > -98.5 else ("w_cream2", "t_white")
+                # teal frames and an iron balcony
                 with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
-                    outer_run(f"block{bid}_{i}", L, H, wall, trim, rng)
-                    east_face_extras(f"block{bid}_{i}", L, H, mid[1] > -98.5, mid[1] < -103.0)
+                    outer_run(f"block{bid}_{i}", L, H, "brick", "t_aqua", rng)
+                    east_face_extras(f"block{bid}_{i}", L, H, True, False)
+                continue
+            if kind:
+                # WB re-refinement 4 (wb1 X5 0:08:22 .. 0:08:34, wb2 BL1 / HS1 / HS2 0:01:48 .. 0:02:14, 0:03:26 .. 0:03:36):
+                # then the blue-grey panelled front, Home Store's cream round the corner (OSM point (46.5, -111.0)) and,
+                # beside the Refreshment Corner, the cobalt shop with the bay window (ds_tdl_wb_refine.home_store_face)
+                with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
+                    WR.home_store_face(f"block{bid}_{i}", L, H, kind, outer_run, rng)
                 continue
             with frame(f"BLOCK_{bid}_{i}", a[0], a[1], math.degrees(math.atan2(b[1] - a[1], b[0] - a[0]))):
                 outer_run(f"block{bid}_{i}", L, H, wall, trim, rng)
+        if bid == 196943265:
+            WR.home_store_corner()                        # WB re-refinement 4: the corner porch and the clock turret
 
 
 # ---------------------------------------------------------------- the castle end: the two corner buildings (the user's photos)
@@ -2946,6 +3059,8 @@ def build_street():
     obj_bm("ST_WBZ_baskets", bmk, "hall_iron", smooth=True); obj_bm("ST_WBZ_basket_flowers", bmfl, "flowers_red", smooth=True)
     import ds_tdl_wb_r2 as R2                             # R2: the arms' lamps and benches, EXT_E's baskets and topiaries,
     R2.street_extras(ARMS, EXT_E)                         # the palms and the omnibus outside the east exit
+    import ds_tdl_wb_refine as WR                         # WB re-refinement 2: the bridge over the east arm's end
+    WR.east_bridge(ARMS[1], dict((f, (a, b)) for f, a, b in FRONTS))
 
 
 # ================================================================ scene

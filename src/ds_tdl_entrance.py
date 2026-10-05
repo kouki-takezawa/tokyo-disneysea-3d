@@ -108,6 +108,9 @@ def extra_materials(M):
     M["ped_stone"] = P("st_ped_stone", (0.60, 0.50, 0.24), 0.6)                  # #17 #20 the olive-yellow pedestals
     M["bronze"] = P("st_bronze", (0.14, 0.10, 0.06), 0.4, Metallic=0.7)          # #21 the Sharing the Magic statue
     M["cons_dome"] = ST.clear_glass("st_cons_dome", (0.88, 0.82, 0.62), 0.6)     # #11 the conservatories' cream glass
+    # WB re-refinement (docs/video_frames/refine_WB.md, wb2 EN2 / EN3 0:00:30 .. 0:00:42): the porticoes' and the passage's
+    # ceilings are salmon pink (sRGB #D9A092) between white beams, not cream
+    M["ceil_salmon"] = P("st_ceil_salmon", (0.69, 0.35, 0.28), 0.8)
     return M
 
 
@@ -372,7 +375,10 @@ def wb_portico(name, piers, H, ends=(True, True)):
         pnl.append((xa + 0.6, xb - 0.6, yf + 0.4, yf + 0.42, blk + 0.3, ent - 0.3))
     box(f"ST_WB_{name}_frieze", pnl, "cream")
     box(f"ST_WB_{name}_roof", (xl, xr, 0.0, yf, ent - 0.3, ent - 0.05), "trim")
-    box(f"ST_WB_{name}_ceiling", [(xl, xr, 0.0, yf - 0.4, blk - 0.05, blk)] + [(x - 0.18, x + 0.18, 0.0, yf, blk - 0.32, blk) for x, _ in piers], "trim")
+    # (WB re-refinement, wb2 EN2: a salmon ceiling in a grid of white beams -- the beams over the piers, one along the middle)
+    box(f"ST_WB_{name}_ceiling", (xl, xr, 0.0, yf - 0.4, blk - 0.05, blk), "ceil_salmon")
+    box(f"ST_WB_{name}_beams", [(x - 0.18, x + 0.18, 0.0, yf, blk - 0.32, blk - 0.04) for x, _ in piers] +
+        [(xl, xr, yf / 2 - 0.12, yf / 2 + 0.12, blk - 0.26, blk - 0.04)], "trim")
     box(f"ST_WB_{name}_floor", (xl - 0.3, xr + 0.3, 0.0, yf + 0.8, 0.0, 0.04), "wine_floor")   # (R1 #19: wine red, was tile)
     # balustrade on the roof: posts over the piers, runs between them and back along the returns
     bmt, bmb = bmesh.new(), bmesh.new()
@@ -422,7 +428,11 @@ def wb_passage_hall(wall):
     ax0, ax1, ay0, ay1 = H["alcove"]
     cutter("ST_WB_cut_hall", [(-hx, hx, y0, y1, -0.5, zc), (ax0, ax1, ay0, ay1, -0.5, zc)], wall, "xz")
     box("ST_WB_passage", [(-hx, hx, WB_BACK, 0.0, 0.0, 0.03), (hx, ax1, ay0, ay1, 0.0, 0.03)], "wine_floor")
-    box("ST_WB_passage_ceiling", [(-hx, hx, y0, y1, zc - 0.15, zc), (hx - 0.01, ax1, ay0, ay1, zc - 0.15, zc)], "trim")
+    # (WB re-refinement, wb2 EN3 0:00:36 .. 0:00:42: the ceiling salmon pink, coffered by white beams about 2 m apart)
+    box("ST_WB_passage_ceiling", [(-hx, hx, y0, y1, zc - 0.15, zc), (hx - 0.01, ax1, ay0, ay1, zc - 0.15, zc)], "ceil_salmon")
+    nbx = max(2, round(2 * hx / 2.1)); nby = max(2, round((y1 - y0) / 2.1))
+    box("ST_WB_passage_beams", [(-hx + 2 * hx * k / nbx - 0.09, -hx + 2 * hx * k / nbx + 0.09, y0, y1, zc - 0.33, zc - 0.15) for k in range(1, nbx)] +
+        [(-hx, hx, y0 + (y1 - y0) * k / nby - 0.09, y0 + (y1 - y0) * k / nby + 0.09, zc - 0.33, zc - 0.15) for k in range(1, nby)], "trim")
     cor = 0.16                                            # the cornice round the hall
     box("ST_WB_passage_cornice", [(-hx, hx, y1 - cor, y1, zc - 0.4, zc - 0.15), (-hx, hx, y0, y0 + cor, zc - 0.4, zc - 0.15),
                                   (-hx, -hx + cor, y0, y1, zc - 0.4, zc - 0.15), (hx - cor, hx, y0, ay0, zc - 0.4, zc - 0.15),
