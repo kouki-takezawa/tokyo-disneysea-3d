@@ -2155,10 +2155,29 @@ function shrubify(T, o) {
   g.dispose(); o.geometry = ng; o.userData.hedge = true;
   o.material = makeHedge(T);
 }
-let HEDGE_MAT = null;
-function makeHedge(T) {
-  if (HEDGE_MAT) return HEDGE_MAT;
+/* The clipped shapes that stay in the models (plants phase 4: the balls and boxes are grown by plants.js from specs,
+   src/clip_specs.py; what is left are lathed mounds, the Mickey bed's bank, strips): the same leaf material as the beds,
+   aH from each piece's own height (dark at its foot). plants.js scatters leaf cards over them and over the beds. The
+   pieces taken out stay as an invisible mesh PL_clipcol, which only the walker's collision grid reads. */
+const CLIP_KEY = /^(EN_hedge|PH_hedge|SE_hedge|TT_hedge|PB_pb_hedge|WZ_hedge|WZ_wbz_topiary)/;
+function hedgeAH(T, g) {
+  const pos = g.attributes.position, idx = g.index, n = pos.count, key = new Map(), w = new Int32Array(n);
+  for (let i = 0; i < n; i++) { const k = Math.round(pos.getX(i) * 200) + "," + Math.round(pos.getY(i) * 200) + "," + Math.round(pos.getZ(i) * 200); let v = key.get(k); if (v === undefined) key.set(k, v = key.size); w[i] = v; }
+  const par = new Int32Array(key.size).map((_, i) => i), f = a => { while (par[a] !== a) a = par[a] = par[par[a]]; return a; };
+  const nt = idx ? idx.count : n;
+  for (let t = 0; t < nt; t += 3) { const a = f(w[idx ? idx.getX(t) : t]); for (let k = 1; k < 3; k++) { const b = f(w[idx ? idx.getX(t + k) : t + k]); if (b !== a) par[b] = a; } }
+  const lo = new Map(), hi = new Map();
+  for (let i = 0; i < n; i++) { const c = f(w[i]), y = pos.getY(i); lo.set(c, Math.min(lo.get(c) ?? 1e9, y)); hi.set(c, Math.max(hi.get(c) ?? -1e9, y)); }
+  const ah = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const c = f(w[i]), l = lo.get(c), h = Math.max(0.3, hi.get(c) - l); ah[i] = 0.3 + 0.7 * Math.min(1, (pos.getY(i) - l) / h); }
+  g.setAttribute("aH", new T.BufferAttribute(ah, 1));
+}
+const HEDGE_MATS = {};
+function makeHedge(T, bright) {
+  const key = bright ? "bright" : "plain";
+  if (HEDGE_MATS[key]) return HEDGE_MATS[key];
   const m = new T.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0, sheen: 0.6, sheenRoughness: 0.7, sheenColor: new T.Color(0x9fc070), side: T.DoubleSide });
+  if (bright) m.color.setRGB(2.5, 2.2, 1.6);   // the Mickey bed's bank: a lighter, yellower green (v2 0:00:02)
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute float aH; varying float vAH; varying vec3 vHP;")
       .replace("#include <project_vertex>", "#include <project_vertex>\nvAH = aH; vHP = (modelMatrix * vec4(transformed, 1.)).xyz;");
@@ -2182,7 +2201,7 @@ float leafH(vec3 p){                                                   // height
   col = mix(col, vec3(.02,.04,.02), smoothstep(.36,.12,h) * .85);                                // shadowed gaps between leaves
   col *= mix(.32, 1., smoothstep(.0,.78,vAH));                                                    // dark near the soil
   col *= .9 + .2 * vn(p * .5);                                                                    // slow tone drift between beds
-  diffuseColor.rgb = col;
+  diffuseColor.rgb = col * diffuse;
 }`)
     .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
 {
@@ -2192,7 +2211,8 @@ float leafH(vec3 p){                                                   // height
   normal = normalize(normal - .075 * (gv - dot(gv, normal) * normal));
 }`);
   };
-  HEDGE_MAT = m; return m;
+  m.customProgramCacheKey = () => "hedge";
+  HEDGE_MATS[key] = m; return m;
 }
 
 // materials for a loaded model (the GLBs carry geometry; the page gives the colours)
@@ -2201,9 +2221,11 @@ function prepModel(T, scene) {
     {
       scene.traverse(o => {
         if (!o.isMesh) return;
+        if (o.name === "PL_clipcol") { o.visible = false; return; }   // the clipped shrubs grown by plants.js: only the walker bumps into these
         const nm = /^(EN|TK|WZ|HO|PB)_/.test(o.name) ? "ST_" + o.name.slice(3) : o.name;   // the entrance, World Bazaar and the tracks share the station's materials
         const key = Object.keys(MODEL_MAT).filter(k => nm.startsWith(k)).sort((a, b) => b.length - a.length)[0];   // longest match
         if (HEDGE_KEY.test(o.name)) shrubify(T, o);   // planting beds: raised, clipped shrub masses
+        else if (CLIP_KEY.test(o.name)) { hedgeAH(T, o.geometry); o.material = makeHedge(T, o.name.startsWith("EN_hedge_bright")); }
         else if (o.name.startsWith("WS_water")) { o.material = makeWater(T, { real: true, waves: 0.16 }); }
         else if (o.name.startsWith("AQ_WaterFilm")) o.material = makeFilm(T);
         else if (o.name.startsWith("AQ_Water")) o.material = makeWater(T, { color: 0x1d6a6e, ring: 3.0, waves: 0.03 });
@@ -4388,8 +4410,8 @@ async function init3D() {
   // trees, palms and grass grown in the page (plants.js, docs/plants/plan.md); without it, every tree is the instanced one
   (async () => {
     try {
-      if (!window.TDS_PLANTS) await loadScript("plants.js?v=3");
-      three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], palms: D.palms3d || [], eye: () => cam.position,
+      if (!window.TDS_PLANTS) await loadScript("plants.js?v=4");
+      three.plants = TDS_PLANTS.init({ T, root, heightAt, shadows: SHADOWS, time: FX_TIME, trees: D.trees3d || [], palms: D.palms3d || [], clips: D.clips3d || [], eye: () => cam.position,
         areas: { tdl: DL && DL.park, lands: DL && DL.labels, tds: D.park },
         hideOld: idx => three.hideOldTrees?.(idx),
         changed: sh => { three.dirty = true; if (sh) three.shadowDirty = true; } });

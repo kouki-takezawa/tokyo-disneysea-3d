@@ -370,6 +370,8 @@ def main():
     out["trees3d"] = trees                                   # flat [x, y, height (0: unknown), ...] (trees back, the user 2026-10-04)
     out["palms3d"] = palm_list                               # [x, y, ground, height, crown dx, dy, kind 0 canary / 1 washingtonia]: plants.js grows them
     out["shrubs3d"] = shrubs                                 # flat [x, y, radius, ...]: clipped round shrubs
+    import clip_specs                                        # the models' clipped balls and boxes, read when compressed (plants phase 4)
+    out["clips3d"] = [s for k in sorted(clip_specs.load()) for s in clip_specs.load()[k]]   # [kind 0 ball / 1 box, x, y, z, a, b, c, yaw]: plants.js grows them
 
     path = ROOT / "output" / "disneysea" / "mock_data.json"
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

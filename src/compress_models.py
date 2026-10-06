@@ -30,6 +30,9 @@ PLANT_MODELS = {"plaza", "tdl_adv_ground", "tdl_adventureland", "tdl_entrance", 
                 "tdl_tomorrowland_terrace", "tdl_water", "tdl_west_ground", "tdl_westernland", "tdl_world_bazaar",
                 "tds_ground", "water", "bb_castle", "cinderella"}
 ZONES = ROOT / "docs" / "plants" / "confirmed_zones.json"
+# models with clipped shrubs read as specs (clip_specs.py, plants phase 4): compressed again while models/clips.json lacks them
+CLIP_MODELS = {"tdl_entrance", "tdl_world_bazaar", "tdl_plaza_buildings", "tdl_plaza_hub", "tdl_stitch_encounter", "tdl_tomorrowland_terrace"}
+CLIPS = MODELS / "clips.json"
 
 
 def make_far(ids):
@@ -69,6 +72,16 @@ def compress(src, dst):
     if not npx:
         raise RuntimeError("npx (Node.js) not found: the page falls back to the uncompressed models")
     doc0 = json.loads(src.read_text(encoding="utf-8"))
+    if src.stem in CLIP_MODELS:                           # clipped balls and boxes -> specs grown by plants.js (clip_specs.py, plants phase 4)
+        try:
+            import clip_specs, plant_zones
+            uri = doc0["buffers"][0]["uri"]
+            doc0, blob, specs, st = clip_specs.extract(doc0, base64.b64decode(uri.split(",", 1)[1]), plant_zones.inside)
+            doc0["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(blob).decode("ascii")
+            clip_specs.save(src.stem, specs)
+            print(f"[compress] {src.stem}: {len(specs)} clipped shrubs as specs (" + ", ".join(f"{k} {v[0]} tris out, {v[1]} left" for k, v in st.items()) + ")")
+        except Exception as e:
+            print(f"[compress] {src.stem}: clipped-shrub specs skipped ({e})")
     try:                                                  # the plants outside the confirmed zones go (plant_zones.py; the plain file stays whole)
         import plant_zones
         uri = doc0["buffers"][0].get("uri", "") if doc0.get("buffers") else ""
@@ -113,7 +126,8 @@ def run(ids=None, force=False):
             continue
         dst = WEB / src.name
         stale = dst.exists() and (dst.stat().st_mtime < src.stat().st_mtime or
-                                  (name in PLANT_MODELS and ZONES.exists() and dst.stat().st_mtime < ZONES.stat().st_mtime))
+                                  (name in PLANT_MODELS and ZONES.exists() and dst.stat().st_mtime < ZONES.stat().st_mtime) or
+                                  (name in CLIP_MODELS and name not in (json.loads(CLIPS.read_text(encoding="utf-8")) if CLIPS.exists() else {})))
         if force or not dst.exists() or stale:
             try:
                 compress(src, dst)

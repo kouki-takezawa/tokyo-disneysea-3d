@@ -18,6 +18,9 @@
    Phase 3 (2026-10-05): palms and bamboo. The models' palms are specs now (src/palm_specs.py: mock_data's palms3d, the
    position, ground, height, lean and kind); they and the palms / bamboo of MIX are grown here: canary palms, washingtonias
    with their skirts, bamboo clumps (the palm atlas, palm_atlas.webp).
+   Phase 4 (2026-10-06): clipped shrubs and topiary. The models' clipped balls and boxes are specs (src/clip_specs.py:
+   mock_data's clips3d); each is grown here (a cube grid pushed onto the ball / rounded box, dented by its own field, leaf
+   cards standing out of it). Leaf cards over the clipped shapes left in the models and the planting beds (shrubify).
    The plants are in a group named "plants": the water's refraction pass (renderBufferDirect patch) leaves them out. */
 (function () {
 "use strict";
@@ -689,18 +692,171 @@ function GEN() {
       }
     }
   }
+  /* ---------- clipped shrubs and topiary (phase 4): the models' balls and boxes, each its own ----------
+     t.s = [kind 0 ball | 1 box, x, y, z, a, b, c, yaw] (src/clip_specs.py). The body is a grid over a cube's faces, pushed
+     onto the ball (an ellipsoid; the cube's grid keeps the cells even) or the rounded box, then squashed a little and
+     dented by a field of its own (the clipped leaf masses, 0.3-0.6 m). Leaf cards (the broadleaf row of the atlas, small)
+     stand out of it at a slant, so the outline is leaves, not a polygon. near: the body + the cards; mid: a coarser body
+     and a few larger far cards; far: the coarse body only. The body's part is "clip" (a leaf pattern in its shader), the
+     cards join the trees' leaf meshes of the cell (no draw more). */
+  function field(R, n, f0, f1) {   // a smooth random field, ~N(0, 1): sines in random directions, f0 .. f1 rad/m
+    const W = [];
+    for (let i = 0; i < n; i++) {
+      const d = norm([R() * 2 - 1, R() * 2 - 1, R() * 2 - 1]), f = f0 * Math.pow(f1 / f0, i / Math.max(1, n - 1));
+      W.push([d[0] * f, d[1] * f, d[2] * f, R() * 6.283]);
+    }
+    const k = Math.sqrt(2 / n);
+    return (x, y, z) => { let s = 0; for (const w of W) s += Math.sin(w[0] * x + w[1] * y + w[2] * z + w[3]); return s * k; };
+  }
+  // the faces of a box over per-axis coordinates AX[0..2] (welded), outward; `open` = [axis, side] left out
+  function cubeGrid(AX, open) {
+    const P = [], F = [], id = new Map(), L = AX.map(a => a.length - 1);
+    const V = g => { const key = g[0] + "," + g[1] + "," + g[2]; let v = id.get(key); if (v === undefined) { v = P.length; id.set(key, v); P.push([AX[0][g[0]], AX[1][g[1]], AX[2][g[2]], g]); } return v; };
+    for (let a = 0; a < 3; a++) for (const side of [0, 1]) {
+      if (open && open[0] === a && open[1] === side) continue;
+      const b = (a + 1) % 3, c = (a + 2) % 3;
+      for (let i = 0; i < L[b]; i++) for (let j = 0; j < L[c]; j++) {
+        const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]].map(([u, w]) => { const g = [0, 0, 0]; g[a] = side ? L[a] : 0; g[b] = u; g[c] = w; return V(g); });
+        if (side) F.push(q[0], q[1], q[2], q[0], q[2], q[3]); else F.push(q[0], q[2], q[1], q[0], q[3], q[2]);
+      }
+    }
+    return { P, F };
+  }
+  // -h .. h: nb steps over the rounding r at each end, the middle every `step`
+  function axis(h, r, nb, step) {
+    const a = [], m = Math.max(1, Math.ceil(2 * Math.max(0, h - r) / step));
+    for (let i = 0; i < nb; i++) a.push(-h + r * i / nb);
+    for (let i = 0; i <= m; i++) a.push(-(h - r) + 2 * (h - r) * i / m);
+    for (let i = nb - 1; i >= 0; i--) a.push(h - r * i / nb);
+    return a.filter((v, i) => i === 0 || v - a[i - 1] > 1e-4);
+  }
+  /* leaf cards over triangles: V = [x, y, z, nx, ny, nz, shade] per corner, 3 corners a triangle (world). o: dens (a m2),
+     size [min, max], tint [r, g, b], row (atlas row), seed, cell, sway, ph, under (share kept on faces looking down), max,
+     out [min, max] (how far a card stands out of the surface: 0 flat on it, 1 at 45 degrees), densUp (a m2 on faces
+     looking up, if given) */
+  function scatter(B, V, o) {
+    const R = mkRand(o.seed), v0 = (3 - o.row) * 0.25;
+    let acc = R(), n = 0;
+    for (let t = 0; t + 20 < V.length && n < o.max; t += 21) {
+      const ax = V[t + 7] - V[t], ay = V[t + 8] - V[t + 1], az = V[t + 9] - V[t + 2], bx = V[t + 14] - V[t], by = V[t + 15] - V[t + 1], bz = V[t + 16] - V[t + 2];
+      const A = Math.hypot(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx) / 2;
+      if (A < 1e-6) continue;
+      acc += A * (o.densUp != null && Math.abs(az * bx - ax * bz) / (2 * A) > 0.75 ? o.densUp : o.dens);   // flat tops: densUp
+      while (acc >= 1 && n < o.max) {
+        acc -= 1;
+        let a = R(), b = R(); if (a + b > 1) { a = 1 - a; b = 1 - b; }
+        const tile = Math.floor(R() * 4) & 3, flip = R() < 0.5, sz = o.size[0] + (o.size[1] - o.size[0]) * R(), spin = R() * 6.283, k = 0.82 + R() * 0.36, keep = R(), lift = R();
+        const w0 = 1 - a - b, P = [0, 1, 2].map(i => V[t + i] * w0 + V[t + 7 + i] * a + V[t + 14 + i] * b);
+        const nn = norm([0, 1, 2].map(i => V[t + 3 + i] * w0 + V[t + 10 + i] * a + V[t + 17 + i] * b));
+        if (nn[1] < -0.35 && keep > o.under) continue;
+        const sh = V[t + 6] * w0 + V[t + 13] * a + V[t + 20] * b;
+        const ref = Math.abs(nn[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], e1 = norm(cross(ref, nn)), e2 = cross(nn, e1);
+        const cs = Math.cos(spin), sn = Math.sin(spin), tg = [e1[0] * cs + e2[0] * sn, e1[1] * cs + e2[1] * sn, e1[2] * cs + e2[2] * sn];
+        const out = o.out[0] + lift * (o.out[1] - o.out[0]);   // how far the spray stands out of the surface
+        const d = norm([nn[0] * out + tg[0], nn[1] * out + tg[1] + 0.12, nn[2] * out + tg[2]]);
+        const side = norm(cross(d, nn));
+        const base = [P[0] - nn[0] * 0.15 * sz - d[0] * 0.25 * sz, P[1] - nn[1] * 0.15 * sz - d[1] * 0.25 * sz, P[2] - nn[2] * 0.15 * sz - d[2] * 0.25 * sz];
+        const ln = norm([nn[0] * 0.85, nn[1] * 0.85 + 0.15, nn[2] * 0.85]), c = [o.tint[0] * k * sh, o.tint[1] * k * sh, o.tint[2] * k * sh];
+        const u0 = (tile & 3) * 0.25 + 0.004, i0 = B.v;
+        for (const [x, y] of [[-0.5, 0], [0.5, 0], [0.5, 1], [-0.5, 1]]) {
+          const fu = flip ? 0.5 - x : x + 0.5;
+          B.vert(base[0] + side[0] * x * sz + d[0] * y * sz, base[1] + side[1] * x * sz + d[1] * y * sz, base[2] + side[2] * x * sz + d[2] * y * sz,
+                 ln[0], ln[1], ln[2], u0 + fu * 0.242, v0 + 0.004 + y * 0.242, c[0], c[1], c[2], o.sway * y, o.ph, o.cell);
+        }
+        B.tri(i0, i0 + 1, i0 + 2); B.tri(i0, i0 + 2, i0 + 3);
+        n++;
+      }
+    }
+    return n;
+  }
+  const CARD_TINT = [1.9, 1.6, 2.1];   // the atlas' leaves are lighter than the clipped body's colour: the cards' share
+  const CLIP_GREEN = [0.23, 0.41, 0.14];
+  function clip(t, lod, parts, cards) {
+    const s = t.s, ball = s[0] === 0, R = mkRand(t.seed), cell = t.cell;
+    // every draw is made whatever the level, so near, mid and far are the same shrub
+    const F1 = field(R, 4, 2.0, 4.5), F2 = field(R, 7, 7, 17);
+    const sq = [1 + (R() - 0.5) * 0.1, 1 + (R() - 0.5) * 0.12, 1 + (R() - 0.5) * 0.1], lean = [(R() - 0.5) * 0.06, (R() - 0.5) * 0.06];
+    const yel = R(), kk = 0.88 + R() * 0.24, ph = R() * 6.283, seed2 = (t.seed ^ 0x5bd1e995) >>> 0;
+    const tint = [(CLIP_GREEN[0] + yel * 0.07) * kk, (CLIP_GREEN[1] + yel * 0.05) * kk, (CLIP_GREEN[2] + yel * 0.01) * kk];
+    const P = [], N = [];   // body corners (world) and their outward directions before the dents
+    let mesh, rmin, y0, hgt;
+    if (ball) {
+      const [x, y, zc, rx, ry, rz] = s.slice(1, 7);
+      rmin = Math.min(rx, ry, rz); y0 = zc - rz; hgt = 2 * rz;
+      const n = lod === 0 ? Math.max(3, Math.min(7, Math.round(Math.max(rx, ry, rz) * 11) + 1)) : lod === 1 ? 2 + (rmin > 0.45 ? 1 : 0) : 2;
+      const ax = []; for (let i = 0; i <= n; i++) ax.push(Math.tan((-1 + 2 * i / n) * Math.PI / 4));
+      mesh = cubeGrid([ax, ax, ax]);
+      for (const q of mesh.P) {
+        const d = norm(q);
+        P.push([x + d[0] * rx * sq[0] + lean[0] * (d[1] + 1) * rz, zc + d[1] * rz * sq[1], -y + d[2] * ry * sq[2] + lean[1] * (d[1] + 1) * rz]);
+        N.push(d);
+      }
+    } else {
+      const [x, y, z0, hx, hy, h, yaw] = s.slice(1, 8);
+      const H = [hx, h / 2, hy], rr = Math.min(0.22, 0.45 * Math.min(hx, hy, h / 2));
+      rmin = Math.min(hx, hy, h / 2); y0 = z0; hgt = h;
+      const nb = lod === 0 ? 2 : 1, step = [0.3, 0.9, 1e9][lod];
+      mesh = cubeGrid(H.map(v => axis(v, rr, nb, step)), [1, 0]);
+      const ca = Math.cos(yaw), sa = Math.sin(yaw);
+      for (const q of mesh.P) {
+        const inner = [0, 1, 2].map(i => Math.max(i === 1 ? -H[1] : -(H[i] - rr), Math.min(H[i] - rr, q[i])));   // rounded at the top and the sides, straight down to the soil
+        let dv = [q[0] - inner[0], q[1] - inner[1], q[2] - inner[2]], l = Math.hypot(dv[0], dv[1], dv[2]);
+        if (l < 1e-6) { dv = [0, 1, 0]; l = 1; }
+        const nl = [dv[0] / l, dv[1] / l, dv[2] / l];
+        const bottom = q[3][1] === 0;
+        const lx = inner[0] + nl[0] * rr, ly = bottom ? -H[1] - 0.03 : inner[1] + nl[1] * rr, lz = inner[2] + nl[2] * rr;
+        // local (length, up, width) -> world: length along (cos, 0, -sin), width along (sin, 0, cos) (a turn, not a mirror)
+        P.push([x + lx * ca + lz * sa, z0 + H[1] + ly, -y - lx * sa + lz * ca]);
+        N.push([nl[0] * ca + nl[2] * sa, nl[1], -nl[0] * sa + nl[2] * ca]);
+      }
+    }
+    const lump = Math.min(ball ? 0.045 : 0.028, 0.13 * rmin), bulge = Math.min(ball ? 0.06 : 0.035, 0.12 * rmin);   // the hedges are clipped flatter
+    for (let i = 0; i < P.length; i++) {   // the dents: the big masses at every level, the small ones near and mid
+      const p = P[i], d = N[i];
+      const fb = ball ? 1 : Math.max(0, Math.min(1, (p[1] - y0) / 0.25));
+      const dd = (bulge * F1(p[0], p[1], p[2]) + (lod < 2 ? lump * F2(p[0], p[1], p[2]) * (lod ? 0.6 : 1) : 0)) * fb;
+      p[0] += d[0] * dd; p[1] += d[1] * dd; p[2] += d[2] * dd;
+    }
+    const nrm = P.map(() => [0, 0, 0]), F = mesh.F;
+    for (let i = 0; i < F.length; i += 3) {
+      const a = P[F[i]], b = P[F[i + 1]], c = P[F[i + 2]];
+      const n = cross([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]]);
+      for (const k of [F[i], F[i + 1], F[i + 2]]) { nrm[k][0] += n[0]; nrm[k][1] += n[1]; nrm[k][2] += n[2]; }
+    }
+    const shade = (p, n) => (0.55 + 0.45 * Math.max(0, Math.min(1, (n[1] + 0.8) / 1.4))) * (0.72 + 0.28 * Math.max(0, Math.min(1, (p[1] - y0) / Math.max(0.3, hgt))));
+    const Bb = parts.clip || (parts.clip = new Buf()), i0 = Bb.v, SH = [];
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i], n = norm(nrm[i]), sh = shade(p, n) * (0.92 + 0.08 * Math.max(-1, Math.min(1, F2(p[0], p[1], p[2]))));
+      SH.push(sh); nrm[i] = n;
+      Bb.vert(p[0], p[1], p[2], n[0], n[1], n[2], 0, 0, tint[0] * sh, tint[1] * sh, tint[2] * sh, 0, 0, cell);
+    }
+    for (let i = 0; i < F.length; i += 3) Bb.tri(i0 + F[i], i0 + F[i + 1], i0 + F[i + 2]);
+    if (lod === 2) return;
+    const V = [];
+    for (let i = 0; i < F.length; i++) { const k = F[i], p = P[k], n = nrm[k]; V.push(p[0], p[1], p[2], n[0], n[1], n[2], SH[k]); }
+    const C = CARD_TINT, ct = [tint[0] * C[0], tint[1] * C[1], tint[2] * C[2]];
+    if (lod === 0) {
+      const sz = Math.min(0.24, Math.max(0.1, rmin * 0.9));   // clipped: small sprays lying close, a fringe at the outline
+      scatter(parts.leafN || (parts.leafN = new Buf()), V, { dens: 3.0 * cards / (sz * sz), size: [sz * 0.7, sz], tint: ct, row: 0, seed: seed2, cell, sway: 0.05, ph, under: 0.3, max: 700, out: [0.12, 0.42] });
+    } else {
+      const sz = Math.min(0.7, Math.max(0.25, rmin * 2.2));
+      scatter(parts.leafF || (parts.leafF = new Buf()), V, { dens: 1.4 * cards / (sz * sz), size: [sz * 0.8, sz], tint: ct, row: 0, seed: seed2, cell, sway: 0.04, ph, under: 0, max: 60, out: [0.1, 0.3] });
+    }
+  }
+
   const PALM = { palm: canary, washi, take };
 
   function run(job) {
     const parts = {}, transfer = [];
     for (const t of job.trees) {
-      if (PALM[t.sp]) PALM[t.sp](t, job.lod, parts); else tree(t, job.lod, parts, job.cards, job.farScale);
+      if (t.sp === "clip") clip(t, job.lod, parts, job.cards);
+      else if (PALM[t.sp]) PALM[t.sp](t, job.lod, parts); else tree(t, job.lod, parts, job.cards, job.farScale);
     }
     const out = {};
     for (const [k, b] of Object.entries(parts)) { const o = b.out(transfer); if (o) out[k] = o; }
     return { id: job.id, parts: out, transfer };
   }
-  return { run, skeleton, SP };
+  return { run, skeleton, SP, scatter, Buf, CARD_TINT, CLIP_GREEN };
 }
 
 /* ---------- the page side ---------- */
@@ -747,6 +903,29 @@ vec4 barkTex(sampler2D s, vec2 uv) {
 }
 `;
 
+// the clipped shrubs' body (phase 4): leaf masses, dark gaps and light tips over the vertex colour, a bump from the same
+// noise (the page's makeHedge for the planting beds, in world space so the pattern runs on across the shrubs)
+const CLIP_GLSL = `
+varying vec3 vClipP;
+float hh(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+float vn(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
+  return mix(mix(mix(hh(i),hh(i+vec3(1,0,0)),f.x),mix(hh(i+vec3(0,1,0)),hh(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(hh(i+vec3(0,0,1)),hh(i+vec3(1,0,1)),f.x),mix(hh(i+vec3(0,1,1)),hh(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float clump(vec3 p){return vn(p*3.4)*.6+vn(p*7.)*.4;}
+float leafH(vec3 p){ float c=clump(p), m=vn(p*18.), r=abs(vn(p*52.)*2.-1.); return c*.5+m*.32+(1.-r)*.18; }
+`;
+const CLIP_COLOR = `#include <color_fragment>
+{ vec3 p = vClipP; float c = clump(p), m = vn(p * 18.), f = vn(p * 52.), h = leafH(p);
+  vec3 k = vec3(mix(.6, 1.1, smoothstep(.22, .62, c * .6 + m * .4)));
+  k = mix(k, vec3(1.7, 1.55, 1.25), smoothstep(.62, .92, m * .55 + f * .45) * .5);
+  k *= mix(1., .22, smoothstep(.36, .12, h) * .85);
+  diffuseColor.rgb *= k; }`;
+const CLIP_BUMP = `#include <normal_fragment_maps>
+{ vec3 p = vClipP; float e = .012, h0 = leafH(p);
+  vec3 g = vec3(leafH(p + vec3(e,0,0)) - h0, leafH(p + vec3(0,e,0)) - h0, leafH(p + vec3(0,0,e)) - h0) / e;
+  vec3 gv = (viewMatrix * vec4(g, 0.)).xyz;
+  normal = normalize(normal - .07 * (gv - dot(gv, normal) * normal)); }`;
+
 function init(ctx) {
   const T = ctx.T, Q = pickQuality(), q = QUALITY[Q.name];
   ctx.eyeU = ctx.eyeU || { value: new T.Vector3() };
@@ -763,12 +942,17 @@ function init(ctx) {
       if (o.transl) sh.uniforms.uTransl = { value: o.transl };
       sh.vertexShader = sh.vertexShader
         .replace("#include <common>", "#include <common>\n" + WIND_GLSL + (o.hide ? hideGLSL(o.hide.length / 4) : "") +
-                 (o.grass ? "uniform vec3 uEye;\nuniform float uGrassR;\n" : ""))
+                 (o.grass ? "uniform vec3 uEye;\nuniform float uGrassR;\n" : "") + (o.clip ? "varying vec3 vClipP;\n" : ""))
         .replace("#include <begin_vertex>", "#include <begin_vertex>\n" +
                  (o.grass ? "{ float dc = distance(transformed.xz, uEye.xz); float k = 1.0 - smoothstep(uGrassR * 0.65, uGrassR, dc);\n" +
                             "  transformed.y -= aSway.x * aSway.y * (1.0 - k); transformed += plantWind(transformed, aSway.x * aSway.x * k, 0.0, 0.045, 0.012); }\n"
                           : `transformed += plantWind(transformed, aSway.x, aSway.y, ${o.amp.toFixed(3)}, ${o.flut.toFixed(3)});\n`))
-        .replace("#include <project_vertex>", "#include <project_vertex>\n" + (o.hide ? "if (plantHidden(aCell) > 0.5) gl_Position = vec4(0.0, 0.0, -2.0, 1.0);\n" : ""));
+        .replace("#include <project_vertex>", "#include <project_vertex>\n" + (o.clip ? "vClipP = (modelMatrix * vec4(transformed, 1.0)).xyz;\n" : "") +
+                 (o.hide ? "if (plantHidden(aCell) > 0.5) gl_Position = vec4(0.0, 0.0, -2.0, 1.0);\n" : ""));
+      if (o.clip) {
+        sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\n" + CLIP_GLSL)
+          .replace("#include <color_fragment>", CLIP_COLOR).replace("#include <normal_fragment_maps>", CLIP_BUMP);
+      }
       if (o.grass) { sh.uniforms.uEye = ctx.eyeU; sh.uniforms.uGrassR = { value: q.grass }; }
       if (o.bark) {
         sh.fragmentShader = sh.fragmentShader
@@ -790,7 +974,7 @@ function init(ctx) {
 #include <output_fragment>`);
       }
     };
-    mat.customProgramCacheKey = () => "plants2:" + JSON.stringify([o.hide ? o.hide.length : 0, !!o.leaf, !!o.grass, !!o.bark, o.amp, o.flut]);
+    mat.customProgramCacheKey = () => "plants2:" + JSON.stringify([o.hide ? o.hide.length : 0, !!o.leaf, !!o.grass, !!o.bark, !!o.clip, o.amp, o.flut]);
     return mat;
   };
   const T_ = {
@@ -803,6 +987,7 @@ function init(ctx) {
     palmBark: o => shaded(new T.MeshStandardMaterial({ map: T_.palm, normalMap: T_.palmN, roughness: 0.95, vertexColors: true }), { amp: 0.35, flut: 0, ...o }),   // = frond: the crown stays on the trunk
     leafN: o => shaded(new T.MeshStandardMaterial({ map: T_.leafN, alphaTest: 0.5, alphaToCoverage: true, side: T.DoubleSide, roughness: 0.82, vertexColors: true }), { amp: 0.16, flut: 0.03, leaf: true, transl: 0.55, ...o }),
     leafF: o => shaded(new T.MeshStandardMaterial({ map: T_.leafF, alphaTest: 0.45, alphaToCoverage: true, side: T.DoubleSide, roughness: 0.85, vertexColors: true }), { amp: 0.16, flut: 0.0, leaf: true, transl: 0.45, ...o }),
+    clip: o => shaded(new T.MeshStandardMaterial({ roughness: 0.9, vertexColors: true }), { amp: 0, flut: 0, clip: true, ...o }),   // the clipped shrubs' body
     frond: o => shaded(new T.MeshStandardMaterial({ map: T_.frond, alphaTest: 0.5, alphaToCoverage: true, side: T.DoubleSide, roughness: 0.75, vertexColors: true }), { amp: 0.35, flut: 0.04, leaf: true, transl: 0.6, ...o }),
   };
   const DEPTH = {};   // alpha-tested shadow casters for the cards
@@ -861,6 +1046,14 @@ function init(ctx) {
     kinds[sp] = (kinds[sp] || 0) + 1;
   }
 
+  // the models' clipped balls and boxes (specs: [kind, x, y, z, a, b, c, yaw], src/clip_specs.py); the seed takes the height
+  // too (the balls of a three-ball topiary stand on one spot)
+  const CS = ctx.clips || [];
+  for (const s of CS) {
+    trees.push({ x: s[1], y: s[2], g: s[3], h: Math.max(1, 2 * Math.max(s[4], s[5]), s[6]), s, seed: hashSeed(s[1] + s[3] * 7.31, s[2] - s[3] * 3.17), sp: "clip", i: -1 });
+    kinds.clip = (kinds.clip || 0) + 1;
+  }
+
   // cells (near), mid blocks, far blocks
   const cells = new Map(), mids = new Map(), blocks = new Map();
   const newBox = () => [1e9, 1e9, -1e9, -1e9];
@@ -904,7 +1097,7 @@ function init(ctx) {
     job.id = ++jobId; w.job = job; job.target.pending = true; job.sent = performance.now();
     const ci = cellOf[job.lod];
     const msg = { id: job.id, lod: job.lod, cards: q.cards, farScale: q.farScale,
-                  trees: job.target.trees.map(t => ({ x: t.x, y: t.y, g: t.g, h: t.h, seed: t.seed, sp: t.sp, lean: t.lean, cell: ci(t) })) };
+                  trees: job.target.trees.map(t => ({ x: t.x, y: t.y, g: t.g, h: t.h, seed: t.seed, sp: t.sp, lean: t.lean, s: t.s, cell: ci(t) })) };
     if (w.worker) w.worker.postMessage(msg);
     else setTimeout(() => done(w, gen.run(msg)), 0);
   };
@@ -991,6 +1184,72 @@ function init(ctx) {
   };
   const grassGroup = new T.Group(); grassGroup.name = "plants-grass"; group.add(grassGroup);
 
+  // leaf cards over the clipped shapes that stay in the models (phase 4): the planting beds the page lifts into shrub
+  // masses (shrubify, userData.hedge), the lathed mounds, the Mickey bed's bank and the strips of the hedge meshes. The
+  // same scatter() as the grown shrubs, dense on the sides and shoulders (the outline), sparse on the flat tops. The
+  // triangles are kept per tile of 30 m (again when those meshes change); a tile's cards are made when the viewer comes
+  // within the near range (x 1.5) and freed beyond x 2.
+  const CLIP_RE = /^(EN_hedge|PH_hedge|SE_hedge|TT_hedge|PB_pb_hedge|WZ_hedge|WZ_wbz_topiary)/;
+  const clipCardGroup = new T.Group(); clipCardGroup.name = "plants-clipcards"; group.add(clipCardGroup);
+  let clipSig = "", clipTiles = [];
+  const buildClipCards = () => {
+    const meshes = [];
+    ctx.root.traverse(o => { if (o.isMesh && (o.userData.hedge || CLIP_RE.test(o.name)) && shown(o)) meshes.push(o); });
+    const sig = meshes.map(m => m.uuid).sort().join();
+    if (sig === clipSig) return false;
+    clipSig = sig;
+    for (const t of clipTiles) if (t.mesh) { t.mesh.geometry.dispose(); clipCardGroup.remove(t.mesh); }
+    const tiles = new Map(), a = new T.Vector3(), nm = new T.Matrix3(), nv = new T.Vector3();
+    for (const m of meshes) {
+      m.updateMatrixWorld(true); nm.getNormalMatrix(m.matrixWorld);
+      const g = m.geometry, pos = g.attributes.position, nor = g.attributes.normal, ah = g.attributes.aH, idx = g.index;
+      const nt = idx ? idx.count / 3 : pos.count / 3, bright = /_bright/.test(m.name);
+      for (let t = 0; t < nt; t++) {
+        const V = [];
+        for (let k = 0; k < 3; k++) {
+          const i = idx ? idx.getX(t * 3 + k) : t * 3 + k;
+          a.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+          if (nor) nv.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize(); else nv.set(0, 1, 0);
+          V.push(a.x, a.y, a.z, nv.x, nv.y, nv.z, ah ? 0.45 + 0.55 * ah.getX(i) : 1);
+        }
+        // faces without normals (or with flipped ones): the face's own, turned up
+        const e1 = [V[7] - V[0], V[8] - V[1], V[9] - V[2]], e2 = [V[14] - V[0], V[15] - V[1], V[16] - V[2]];
+        let fn = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        const fl = Math.hypot(fn[0], fn[1], fn[2]); if (fl < 1e-8) continue;
+        fn = fn.map(v => v / fl);
+        if (fn[1] < -0.2) fn = fn.map(v => -v);
+        if (fn[1] < -0.2) continue;
+        for (let k = 0; k < 3; k++) if (!nor || V[k * 7 + 3] * fn[0] + V[k * 7 + 4] * fn[1] + V[k * 7 + 5] * fn[2] < 0.2) { V[k * 7 + 3] = fn[0]; V[k * 7 + 4] = fn[1]; V[k * 7 + 5] = fn[2]; }
+        const cx = (V[0] + V[7] + V[14]) / 3, cz = (V[2] + V[9] + V[16]) / 3;
+        const tk = Math.floor(cx / 30) + "," + Math.floor(cz / 30) + (bright ? ",b" : "");
+        let tl = tiles.get(tk); if (!tl) tiles.set(tk, tl = { V: [], bright, x: (Math.floor(cx / 30) + 0.5) * 30, z: (Math.floor(cz / 30) + 0.5) * 30, mesh: null });
+        for (const v of V) tl.V.push(v);
+      }
+    }
+    clipTiles = [...tiles.values()];
+    for (const t of clipTiles) t.V = new Float32Array(t.V);
+    stats.clipCardTiles = clipTiles.length;
+    return true;
+  };
+  const clipTileMesh = t => {
+    const C = gen.CARD_TINT, G = gen.CLIP_GREEN, br = t.bright ? [1.75, 1.55, 1.3] : [1, 1, 1];   // the Mickey bed's bank: lighter
+    const tint = [G[0] * C[0] * br[0], G[1] * C[1] * br[1], G[2] * C[2] * br[2]];
+    const B = new gen.Buf();
+    t.n = gen.scatter(B, t.V, { dens: 26 * q.cards, densUp: 5 * q.cards, size: [0.2, 0.32], tint, row: 0, seed: hashSeed(t.x, t.z), cell: 0, sway: 0.05, ph: 0, under: 0.2, max: 40000, out: [0.3, 0.9] });
+    const o = B.out([]); if (!o) return null;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(o.pos, 3));
+    geo.setAttribute("normal", new T.BufferAttribute(o.nrm, 3));
+    geo.setAttribute("uv", new T.BufferAttribute(o.uv, 2));
+    geo.setAttribute("color", new T.BufferAttribute(o.col, 3, true));
+    geo.setAttribute("aSway", new T.BufferAttribute(o.sway, 2));
+    geo.setIndex(new T.BufferAttribute(o.idx, 1));
+    geo.computeBoundingSphere();
+    const mesh = new T.Mesh(geo, matFor("leafN", null)); mesh.name = "plant-clipcards";
+    if (ctx.shadows) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.customDepthMaterial = depthFor("leafN"); }
+    return mesh;
+  };
+
   // every 250 ms: what each cell shows (near / mid / far), the jobs to send (nearest first), what to show and free
   let last = 0;
   const boxDist = (b, ex, ey, ez) => Math.hypot(Math.max(b[0] - ex, 0, ex - b[2]), Math.max(b[1] - ey, 0, ey - b[3]), ez);
@@ -1032,7 +1291,17 @@ function init(ctx) {
     if (now - (tick.gl || 0) > 3000) {
       tick.gl = now;
       try { if (buildGrass()) changed = true; } catch (err) { console.warn("grass:", err); tick.gl = 1e12; }
+      try { if (buildClipCards()) changed = true; } catch (err) { console.warn("clip cards:", err); }
     }
+    let made = 0, cardsNow = 0;   // the cards on the models' clipped shapes: made near (two tiles a tick), freed far
+    for (const t of clipTiles) {
+      const d = Math.hypot(t.x - e.x, t.z - e.z) - 21;
+      if (!t.mesh && d < q.near * 1.5 && made < 2) { t.mesh = clipTileMesh(t) || false; made++; if (t.mesh) { clipCardGroup.add(t.mesh); changed = true; } }
+      else if (t.mesh && d > q.near * 2) { t.mesh.geometry.dispose(); clipCardGroup.remove(t.mesh); t.mesh = null; changed = true; }
+      else if (t.mesh === false && d > q.near * 2) t.mesh = null;
+      if (t.mesh) cardsNow += t.n;
+    }
+    stats.clipCards = cardsNow;
     for (const m of grassGroup.children) {   // tiles beyond the blades' reach: not drawn at all
       const c = m.userData.c, vis = Math.hypot(c.x - e.x, c.z - e.z) - m.userData.r < q.grass;
       if (m.visible !== vis) { m.visible = vis; changed = true; }
@@ -1046,13 +1315,14 @@ function init(ctx) {
     oldHidden,             // data indices of the stand-ins already replaced (buildTrees applies them if it runs late)
     tick,
     treeList: () => trees.map(t => [t.x, t.y, t.sp, t.h]),   // for checks (perf / screenshots by kind)
+    clipTiles: () => clipTiles.map(t => [Math.round(t.x), Math.round(-t.z), t.V.length / 21, t.mesh ? t.n : t.mesh === false ? -1 : null]),   // for checks
     stats: () => {
       let tris = 0, meshes = 0;
       group.traverse(o => { if (o.isMesh && o.visible) { let p = o.parent, v = true; while (p) { if (!p.visible) v = false; p = p.parent; } if (v) { meshes++; tris += o.geometry.index.count / 3; } } });
       const lv = [0, 0, 0]; for (const c of cells.values()) lv[c.s]++;
       return { quality: Q.name, trees: trees.length, kinds, cells: cells.size, mids: mids.size, blocks: blocks.size, workers: pool.filter(w => w.worker).length,
                jobs: stats.jobs, farDone: stats.farDone, allFarMs: Math.round(stats.ms), genMs: Math.round(stats.genMs), cellsNearMidFar: lv,
-               meshes, tris, grassBlades: stats.grassBlades || 0, grassTiles: stats.grassTiles || 0 };
+               meshes, tris, grassBlades: stats.grassBlades || 0, grassTiles: stats.grassTiles || 0, clipCards: stats.clipCards || 0, clipCardTiles: stats.clipCardTiles || 0 };
     },
   };
 }
