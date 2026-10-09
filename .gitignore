@@ -7,6 +7,7 @@
 !/tools/
 !/vercel.json
 !/docs/
+!/fetch_kusatsu.py
 
 !/src/
 
@@ -23,6 +24,9 @@
 !/plateau_data/disneysea_plaza.json
 !/plateau_data/plaza_osm.json
 !/plateau_data/gsi_dem5a/
+# Kusatsu (Yubatake) diorama: OSM + GSI DEM grids (small), fetched by fetch_kusatsu.py
+!/plateau_data/kusatsu_osm.json
+!/plateau_data/kusatsu_dem.json
 # AquaSphere globe textures (from NOAA ETOPO by a one-off script, not regenerable yet)
 !/plateau_data/globe/
 # Beauty and the Beast castle textures (painted by ds_tdl_bb_castle.make_textures(), plain Python + PIL)
