@@ -124,14 +124,43 @@ def flat_roof(ring, eave):
 
 
 def build_buildings(field, mats, collections, log=print):
-    """区域ごとの MB を作って返す。 -> ({zone: obj}, index list)"""
-    mbs = {z: C.MB() for z in 'ABCD'}
+    """kd_terrain の入口。区域ごとに「本物(kd_parts の BuildingSpec)があればそれ、無ければ仮の箱」。
+    本物の一覧は kd_parts.zone_specs(zone)(kusatsu/kd_zone_<zone>.py の specs()、無ければ kd_parts_test の試作)。
+    -> ({zone: [objs]}, index list)"""
+    import kd_parts as KP
+    specs = {z: KP.zone_specs(z) for z in 'ABCD'}
+    skip = set()
+    for z in 'ABCD':
+        skip |= KP.replaced_ids(specs[z])
+    boxes, index = build_boxes(field, mats, collections, zones='ABCD', skip=skip, log=log)
+    out = {z: [o for o in [boxes.get(z)] if o is not None] for z in 'ABCD'}
+    pmats = None
+    for z in 'ABCD':
+        if not specs[z]:
+            continue
+        if pmats is None:
+            pmats = KP.get_materials()
+        objs, rep, infos, _ = KP.build_details(field, specs[z], pmats, collections[z], z, log=log)
+        out[z].extend(objs)
+    for b in index:
+        b['detail'] = False
+    for z in 'ABCD':
+        for sp in specs[z]:
+            index.append(dict(id=sp.id, name=sp.name, zone=z, detail=True))
+    return out, index
+
+
+def build_boxes(field, mats, collections, zones='ABCD', skip=(), log=print):
+    """仮の箱(区域ごとの MB)を作って返す。skip の id は作らない。 -> ({zone: obj}, index list)"""
+    mbs = {z: C.MB() for z in zones}
     index = []
     rs = np.random.RandomState(7)
     wc = [C.srgb(h) for h in WALL_COLS]
     rc = [C.srgb(h) for h in ROOF_COLS]
     fc = C.srgb(FOUND_COL)
     for b in field.blds:
+        if b['zone'] not in mbs or b['id'] in skip:
+            continue
         ring = b['ring']
         r = rules_for(b)
         pad = b['pad'] - C.ZBASE

@@ -405,11 +405,12 @@ def main():
         sizes['terrain.glb'] = C.export_glb(objs_t, p, pos_bits=16)
         tris['terrain.glb'] = C.count_tris(objs_t)
         for z, o in bobjs.items():
-            if o is None:
+            ol = [x for x in (o if isinstance(o, list) else [o]) if x is not None]   # 仮の箱+本物(kd_parts)
+            if not ol:
                 continue
             nm = 'buildings_%s.glb' % z
-            sizes[nm] = C.export_glb([o], os.path.join(out_web, nm), pos_bits=14)
-            tris[nm] = C.count_tris([o])
+            sizes[nm] = C.export_glb(ol, os.path.join(out_web, nm), pos_bits=16 if len(ol) > 1 else 14)
+            tris[nm] = C.count_tris(ol)
         meta['glb_bytes'] = sizes
         meta['glb_tris'] = tris
         meta['total_tris'] = int(sum(tris.values()))
