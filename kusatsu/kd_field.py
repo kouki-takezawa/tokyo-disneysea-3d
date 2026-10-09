@@ -8,6 +8,7 @@ import math
 import numpy as np
 
 import kd_common as C
+import kd_yb_layout as YB
 
 # OSM highway -> (半幅 m, 面の種類)
 ROAD_CLASS = {
@@ -46,6 +47,7 @@ class Field:
         self.flights = []
         self.pond = None
         self.pads = []
+        self.yb = YB.Layout(osm)          # 湯畑(フェーズ3)の配置
         self.build_all()
 
     # ------------------------------------------------ 補助
@@ -120,64 +122,40 @@ class Field:
 
     # ------------------------------------------------ 池(湯畑)
     def build_pond(self):
+        """光泉寺の小池など(湯畑以外の池)。湯畑の池・滝壺は build_yubatake と kd_yubatake.py。"""
         osm = self.osm
         ponds = C.osm_ways(osm, lambda t: t.get('natural') == 'water' and t.get('water') == 'pond')
         ends = [(i, np.array(p[:-1] if p[0] == p[-1] else p)) for i, t, p in ponds]
-        # 湯畑本体 = 原点付近の2つの端のポリゴン。残りは光泉寺の小さな池。
-        yub = [e for e in ends if np.hypot(*e[1].mean(axis=0)) < 60]
         other = [(i, p) for i, p in ends if np.hypot(*p.mean(axis=0)) >= 60]
-        a, b = yub[0][1], yub[1][1]
-        if a.mean(axis=0)[1] > b.mean(axis=0)[1]:
-            a, b = b, a                                    # a = 南西の端、b = 北東の端
-        ca, cb = a.mean(axis=0), b.mean(axis=0)
-        ra = float(np.hypot(*(a - ca).T).mean() * 1.05)
-        rb = float(np.hypot(*(b - cb).T).mean() * 1.05)
-        neck = 4.2
-        L = float(np.hypot(*(cb - ca)))
-        u = (cb - ca) / L
-        nvec = np.array([-u[1], u[0]])
-        # 瓢箪形の外形: 軸に沿った半幅 r(s) = max(球1, 球2, 首)
-        ss = np.linspace(0, L + ra + rb, 240)
-        # 軸上の位置 s' は ca から測る: -ra .. L+rb
-        s = np.linspace(-ra, L + rb, 220)
-        r = np.maximum(np.sqrt(np.maximum(ra ** 2 - s ** 2, 0)), np.sqrt(np.maximum(rb ** 2 - (s - L) ** 2, 0)))
-        r = np.maximum(r, np.where((s > 0) & (s < L), neck, 0.0))
-        r[0] = r[-1] = 0
-        left = [ca + u * si + nvec * ri for si, ri in zip(s, r)]
-        right = [ca + u * si - nvec * ri for si, ri in zip(s, r)][::-1]
-        outline = [tuple(p) for p in left + right]
-        # 重複点(両端 r=0)を除く
-        outline = C.clean_ring(outline)
-        self.pond = dict(ca=ca, cb=cb, ra=ra, rb=rb, neck=neck, outline=C.ccw(outline), others=[])
-        # 周囲の標高(池の縁の外 1〜4 m)を平均して縁の高さに
+        self.pond = dict(others=[])
         X, Y = self.X, self.Y
-
-        def sd(px, py):
-            d1 = np.hypot(px - ca[0], py - ca[1]) - ra
-            d2 = np.hypot(px - cb[0], py - cb[1]) - rb
-            t = np.clip(((px - ca[0]) * u[0] + (py - ca[1]) * u[1]), 0, L)
-            d3 = np.hypot(px - (ca[0] + u[0] * t), py - (ca[1] + u[1] * t)) - neck
-            return np.minimum(np.minimum(d1, d2), d3)
-        D = sd(X, Y)
-        ring = (D > 1.0) & (D < 5.0)
-        z_rim = float(np.median(self.E[ring]))
-        self.pond.update(z_rim=z_rim, z_water=z_rim - 0.45, z_floor=z_rim - 1.1)
-        floor = D < 0.0
-        shoulder = (D >= 0.0) & (D < 3.0)
-        fade = 1.0 - C.smoothstep((D - 3.0) / 3.0)
-        E = self.E
-        E = np.where(floor, z_rim - 1.1, E)
-        E = np.where(shoulder, z_rim, E)
-        E = np.where((D >= 3.0) & (D < 6.0), E * (1 - fade) + z_rim * fade, E)
-        self.E = E
-        self.pond_sd = D
-        # 光泉寺の池など
         for i, p in other:
             pz = float(np.median(self.bil(p[:, 0], p[:, 1])))
             self.pond['others'].append(dict(id=i, ring=C.ccw([tuple(q) for q in p]), z_water=pz - 0.25, z_floor=pz - 0.8))
             m = C.points_in_poly(X, Y, [tuple(q) for q in p])
             self.E = np.where(m, pz - 0.8, self.E)
-        self.log('  pond: axis len %.1f m, ra %.1f rb %.1f, rim z %.2f (water %.2f)' % (L, ra, rb, z_rim, z_rim - 0.45))
+
+    def build_yubatake(self):
+        """湯畑: 石柵の内側と柵の外 3.5 m を周回路の高さ(DEM に当てはめた平面 YB.rim)にし、外へ 4.5 m でなだらかに戻す。
+        穴の中(湯畑の床・滝壺)は地形を描かない(kd_terrain.build_terrain)ので、ここでは周回路の高さで埋めておく。"""
+        L = self.yb
+        X, Y = self.X, self.Y
+        m = (np.abs(X) < 70) & (np.abs(Y) < 75)
+        x, y = X[m], Y[m]
+        hole = L.in_hole(x, y)
+        low = L.low_side(x, y)
+        d_enc = YB.seg_nearest(x, y, L.enc_line)[0]
+        target = YB.rim(x, y) + C.ZBASE
+        w = np.where(hole, np.where(low, 0.0, 1.0), 1.0 - C.smoothstep((d_enc - 3.5) / 4.5))
+        E = self.E.copy()
+        E[m] = E[m] * (1 - w) + target * w
+        self.E = E
+        sd = np.full(self.E.shape, 99.0)
+        sd[m] = np.where(hole, -1.0, 99.0)
+        self.pond_sd = sd
+        self.log('  yubatake: hole %.0f m2, rim z %.2f..%.2f, roads skipped inside the loop: %d' % (
+            C.poly_area(L.hole), float(YB.rim(*np.array(L.enc_line).T).min()), float(YB.rim(*np.array(L.enc_line).T).max()),
+            len(self.yb_skipped_ways)))
 
     # ------------------------------------------------ 道
     def build_roads(self):
@@ -186,7 +164,17 @@ class Field:
                           and t.get('layer', '0') not in ('-1',) and t.get('tunnel') != 'building_passage')
         roads = []
         sx, sy, sz, shw = [], [], [], []
+        # 湯畑の周回の車道の内側にある道(デッキ・周回路の小道)は湯畑側(kd_yubatake.py)で作るので外す
+        P_all = [np.array(p) for _, _, p in ways]
+        skip = set()
+        for (wid, t, pts), P in zip(ways, P_all):
+            ins = YB.inside(P[:, 0], P[:, 1], self.yb.loop) | (YB.seg_nearest(P[:, 0], P[:, 1], self.yb.loop, closed=True)[0] < 0.8)
+            if ins.all():
+                skip.add(wid)
+        self.yb_skipped_ways = sorted(skip)
         for wid, t, pts in ways:
+            if wid in skip:
+                continue
             hw, kind = ROAD_CLASS[t['highway']]
             if t.get('width'):
                 try:
@@ -240,7 +228,7 @@ class Field:
         ways = C.osm_ways(self.osm, lambda t: t.get('highway') == 'steps' and t.get('tunnel') != 'yes')
         generic = 0
         for wid, t, pts in ways:
-            if wid in HOSEN_WAYS:
+            if wid in HOSEN_WAYS or wid in YB.YB_STEPS:
                 continue
             if math.hypot(*pts[0]) > 215 and math.hypot(*pts[-1]) > 215:
                 continue
@@ -280,6 +268,7 @@ class Field:
         dist = np.full((n, n), 99, dtype=np.int32)
         self.pad_of = {}
         masks = []
+        blds = [b for b in blds if b['id'] not in YB.YB_BUILDINGS]
         for b in blds:
             m = C.points_in_poly(self.X, self.Y, b['ring'])
             if not m.any():
@@ -320,6 +309,7 @@ class Field:
                  *self._minmax(self.E0)))
         self.build_roads()
         self.build_pond()
+        self.build_yubatake()
         self.build_pads()
         sx, sy, sz, shw = self.road_samples
         # 敷地のなだらかな縁が路面に食い込まないよう、路面の芯をもう一度平らにする

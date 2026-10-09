@@ -1,4 +1,4 @@
-// 草津温泉 湯畑ジオラマ ビューア(フェーズ2)。three r170 をローカル配置。
+// 草津温泉 湯畑ジオラマ ビューア(フェーズ2〜3)。three r170 をローカル配置。
 // 座標: three の x=東、y=標高-1153、z=-北(Blender の x, z, -y)。
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -54,7 +54,7 @@ if (Q.shadow) {
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.minDistance = 12;
+controls.minDistance = 4;
 controls.maxDistance = 750;
 controls.minPolarAngle = 0.05;
 controls.maxPolarAngle = Math.PI * 0.5 + 0.05;
@@ -72,7 +72,9 @@ function clampTarget() {
 // 視点: 位置 pos、注視点 tgt(three 座標)
 const VIEWS = {
   all:      { pos: [300, 250, 400],  tgt: [0, -4, 0] },
-  yubatake: { pos: [34, 52, 66],     tgt: [0, 0, -2] },
+  yubatake: { pos: [26, 66, 40],     tgt: [1, -1, -5] },
+  yutaki:   { pos: [9, 3.5, -41],    tgt: [12, -2.5, -22] },   // 北の湯滝と見学デッキ(R 0:03 の向き)
+  yutoi:    { pos: [-15, 7, 40],     tgt: [2, -0.5, -4] },     // 湯樋の列を南から(K 8:39 の向き)
   stairs:   { pos: [-8, 27, 54],     tgt: [-76, 12, 96] },
   nishi:    { pos: [-30, 30, -20],   tgt: [-100, 6, -60] },
 };
@@ -99,7 +101,7 @@ renderer.domElement.addEventListener('wheel', () => { tween = null; }, { passive
 // ---- 読み込み
 const draco = new DRACOLoader().setDecoderPath('./lib/draco/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const FILES = ['terrain.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb'];
+const FILES = ['terrain.glb', 'yubatake.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb'];
 const world = new THREE.Group();
 scene.add(world);
 const loaded = {};
@@ -108,16 +110,18 @@ function prep(root, name) {
   root.traverse((o) => {
     if (!o.isMesh) return;
     const m = o.material;
-    o.castShadow = Q.shadow > 0 && !/Roads|Water/.test(o.name);
+    o.castShadow = Q.shadow > 0 && !/Roads|Water|Yb_Pave|Yb_Bed/.test(o.name);
     o.receiveShadow = Q.shadow > 0;
     if (/^Roads|^Stairs/.test(o.name)) { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; }
+    if (/^Yb_Pave/.test(o.name)) { m.polygonOffset = true; m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -3; }   // 湯畑の周回路(地形に重ねる)
+    if (/^Yb_Flow|^Yb_Splash/.test(o.name)) { m.roughness = 0.35; o.castShadow = false; }
     if (/^Water/.test(o.name)) { m.roughness = 0.12; m.metalness = 0.0; m.envMapIntensity = 1; o.castShadow = false; }
     if (m.vertexColors === undefined) m.vertexColors = true;
   });
 }
 const progress = () => { $('#msg').textContent = `読み込み中… ${done}/${FILES.length}`; };
 progress();
-await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '2')).then((g) => {
+await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '3')).then((g) => {
   prep(g.scene, f); world.add(g.scene); loaded[f] = g.scene; done++; progress();
 }).catch((e) => { console.error('load fail', f, e); done++; progress(); })));
 

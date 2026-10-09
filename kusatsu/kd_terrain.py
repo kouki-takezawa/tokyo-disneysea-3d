@@ -63,6 +63,11 @@ def build_terrain(field, step, mats, coll):
     cc = (xs[:-1] + step / 2)
     CX, CY = np.meshgrid(cc, cc)
     inc = np.hypot(CX, CY) < R
+    # 湯畑の穴(石柵の内側・滝壺)は地形を描かない。縁から 1.5 m 外までの升目も抜き、湯畑側の周回路の舗装で覆う。
+    near = (np.abs(CX) < 60) & (np.abs(CY) < 70)
+    hole = np.zeros_like(inc)
+    hole[near] = field.yb.in_hole(CX[near], CY[near], dilate=1.5)
+    inc = inc & ~hole
     used = np.zeros((n, n), bool)
     used[:-1, :-1] |= inc; used[1:, :-1] |= inc; used[:-1, 1:] |= inc; used[1:, 1:] |= inc
     vid = -np.ones((n, n), int)
@@ -94,6 +99,7 @@ def build_terrain(field, step, mats, coll):
     for e, c in cnt.items():
         if c == 1:
             rim.update(e)
+    rim = [k for k in rim if math.hypot(verts[k][0], verts[k][1]) > R - 3.0]     # 湯畑の穴の縁は除く
     rim = sorted(rim, key=lambda k: math.atan2(verts[k][1], verts[k][0]))
     ring = verts[rim]
     return obj, ring, len(faces)
@@ -235,10 +241,7 @@ def build_water(field, mats, coll):
         idx = geometry.tessellate_polygon([pts])
         v = [tuple(q) for q in pts]
         return v, [tuple(t) for t in idx]
-    v, f = tessellate(p['outline'], p['z_water'] - ZB)
-    # 面の向きを上にそろえる
-    f = [t if np.cross(np.subtract(v[t[1]], v[t[0]]), np.subtract(v[t[2]], v[t[0]]))[2] > 0 else (t[0], t[2], t[1]) for t in f]
-    objs.append(C.make_object('Water_Yubatake', v, f, None, 'face', mats['water'], False, coll))
+    # 湯畑の池・滝壺の水は kd_yubatake.py(yubatake.glb)で作る
     for k, o in enumerate(p['others']):
         v, f = tessellate(o['ring'], o['z_water'] - ZB)
         f = [t if np.cross(np.subtract(v[t[1]], v[t[0]]), np.subtract(v[t[2]], v[t[0]]))[2] > 0 else (t[0], t[2], t[1]) for t in f]
@@ -388,10 +391,9 @@ def main():
         dem_min_max_r200=[round(float(field.E0[np.hypot(field.X, field.Y) <= R].min()), 2), round(float(field.E0[np.hypot(field.X, field.Y) <= R].max()), 2)],
         dem_min_max_all=[round(float(dem_all.min()), 2), round(float(dem_all.max()), 2)],
         field_min_max_r200=[round(float(field.E[np.hypot(field.X, field.Y) <= R].min()), 2), round(float(field.E[np.hypot(field.X, field.Y) <= R].max()), 2)],
-        pond=dict(ca=[round(float(v), 2) for v in field.pond['ca']], cb=[round(float(v), 2) for v in field.pond['cb']],
-                  ra=round(field.pond['ra'], 2), rb=round(field.pond['rb'], 2), neck_halfwidth=field.pond['neck'],
-                  z_rim_elev=round(field.pond['z_rim'], 2), z_water_elev=round(field.pond['z_water'], 2), z_floor_elev=round(field.pond['z_floor'], 2),
-                  outline=[[round(p[0], 2), round(p[1], 2)] for p in field.pond['outline']]),
+        yubatake=dict(rim_plane=[F.YB.RIM_C, F.YB.RIM_GX, F.YB.RIM_GY], hole_area_m2=round(C.poly_area(field.yb.hole), 1),
+                      skipped_ways=field.yb_skipped_ways,
+                      hole=[[round(p[0], 2), round(p[1], 2)] for p in field.yb.hole]),
         flights=[{k: (list(v) if isinstance(v, tuple) else v) for k, v in f.items() if k not in ('pts',)} for f in field.flights],
         terrain_tris=ntri,
     )
