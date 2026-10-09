@@ -1,0 +1,50 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>草津 フェーズ1 モック</title>
+<style>
+:root{--bg:#f4f1ea;--fg:#222;--pn:#fff;--bd:#d8d2c4}
+@media(prefers-color-scheme:dark){:root{--bg:#1d1f21;--fg:#e8e6e1;--pn:#2a2d30;--bd:#44484c}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif;display:flex;flex-direction:column;height:100vh}
+header{padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--bd)}
+h1{font-size:16px;margin:0}label{cursor:pointer}
+main{flex:1;display:flex;min-height:0}
+svg{flex:1;touch-action:none;cursor:grab;min-width:0}
+aside{width:300px;padding:12px 16px;border-left:1px solid var(--bd);background:var(--pn);overflow:auto}
+@media(max-width:700px){main{flex-direction:column}aside{width:auto;max-height:35vh;border-left:0;border-top:1px solid var(--bd)}}
+.sw{display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:-1px;border:1px solid #0006}
+path.b{stroke:#0008;stroke-width:.4}path.b:hover{stroke:#000;stroke-width:1.5}
+</style></head><body>
+<header><h1>草津 湯畑 フェーズ1 モック</h1>
+<span><span class="sw" style="background:#e4572e"></span>A 南・東 <span class="sw" style="background:#2e86de"></span>B 西・南西 <span class="sw" style="background:#27ae60"></span>C 西の河原通り <span class="sw" style="background:#a55eea"></span>D 光泉寺</span>
+<span>濃い=確定(高/中)、薄い=低、灰=動画で未確認</span>
+<label><input type="checkbox" id="onlyc"> 確定のみ</label></header>
+<main><svg id="s"></svg><aside id="info"><b>建物をクリック</b><br>ドラッグで移動、ホイール/ピンチで拡大。丸=外形に対応づけられなかった地物(石段・小堂など)。上が北、点線は半径200 m。</aside></main>
+<script>
+const D=__DATA__,C={A:'#e4572e',B:'#2e86de',C:'#27ae60',D:'#a55eea'};
+const s=document.getElementById('s'),info=document.getElementById('info'),NS='http://www.w3.org/2000/svg';
+const g=document.createElementNS(NS,'g');s.appendChild(g);
+const P=(pts)=>'M'+pts.map(p=>p[0]+','+(-p[1])).join('L')+'Z';
+function add(tag,at){const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);g.appendChild(e);return e}
+add('circle',{cx:0,cy:0,r:200,fill:'none',stroke:'#888','stroke-dasharray':'4 4','stroke-width':.6});
+D.water.forEach(w=>add('path',{d:P(w),fill:'#8fd3e8',stroke:'none'}));
+D.roads.forEach(([pts,h])=>add('path',{d:'M'+pts.map(p=>p[0]+','+(-p[1])).join('L'),fill:'none',stroke:/footway|path|steps|pedestrian/.test(h)?'#b9ad98':'#9a9488','stroke-width':/footway|path|steps/.test(h)?.8:3,opacity:.7}));
+const sure=c=>c==='高'||c==='中';
+const bs=D.blds.map(b=>{const e=add('path',{d:P(b.p),class:'b',fill:b.cf?C[b.z]:'#aaa','fill-opacity':sure(b.cf)?.9:b.cf?.4:.35});
+ e.onclick=ev=>{ev.stopPropagation();show(b.n||'(無名)',b.z,b.cf,[b.lv?'OSM階数 '+b.lv:'',b.note||'動画で未確認(OSMのみ)',b.card?'カード: '+b.card+'.md':'','OSM way '+b.id])};e._b=b;return e});
+D.pins.forEach(p=>{const e=add('circle',{cx:p.x,cy:-p.y,r:3.2,fill:C[p.z],stroke:'#000','stroke-width':.5,'fill-opacity':sure(p.cf)?.95:.35});
+ e.onclick=ev=>{ev.stopPropagation();show(p.n,p.z,p.cf,[p.note,p.card?'カード: '+p.card+'.md':''])}});
+function show(n,z,cf,l){info.innerHTML='<b>'+n+'</b> <span class="sw" style="background:'+C[z]+'"></span>区域'+z+(cf?' / 確度 '+cf:'')+l.filter(Boolean).map(t=>'<p style="margin:6px 0">'+t+'</p>').join('')}
+document.getElementById('onlyc').onchange=e=>{bs.forEach(x=>x.style.display=e.target.checked&&!sure(x._b.cf)?'none':'')};
+const R0=s.getBoundingClientRect(),W0=460*Math.max(1,R0.width/R0.height);let v={x:-W0/2,y:-230,w:W0};
+function ap(){const r=s.getBoundingClientRect(),h=v.w*r.height/r.width;s.setAttribute('viewBox',v.x+' '+(v.y-(h-v.w)/2)+' '+v.w+' '+h)}
+ap();addEventListener('resize',ap);
+const pt=new Map();
+s.onpointerdown=e=>{s.setPointerCapture(e.pointerId);pt.set(e.pointerId,[e.clientX,e.clientY])};
+s.onpointerup=s.onpointercancel=e=>pt.delete(e.pointerId);
+s.onpointermove=e=>{if(!pt.has(e.pointerId))return;const o=pt.get(e.pointerId),r=s.getBoundingClientRect(),k=v.w/r.width;
+ if(pt.size===1){v.x-=(e.clientX-o[0])*k;v.y-=(e.clientY-o[1])*k;ap()}
+ else{const q=[...pt.entries()].find(([i])=>i!==e.pointerId)[1],d0=Math.hypot(o[0]-q[0],o[1]-q[1]),d1=Math.hypot(e.clientX-q[0],e.clientY-q[1]);zoom(d0/d1,e.clientX,e.clientY)}
+ pt.set(e.pointerId,[e.clientX,e.clientY])};
+function zoom(f,cx,cy){const r=s.getBoundingClientRect(),k=v.w/r.width,h=v.w*r.height/r.width,ox=v.x+(cx-r.left)*k,oy=v.y-(h-v.w)/2+(cy-r.top)*k;
+ const nw=Math.max(40,Math.min(900,v.w*f)),nk=nw/r.width,nh=nw*r.height/r.width;v.x=ox-(cx-r.left)*nk;v.y=oy-(cy-r.top)*nk+(nh-nw)/2;v.w=nw;ap()}
+s.onwheel=e=>{e.preventDefault();zoom(e.deltaY>0?1.15:.87,e.clientX,e.clientY)};
+</script></body></html>

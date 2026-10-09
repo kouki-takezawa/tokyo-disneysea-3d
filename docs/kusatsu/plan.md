@@ -65,3 +65,7 @@
   - `inventory.md`(建物棚卸し。階数・屋根・外壁の多くは「要確認」)、`sources.md`(記事・動画の出典)、`refs/index.md`(場所ごとの動画時刻索引)。
   - 動画5本(歩き・通常動画、Shorts でないことを確認)を `reference/kusatsu/`(gitignore、約2.6 GB)に保存、3秒ごとのフレームと一覧シート(`tools/kusatsu_frames.py extract/sheet/overview/sheets`)を作成。
   - 申し送り: 建物ごとの正面フレームの選定と階数・屋根形の確定がフェーズ3の前に必要。湯畑の見せ場(木樋・湯滝・見学デッキ・石畳・柵)の写真はフェーズ2用に十分ある。夜景は作らない。
+- フェーズ1 建物の確定: 済(2026-10-10)
+  - 区域A〜Dごとに Sonnet のサブエージェントを並列で動かし、カード40枚+区域まとめ4枚(`docs/kusatsu/cards/`)。確定は約37件、残り約150棟は OSM のみ。発見と重複の扱いは `inventory.md` の第8節。
+  - 確認用モック `output/kusatsu/phase1_mock.html`(`tools/kusatsu_phase1_mock.py`)。
+  - ユーザー指示(2026-10-10): **フェーズ8まで実装しておく**(続けて進める)。
