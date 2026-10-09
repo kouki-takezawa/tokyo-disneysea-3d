@@ -2723,18 +2723,21 @@ def run_zone(zone, specs=None, out_web=None, lod_cap=None, boxes=True, log=None)
                  buildings=infos, signs=signs, replaced=sorted(rep))
     os.makedirs(C.OUT_BLEND, exist_ok=True)
     json.dump(stats, open(os.path.join(C.OUT_BLEND, 'parts_%s.json' % zone), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
-    _update_index(out_web, rep)
+    _update_index(out_web, rep, zone)
     log('exported buildings_%s.glb %d bytes, %d tris (detail %d, boxes %d)' % (zone, size, tris, stats['detail_tris'], len(bidx)))
     return stats
 
 
-def _update_index(out_web, rep):
+def _update_index(out_web, rep, zone=None):
+    """buildings_index.json の detail 印を更新(zone を渡したらその区域の行だけ。他区域の印は残す)。"""
     p = os.path.join(out_web, 'buildings_index.json')
     if not os.path.exists(p):
         return
     try:
         idx = json.load(open(p, encoding='utf-8'))
         for b in idx:
+            if zone is not None and b.get('zone') != zone:
+                continue
             b['detail'] = b['id'] in rep
         json.dump(idx, open(p, 'w', encoding='utf-8'), ensure_ascii=False)
     except Exception:

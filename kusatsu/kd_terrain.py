@@ -350,6 +350,11 @@ def main():
             out_web = a.split('=', 1)[1]
     do_export = '--no-export' not in ARGS
     do_bld = '--no-buildings' not in ARGS
+    # --zones=A: 建物の glb はその区域だけ書き出す(他区域の glb は触らない。index は全区域で書く)
+    zones_out = 'ABCD'
+    for a in ARGS:
+        if a.startswith('--zones='):
+            zones_out = a.split('=', 1)[1].upper()
     C.reset_scene()
     osm = C.load_osm()
     field = F.Field(osm, log=log)
@@ -409,6 +414,11 @@ def main():
             if not ol:
                 continue
             nm = 'buildings_%s.glb' % z
+            if z not in zones_out:          # 書き出さない区域は既存のファイルの大きさを記録
+                p_ = os.path.join(out_web, nm)
+                sizes[nm] = os.path.getsize(p_) if os.path.exists(p_) else 0
+                tris[nm] = C.count_tris(ol)
+                continue
             sizes[nm] = C.export_glb(ol, os.path.join(out_web, nm), pos_bits=16 if len(ol) > 1 else 14)
             tris[nm] = C.count_tris(ol)
         meta['glb_bytes'] = sizes
