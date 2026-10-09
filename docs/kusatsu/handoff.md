@@ -1,7 +1,6 @@
-# 草津計画 申し送り(フェーズ1 → 2)
+# 草津計画 申し送り(フェーズ2 → 3)
 
-- 済: フェーズ0(資料)、フェーズ1(建物の確定。`cards/`、`inventory.md` 第8節)。
-- 次: フェーズ2 地形・台座・ビューア。座標は原点=湯畑重心、+X=東、+Y=北、Z=標高(1:1、湯畑≈1153 m を Z=0 にずらして使うかはフェーズ2で決めて書く)。
-- データ: `plateau_data/kusatsu_osm.json`、`plateau_data/kusatsu_dem.json`(4 m 格子±300 m)。
-- 落とし穴: Blender は `Blender 5.2`(PATH に無い。他の TDL スクリプトの呼び出し方を参照)。同時ヘッドレス起動禁止。bash の heredoc で日本語+括弧が崩れることがある→ファイルは Write で作る。
-- ユーザー指示: フェーズ8まで続けて実装。ユーザーは「3D で外観を見たい」。
+- 済: フェーズ0〜2。詳細は `docs/kusatsu/phase2_notes.md`(座標 Z=標高−1153、実行コマンド、落とし穴)を必ず読む。
+- 次: フェーズ3 湯畑(Opus)。池: 南西端 (-11.95,-21.81)、北東端 (10.81,26.71)、縁(周回路)Z 0.87、水面 Z 0.42、底 Z -0.23。現在の池は仮の瓢箪形、周回路の舗装と池の縁は未作成。
+- 流れ: `blender.exe -b --python kusatsu/kd_terrain.py`(約6秒)→ `kusatsu-diorama/models/` → `python -m http.server <port>` で `/kusatsu-diorama/`。Blender は1つずつ(tasklist で確認)。
+- ユーザー指示: フェーズ8まで続けて実装。

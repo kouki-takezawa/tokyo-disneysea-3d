@@ -69,3 +69,6 @@
   - 区域A〜Dごとに Sonnet のサブエージェントを並列で動かし、カード40枚+区域まとめ4枚(`docs/kusatsu/cards/`)。確定は約37件、残り約150棟は OSM のみ。発見と重複の扱いは `inventory.md` の第8節。
   - 確認用モック `output/kusatsu/phase1_mock.html`(`tools/kusatsu_phase1_mock.py`)。
   - ユーザー指示(2026-10-10): **フェーズ8まで実装しておく**(続けて進める)。
+- フェーズ2 地形・台座・ビューア: 済(2026-10-10)
+  - `kusatsu/kd_*.py`(Blender)→ `kusatsu-diorama/`(Three.js、three r170+Draco をローカル、`?q=light|standard`)。DEM 1:1(r200 内 1141.9〜1183.6 m)、台座、道、石段113段、建物の仮置き247棟(区域別 glb)。glb 計 614 KB、111k 三角形。詳細は `phase2_notes.md`。
+  - 課題: 敷地の均し跡、擁壁が刺さって見える所、池は仮の瓢箪形、屋根は切妻と陸屋根だけ。

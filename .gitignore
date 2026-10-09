@@ -8,6 +8,9 @@
 !/vercel.json
 !/docs/
 !/fetch_kusatsu.py
+# Kusatsu diorama: Blender scripts + Three.js viewer (models/*.glb are small, tracked)
+!/kusatsu/
+!/kusatsu-diorama/
 
 !/src/
 
