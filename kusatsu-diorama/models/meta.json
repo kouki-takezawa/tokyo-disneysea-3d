@@ -5,8 +5,8 @@
  ],
  "zbase": 1153.0,
  "radius": 200.0,
- "plinth_bottom_z": -34.13,
- "base_bottom_z": -26.13,
+ "plinth_bottom_z": -34.14,
+ "base_bottom_z": -26.14,
  "dem_min_max_r200": [
   1141.88,
   1183.64
@@ -16,7 +16,7 @@
   1198.39
  ],
  "field_min_max_r200": [
-  1141.88,
+  1141.86,
   1183.39
  ],
  "yubatake": {
@@ -443,7 +443,7 @@
     87.69916282959842,
     53.29133400070404
    ],
-   "z0": 1145.3911377485429,
+   "z0": 1145.3893189623625,
    "p1": [
     79.77443204070427,
     44.20494600055321
@@ -584,18 +584,18 @@
  ],
  "terrain_tris": 62026,
  "glb_bytes": {
-  "terrain.glb": 465004,
+  "terrain.glb": 462192,
   "buildings_A.glb": 1925468,
-  "buildings_B.glb": 186456,
+  "buildings_B.glb": 1114180,
   "buildings_C.glb": 277876,
   "buildings_D.glb": 112520
  },
  "glb_tris": {
   "terrain.glb": 96949,
   "buildings_A.glb": 231667,
-  "buildings_B.glb": 23461,
+  "buildings_B.glb": 135139,
   "buildings_C.glb": 34834,
   "buildings_D.glb": 13622
  },
- "total_tris": 400533
+ "total_tris": 512211
 }
