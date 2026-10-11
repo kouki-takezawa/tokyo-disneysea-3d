@@ -92,6 +92,7 @@ document.querySelectorAll('#bar [data-view]').forEach((b) => b.addEventListener(
 $('#bld').addEventListener('click', (e) => {
   const on = !e.currentTarget.classList.toggle('off');
   for (const f of FILES) if (f.startsWith('buildings') && loaded[f]) loaded[f].visible = on;
+  signGroup.visible = on;
   e.currentTarget.textContent = on ? '建物:表示' : '建物:非表示';
 });
 $('#spin').addEventListener('click', (e) => { controls.autoRotate = !controls.autoRotate; e.currentTarget.classList.toggle('on', controls.autoRotate); });
@@ -101,7 +102,7 @@ renderer.domElement.addEventListener('wheel', () => { tween = null; }, { passive
 // ---- 読み込み
 const draco = new DRACOLoader().setDecoderPath('./lib/draco/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const FILES = ['terrain.glb', 'yubatake.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb'];
+const FILES = ['terrain.glb', 'yubatake.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb', 'props.glb'];
 const world = new THREE.Group();
 scene.add(world);
 const loaded = {};
@@ -112,7 +113,7 @@ function prep(root, name) {
     const m = o.material;
     o.castShadow = Q.shadow > 0 && !/Roads|Water|Yb_Pave|Yb_Bed/.test(o.name);
     o.receiveShadow = Q.shadow > 0;
-    if (/^Roads|^Stairs/.test(o.name)) { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; }
+    if (/^Roads|^Stairs|^Props_wall/.test(o.name)) { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; }
     if (/^Yb_Pave/.test(o.name)) { m.polygonOffset = true; m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -3; }   // 湯畑の周回路(地形に重ねる)
     if (/^Yb_Flow|^Yb_Splash/.test(o.name)) { m.roughness = 0.35; o.castShadow = false; }
     if (/^Water/.test(o.name)) { m.roughness = 0.12; m.metalness = 0.0; m.envMapIntensity = 1; o.castShadow = false; }
@@ -121,9 +122,86 @@ function prep(root, name) {
 }
 const progress = () => { $('#msg').textContent = `読み込み中… ${done}/${FILES.length}`; };
 progress();
-await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '8')).then((g) => {
+await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '9')).then((g) => {
   prep(g.scene, f); world.add(g.scene); loaded[f] = g.scene; done++; progress();
 }).catch((e) => { console.error('load fail', f, e); done++; progress(); })));
+
+
+// ---- 看板・幟・標識の文字(signs.json): canvas に描いた文字を板の面に貼る(フェーズ9)
+const signGroup = new THREE.Group();
+signGroup.name = 'Signs';
+world.add(signGroup);
+const SIGN_FONT = '"Yu Mincho","Hiragino Mincho ProN","Noto Serif JP","MS PMincho",serif';
+function signCanvas(s, back) {
+  const ppm = Math.min(320, 1024 / Math.max(s.w, s.h));
+  const cw = Math.max(16, Math.ceil(s.w * ppm)), ch = Math.max(16, Math.ceil(s.h * ppm));
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+  const g = cv.getContext('2d');
+  const solid = s.kind === 'road' || s.kind === 'nobori';
+  if (back) { g.fillStyle = s.back || '#8d9397'; g.fillRect(0, 0, cw, ch); return cv; }
+  if (solid) {
+    g.fillStyle = s.bg;
+    if (s.shape === 'circle') { g.beginPath(); g.arc(cw / 2, ch / 2, Math.min(cw, ch) / 2, 0, 7); g.fill(); g.strokeStyle = '#f4f6f8'; g.lineWidth = cw * 0.07; g.beginPath(); g.arc(cw / 2, ch / 2, Math.min(cw, ch) * 0.42, 0, 7); g.stroke(); }
+    else if (s.shape === 'tri') {
+      g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(0, 0); g.lineTo(cw, 0); g.lineTo(cw / 2, ch); g.closePath(); g.fill();
+      g.fillStyle = s.bg; g.beginPath(); g.moveTo(cw * 0.14, ch * 0.07); g.lineTo(cw * 0.86, ch * 0.07); g.lineTo(cw / 2, ch * 0.78); g.closePath(); g.fill();
+    } else g.fillRect(0, 0, cw, ch);
+    if (s.border) { g.strokeStyle = s.fg; g.lineWidth = Math.max(2, cw * 0.012); g.strokeRect(cw * 0.03, ch * 0.05, cw * 0.94, ch * 0.9); }
+  }
+  g.fillStyle = s.fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (s.arrow) {
+    g.beginPath(); const m = Math.min(cw, ch);
+    g.moveTo(cw / 2 - m * 0.3, ch / 2 - m * 0.07); g.lineTo(cw / 2 + m * 0.05, ch / 2 - m * 0.07); g.lineTo(cw / 2 + m * 0.05, ch / 2 - m * 0.2);
+    g.lineTo(cw / 2 + m * 0.3, ch / 2); g.lineTo(cw / 2 + m * 0.05, ch / 2 + m * 0.2); g.lineTo(cw / 2 + m * 0.05, ch / 2 + m * 0.07); g.lineTo(cw / 2 - m * 0.3, ch / 2 + m * 0.07);
+    g.closePath(); g.fill(); return cv;
+  }
+  const vertical = s.vertical || s.w < s.h * 0.7;
+  if (s.shape === 'tri') {
+    g.font = `bold ${Math.round(ch * 0.2)}px ${SIGN_FONT}`; g.fillText(s.text, cw / 2, ch * 0.3, cw * 0.6); return cv;
+  }
+  if (vertical) {
+    const parts = s.text.split(' ');
+    const big = parts[parts.length - 1], small = parts.length > 1 ? parts.slice(0, -1).join('') : '';
+    const n = [...big].length + (small ? [...small].length * 0.6 + 0.4 : 0);
+    const fs = Math.min(cw * 0.78, ch * 0.92 / n);
+    let y = (ch - n * fs) / 2;
+    if (small) { g.font = `bold ${Math.round(fs * 0.6)}px ${SIGN_FONT}`; for (const c of small) { g.fillText(c, cw / 2, y + fs * 0.3); y += fs * 0.6; } y += fs * 0.4; }
+    g.font = `bold ${Math.round(fs)}px ${SIGN_FONT}`;
+    for (const c of big) { g.fillText(c, cw / 2, y + fs / 2); y += fs; }
+  } else {
+    const lines = s.text.split('\n');
+    let fs = Math.min(ch * 0.74 / lines.length, 200);
+    g.font = `bold 100px ${SIGN_FONT}`;
+    const wmax = Math.max(...lines.map((l) => g.measureText(l).width)) / 100;
+    fs = Math.min(fs, cw * 0.92 / wmax);
+    g.font = `bold ${Math.round(fs)}px ${SIGN_FONT}`;
+    lines.forEach((l, i) => g.fillText(l, cw / 2, ch / 2 + (i - (lines.length - 1) / 2) * fs * 1.12));
+  }
+  return cv;
+}
+function signPlane(s, flip, back) {
+  const tex = new THREE.CanvasTexture(signCanvas(s, back));
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0, transparent: true, alphaTest: 0.03, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s.w, s.h), m);
+  // Blender (x, y, z) -> three (x, z, -y)
+  const R = new THREE.Vector3(s.right[0], s.right[2], -s.right[1]), N = new THREE.Vector3(s.normal[0], s.normal[2], -s.normal[1]);
+  const C0 = new THREE.Vector3(s.center[0], s.center[2], -s.center[1]);
+  const off = (s.th || 0) + 0.004;
+  if (flip) { R.negate(); N.negate(); }
+  mesh.matrixAutoUpdate = false;
+  mesh.matrix.makeBasis(R, new THREE.Vector3(0, 1, 0), N).setPosition(C0.clone().addScaledVector(N, off));
+  mesh.receiveShadow = false;
+  return mesh;
+}
+try {
+  const signs = await (await fetch('./models/signs.json?v=' + (qs.get('v') || '9'))).json();
+  for (const s of signs) {
+    signGroup.add(signPlane(s, false, false));
+    if (s.two) signGroup.add(signPlane(s, true, !!s.back));
+  }
+} catch (e) { console.error('signs.json', e); }
 
 // 地面の高さ(カメラが地面に潜らないように)
 const GN = 202, GC = 2;   // 2 m 格子の高さ表(頂点の最大値)

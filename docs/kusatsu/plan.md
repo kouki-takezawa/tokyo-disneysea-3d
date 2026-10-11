@@ -89,3 +89,5 @@
   - `kusatsu/kd_zone_C.py`: OSM 69 外形 → 73 spec(手作り: 山本館+別棟、益成屋 3 棟、奈良屋、群龍館、松むら饅頭・山形屋・富貴堂、湯畑泉水、関乃湯、するがや、極楽館、ドラゴン、黄色い漆喰の棟、一井 別館。他は推定)。196,581 三角形・buildings_C.glb 1.54 MB、全体 約 674k。`FLAT_IDS` に 4 棟。buildings_A/B/D.glb・yubatake.glb は md5 不変。詳細は `phase7_notes.md`。
 - フェーズ8 区域D(光泉寺・石段・駐車場): 済(4d65630、2026-10-12)
   - `kusatsu/kd_zone_D.py`: 38 spec(本堂・山門・釈迦堂・五重塔・不動堂・鐘楼・手水舎・湯喜堂・お守り頒布所・庫裏・ぬ志勇旅館・駐車場、石灯籠 12・像・碑、推定 10)。63,344 三角形・buildings_D.glb 0.51 MB、全体 約 0.74M。`FLAT_IDS` に 2 棟。A/B/C の glb・yubatake.glb は md5 不変。詳細は `phase8_notes.md`。
+- フェーズ9 看板・小物・電線: 済(2026-10-12)
+  - `kusatsu/kd_props.py` → `props.glb`(11,210 三角形・78 KB: 街灯 21、電柱 13+電線 45、自販機・ポスト・標識・車止め・白線・横断歩道・幟 14)と `signs.json`(57 面、読めた文字だけ)。ビューアが canvas で文字を貼る。建物 glb は md5 不変。詳細は `phase9_notes.md`。

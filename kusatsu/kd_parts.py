@@ -2273,7 +2273,7 @@ class Builder:
         zc = self.zs[k] + (A.z if A.z is not None else self.fh[k] * 0.8)
         bc = lin(A.color or '#2c2420')
         fc = lin(A.color2 or '#3a2e26')
-        rec = dict(spec=self.spec.id, kind=st, text=A.text, w=w, h=h)
+        rec = dict(spec=self.spec.id, kind=st, text=A.text, w=w, h=h, bg=A.color if isinstance(A.color, str) else '#2c2420')
         if st in ('yoko', 'flat', 'hang'):
             d0 = (A.d or 0.0)
             if st == 'hang':
@@ -2363,7 +2363,7 @@ class Builder:
             pb.poly('fabric', pts, hj(fc, 0.04, j), W.nrm(-1))
             beam(pb, 'metal', W.P(sj, zg + H - 0.1, d), W.P(sj + 0.03 + fw, zg + H - 0.1, d), 0.02, 0.02, pc)
             ctr = W.P(sj + 0.03 + fw / 2, (q0[2] + q1[2]) / 2, d)
-            self.signs.append(dict(spec=self.spec.id, kind='nobori', text=A.text, w=fw, h=fh_, center=[round(x, 3) for x in ctr],
+            self.signs.append(dict(spec=self.spec.id, kind='nobori', text=A.text, w=fw, h=fh_, bg=A.color if isinstance(A.color, str) else '#c0392b', center=[round(x, 3) for x in ctr],
                                    normal=[round(float(W.n[0]), 4), round(float(W.n[1]), 4), 0.0], right=[round(float(W.t[0]), 4), round(float(W.t[1]), 4), 0.0],
                                    up=[0, 0, 1], two_sided=True))
 
