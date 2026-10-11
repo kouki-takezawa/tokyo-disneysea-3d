@@ -584,18 +584,18 @@
  ],
  "terrain_tris": 62026,
  "glb_bytes": {
-  "terrain.glb": 462192,
+  "terrain.glb": 457564,
   "buildings_A.glb": 1925468,
   "buildings_B.glb": 1114180,
-  "buildings_C.glb": 277876,
+  "buildings_C.glb": 1542108,
   "buildings_D.glb": 112520
  },
  "glb_tris": {
   "terrain.glb": 96949,
   "buildings_A.glb": 231667,
   "buildings_B.glb": 135139,
-  "buildings_C.glb": 34834,
+  "buildings_C.glb": 196581,
   "buildings_D.glb": 13622
  },
- "total_tris": 512211
+ "total_tris": 673958
 }
