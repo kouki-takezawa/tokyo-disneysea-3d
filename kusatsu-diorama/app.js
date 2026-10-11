@@ -102,7 +102,7 @@ renderer.domElement.addEventListener('wheel', () => { tween = null; }, { passive
 // ---- 読み込み
 const draco = new DRACOLoader().setDecoderPath('./lib/draco/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const FILES = ['terrain.glb', 'yubatake.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb', 'props.glb'];
+const FILES = ['terrain.glb', 'yubatake.glb', 'buildings_A.glb', 'buildings_B.glb', 'buildings_C.glb', 'buildings_D.glb', 'props.glb', 'plants.glb'];
 const world = new THREE.Group();
 scene.add(world);
 const loaded = {};
@@ -122,7 +122,7 @@ function prep(root, name) {
 }
 const progress = () => { $('#msg').textContent = `読み込み中… ${done}/${FILES.length}`; };
 progress();
-await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '9')).then((g) => {
+await Promise.all(FILES.map((f) => loader.loadAsync('./models/' + f + '?v=' + (qs.get('v') || '10')).then((g) => {
   prep(g.scene, f); world.add(g.scene); loaded[f] = g.scene; done++; progress();
 }).catch((e) => { console.error('load fail', f, e); done++; progress(); })));
 
@@ -196,7 +196,7 @@ function signPlane(s, flip, back) {
   return mesh;
 }
 try {
-  const signs = await (await fetch('./models/signs.json?v=' + (qs.get('v') || '9'))).json();
+  const signs = await (await fetch('./models/signs.json?v=' + (qs.get('v') || '10'))).json();
   for (const s of signs) {
     signGroup.add(signPlane(s, false, false));
     if (s.two) signGroup.add(signPlane(s, true, !!s.back));
